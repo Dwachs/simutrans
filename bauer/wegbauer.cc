@@ -618,7 +618,7 @@ DBG_MESSAGE("wegbauer_t::is_allowed_step()","wrong ground already there!");
 					return false;
 				}
 				// calculate costs
-				*costs = str ? 0 : welt->get_einstellungen()->way_count_straight;
+				*costs = str ? (bautyp&depot_flag!=0) : welt->get_einstellungen()->way_count_straight;
 				if((str==NULL  &&  to->hat_wege())  ||  (str  &&  to->has_two_ways())) {
 					*costs += 4;	// avoid crossings
 				}
@@ -967,6 +967,7 @@ get_next_koord(koord gr_pos, koord ziel)
 /* this routine uses A* to calculate the best route
  * beware: change the cost and you will mess up the system!
  * (but you can try, look at simuconf.tab)
+ * depot-search uses A* with useless lower bound=0
  */
 long
 wegbauer_t::intern_calc_route(const koord3d start3d, const koord3d ziel3d)
@@ -978,8 +979,9 @@ wegbauer_t::intern_calc_route(const koord3d start3d, const koord3d ziel3d)
 	route.clear();
 
 	// check for existing koordinates
+	// for depot search no ziel is needed
 	const grund_t* gr = welt->lookup(start3d);
-	if (gr == NULL || welt->lookup(ziel3d) == NULL) {
+	if (gr == NULL || (welt->lookup(ziel3d) == NULL && ((bautyp&depot_flag)==0) ) ) {
 		return -1;
 	}
 
@@ -1028,8 +1030,13 @@ wegbauer_t::intern_calc_route(const koord3d start3d, const koord3d ziel3d)
 
 	tmp->parent = NULL;
 	tmp->gr = gr;
-	tmp->f = route_t::calc_distance(start3d,ziel3d);
 	tmp->g = 0;
+	if ((bautyp&depot_flag)==0) {
+		tmp->f = route_t::calc_distance(start3d,ziel3d);
+	} 
+	else {
+		tmp->f = tmp->g + 1; // f=g means: ready
+	}
 	tmp->dir = 0;
 	tmp->count = 0;
 
@@ -1041,6 +1048,8 @@ wegbauer_t::intern_calc_route(const koord3d start3d, const koord3d ziel3d)
 
 	// to speed up search, but may not find all shortest ways
 	uint32 min_dist = 99999999;
+
+	bool ready=false;
 
 //DBG_MESSAGE("route_t::itern_calc_route()","calc route from %d,%d,%d to %d,%d,%d",ziel.x, ziel.y, ziel.z, start.x, start.y, start.z);
 	do {
@@ -1061,9 +1070,12 @@ wegbauer_t::intern_calc_route(const koord3d start3d, const koord3d ziel3d)
 DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,gr->get_pos().z,tmp->f);
 #endif
 
-		// already there
-		if(gr_pos==ziel3d  ||  tmp->g>maximum) {
+		// already there (or found depot)
+		if( ((bautyp&depot_flag)==0 && gr_pos==ziel3d) ||  
+			((bautyp&depot_flag)!=0 && tmp->f==tmp->g) ||
+			tmp->g>maximum) {
 			// we added a target to the closed list: we are finished
+			ready = true;
 			break;
 		}
 
@@ -1164,24 +1176,34 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 				 current_dir = ribi_typ( gr->get_pos().get_2d(), to->get_pos().get_2d() );
 			}
 
-			const uint32 new_dist = abs_distance( to->get_pos().get_2d(), ziel3d.get_2d() )*welt->get_einstellungen()->way_count_straight + abs(to->get_hoehe()-ziel3d.z)*welt->get_einstellungen()->way_count_slope;
+			uint32 new_dist;
+			if ((bautyp&depot_flag)==0) {
+				new_dist = abs_distance( to->get_pos().get_2d(), ziel3d.get_2d() )*welt->get_einstellungen()->way_count_straight + abs(to->get_hoehe()-ziel3d.z)*welt->get_einstellungen()->way_count_slope;
 
-			// special check for kinks at the end
-			if(new_dist==0  &&  current_dir!=tmp->dir) {
-				// discourage turn on last tile
-				new_g += welt->get_einstellungen()->way_count_double_curve;
-			}
+				// special check for kinks at the end
+				if(new_dist==0  &&  current_dir!=tmp->dir) {
+					// discourage turn on last tile
+					new_g += welt->get_einstellungen()->way_count_double_curve;
+				}
 
-			if(new_dist<min_dist) {
-				min_dist = new_dist;
+				if(new_dist<min_dist) {
+					min_dist = new_dist;
+				}
+				else if(new_dist>min_dist+50) {
+					// skip, if too far from current minimum tile
+					// will not find some ways, but will be much faster ...
+					// also it will avoid too big detours, which is probably also not the way, the builder intended
+					continue;
+				}
 			}
-			else if(new_dist>min_dist+50) {
-				// skip, if too far from current minimum tile
-				// will not find some ways, but will be much faster ...
-				// also it will avoid too big detours, which is probably also not the way, the builder intended
-				continue;
+			else {
+				if (check_for_depot(gr, to)) {
+					new_dist = 0;
+				}
+				else {
+					new_dist = 1;
+				}
 			}
-
 
 			const uint32 new_f = new_g+new_dist;
 
@@ -1209,7 +1231,7 @@ DBG_DEBUG("insert to open","(%i,%i,%i)  f=%i",to->get_pos().x,to->get_pos().y,to
 #endif
 		}
 
-	} while (!queue.empty() && step < route_t::MAX_STEP && gr->get_pos() != ziel3d);
+	} while (!queue.empty() && step < route_t::MAX_STEP && !ready);
 
 #ifdef DEBUG_ROUTES
 DBG_DEBUG("wegbauer_t::intern_calc_route()","steps=%i  (max %i) in route, open %i, cost %u",step,route_t::MAX_STEP,queue.get_count(),tmp->g);
@@ -1218,9 +1240,9 @@ DBG_DEBUG("wegbauer_t::intern_calc_route()","steps=%i  (max %i) in route, open %
 
 	route_t::RELEASE_NODE();
 
-//DBG_DEBUG("reached","%i,%i",tmp->pos.x,tmp->pos.y);
+//	DBG_DEBUG("reached","%s cost %d",tmp->gr->get_pos().get_str(),tmp->g);
 	// target reached?
-	if(gr->get_pos()!=ziel3d  || step >=route_t::MAX_STEP  ||  tmp->parent==NULL) {
+	if(!ready  || step >=route_t::MAX_STEP  ||  tmp->parent==NULL) {
 		dbg->warning("wegbauer_t::intern_calc_route()","Too many steps (%i>=max %i) in route (too long/complex)",step,route_t::MAX_STEP);
 		return -1;
 	}
@@ -1229,7 +1251,7 @@ DBG_DEBUG("wegbauer_t::intern_calc_route()","steps=%i  (max %i) in route, open %
 		// reached => construct route
 		while(tmp != NULL) {
 			route.append(tmp->gr->get_pos());
-//DBG_DEBUG("add","%i,%i",tmp->pos.x,tmp->pos.y);
+//	DBG_DEBUG("add","(%s)",tmp->gr->get_pos().get_str());
 			tmp = tmp->parent;
 		}
 
@@ -1241,7 +1263,44 @@ DBG_DEBUG("wegbauer_t::intern_calc_route()","steps=%i  (max %i) in route, open %
 	return -1;
 }
 
+bool wegbauer_t::check_for_depot(const grund_t *from, const grund_t *to) const
+{
+	// dist>1 => tunnel or bridge end
+	if (koord_distance(from->get_pos(), to->get_pos())>1) {
+		return false;
+	}
+	// no slopes
+	if (to->get_grund_hang()!=hang_t::flach) {
+		return false;
+	}
+	// check for own depot building
+	depot_t *dp = to->get_depot();
+	if(dp) {
+		return (dp->get_besitzer()==sp);
+	}
+	// check for powerline
+	leitung_t* lt = to->find<leitung_t>();
+	if (lt && !check_owner(sp, lt->get_besitzer())) {
+		return false;
+	}
 
+	weg_t *w;
+	switch (bautyp&bautyp_mask) {
+		case strasse: w = to->get_weg(road_wt);
+		case schiene: w = to->get_weg(track_wt);
+		case monorail: w = to->get_weg(besch->get_wtyp());
+		default: w = NULL;
+	}
+	// free end - no crossing
+	if (w && check_owner(sp, w->get_besitzer())) {
+		ribi_t::ribi r = ribi_typ( from->get_pos().get_2d(), to->get_pos().get_2d());
+		return ((r & w->get_ribi_unmasked()) == r);
+	}
+	else {
+		// free tile
+		return(!to->hat_wege()); // hopefully it will work
+	}
+}
 
 void
 wegbauer_t::intern_calc_straight_route(const koord3d start, const koord3d ziel)
@@ -1481,23 +1540,32 @@ long ms=dr_time();
 		long cost2 = intern_calc_route(start, ziel);
 		INT_CHECK("wegbauer 1165");
 
-		if(cost2<0) {
-			// not sucessful: try backwards
-			intern_calc_route(ziel,start);
-			return;
-		}
+		if (bautyp&depot_flag==0) {
+			if(cost2<0) {
+				// not sucessful: try backwards
+				intern_calc_route(ziel,start);
+				return;
+			}
 
 #ifdef REVERSE_CALC_ROUTE_TOO
-		vector_tpl<koord3d> route2(0);
-		swap(route, route2);
-		long cost = intern_calc_route(ziel, start);
-		INT_CHECK("wegbauer 1165");
-
-		// the cheaper will survive ...
-		if(  cost2 < cost  ||  cost < 0  ) {
+			vector_tpl<koord3d> route2(0);
 			swap(route, route2);
-		}
+			long cost = intern_calc_route(ziel, start);
+			INT_CHECK("wegbauer 1165");
+
+			// the cheaper will survive ...
+			if(  cost2 < cost  ||  cost < 0  ) {
+				swap(route, route2);
+				long cost = intern_calc_route(ziel, start);
+				INT_CHECK("wegbauer 1165");
+
+				// the cheaper will survive ...
+				if(  cost2 < cost  ||  cost < 0  ) {
+					swap(route, route2);
+				}
+			}
 #endif
+		}
 		max_n = route.get_count() - 1;
 
 	}
@@ -1569,6 +1637,7 @@ wegbauer_t::baue_tunnel_und_bruecken()
 			if(start->get_grund_hang()==0  ||  start->get_grund_hang()==hang_typ(zv*(-1))) {
 				// bridge here, since the route is saved backwards, we have to build it at the posterior end
 				brueckenbauer_t::baue( welt, sp, route[i+1].get_2d(), bruecke_besch);
+				brueckenbauer_t::baue( welt, sp, route[i+1].get_2d(), bruecke_besch);
 			}
 			else {
 				// tunnel
@@ -1616,11 +1685,12 @@ wegbauer_t::baue_tunnel_und_bruecken()
 
 
 
-/* returns the amount needed to built this way
+/* returns the amount needed to built this way 
+ * or the monthly maintenance for the items to be built
  * author prissi
  */
 long
-wegbauer_t::calc_costs()
+wegbauer_t::calc_costs(bool compute_maintenance)
 {
 	long costs=0;
 
@@ -1638,19 +1708,21 @@ wegbauer_t::calc_costs()
 					//nothing to be done
 			}
 			else if(besch->get_wtyp()!=powerline_wt  ||  gr->get_leitung()==NULL) {
-				costs += besch->get_preis();
+				costs += compute_maintenance ? besch->get_wartung() :  besch->get_preis();
 				// eventually we have to remove trees
-				for(  uint8 i=0;  i<gr->get_top();  i++  ) {
-					ding_t *dt = gr->obj_bei(i);
-					switch(dt->get_typ()) {
-						case ding_t::baum:
-							costs -= welt->get_einstellungen()->cst_remove_tree;
-							break;
-						case ding_t::groundobj:
-							costs += ((groundobj_t *)dt)->get_besch()->get_preis();
-							break;
+				if (!compute_maintenance) {
+					for(  uint8 i=0;  i<gr->get_top();  i++  ) {
+						ding_t *dt = gr->obj_bei(i);
+						switch(dt->get_typ()) {
+							case ding_t::baum:
+								costs -= welt->get_einstellungen()->cst_remove_tree;
+								break;
+							case ding_t::groundobj:
+								costs += ((groundobj_t *)dt)->get_besch()->get_preis();
+								break;
 
-						default: break;
+							default: break;
+						}
 					}
 				}
 			}
@@ -1679,12 +1751,12 @@ wegbauer_t::calc_costs()
 
 				if(start->get_grund_hang()==0  ||  start->get_grund_hang()==hang_typ(zv*(-1))) {
 					// bridge
-					costs += bruecke_besch->get_preis()*(koord_distance(route[i], route[i+1])+1);
+					costs += (compute_maintenance ? bruecke_besch->get_wartung() : bruecke_besch->get_preis() )*(koord_distance(route[i], route[i+1])+1);
 					continue;
 				}
 				else {
 					// tunnel
-					costs += tunnel_besch->get_preis()*(koord_distance(route[i], route[i+1])+1);
+					costs += (compute_maintenance ? tunnel_besch->get_wartung() : tunnel_besch->get_preis() )*(koord_distance(route[i], route[i+1])+1);
 					continue;
 				}
 			}
@@ -1692,7 +1764,13 @@ wegbauer_t::calc_costs()
 
 		// check next tile
 	}
-	DBG_MESSAGE("wegbauer_t::calc_costs()","construction estimate: %f",costs/100.0);
+	if (compute_maintenance) {
+		costs <<= (welt->ticks_bits_per_tag-18);
+		DBG_MESSAGE("wegbauer_t::calc_costs()","maintenance estimate: %d",costs);
+	}
+	else {
+		DBG_MESSAGE("wegbauer_t::calc_costs()","construction estimate: %f",costs/100.0);
+	}
 	return costs;
 }
 

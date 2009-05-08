@@ -425,6 +425,8 @@ public:
 
 	convoi_t(spieler_t* sp);
 
+	explicit convoi_t(); 
+
 	virtual ~convoi_t();
 
 	/**

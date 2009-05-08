@@ -24,7 +24,12 @@ template<class T> class vector_tpl
 			size(cap),
 			count(0) {}
 
-		~vector_tpl() { delete [] data; }
+		explicit vector_tpl(const uint32 cap, const T& elem) :
+			data(cap > 0 ? new T[cap] : NULL),
+			size(cap),
+			count(0) { while(count<cap) data[count++]=elem; }
+
+		~vector_tpl() { if (data) delete [] data; data=NULL; }
 
 		/** sets the vector to empty */
 		void clear() { count = 0; }

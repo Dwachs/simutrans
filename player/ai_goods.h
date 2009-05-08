@@ -11,12 +11,14 @@
 #include "ai.h"
 
 
-class ai_goods_t : public ai_t
+class ai_goods_t : public ai_t, public vehikel_evaluator
 {
 private:
 	enum zustand {
 		NR_INIT,
 		NR_SAMMLE_ROUTEN,
+		NR_FIND_RAIL_VEHICLE,
+		NR_FIND_ROAD_VEHICLE,
 		NR_BAUE_ROUTE1,
 		NR_BAUE_SIMPLE_SCHIENEN_ROUTE,
 		NR_BAUE_STRASSEN_ROUTE,
@@ -63,7 +65,11 @@ private:
 	// we will use this vehicle!
 	const vehikel_besch_t *rail_vehicle;
 	const vehikel_besch_t *rail_engine;
-	const vehikel_besch_t *road_vehicle;
+	const vehikel_prototype_t* rail_prototype;
+
+	//const vehikel_besch_t *road_vehicle;
+	const vehikel_prototype_t* road_prototype;
+
 	const vehikel_besch_t *ship_vehicle;
 
 	// and the convoi will run on this track:
@@ -146,4 +152,8 @@ public:
 	void neues_jahr();
 
 	virtual void rotate90( const sint16 y_size );
+
+
+	// evaluate a convoi suggested by vehicle bauer
+	virtual sint64 valuate(const vehikel_prototype_t &proto);
 };

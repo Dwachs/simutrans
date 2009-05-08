@@ -9,6 +9,7 @@
 #include "../simmesg.h"
 #include "../simtools.h"
 #include "../simworld.h"
+#include "../simwerkz.h"
 
 #include "../bauer/brueckenbauer.h"
 #include "../bauer/hausbauer.h"
@@ -39,15 +40,17 @@ ai_goods_t::ai_goods_t(karte_t *wl, uint8 nr) : ai_t(wl,nr)
 
 	rail_engine = NULL;
 	rail_vehicle = NULL;
+	rail_prototype= NULL;
 	rail_weg = NULL;
-	road_vehicle = NULL;
+	//road_vehicle = NULL;
 	ship_vehicle = NULL;
 	road_weg = NULL;
+	road_prototype= NULL;
 
 	next_contruction_steps = welt->get_steps()+simrand(400);
 
-	road_transport = nr<7;
-	rail_transport = nr>2;
+	road_transport = true; //nr<7;
+	rail_transport = false; //nr>2;
 	ship_transport = true;
 }
 
@@ -372,13 +375,61 @@ void ai_goods_t::create_road_transport_vehikel(fabrik_t *qfab, int anz_vehikel)
 				(qpos.x - platz2.x) * (qpos.x - platz2.x) + (qpos.y - platz2.y) * (qpos.y - platz2.y)) {
 			start_location = 1;
 		}
-
 		// calculate vehicle start position
 		koord3d startpos=(start_location==0)?pos1:pos2;
 		ribi_t::ribi w_ribi = welt->lookup(startpos)->get_weg_ribi_unmasked(road_wt);
 		// now start all vehicle one field before, so they load immediately
 		startpos = welt->lookup(koord(startpos.get_2d())+koord(w_ribi))->get_kartenboden()->get_pos();
 
+		// built depot
+		const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, road_wt, welt->get_timeline_year_month(), 0);
+		bool depok = dep;
+		if (dep) {
+			koord deppos(startpos.get_2d()), depsize(1,1);
+			if (suche_platz(deppos, depsize, startpos.get_2d(), koord(1,1) ) ){	
+				// flat the land
+				depok = welt->ebne_planquadrat(this, deppos, welt->lookup_kartenboden(deppos)->get_hoehe());
+				// build connecting road
+				if (depok) {
+					wegbauer_t bauigel(welt, this);
+					bauigel.route_fuer( wegbauer_t::strasse, road_weg, NULL, NULL);
+
+					// we won't destroy cities (and save the money)
+					bauigel.set_keep_existing_faster_ways(true);
+					bauigel.set_keep_city_roads(true);
+					bauigel.set_maximum(10000);
+
+					bauigel.calc_route(startpos, welt->lookup_kartenboden(deppos)->get_pos());
+					if(bauigel.max_n > 0) {
+						bauigel.baue();
+					} else {
+						depok = false;
+						DBG_MESSAGE( "ai_goods_t::create_road_depot","no route found to (%d,%d)", deppos.x, deppos.y);
+					}
+				} else 	DBG_MESSAGE( "ai_goods_t::create_road_depot","ebne failed at  (%d,%d)-> %d", deppos.x, deppos.y, welt->lookup_kartenboden(deppos)->get_pos());
+
+				// build depot
+				if (depok){
+					wkz_depot_t depbauer;
+					depbauer.default_param = dep->get_name();
+					const char* errmsg = depbauer.work(welt, this, welt->lookup_kartenboden(deppos)->get_pos());
+					if (errmsg) {					
+						DBG_MESSAGE( "ai_goods_t::create_road_depot","building depot failed: %s", errmsg);
+						depok = false;
+					} 
+					else {
+						// start convois in depot
+						startpos = welt->lookup_kartenboden(deppos)->get_pos();
+					}
+				}
+			} else {
+				depok = false;
+						DBG_MESSAGE( "ai_goods_t::create_road_depot","no place found");
+			}
+		}else {
+			depok = false;
+					DBG_MESSAGE( "ai_goods_t::create_road_depot","no depotbesch found");
+		}
 		// since 86.01 we use lines for road vehicles ...
 		schedule_t *fpl=new autofahrplan_t();
 		fpl->append(welt->lookup(pos1), start_location == 0 ? 100 : 0);
@@ -390,16 +441,11 @@ void ai_goods_t::create_road_transport_vehikel(fabrik_t *qfab, int anz_vehikel)
 
 		// now create all vehicles as convois
 		for(int i=0;  i<anz_vehikel;  i++) {
-			if(  convoihandle_t::is_exhausted()  ) {
-				// too many convois => cannot do anything about this ...
-				return;
-			}
-			vehikel_t* v = vehikelbauer_t::baue(startpos, this, NULL, road_vehicle);
-			convoi_t* cnv = new convoi_t(this);
-			// V.Meyer: give the new convoi name from first vehicle
-			cnv->set_name(v->get_besch()->get_name());
-			cnv->add_vehikel( v );
-
+			if(  convoihandle_t::is_exhausted()  ) {				
+				// too many convois => cannot do anything about this ...				
+				return;			
+			}			
+			convoi_t* cnv = vehikelbauer_t::baue(startpos, this, road_prototype);
 			welt->sync_add( cnv );
 			cnv->set_line(line);
 			cnv->start();
@@ -708,7 +754,7 @@ void ai_goods_t::step()
 			if(get_factory_tree_lowest_missing(root)) {
 				if(  start->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser  ||  vehikelbauer_t::vehikel_search( water_wt, welt->get_timeline_year_month(), 0, 10, freight, false, false )!=NULL  ) {
 					DBG_MESSAGE("ai_goods_t::do_ki", "Consider route from %s (%i,%i) to %s (%i,%i)", start->get_name(), start->get_pos().x, start->get_pos().y, ziel->get_name(), ziel->get_pos().x, ziel->get_pos().y );
-					state = NR_BAUE_ROUTE1;
+					state = NR_FIND_ROAD_VEHICLE;
 				}
 				else {
 					// add to impossible connections
@@ -722,6 +768,29 @@ void ai_goods_t::step()
 				state = CHECK_CONVOI;
 			}
 		break;
+
+		case NR_FIND_RAIL_VEHICLE:
+		{
+		// find the best rail convoi
+			slist_tpl<const ware_besch_t*> freights; freights.append(freight);
+			rail_prototype = vehikelbauer_t::vehikel_search(this, welt, track_wt, 1, 4, 0xffffffff, freights, true, false);
+
+
+			state = NR_BAUE_ROUTE1;
+			break;
+		}
+		case NR_FIND_ROAD_VEHICLE:
+		{
+		// find the best road convoi
+			slist_tpl<const ware_besch_t*> freights; freights.append(freight);
+
+			if (road_prototype) { delete road_prototype; road_prototype=NULL;}
+			road_prototype = vehikelbauer_t::vehikel_search(this, welt, road_wt, 1, 1, 0xffffffff, freights, true, false);
+			
+
+			state = NR_BAUE_ROUTE1;
+			break;
+		}
 
 		// now we need so select the cheapest mean to get maximum profit
 		case NR_BAUE_ROUTE1:
@@ -758,13 +827,7 @@ void ai_goods_t::step()
 			rail_weg = NULL;
 DBG_MESSAGE("do_ki()","rail vehicle %p",rail_vehicle);
 
-			// is road transport allowed?
-			if(road_transport) {
-				// any road car that transport this good (actually this returns the largest)
-				road_vehicle = vehikelbauer_t::vehikel_search( road_wt, month_now, 10, best_road_speed, freight, false, false );
-			}
 			road_weg = NULL;
-DBG_MESSAGE("do_ki()","road vehicle %p",road_vehicle);
 
 			ship_vehicle = NULL;
 			if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
@@ -828,8 +891,8 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No railway possible.");
 DBG_MESSAGE("do_ki()","check railway");
 			/* calculate number of cars for road; much easier */
 			count_road=255;	// no cars yet
-			if(  road_vehicle!=NULL  ) {
-				best_road_speed = road_vehicle->get_geschw();
+			if( road_transport && ! road_prototype->is_empty()  ) {
+				best_road_speed = road_prototype->max_speed;
 				// find cheapest road
 				road_weg = wegbauer_t::weg_search( road_wt, best_road_speed, welt->get_timeline_year_month(),weg_t::type_flat );
 				if(  road_weg!=NULL  ) {
@@ -837,8 +900,8 @@ DBG_MESSAGE("do_ki()","check railway");
 						best_road_speed = road_weg->get_topspeed();
 					}
 					// minimum vehicle is 1, maximum vehicle is 48, more just result in congestion
-					count_road = min( 254, (prod*dist) / (road_vehicle->get_zuladung()*best_road_speed*2)+2 );
-DBG_MESSAGE("ai_goods_t::do_ki()","guess to need %d road cars %s for route %s", count_road, road_vehicle->get_name(), road_weg->get_name() );
+					count_road = min( 254, (prod*dist) / (road_prototype->get_capacity(freight)*best_road_speed*2)+2 );
+DBG_MESSAGE("ai_goods_t::do_ki()","guess to need %d road cars %s for route %s", count_road, road_prototype->besch[0]->get_name(), road_weg->get_name() );
 				}
 				else {
 					// no roads there !?!
@@ -868,8 +931,8 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 				// for short distance: reduce number of cars
 				// calculated here, since the above number was based on production
 				count_road = CLIP( (dist*15)/best_road_speed, 2, count_road );
-				int freight_price = (freight->get_preis()*road_vehicle->get_zuladung()*count_road)/24*((8000+(best_road_speed-80)*freight->get_speed_bonus())/1000);
-				cost_road = road_weg->get_wartung() + 300/dist + (count_road*road_vehicle->get_betriebskosten()*best_road_speed)/(2*dist+5);
+				int freight_price = (freight->get_preis()*road_prototype->get_capacity(freight)*count_road)/24*((8000+(best_road_speed-80)*freight->get_speed_bonus())/1000);
+				cost_road = road_weg->get_wartung() + 300/dist + (count_road*road_prototype->get_maintenance()*best_road_speed)/(2*dist+5);
 				income_road = (freight_price*best_road_speed)/(2*dist+5);
 				DBG_MESSAGE("ai_goods_t::do_ki()","Netto credits per day and km for road transport %.2f (income %.2f)",cost_road/100.0, income_road/100.0 );
 				cost_road -= income_road;
@@ -1038,6 +1101,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 			clean_marker(platz1,size1);
 			clean_marker(platz2,size2);
 			state = CHECK_CONVOI;
+
 			break;
 		}
 
@@ -1063,7 +1127,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 			const koord3d& spos = start->get_pos();
 			const koord3d& zpos = ziel->get_pos();
 			sprintf(buf, translator::translate("%s\nnow operates\n%i trucks between\n%s at (%i,%i)\nand %s at (%i,%i)."), get_name(), count_road, translator::translate(start->get_name()), spos.x, spos.y, translator::translate(ziel->get_name()), zpos.x, zpos.y);
-			welt->get_message()->add_message(buf, spos.get_2d(), message_t::ai, PLAYER_FLAG|player_nr, road_vehicle->get_basis_bild());
+			welt->get_message()->add_message(buf, spos.get_2d(), message_t::ai, PLAYER_FLAG|player_nr, road_prototype->besch[0]->get_basis_bild());
 			state = CHECK_CONVOI;
 		}
 		break;
@@ -1084,7 +1148,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 					continue;
 				}
 
-				long gewinn = 0;
+				sint64 gewinn = 0;
 				for( int j=0;  j<12;  j++  ) {
 					gewinn += cnv->get_finance_history( j, CONVOI_PROFIT );
 				}
@@ -1206,8 +1270,9 @@ void ai_goods_t::rdwr(loadsave_t *file)
 		if(  file->is_loading()  ) {
 			state = NR_INIT;
 
-			road_vehicle = NULL;
+			//road_vehicle = NULL;
 			road_weg = NULL;
+			road_prototype=NULL;
 
 			next_contruction_steps = welt->get_steps()+simrand(400);
 
@@ -1251,7 +1316,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 		file->rdwr_str( s );
 		s = rail_vehicle ? rail_vehicle->get_name() : NULL;
 		file->rdwr_str( s );
-		s = road_vehicle ? road_vehicle->get_name() : NULL;
+		s = NULL; //road_vehicle ? road_vehicle->get_name() : NULL;
 		file->rdwr_str( s );
 		s = ship_vehicle ? ship_vehicle->get_name() : NULL;
 		file->rdwr_str( s );
@@ -1282,7 +1347,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 		file->rdwr_str( temp );
 		rail_vehicle = temp ? vehikelbauer_t::get_info(temp) : NULL;
 		file->rdwr_str( temp );
-		road_vehicle = temp ? vehikelbauer_t::get_info(temp) : NULL;
+		//road_vehicle = temp ? vehikelbauer_t::get_info(temp) : NULL;
 		file->rdwr_str( temp );
 		ship_vehicle = temp ? vehikelbauer_t::get_info(temp) : NULL;
 		// ways
@@ -1376,4 +1441,25 @@ DBG_MESSAGE("ai_goods_t::bescheid_vehikel_problem","Vehicle %s stucked!", cnv->g
 		default:
 DBG_MESSAGE("ai_goods_t::bescheid_vehikel_problem","Vehicle %s, state %i!", cnv->get_name(), cnv->get_state());
 	}
+}
+
+// evaluate a convoi suggested by vehicle bauer
+sint64 ai_goods_t::valuate(const vehikel_prototype_t &proto) {
+	sint32 value =0; 
+	uint16 capacity = 0;
+	uint16 maintenance = 0;
+	// calculate capacity and maintenance
+	for(uint8 i=0; i<proto.besch.get_count(); i++) {
+		const vehikel_besch_t* besch = proto.besch[i];
+		if (besch) {
+			// compatible freights?			
+			if(besch->get_ware()->get_catg_index()==freight->get_catg_index()) {
+				capacity += besch->get_zuladung();
+			}
+			maintenance += besch->get_betriebskosten();
+		}
+	}
+	sint64 net_gain = ((sint64)(1000 * capacity * freight->get_preis() - maintenance *3)) * (proto.max_speed*3 /4);
+
+	return net_gain; 
 }

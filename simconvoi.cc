@@ -176,6 +176,12 @@ convoi_t::convoi_t(spieler_t* sp) : fahr(max_vehicle, NULL)
 	init_financial_history();
 }
 
+convoi_t::convoi_t()  : fahr(max_vehicle, NULL) 
+{
+	self = convoihandle_t(NULL);
+	init(NULL, NULL);
+	set_name( "Dummy convoi" );
+}
 
 convoi_t::~convoi_t()
 {

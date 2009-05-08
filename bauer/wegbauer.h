@@ -68,6 +68,7 @@ public:
 		bautyp_mask=255,
 		bot_flag=0x100,					// do not connect to other ways
 		elevated_flag=0x200,			// elevated structure
+		depot_flag=0x400,				// depot
 		tunnel_flag=0x800				// underground structure
 	};
 
@@ -201,10 +202,16 @@ public:
 	/* returns the amount needed to built this way
 	* author prissi
 	*/
-	long calc_costs();
+	long calc_costs(bool compute_maintenance=false);
 
 	bool check_crossing(const koord zv, const grund_t *bd,waytype_t wtyp, const spieler_t *sp) const;
 	bool check_for_leitung(const koord zv, const grund_t *bd) const;
+
+	/* can we build a depot at to?
+	 *
+	 * @author dwachs
+	 */
+	bool check_for_depot(const grund_t *from, const grund_t *to) const;
 
 	void baue();
 };

@@ -25,6 +25,7 @@
  */
 
 #include "../simtypes.h"
+#include "../simdebug.h"
 
 template <class T>
 class binary_heap_tpl
@@ -145,6 +146,16 @@ public:
 
 
 	bool empty() const { return node_count == 0; }
+
+	const T& get_first() 
+	{ 
+		assert(!empty());
+		return nodes[1];
+	}
+	const T* const get_data() 
+	{
+		return nodes;
+	}
 };
 
 #endif
