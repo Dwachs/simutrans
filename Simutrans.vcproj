@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8,00"
+	Version="9,00"
 	Name="Simutrans"
 	ProjectGUID="{0621B295-BEB7-4767-82F1-F27995610323}"
 	RootNamespace="Simutrans"
 	Keyword="Win32Proj"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -41,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
+				AdditionalIncludeDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\shared\include&quot;;&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
 				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;STEPS16;USE_C;WIN32;DEBUG=3"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -52,7 +53,7 @@
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="3"
-				DisableSpecificWarnings="4200;4800;4311;4996"
+				DisableSpecificWarnings="4200;4800;4311;4996;4396"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -66,12 +67,15 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib $(NOINHERIT)"
+				OutputFile="$(ProjectDir)\simutrans\simutrans-meins.exe"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
+				AdditionalLibraryDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\win32\library&quot;;&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreAllDefaultLibraries="false"
 				IgnoreDefaultLibraryNames="libcmt.lib"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -91,9 +95,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -152,6 +153,8 @@
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -173,9 +176,6 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -190,6 +190,22 @@
 			>
 			<File
 				RelativePath=".\player\ai.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\ai_dw.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\ai_dw_factory.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\ai_dw_road.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\ai_dw_tasks.cc"
 				>
 			</File>
 			<File
