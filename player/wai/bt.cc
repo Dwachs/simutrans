@@ -10,41 +10,51 @@ bt_sequential_t::~bt_sequential_t() {
 	}
 }
 
-return_code_t bt_sequential_t::step() {
+return_code bt_sequential_t::step() {
 	uint32 num_childs = childs.get_count();
 
 	if(  num_childs == 0  ) {
 		// We have nothing to do...
-		return return_code_t(false, false, true);
+		return RT_DONE_NOTHING;
 	}
 
-	return_code_t our_return(false, false, false);
 	for( uint32 i = next_to_step; i < num_childs; i++ ) {
-		return_code_t childs_return = childs[i]->step();
-		if( childs_return.error ) {
+		return_code childs_return = childs[i]->step();
+		if( childs_return == RT_ERROR ) {
 			// We give back an error. Can be caught by inherited functions.
-			our_return.error = true;
-			return our_return;
+			return RT_ERROR;
 		}
-		if( childs_return.have_done_something ) {
-			our_return.have_done_something = true;
+		if( childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS ) {
 			last_step = i;
 			// Don't increase next_to_step, if child wants the next call.
-			if( !childs_return.call_me_again ) {
+			if( childs_return == RT_SUCCESS ) {
 				next_to_step = next_to_step+1;
 				if( next_to_step == num_childs ) {
 					// Our last child.
 					next_to_step = 0;
-					our_return.call_me_again = false;
+					return RT_SUCCESS;
 				}
 				else {
 					// This wasn't our last child -> we want the next call, too.
-					our_return.call_me_again = true;
+					return RT_PARTIAL_SUCCESS;
 				}
 			}
-			return our_return;
 		}
 	}
 	// No child has done something...
-	return our_return;
+	return RT_DONE_NOTHING;
 }
+
+void bt_sequential_t::rdwr( uint16 ai_version )
+{
+	// 1. Schritt: Anzahl Kinder schreiben / lesen.
+	// 2. Schritt: Kinder mit dem richtigen Konstruktor aufrufen (siehe simconvoi.cc, rdwr).
+}
+
+void bt_sequential_t::rotate90( sint16 size_y )
+{
+	for( uint32 i = 0; i < childs.get_size(); i++ ) {
+		childs[i]->rotate90( size_y );
+	}
+}
+
