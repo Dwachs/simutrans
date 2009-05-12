@@ -4,6 +4,10 @@
 
 #include "../../simtypes.h"
 #include "../../tpl/vector_tpl.h"
+#include "../../utils/cstring_t.h"
+#include "../../utils/log.h"
+
+class bt_sequential_t;
 
 /*
  * This class defines the return code of
@@ -26,12 +30,19 @@ enum return_code {
  */
 
 class bt_node_t {
+protected:
+	cstring_t name;
+
+	bt_sequential_t *parent;
 public:
+	bt_node_t( const char* name_) : name( name_ ) {};
 	virtual ~bt_node_t() {};
 
 	virtual return_code step() = 0;
 	virtual void rdwr(uint16 ai_version) = 0;
 	virtual void rotate90( const sint16 y_size ) = 0;
+
+	virtual void debug( log_t &file, cstring_t &prefix );
 };
 
 /*
@@ -41,9 +52,9 @@ public:
  * @date  08.05.2009
  */
 
-class bt_sequential_t : bt_node_t {
+class bt_sequential_t : public bt_node_t {
 public:
-	bt_sequential_t();
+	bt_sequential_t( const char* name_ );
 	virtual ~bt_sequential_t();
 
 	virtual return_code step();
@@ -51,6 +62,10 @@ public:
 	virtual void rdwr(uint16 ai_version);
 
 	virtual void rotate90( const sint16 y_size );
+
+	virtual void debug( log_t &file, cstring_t &prefix );
+
+	void append_child( bt_node_t *new_child );
 
 private:
 	vector_tpl< bt_node_t* > childs;

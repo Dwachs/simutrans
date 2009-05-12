@@ -1,16 +1,25 @@
 #include "bt.h"
 
-bt_sequential_t::bt_sequential_t() {
+void bt_node_t::debug( log_t &file, cstring_t &prefix )
+{
+	file.message("node","%s%s", (const char*)prefix, (const char*)name);
+}
+
+bt_sequential_t::bt_sequential_t( const char* name_ ) :
+	bt_node_t( name_)
+{
 	next_to_step = 0;
 }
 
-bt_sequential_t::~bt_sequential_t() {
+bt_sequential_t::~bt_sequential_t()
+{
 	for( uint32 i = 0; i < childs.get_count(); i++ ) {
 		delete childs[i];
 	}
 }
 
-return_code bt_sequential_t::step() {
+return_code bt_sequential_t::step()
+{
 	uint32 num_childs = childs.get_count();
 
 	if(  num_childs == 0  ) {
@@ -58,3 +67,16 @@ void bt_sequential_t::rotate90( sint16 size_y )
 	}
 }
 
+void bt_sequential_t::debug( log_t &file, cstring_t &prefix )
+{
+	file.message("sequ","%s%s", (const char*)prefix, (const char*)name);
+	cstring_t next_prefix( prefix + "  " );
+	for( uint32 i = 0; i < childs.get_size(); i++ ) {
+		childs[i]->debug( file, next_prefix );
+	}
+}
+
+void bt_sequential_t::append_child( bt_node_t *new_child )
+{
+	childs.append(new_child);
+}
