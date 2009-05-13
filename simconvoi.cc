@@ -189,14 +189,8 @@ convoi_t::~convoi_t()
 	assert(anz_vehikel==0);
 
 	// close windows
-	gui_fenster_t *gui = win_get_magic( magic_convoi_info+self.get_id() );
-	if(  gui  ) {
-		destroy_win( gui );
-	}
-	gui = win_get_magic( magic_convoi_detail+self.get_id() );
-	if(  gui  ) {
-		destroy_win( gui );
-	}
+	destroy_win( magic_convoi_info+self.get_id() );
+	destroy_win( magic_convoi_detail+self.get_id() );
 
 DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 	// stop following
@@ -222,8 +216,6 @@ DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 	unset_line();
 
 	self.detach();
-
-	destroy_win((long)this);
 }
 
 
@@ -935,7 +927,9 @@ convoi_t::betrete_depot(depot_t *dep)
 	}
 
 	dep->convoi_arrived(self, self->get_schedule()!=0);
-	destroy_win((long)this);
+
+	destroy_win( magic_convoi_info+self.get_id() );
+	destroy_win( magic_convoi_detail+self.get_id() );
 
 	// Hajo: since 0.81.5exp it's safe to
 	// remove the current sync object from
