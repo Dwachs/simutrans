@@ -65,7 +65,8 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Manual (Human)"), COL_BLACK ) );
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Goods AI"), COL_BLACK ) );
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Passenger AI"), COL_BLACK ) );
-		assert(  spieler_t::MAX_AI==4  );
+		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("WAI"), COL_BLACK ) );
+		assert(  spieler_t::MAX_AI==5  );
 		// when adding new players, add a name here ...
 		player_select[i].set_selection(welt->get_einstellungen()->get_player_type(i) );
 		player_select[i].add_listener(this);

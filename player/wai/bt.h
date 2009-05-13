@@ -4,6 +4,10 @@
 
 #include "../../simtypes.h"
 #include "../../tpl/vector_tpl.h"
+#include "../../utils/cstring_t.h"
+#include "../../utils/log.h"
+
+class bt_sequential_t;
 
 /*
  * This class defines the return code of
@@ -12,26 +16,11 @@
  * @date  08.05.2009
  */
 
-/*
- * ## Gerd:
- * Sollten wir das mit Flags machen?
- */
-class return_code_t {
-public:
-	return_code_t( bool hds, bool cma, bool err ) :
-		have_done_something( hds ),
-		call_me_again( cma ),
-		error( err ) {};
-	// This indicates, wether the step has done something.
-	bool have_done_something;
-	/*
-	 * If this is set to true (only valid, if have_done_something==true)
-	 * the same bt_node_t should be called the next step again.
-	 */
-	bool call_me_again;
-
-	// Error during execution.
-	bool error;
+enum return_code {
+	RT_DONE_NOTHING, // Done nothing.
+	RT_SUCCESS, // Done something.
+	RT_PARTIAL_SUCCESS, // Done something, want to continue next step.
+	RT_ERROR // Some error occured.
 };
 
 /*
@@ -41,10 +30,19 @@ public:
  */
 
 class bt_node_t {
+protected:
+	cstring_t name;
+
+	bt_sequential_t *parent;
 public:
+	bt_node_t( const char* name_) : name( name_ ) {};
 	virtual ~bt_node_t() {};
 
-	virtual return_code_t step() = 0;
+	virtual return_code step() = 0;
+	virtual void rdwr(uint16 ai_version) = 0;
+	virtual void rotate90( const sint16 y_size ) = 0;
+
+	virtual void debug( log_t &file, cstring_t &prefix );
 };
 
 /*
@@ -54,12 +52,21 @@ public:
  * @date  08.05.2009
  */
 
-class bt_sequential_t : bt_node_t {
+class bt_sequential_t : public bt_node_t {
 public:
-	bt_sequential_t();
+	bt_sequential_t( const char* name_ );
 	virtual ~bt_sequential_t();
 
-	virtual return_code_t step();
+	virtual return_code step();
+
+	virtual void rdwr(uint16 ai_version);
+
+	virtual void rotate90( const sint16 y_size );
+
+	virtual void debug( log_t &file, cstring_t &prefix );
+
+	void append_child( bt_node_t *new_child );
+
 private:
 	vector_tpl< bt_node_t* > childs;
 

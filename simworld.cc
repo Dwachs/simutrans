@@ -88,6 +88,7 @@
 #include "player/simplay.h"
 #include "player/ai_passenger.h"
 #include "player/ai_goods.h"
+#include "player/ai_wai.h"
 
 
 //#define DEMO
@@ -4129,6 +4130,7 @@ void karte_t::new_spieler(uint8 new_player, uint8 type)
 		case spieler_t::HUMAN: spieler[new_player] = new spieler_t(this,new_player); break;
 		case spieler_t::AI_GOODS: spieler[new_player] = new ai_goods_t(this,new_player); break;
 		case spieler_t::AI_PASSENGER: spieler[new_player] = new ai_passenger_t(this,new_player); break;
+		case spieler_t::AI_WAI: spieler[new_player] = new ai_wai_t(this,new_player); break;
 		default: dbg->fatal( "karte_t::new_spieler()","Unknow AI type %i!",type );
 	}
 }
