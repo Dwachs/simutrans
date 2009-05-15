@@ -201,6 +201,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\ai_wai.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\banner.cc"
 				>
 			</File>

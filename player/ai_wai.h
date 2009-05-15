@@ -12,6 +12,7 @@ public:
 	virtual void step();
 	virtual void neuer_monat();
 	virtual void neues_jahr();
+	virtual void rdwr(loadsave_t *file);
 	virtual void laden_abschliessen();
 	virtual void rotate90( const sint16 y_size );
 	virtual void bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel );

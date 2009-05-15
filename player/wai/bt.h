@@ -7,7 +7,16 @@
 #include "../../utils/cstring_t.h"
 #include "../../utils/log.h"
 
-class bt_sequential_t;
+class ai_t;
+class loadsave_t;
+
+/*
+ * all types of nodes 
+ */
+enum bt_types {
+	BT_NODE=0,
+	BT_SEQUENTIAL=1 
+};
 
 /*
  * This class defines the return code of
@@ -17,10 +26,10 @@ class bt_sequential_t;
  */
 
 enum return_code {
-	RT_DONE_NOTHING, // Done nothing.
-	RT_SUCCESS, // Done something.
-	RT_PARTIAL_SUCCESS, // Done something, want to continue next step.
-	RT_ERROR // Some error occured.
+	RT_DONE_NOTHING,		// Done nothing.
+	RT_SUCCESS,				// Done something.
+	RT_PARTIAL_SUCCESS,		// Done something, want to continue next step.
+	RT_ERROR				// Some error occured.
 };
 
 /*
@@ -31,18 +40,32 @@ enum return_code {
 
 class bt_node_t {
 protected:
-	cstring_t name;
-
-	bt_sequential_t *parent;
-public:
-	bt_node_t( const char* name_) : name( name_ ) {};
+	cstring_t name;	// for debugging purposes -- wie soll man den scheiss rdwr'en??
+	uint16	type;	// to get the right class for loading / saving
+	ai_t *sp;
+public:	
+	bt_node_t( ai_t *sp_) : sp(sp_), type(BT_NODE) {}
+	bt_node_t( ai_t *sp_, const char* name_) : name( name_ ), sp(sp_), type(BT_NODE) {};
 	virtual ~bt_node_t() {};
 
-	virtual return_code step() = 0;
-	virtual void rdwr(uint16 ai_version) = 0;
-	virtual void rotate90( const sint16 y_size ) = 0;
+	virtual return_code step() {return RT_DONE_NOTHING;};
 
-	virtual void debug( log_t &file, cstring_t &prefix );
+	virtual void rdwr(loadsave_t* file);
+	virtual void rotate90( const sint16 y_size ) {};
+	virtual void debug( log_t &file, cstring_t prefix );
+	
+	uint16 get_type() const { return type;}
+	/*
+	 * Returns a new instance of a node from the right class
+	 * 
+	 */
+	static bt_node_t *alloc_bt_node(uint16 type, ai_t *sp_);
+
+	/*
+	 * Saves the given child / loads the next child
+	 * .. sets: sp, type
+	 */
+	void rdwr_child(loadsave_t* file, bt_node_t* &child);
 };
 
 /*
@@ -54,19 +77,16 @@ public:
 
 class bt_sequential_t : public bt_node_t {
 public:
-	bt_sequential_t( const char* name_ );
+	bt_sequential_t( ai_t *sp_, const char* name_ );
 	virtual ~bt_sequential_t();
 
 	virtual return_code step();
 
-	virtual void rdwr(uint16 ai_version);
-
-	virtual void rotate90( const sint16 y_size );
-
-	virtual void debug( log_t &file, cstring_t &prefix );
-
 	void append_child( bt_node_t *new_child );
 
+	virtual void rdwr(loadsave_t* file);
+	virtual void rotate90( const sint16 y_size );
+	virtual void debug( log_t &file, cstring_t prefix );
 private:
 	vector_tpl< bt_node_t* > childs;
 

@@ -1,5 +1,7 @@
 #include "ai_wai.h"
 
+#include "../dataobj/loadsave.h"
+
 static const char *names [10] =
 {
 	"wai0.log",
@@ -31,7 +33,17 @@ void ai_wai_t::neuer_monat()
 void ai_wai_t::neues_jahr()
 {
 }
+void ai_wai_t::rdwr(loadsave_t *file) 
+{
+	xml_tag_t t( file, "ai_wai_t" );
 
+	ai_t::rdwr(file);
+
+	bt_root.rdwr(file);
+	
+	log.message("ai_wai_t::rdwr", file->is_saving() ? "save" : "load");
+	bt_root.debug(log, "");
+}
 void ai_wai_t::laden_abschliessen()
 {
 }
@@ -47,16 +59,16 @@ void ai_wai_t::bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel 
 ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	ai_t( welt, nr ),
 	log(names[nr],true,true),
-	bt_root( "root node" )
+	bt_root(this, "root node" )
 {
 	log.message("ai_wai_t","log started.");
 
-	bt_sequential_t *test = new bt_sequential_t("hansi");
-	bt_sequential_t *test2 = new bt_sequential_t("hanswurst");
+/*	bt_sequential_t *test = new bt_sequential_t(this, "hansi");
+	bt_sequential_t *test2 = new bt_sequential_t(this, "hanswurst");
 	test->append_child( test2 );
-	test2 = new bt_sequential_t("hanswurst2");
+	test2 = new bt_sequential_t(this, "hanswurst2");
 	test->append_child( test2 );
 	bt_root.append_child(test);
-	test2 = new bt_sequential_t("hanswurst3");
-	bt_root.append_child(test2);
+	test2 = new bt_sequential_t(this, "hanswurst3");
+	bt_root.append_child(test2);*/
 }

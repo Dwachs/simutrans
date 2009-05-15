@@ -1,13 +1,65 @@
 #include "bt.h"
 
-void bt_node_t::debug( log_t &file, cstring_t &prefix )
+#include <string.h>
+#include "../../dataobj/loadsave.h"
+
+void bt_node_t::debug( log_t &file, cstring_t prefix )
 {
 	file.message("node","%s%s", (const char*)prefix, (const char*)name);
 }
 
-bt_sequential_t::bt_sequential_t( const char* name_ ) :
-	bt_node_t( name_)
+bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_) 
 {
+	switch(type) {
+		case BT_NODE:	
+			return new bt_node_t(sp_);
+		case BT_SEQUENTIAL:
+			return new bt_sequential_t(sp_, "");
+		default:
+			assert(0);
+			return NULL;
+	}
+}
+
+//
+void bt_node_t::rdwr_child(loadsave_t* file, bt_node_t* &child)
+{
+	if (file->is_saving()) {
+			uint16 t = child->get_type();
+			file->rdwr_short(t, " ");
+	}
+	else {
+			uint16 t=0;
+			file->rdwr_short(t, " ");
+			if (child) delete child;
+			child = alloc_bt_node(type, sp);
+	}
+	child->rdwr(file);
+}
+void bt_node_t::rdwr(loadsave_t* file)
+{
+	/* wtf?? if (file->is_saving()) {
+		char* t= new char[name.len()+1];
+		strcpy(t, name);
+		file->rdwr_str(t);
+		delete [] t;
+	}
+	else {
+		char *t = NULL;
+		file->rdwr_str(t);
+		name = t;
+		delete [] t;
+	}*/
+	if (file->is_loading()) {
+		name = "Niemands Karl";
+	}
+}
+
+bt_sequential_t::bt_sequential_t( ai_t *sp_, const char* name_ ) :
+	bt_node_t( sp_, name_)
+{
+	type = BT_SEQUENTIAL;
+
 	next_to_step = 0;
 }
 
@@ -54,24 +106,37 @@ return_code bt_sequential_t::step()
 	return RT_DONE_NOTHING;
 }
 
-void bt_sequential_t::rdwr( uint16 ai_version )
+void bt_sequential_t::rdwr( loadsave_t* file )
 {
+	bt_node_t::rdwr(file);
+
+	file->rdwr_long(next_to_step, " ");
+	file->rdwr_long(last_step, " ");
+
 	// 1. Schritt: Anzahl Kinder schreiben / lesen.
+	uint32 count = childs.get_count();
+	file->rdwr_long(count, " ");
 	// 2. Schritt: Kinder mit dem richtigen Konstruktor aufrufen (siehe simconvoi.cc, rdwr).
+	for (uint32 i=0; i<count; i++) {
+		if (file->is_loading()) {
+			childs.append(NULL);
+		}
+		rdwr_child(file, childs[i]);
+	}
 }
 
 void bt_sequential_t::rotate90( sint16 size_y )
 {
-	for( uint32 i = 0; i < childs.get_size(); i++ ) {
+	for( uint32 i = 0; i < childs.get_count(); i++ ) {
 		childs[i]->rotate90( size_y );
 	}
 }
 
-void bt_sequential_t::debug( log_t &file, cstring_t &prefix )
+void bt_sequential_t::debug( log_t &file, cstring_t prefix )
 {
 	file.message("sequ","%s%s", (const char*)prefix, (const char*)name);
 	cstring_t next_prefix( prefix + "  " );
-	for( uint32 i = 0; i < childs.get_size(); i++ ) {
+	for( uint32 i = 0; i < childs.get_count(); i++ ) {
 		childs[i]->debug( file, next_prefix );
 	}
 }
