@@ -38,20 +38,15 @@ void bt_node_t::rdwr_child(loadsave_t* file, bt_node_t* &child)
 }
 void bt_node_t::rdwr(loadsave_t* file)
 {
-	/* wtf?? if (file->is_saving()) {
-		char* t= new char[name.len()+1];
-		strcpy(t, name);
+	if (file->is_saving()) {
+		const char* t = name;
 		file->rdwr_str(t);
-		delete [] t;
 	}
 	else {
-		char *t = NULL;
+		const char *t = NULL;
 		file->rdwr_str(t);
 		name = t;
 		delete [] t;
-	}*/
-	if (file->is_loading()) {
-		name = "Niemands Karl";
 	}
 }
 
@@ -61,6 +56,7 @@ bt_sequential_t::bt_sequential_t( ai_t *sp_, const char* name_ ) :
 	type = BT_SEQUENTIAL;
 
 	next_to_step = 0;
+	last_step = 0;
 }
 
 bt_sequential_t::~bt_sequential_t()
