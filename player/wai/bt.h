@@ -40,7 +40,7 @@ enum return_code {
 
 class bt_node_t {
 protected:
-	cstring_t name;	// for debugging purposes -- wie soll man den scheiss rdwr'en??
+	cstring_t name;	// for debugging purposes
 	uint16	type;	// to get the right class for loading / saving
 	ai_t *sp;
 public:	

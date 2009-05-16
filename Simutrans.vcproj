@@ -67,7 +67,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib $(NOINHERIT)"
-				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\trunk\simutrans\simutrans-wai.exe"
+				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\simutrans-wai.exe"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\win32\library&quot;;&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreAllDefaultLibraries="false"
