@@ -63,7 +63,7 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 {
 	log.message("ai_wai_t","log started.");
 
-/*	bt_sequential_t *test = new bt_sequential_t(this, "hansi");
+	/*bt_sequential_t *test = new bt_sequential_t(this, "hansi");
 	bt_sequential_t *test2 = new bt_sequential_t(this, "hanswurst");
 	test->append_child( test2 );
 	test2 = new bt_sequential_t(this, "hanswurst2");

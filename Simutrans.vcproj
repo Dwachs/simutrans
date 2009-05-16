@@ -629,6 +629,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\manager.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\map_frame.cc"
 				>
 			</File>
@@ -1076,6 +1080,14 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\player\wai\manager.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\report.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"

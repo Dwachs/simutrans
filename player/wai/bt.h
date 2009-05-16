@@ -87,9 +87,11 @@ public:
 	virtual void rdwr(loadsave_t* file);
 	virtual void rotate90( const sint16 y_size );
 	virtual void debug( log_t &file, cstring_t prefix );
-private:
+
+protected:
 	vector_tpl< bt_node_t* > childs;
 
+private:
 	// Which child should get the next step?
 	uint32 next_to_step;
 
