@@ -39,9 +39,12 @@ void ai_wai_t::rdwr(loadsave_t *file)
 
 	ai_t::rdwr(file);
 
-	bt_root.rdwr(file);
+	uint16 wai_version = WAI_VERSION;
+	file->rdwr_short(wai_version, " ");
+
+	log.message("ai_wai_t::rdwr", "%s v.%d", file->is_saving() ? "save" : "load", wai_version);
+	bt_root.rdwr(file, wai_version);
 	
-	log.message("ai_wai_t::rdwr", file->is_saving() ? "save" : "load");
 	bt_root.debug(log, "");
 }
 void ai_wai_t::laden_abschliessen()

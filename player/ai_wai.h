@@ -4,6 +4,8 @@
 
 #include "../utils/log.h"
 
+#define WAI_VERSION (1)
+
 class ai_wai_t : public ai_t {
 public:
 	// Needed Interface:

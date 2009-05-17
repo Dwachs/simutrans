@@ -50,7 +50,7 @@ public:
 
 	virtual return_code step() {return RT_DONE_NOTHING;};
 
-	virtual void rdwr(loadsave_t* file);
+	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 y_size ) {};
 	virtual void debug( log_t &file, cstring_t prefix );
 	
@@ -65,7 +65,7 @@ public:
 	 * Saves the given child / loads the next child
 	 * .. sets: sp, type
 	 */
-	void rdwr_child(loadsave_t* file, bt_node_t* &child);
+	void rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &child);
 };
 
 /*
@@ -84,7 +84,7 @@ public:
 
 	void append_child( bt_node_t *new_child );
 
-	virtual void rdwr(loadsave_t* file);
+	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 y_size );
 	virtual void debug( log_t &file, cstring_t prefix );
 

@@ -22,7 +22,7 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
 }
 
 //
-void bt_node_t::rdwr_child(loadsave_t* file, bt_node_t* &child)
+void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &child)
 {
 	if (file->is_saving()) {
 			uint16 t = child->get_type();
@@ -34,9 +34,9 @@ void bt_node_t::rdwr_child(loadsave_t* file, bt_node_t* &child)
 			if (child) delete child;
 			child = alloc_bt_node(type, sp);
 	}
-	child->rdwr(file);
+	child->rdwr(file, version);
 }
-void bt_node_t::rdwr(loadsave_t* file)
+void bt_node_t::rdwr(loadsave_t* file, const uint16 version)
 {
 	if (file->is_saving()) {
 		const char* t = name;
@@ -102,9 +102,9 @@ return_code bt_sequential_t::step()
 	return RT_DONE_NOTHING;
 }
 
-void bt_sequential_t::rdwr( loadsave_t* file )
+void bt_sequential_t::rdwr( loadsave_t* file, const uint16 version )
 {
-	bt_node_t::rdwr(file);
+	bt_node_t::rdwr(file, version);
 
 	file->rdwr_long(next_to_step, " ");
 	file->rdwr_long(last_step, " ");
@@ -117,7 +117,7 @@ void bt_sequential_t::rdwr( loadsave_t* file )
 		if (file->is_loading()) {
 			childs.append(NULL);
 		}
-		rdwr_child(file, childs[i]);
+		rdwr_child(file, version, childs[i]);
 	}
 }
 
