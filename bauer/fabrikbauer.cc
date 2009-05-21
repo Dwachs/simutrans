@@ -192,20 +192,23 @@ DBG_MESSAGE("fabrikbauer_t::get_random_consumer()","No suitable consumer found")
 
 const fabrik_besch_t *fabrikbauer_t::get_fabesch(const char *fabtype)
 {
-    return table.get(fabtype);
+	return table.get(fabtype);
 }
 
 
 
 void fabrikbauer_t::register_besch(fabrik_besch_t *besch)
 {
- 	uint16 p=besch->get_produktivitaet();
- 	if(p&0x8000) {
- 		koord k=besch->get_haus()->get_groesse();
- 		// to be compatible with old factories, since new code only steps once per factory, not per tile
- 		besch->set_produktivitaet( (p&0x7FFF)*k.x*k.y );
+	uint16 p=besch->get_produktivitaet();
+	if(p&0x8000) {
+		koord k=besch->get_haus()->get_groesse();
+		// to be compatible with old factories, since new code only steps once per factory, not per tile
+		besch->set_produktivitaet( (p&0x7FFF)*k.x*k.y );
 DBG_DEBUG("fabrikbauer_t::register_besch()","Correction for old factory: Increase poduction from %i by %i",p&0x7FFF,k.x*k.y);
- 	}
+	}
+	if(  table.remove(besch->get_name())  ) {
+		dbg->warning( "fabrikbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+	}
 	table.put(besch->get_name(), besch);
 }
 
@@ -890,7 +893,7 @@ next_ware_check:
 	// now decide producer of electricity or normal ...
 	sint32 promille = (electric_productivity*4000l)/total_produktivity;
 	int no_electric = promille > welt->get_einstellungen()->get_electric_promille();
-	DBG_MESSAGE( "fabrikbauer_t::increase_industry_density()", "production of electricity/total production is %i/%i (%i°/oo)", electric_productivity, total_produktivity, promille );
+	DBG_MESSAGE( "fabrikbauer_t::increase_industry_density()", "production of electricity/total production is %i/%i (%i o/oo)", electric_productivity, total_produktivity, promille );
 
 	while(  no_electric<2  ) {
 		for(int retrys=20;  retrys>0;  retrys--  ) {

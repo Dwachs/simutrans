@@ -112,6 +112,9 @@ bool wegbauer_t::alle_wege_geladen()
 bool wegbauer_t::register_besch(const weg_besch_t *besch)
 {
 	DBG_DEBUG("wegbauer_t::register_besch()", besch->get_name());
+	if(  alle_wegtypen.remove(besch->get_name())  ) {
+		dbg->warning( "wegbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+	}
 	alle_wegtypen.put(besch->get_name(), besch);
 	return true;
 }
@@ -2005,11 +2008,11 @@ wegbauer_t::baue_fluss()
 	const sint8 start_h = route[start_n].z;
 	for(  sint32 idx=start_n;  idx<=max_n;  idx++  ) {
 		koord3d pos = route[idx];
-		if(pos.z<=start_h){
+		if(pos.z < start_h){
 			// do not handle both joining and water ...
 			continue;
 		}
-		if(  !welt->ebne_planquadrat( NULL, pos.get_2d(), pos.z-1 )  ) {
+		if(  !welt->ebne_planquadrat( NULL, pos.get_2d(), max(pos.z-1, start_h) )  ) {
 			dbg->message( "wegbauer_t::baue_fluss()","lowering tile %s failed.", pos.get_str() );
 		}
 	}

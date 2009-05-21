@@ -98,6 +98,64 @@ static bool compare_station_besch(const haus_besch_t* a, const haus_besch_t* b)
 
 bool hausbauer_t::alles_geladen()
 {
+	stringhashtable_iterator_tpl<const haus_besch_t *>iter(besch_names);
+	while(  iter.next()  ) {
+		const haus_besch_t* besch = iter.get_current_value();
+
+		switch(besch->get_typ()) {
+			case gebaeude_t::wohnung:
+				wohnhaeuser.append(besch);
+				break;
+			case gebaeude_t::industrie:
+				industriehaeuser.append(besch);
+				break;
+			case gebaeude_t::gewerbe:
+				gewerbehaeuser.append(besch);
+				break;
+
+			case gebaeude_t::unbekannt:
+			switch (besch->get_utyp()) {
+				case haus_besch_t::denkmal:
+					denkmaeler.append(besch);
+					break;
+				case haus_besch_t::attraction_land:
+					sehenswuerdigkeiten_land.append(besch);
+					break;
+				case haus_besch_t::firmensitz:
+					headquarter.append(besch);
+					break;
+				case haus_besch_t::rathaus:
+					rathaeuser.append(besch);
+					break;
+				case haus_besch_t::attraction_city:
+					sehenswuerdigkeiten_city.append(besch);
+					break;
+
+				case haus_besch_t::fabrik:
+					break;
+
+				case haus_besch_t::hafen:
+				case haus_besch_t::hafen_geb:
+				case haus_besch_t::depot:
+				case haus_besch_t::generic_stop:
+				case haus_besch_t::generic_extension:
+					station_building.append(besch);
+					break;
+
+				case haus_besch_t::weitere:
+					if(strcmp(besch->get_name(),"MonorailGround")==0) {
+						// foundation for elevated ways
+						elevated_foundation_besch = besch;
+						break;
+					}
+				default:
+					dbg->error("hausbauer_t::register_besch()","unknown subtype %i of %s: ignored",besch->get_utyp(),besch->get_name());
+					return false;
+			}
+		}
+	}
+
+	// now sort them according level
 	std::sort(wohnhaeuser.begin(),      wohnhaeuser.end(),      compare_haus_besch);
 	std::sort(gewerbehaeuser.begin(),   gewerbehaeuser.end(),   compare_haus_besch);
 	std::sort(industriehaeuser.begin(), industriehaeuser.end(), compare_haus_besch);
@@ -112,41 +170,11 @@ bool hausbauer_t::register_besch(const haus_besch_t *besch)
 {
 	::register_besch(spezial_objekte, besch);
 
-	switch(besch->get_typ()) {
-		case gebaeude_t::wohnung:   wohnhaeuser.append(besch);      break;
-		case gebaeude_t::industrie: industriehaeuser.append(besch); break;
-		case gebaeude_t::gewerbe:   gewerbehaeuser.append(besch);   break;
-
-		case gebaeude_t::unbekannt:
-		switch (besch->get_utyp()) {
-			case haus_besch_t::denkmal:         denkmaeler.append(besch);               break;
-			case haus_besch_t::attraction_land: sehenswuerdigkeiten_land.append(besch); break;
-			case haus_besch_t::firmensitz:      headquarter.append(besch);           break;
-			case haus_besch_t::rathaus:         rathaeuser.append(besch);               break;
-			case haus_besch_t::attraction_city: sehenswuerdigkeiten_city.append(besch); break;
-
-			case haus_besch_t::fabrik: break;
-
-			case haus_besch_t::hafen:
-			case haus_besch_t::hafen_geb:
-			case haus_besch_t::depot:
-			case haus_besch_t::generic_stop:
-			case haus_besch_t::generic_extension:
-				station_building.append(besch);
-DBG_DEBUG("hausbauer_t::register_besch()","Infrastructure %s",besch->get_name());
-				break;
-
-			case haus_besch_t::weitere:
-				if(strcmp(besch->get_name(),"MonorailGround")==0) {
-					// foundation for elevated ways
-					elevated_foundation_besch = besch;
-					break;
-				}
-			default:
-DBG_DEBUG("hausbauer_t::register_besch()","unknown subtype %i of %s: ignored",besch->get_utyp(),besch->get_name());
-				return false;
-		}
+	// avoid duplicates with same name
+	if(besch_names.remove(besch->get_name())) {
+		dbg->warning( "hausbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
 	}
+	besch_names.put(besch->get_name(), besch);
 
 	/* supply the tiles with a pointer back to the matchin description
 	 * this is needed, since each building is build of seperate tiles,
@@ -157,10 +185,6 @@ DBG_DEBUG("hausbauer_t::register_besch()","unknown subtype %i of %s: ignored",be
 		const_cast<haus_tile_besch_t *>(besch->get_tile(i))->set_besch(besch);
 	}
 
-	if(besch_names.get(besch->get_name())) {
-		dbg->fatal("hausbauer_t::register_Besch()", "building %s duplicated", besch->get_name());
-	}
-	besch_names.put(besch->get_name(), besch);
 	return true;
 }
 
