@@ -149,8 +149,8 @@ bool hausbauer_t::alles_geladen()
 						break;
 					}
 				default:
-					dbg->error("hausbauer_t::register_besch()","unknown subtype %i of %s: ignored",besch->get_utyp(),besch->get_name());
-					return false;
+					// obsolete object, usually such pak set will not load properly anyway (old objects should be catched before!)
+					dbg->error("hausbauer_t::register_besch()","unknown subtype %i of \"%s\" ignored",besch->get_utyp(),besch->get_name());
 			}
 		}
 	}
