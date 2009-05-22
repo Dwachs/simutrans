@@ -1007,6 +1007,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\vehikel_prototype.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\bauer\vehikelbauer.cc"
 				>
 			</File>
@@ -1081,11 +1085,19 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\player\wai\bt.h"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\manager.h"
 				>
 			</File>
 			<File
 				RelativePath=".\player\wai\report.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\vehikel_prototype.h"
 				>
 			</File>
 		</Filter>
