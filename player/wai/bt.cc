@@ -8,10 +8,10 @@ void bt_node_t::debug( log_t &file, cstring_t prefix )
 	file.message("node","%s%s", (const char*)prefix, (const char*)name);
 }
 
-bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_) 
+bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
 {
 	switch(type) {
-		case BT_NODE:	
+		case BT_NODE:
 			return new bt_node_t(sp_);
 		case BT_SEQUENTIAL:
 			return new bt_sequential_t(sp_, "");
@@ -21,7 +21,6 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
 	}
 }
 
-//
 void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &child)
 {
 	if (file->is_saving()) {
@@ -31,11 +30,14 @@ void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &c
 	else {
 			uint16 t=0;
 			file->rdwr_short(t, " ");
-			if (child) delete child;
+			if( child ) {
+				delete child;
+			}
 			child = alloc_bt_node(type, sp);
 	}
 	child->rdwr(file, version);
 }
+
 void bt_node_t::rdwr(loadsave_t* file, const uint16 version)
 {
 	if (file->is_saving()) {
@@ -81,20 +83,24 @@ return_code bt_sequential_t::step()
 			// We give back an error. Can be caught by inherited functions.
 			return RT_ERROR;
 		}
-		if( childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS ) {
+		if( childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
 			last_step = i;
 			// Don't increase next_to_step, if child wants the next call.
 			if( childs_return == RT_SUCCESS ) {
 				next_to_step = next_to_step+1;
-				if( next_to_step == num_childs ) {
-					// Our last child.
-					next_to_step = 0;
-					return RT_SUCCESS;
-				}
-				else {
-					// This wasn't our last child -> we want the next call, too.
-					return RT_PARTIAL_SUCCESS;
-				}
+			}
+			if( childs_return == RT_TOTAL_SUCCESS ) {
+				delete childs[i];
+				childs.remove_at(i);
+			}
+			if( next_to_step == num_childs ) {
+				// Our last child.
+				next_to_step = 0;
+				return RT_SUCCESS;
+			}
+			else {
+				// This wasn't our last child -> we want the next call, too.
+				return RT_PARTIAL_SUCCESS;
 			}
 		}
 	}
@@ -113,8 +119,8 @@ void bt_sequential_t::rdwr( loadsave_t* file, const uint16 version )
 	uint32 count = childs.get_count();
 	file->rdwr_long(count, " ");
 	// 2. Schritt: Kinder mit dem richtigen Konstruktor aufrufen (siehe simconvoi.cc, rdwr).
-	for (uint32 i=0; i<count; i++) {
-		if (file->is_loading()) {
+	for(uint32 i=0; i<count; i++) {
+		if(file->is_loading()) {
 			childs.append(NULL);
 		}
 		rdwr_child(file, version, childs[i]);

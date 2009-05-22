@@ -26,10 +26,20 @@ enum bt_types {
  */
 
 enum return_code {
-	RT_DONE_NOTHING,		// Done nothing.
-	RT_SUCCESS,				// Done something.
-	RT_PARTIAL_SUCCESS,		// Done something, want to continue next step.
-	RT_ERROR				// Some error occured.
+	RT_DONE_NOTHING,    // Done nothing.
+	RT_SUCCESS,         // Done something.
+	RT_PARTIAL_SUCCESS, // Done something, want to continue next step.
+	RT_TOTAL_SUCCESS,   // Done all, can be destroyed by parent.
+	RT_ERROR            // Some error occured.
+};
+
+static const char *return_code_to_char [] =
+{
+	"Done nothing.",
+	"Success.",
+	"Partial success.",
+	"Total success.",
+	"Error."
 };
 
 /*
@@ -40,12 +50,12 @@ enum return_code {
 
 class bt_node_t {
 protected:
-	cstring_t name;	// for debugging purposes
-	uint16	type;	// to get the right class for loading / saving
+	cstring_t name; // for debugging purposes
+	uint16 type;    // to get the right class for loading / saving
 	ai_t *sp;
-public:	
-	bt_node_t( ai_t *sp_) : sp(sp_), type(BT_NODE) {}
-	bt_node_t( ai_t *sp_, const char* name_) : name( name_ ), sp(sp_), type(BT_NODE) {};
+public:
+	bt_node_t( ai_t *sp_) : type(BT_NODE), sp(sp_) {}
+	bt_node_t( ai_t *sp_, const char* name_) : name( name_ ), type(BT_NODE), sp(sp_) {};
 	virtual ~bt_node_t() {};
 
 	virtual return_code step() {return RT_DONE_NOTHING;};
