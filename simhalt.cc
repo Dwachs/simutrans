@@ -539,7 +539,7 @@ char *haltestelle_t::create_name(const koord k, const char *typ)
 			int this_distance = 999;
 			slist_iterator_tpl<fabrik_t*> fab_iter(get_fab_list());
 			while (fab_iter.next()) {
-				int distance = abs_distance(fab_iter.get_current()->get_pos().get_2d(), k);
+				int distance = koord_distance(fab_iter.get_current()->get_pos().get_2d(), k);
 				if (distance < this_distance) {
 					fabs.insert(fab_iter.get_current());
 					distance = this_distance;
@@ -628,7 +628,7 @@ char *haltestelle_t::create_name(const koord k, const char *typ)
 				dirname = diagonal_name[(1-welt->get_einstellungen()->get_rotation())%4];;
 			}
 			else {
-				dirname = direction_name[(0-welt->get_einstellungen()->get_rotation())%4];;
+				dirname = direction_name[(4-welt->get_einstellungen()->get_rotation())%4];;
 			}
 		} else if (k.y > un_gr  ||  (inside  &&  k.y*3 > (un_gr+un_gr+ob_gr))  ) {
 			if (k.x < li_gr) {
@@ -1772,6 +1772,9 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 			add_grund(gr);
 			// and check for existence
 			if(!halt->existiert_in_welt()) {
+				// transfer goods
+				halt->transfer_goods(self);
+
 				destroy(halt);
 			}
 		}
@@ -1781,6 +1784,23 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 }
 
 
+void haltestelle_t::transfer_goods(halthandle_t halt)
+{
+	if (!self.is_bound() || !halt.is_bound()) {
+		return;
+	}
+	// transfer goods to halt
+	for(uint8 i=0; i<warenbauer_t::get_max_catg_index(); i++) {
+		vector_tpl<ware_t> * warray = waren[i];
+		if (warray) {
+			for(uint32 j=0; j<warray->get_count(); j++) {
+				halt->add_ware_to_halt( (*warray)[j] );
+			}
+			delete waren[i];
+			waren[i] = NULL;
+		}
+	}
+}
 
 /*
  * recalculated the station type(s)
@@ -2433,7 +2453,7 @@ koord haltestelle_t::get_next_pos( koord start ) const
 		int	dist = 0x7FFF;
 		for (slist_tpl<tile_t>::const_iterator i = tiles.begin(), end = tiles.end(); i != end; ++i) {
 			koord p = i->grund->get_pos().get_2d();
-			int d = abs_distance(start, p );
+			int d = koord_distance(start, p );
 			if(d<dist) {
 				// ok, this one is closer
 				dist = d;
