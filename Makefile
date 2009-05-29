@@ -278,6 +278,7 @@ SOURCES += player/ai_wai.cc
 SOURCES += player/wai/bt.cc
 SOURCES += player/wai/manager.cc
 SOURCES += player/wai/vehikel_prototype.cc
+SOURCES += player/wai/nodes/factory_searcher.cc
 SOURCES += player/simplay.cc
 SOURCES += old_blockmanager.cc
 SOURCES += simcity.cc

@@ -61,7 +61,7 @@ public:
 	virtual return_code step() {return RT_DONE_NOTHING;};
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
-	virtual void rotate90( const sint16 y_size ) {};
+	virtual void rotate90( const sint16 /*y_size*/ ) {};
 	virtual void debug( log_t &file, cstring_t prefix );
 	
 	uint16 get_type() const { return type;}

@@ -38,7 +38,7 @@ void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &c
 	child->rdwr(file, version);
 }
 
-void bt_node_t::rdwr(loadsave_t* file, const uint16 version)
+void bt_node_t::rdwr(loadsave_t* file, const uint16 /*version*/)
 {
 	if (file->is_saving()) {
 		const char* t = name;

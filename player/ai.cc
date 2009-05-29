@@ -69,7 +69,7 @@ bool ai_bauplatz_mit_strasse_sucher_t::ist_platz_ok(koord pos, sint16 b, sint16 
  * if there is already a connection
  * @author prissi
  */
-bool ai_t::is_connected( const koord start_pos, const koord dest_pos, const ware_besch_t *wtyp ) const
+bool ai_t::is_connected( const koord start_pos, const koord dest_pos, const ware_besch_t *wtyp )
 {
 	// Dario: Check if there's a stop near destination
 	const planquadrat_t* start_plan = welt->lookup(start_pos);

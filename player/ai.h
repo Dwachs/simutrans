@@ -39,7 +39,7 @@ public:
 	ai_t(karte_t *wl, uint8 nr) : spieler_t( wl, nr ) {}
 
 	// return true, if there is already a connection
-	bool is_connected(const koord star_pos, const koord end_pos, const ware_besch_t *wtyp) const;
+	static bool is_connected(const koord star_pos, const koord end_pos, const ware_besch_t *wtyp);
 
 	// prepares a general tool just like a human player work do
 	bool init_general_tool( int tool, const char *param );
