@@ -365,6 +365,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\factory_searcher.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\factorylist_frame_t.cc"
 				>
 			</File>
@@ -1086,6 +1090,10 @@
 			>
 			<File
 				RelativePath=".\player\wai\bt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\factory_searcher.h"
 				>
 			</File>
 			<File
