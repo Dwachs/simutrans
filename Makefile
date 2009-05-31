@@ -277,6 +277,7 @@ SOURCES += player/ai_passenger.cc
 SOURCES += player/ai_wai.cc
 SOURCES += player/wai/bt.cc
 SOURCES += player/wai/manager.cc
+SOURCES += player/wai/report.cc
 SOURCES += player/wai/vehikel_prototype.cc
 SOURCES += player/wai/nodes/factory_searcher.cc
 SOURCES += player/simplay.cc

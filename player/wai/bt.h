@@ -9,13 +9,15 @@
 
 class ai_t;
 class loadsave_t;
+class report_t;
 
 /*
  * all types of nodes 
  */
 enum bt_types {
-	BT_NODE=0,
-	BT_SEQUENTIAL=1 
+	BT_NULL=0,
+	BT_NODE,
+	BT_SEQUENTIAL 
 };
 
 /*
@@ -60,6 +62,9 @@ public:
 
 	virtual return_code step() {return RT_DONE_NOTHING;};
 
+	virtual report_t* get_report() { return NULL; };
+	virtual void append_report(report_t *report) {};
+
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
 	virtual void debug( log_t &file, cstring_t prefix );
@@ -75,7 +80,7 @@ public:
 	 * Saves the given child / loads the next child
 	 * .. sets: sp, type
 	 */
-	void rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &child);
+	static void rdwr_child(loadsave_t* file, const uint16 version, ai_t *sp_, bt_node_t* &child);
 };
 
 /*

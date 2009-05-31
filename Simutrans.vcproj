@@ -717,6 +717,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\report.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\ribi.cc"
 				>
 			</File>

@@ -11,6 +11,8 @@ void bt_node_t::debug( log_t &file, cstring_t prefix )
 bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
 {
 	switch(type) {
+		case BT_NULL:
+			return NULL;
 		case BT_NODE:
 			return new bt_node_t(sp_);
 		case BT_SEQUENTIAL:
@@ -21,21 +23,23 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
 	}
 }
 
-void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, bt_node_t* &child)
+void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, ai_t *sp_, bt_node_t* &child)
 {
 	if (file->is_saving()) {
-			uint16 t = child->get_type();
-			file->rdwr_short(t, " ");
+		uint16 t = child ? child->get_type() : BT_NULL;
+		file->rdwr_short(t, " ");
 	}
 	else {
-			uint16 t=0;
-			file->rdwr_short(t, " ");
-			if( child ) {
-				delete child;
-			}
-			child = alloc_bt_node(type, sp);
+		uint16 t=0;
+		file->rdwr_short(t, " ");
+		if( child ) {
+			delete child;
+		}
+		child = alloc_bt_node(t, sp_);
 	}
-	child->rdwr(file, version);
+	if (child) {
+		child->rdwr(file, version);
+	}
 }
 
 void bt_node_t::rdwr(loadsave_t* file, const uint16 /*version*/)
@@ -78,11 +82,20 @@ return_code bt_sequential_t::step()
 	}
 
 	for( uint32 i = next_to_step; i < num_childs; i++ ) {
+		// step the child
 		return_code childs_return = childs[i]->step();
 		if( childs_return == RT_ERROR ) {
 			// We give back an error. Can be caught by inherited functions.
 			return RT_ERROR;
 		}
+		// successfull: get and append report of child
+		if( childs_return == RT_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
+			report_t* report = childs[i]->get_report();
+			if (report) {
+				append_report(report);
+			}
+		}
+		// step counter
 		if( childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
 			last_step = i;
 			// Don't increase next_to_step, if child wants the next call.
@@ -123,7 +136,7 @@ void bt_sequential_t::rdwr( loadsave_t* file, const uint16 version )
 		if(file->is_loading()) {
 			childs.append(NULL);
 		}
-		rdwr_child(file, version, childs[i]);
+		rdwr_child(file, version, sp, childs[i]);
 	}
 }
 

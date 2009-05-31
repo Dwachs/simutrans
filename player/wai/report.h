@@ -1,8 +1,14 @@
 #ifndef REPORT_H
 #define REPORT_H
 
-class bt_node_t;
+#include "../../simtypes.h"
 
+class bt_node_t;
+class ai_t;
+
+class loadsave_t;
+class log_t;
+class cstring_t;
 /*
  * A report consists of a list of actions which must be executed if this 
  * reports is selected for execution. 
@@ -32,6 +38,11 @@ public:
 	// vehikel_besch_t *vehickelbesh;
 
 	// destructor ? 
+
+	
+	virtual void rdwr(loadsave_t* file, const uint16 version, ai_t *sp_);
+	virtual void rotate90( const sint16 y_size );
+	virtual void debug( log_t &file, cstring_t prefix );
 };
 
 #endif
