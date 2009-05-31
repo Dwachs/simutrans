@@ -108,6 +108,7 @@ return_code bt_sequential_t::step()
 			}
 			if( next_to_step == num_childs ) {
 				// Our last child.
+				// why reset it? 
 				next_to_step = 0;
 				return RT_SUCCESS;
 			}

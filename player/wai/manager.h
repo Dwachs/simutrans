@@ -2,6 +2,8 @@
 #define MANAGER_H
 
 #include "bt.h"
+#include "report.h"
+#include "../../tpl/vector_tpl.h"
 
 /*
 meine Managervorschlaege:
@@ -19,8 +21,11 @@ class manager_t : public bt_sequential_t {
 	virtual return_code step();
 	virtual return_code work() {return RT_DONE_NOTHING;};
 
-	// soll der Manager auch Reports erstellen?
-	// vector_tpl<report_t*> get_reports(uint8 max_count);
+	// reports
+	vector_tpl<report_t*> reports;
+	virtual void append_report(report_t *report) { if (report) reports.append(report); }
+	virtual report_t* get_report();
+	
 };
 
 #endif
