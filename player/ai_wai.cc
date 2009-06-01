@@ -1,8 +1,10 @@
 #include "ai_wai.h"
 
+#include "wai/nodes/factory_searcher.h"
+
 #include "../dataobj/loadsave.h"
 
-static const char *names [10] =
+static const char *names [16] =
 {
 	"wai0.log",
 	"wai1.log",
@@ -13,7 +15,13 @@ static const char *names [10] =
 	"wai6.log",
 	"wai7.log",
 	"wai8.log",
-	"wai9.log"
+	"wai9.log",
+	"wai10.log",
+	"wai11.log",
+	"wai12.log",
+	"wai13.log",
+	"wai14.log",
+	"wai15.log"
 };
 
 ai_wai_t::~ai_wai_t()
@@ -22,6 +30,14 @@ ai_wai_t::~ai_wai_t()
 
 void ai_wai_t::step()
 {
+	spieler_t::step();
+
+	if( !automat ) {
+		// This ai is turned off.
+		return;
+	};
+
+	bt_root.step();
 }
 
 void ai_wai_t::neuer_monat()
@@ -33,6 +49,7 @@ void ai_wai_t::neuer_monat()
 void ai_wai_t::neues_jahr()
 {
 }
+
 void ai_wai_t::rdwr(loadsave_t *file) 
 {
 	xml_tag_t t( file, "ai_wai_t" );
@@ -53,6 +70,7 @@ void ai_wai_t::laden_abschliessen()
 
 void ai_wai_t::rotate90( const sint16 y_size )
 {
+	bt_root.rotate90( y_size );
 }
 
 void ai_wai_t::bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel )
@@ -65,6 +83,8 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	bt_root(this, "root node" )
 {
 	log.message("ai_wai_t","log started.");
+
+	bt_root.append_child(new factory_searcher_t(this, "fac search"));
 
 	/*bt_sequential_t *test = new bt_sequential_t(this, "hansi");
 	bt_sequential_t *test2 = new bt_sequential_t(this, "hanswurst");

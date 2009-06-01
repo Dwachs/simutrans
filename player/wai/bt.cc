@@ -8,7 +8,7 @@ void bt_node_t::debug( log_t &file, cstring_t prefix )
 	file.message("node","%s%s", (const char*)prefix, (const char*)name);
 }
 
-bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
+bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_wai_t *sp_)
 {
 	switch(type) {
 		case BT_NULL:
@@ -23,7 +23,7 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_t *sp_)
 	}
 }
 
-void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, ai_t *sp_, bt_node_t* &child)
+void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, ai_wai_t *sp_, bt_node_t* &child)
 {
 	if (file->is_saving()) {
 		uint16 t = child ? child->get_type() : BT_NULL;
@@ -56,7 +56,7 @@ void bt_node_t::rdwr(loadsave_t* file, const uint16 /*version*/)
 	}
 }
 
-bt_sequential_t::bt_sequential_t( ai_t *sp_, const char* name_ ) :
+bt_sequential_t::bt_sequential_t( ai_wai_t *sp_, const char* name_ ) :
 	bt_node_t( sp_, name_)
 {
 	type = BT_SEQUENTIAL;
@@ -109,6 +109,7 @@ return_code bt_sequential_t::step()
 			if( next_to_step == num_childs ) {
 				// Our last child.
 				// why reset it? 
+				// If we are called the next time, we start again with first child.
 				next_to_step = 0;
 				return RT_SUCCESS;
 			}

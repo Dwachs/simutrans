@@ -18,9 +18,11 @@ public:
 	virtual void laden_abschliessen();
 	virtual void rotate90( const sint16 y_size );
 	virtual void bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel );
-public:
 	ai_wai_t( karte_t *welt, uint8 nr );
+private:
 	log_t log;
 	bt_sequential_t bt_root;
+public:
+	log_t& get_log() { return log; };
 };
 

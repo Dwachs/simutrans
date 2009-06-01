@@ -7,7 +7,7 @@
 #include "../../utils/cstring_t.h"
 #include "../../utils/log.h"
 
-class ai_t;
+class ai_wai_t;
 class loadsave_t;
 class report_t;
 
@@ -54,16 +54,16 @@ class bt_node_t {
 protected:
 	cstring_t name; // for debugging purposes
 	uint16 type;    // to get the right class for loading / saving
-	ai_t *sp;
+	ai_wai_t *sp;
 public:
-	bt_node_t( ai_t *sp_) : type(BT_NODE), sp(sp_) {}
-	bt_node_t( ai_t *sp_, const char* name_) : name( name_ ), type(BT_NODE), sp(sp_) {};
+	bt_node_t( ai_wai_t *sp_) : type(BT_NODE), sp(sp_) {}
+	bt_node_t( ai_wai_t *sp_, const char* name_) : name( name_ ), type(BT_NODE), sp(sp_) {};
 	virtual ~bt_node_t() {};
 
 	virtual return_code step() {return RT_DONE_NOTHING;};
 
 	virtual report_t* get_report() { return NULL; };
-	virtual void append_report(report_t *report) {};
+	virtual void append_report(report_t * /*report*/) {};
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
@@ -74,13 +74,13 @@ public:
 	 * Returns a new instance of a node from the right class
 	 * 
 	 */
-	static bt_node_t *alloc_bt_node(uint16 type, ai_t *sp_);
+	static bt_node_t *alloc_bt_node(uint16 type, ai_wai_t *sp_);
 
 	/*
 	 * Saves the given child / loads the next child
 	 * .. sets: sp, type
 	 */
-	static void rdwr_child(loadsave_t* file, const uint16 version, ai_t *sp_, bt_node_t* &child);
+	static void rdwr_child(loadsave_t* file, const uint16 version, ai_wai_t *sp_, bt_node_t* &child);
 };
 
 /*
@@ -92,7 +92,7 @@ public:
 
 class bt_sequential_t : public bt_node_t {
 public:
-	bt_sequential_t( ai_t *sp_, const char* name_ );
+	bt_sequential_t( ai_wai_t *sp_, const char* name_ );
 	virtual ~bt_sequential_t();
 
 	virtual return_code step();

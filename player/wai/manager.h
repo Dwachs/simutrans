@@ -15,6 +15,8 @@ meine Managervorschlaege:
 -- powerlinemanager
 */
 class manager_t : public bt_sequential_t {
+public:
+	manager_t( ai_wai_t *sp, const char* name ) : bt_sequential_t(sp, name) {};
 
 	// if no childs are present
 	// regular work will be done here

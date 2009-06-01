@@ -5,6 +5,7 @@
 #include "../../../simworld.h"
 
 #include "../../ai.h"
+#include "../../ai_wai.h"
 
 #include "../../../tpl/weighted_vector_tpl.h"
 #include "../../../tpl/slist_tpl.h"
@@ -27,16 +28,20 @@ return_code factory_searcher_t::step()
 			}
 		}
 	}
-	const fabrik_t *root;
+	const fabrik_t *root = NULL;
 	if(start_fabs.get_count()>0) {
 		root = start_fabs.at_weight( simrand( start_fabs.get_sum_weight() ) );
 	}
 
-	if( get_factory_tree_lowest_missing( root ) ) {
+	if( root && get_factory_tree_lowest_missing( root ) ) {
 		///////////////////////
 		// TODO
 		// create verbindungsplaner von start -> ziel
 		///////////////////////
+		sp->get_log().message( "factory_searcher_t::step()","found route %s -> %s", start->get_name(), ziel->get_name() );
+	}
+	else {
+		sp->get_log().message( "factory_searcher_t::step()","found no route");
 	}
 
 

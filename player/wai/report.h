@@ -4,7 +4,7 @@
 #include "../../simtypes.h"
 
 class bt_node_t;
-class ai_t;
+class ai_wai_t;
 
 class loadsave_t;
 class log_t;
@@ -40,7 +40,7 @@ public:
 	// destructor ? 
 
 	
-	virtual void rdwr(loadsave_t* file, const uint16 version, ai_t *sp_);
+	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_);
 	virtual void rotate90( const sint16 y_size );
 	virtual void debug( log_t &file, cstring_t prefix );
 };

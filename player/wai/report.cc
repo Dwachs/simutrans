@@ -5,7 +5,7 @@
 #include "../../utils/cstring_t.h"
 #include "../../utils/log.h"
 
-void report_t::rdwr(loadsave_t* file, const uint16 version, ai_t *sp_)
+void report_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_)
 {
 	file->rdwr_longlong(cost_fix, "");
 	file->rdwr_longlong(cost_monthly, "");
