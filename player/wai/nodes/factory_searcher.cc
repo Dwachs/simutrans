@@ -11,10 +11,8 @@
 #include "../../../tpl/slist_tpl.h"
 
 // Copied from ai_goods
-
 return_code factory_searcher_t::step()
 {
-
 	// find a tree root to complete
 	weighted_vector_tpl<const fabrik_t *> start_fabs(20);
 	slist_iterator_tpl<fabrik_t *> fabiter( sp->get_welt()->get_fab_list() );
@@ -127,6 +125,8 @@ int factory_searcher_t::get_factory_tree_missing_count( const fabrik_t *fab )
 			const fabrik_besch_t* const fb = qfab->get_besch();
 			for (uint qq = 0; qq < fb->get_produkte(); qq++) {
 				if (fb->get_produkt(qq)->get_ware() == ware 
+						// statt forbidden abzufragen sollte doch lieber -1 zurueckgegeben werden,
+						// falls ein Teil des Baumes verboten ist oder?
 						&& !is_forbidden( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware)) {
 					int n = get_factory_tree_missing_count( qfab );
 					if(n>=0) {
@@ -150,5 +150,10 @@ int factory_searcher_t::get_factory_tree_missing_count( const fabrik_t *fab )
 
 void factory_searcher_t::rdwr( loadsave_t* file, const uint16 /*version*/)
 {
+	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
+	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
+
+	ai_t::rdwr_freight(file, freight);
+
 	// Blacklist speichern?
 }

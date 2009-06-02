@@ -66,6 +66,11 @@ public:
 
 	// builds a round between those two places or returns false
 	bool create_simple_road_transport(koord platz1, koord size1, koord platz2, koord size2, const weg_besch_t *road );
+
+	// rdwr helper functions
+	static void rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab);
+
+	static void rdwr_freight(loadsave_t *file, const ware_besch_t * &freight);
 };
 
 #endif

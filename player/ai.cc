@@ -26,6 +26,8 @@
 
 #include "../dings/zeiger.h"
 
+#include "../dataobj/loadsave.h"
+
 #include "../vehicle/simvehikel.h"
 
 
@@ -513,3 +515,28 @@ DBG_MESSAGE("ai_t::create_simple_road_transport()","building simple road from %d
 
 
 
+// rdwr helper functions
+void ai_t::rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab)
+{
+	koord pos;
+	if (file->is_saving()) { // save only position
+		pos = fab!=NULL ? fab->get_pos().get_2d() : koord::invalid;
+	}
+	pos.rdwr(file);
+	if (file->is_loading())
+	{
+		fab = fabrik_t::get_fab(welt, pos);
+	}
+}
+void ai_t::rdwr_freight(loadsave_t *file, const ware_besch_t * &freight)
+{
+	const char *s;	
+	if (file->is_saving()) { // save name
+		s =  freight->get_name();
+	}
+	file->rdwr_str( s );
+	if (file->is_loading())
+	{
+		freight = s ? warenbauer_t::get_info(s) : NULL;
+	}
+}

@@ -14,7 +14,7 @@ class ware_besch_t;
 
 class factory_searcher_t : public manager_t {
 public:
-	factory_searcher_t( ai_wai_t *sp, const char* name ) : manager_t(sp, name) {};
+	factory_searcher_t( ai_wai_t *sp, const char* name ) : manager_t(sp, name), start(0), ziel(0), freight(0) {};
 
 	virtual return_code step();
 	virtual void rotate90( const sint16 ) {};
