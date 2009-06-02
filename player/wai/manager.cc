@@ -5,11 +5,12 @@
 
 return_code manager_t::step()
 {
-	if (childs.get_count()>0) {
-		return bt_sequential_t::step();
+	if (bt_sequential_t::step() == RT_DONE_NOTHING) {
+		return work();
 	}
-
-	return work();
+	else {
+		return RT_PARTIAL_SUCCESS;
+	}
 }
 
 report_t* manager_t::get_report() 
