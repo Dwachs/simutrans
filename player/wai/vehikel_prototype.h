@@ -70,6 +70,7 @@ public:
 	uint32 get_maintenance() const;
 
 	bool is_empty() const { return besch.get_count()==0; }
+	bool is_electric() const;
 
 	vector_tpl<const vehikel_besch_t*> besch;
 	uint32 weight;

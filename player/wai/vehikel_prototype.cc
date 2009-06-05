@@ -35,6 +35,16 @@ uint32 vehikel_prototype_t::get_maintenance() const{
 	}
 	return maintenance;
 }
+
+bool vehikel_prototype_t::is_electric() const{
+	for(uint8 i=0; i<besch.get_count(); i++) {
+		if (besch[i] && besch[i]->get_engine_type()==vehikel_besch_t::electric) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* extended search for vehicles for KI *
  * checks also timeline and constraints
  *
@@ -127,7 +137,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 	}
 
 	// Blacklist
-	vector_tpl<const vehikel_besch_t*> blacklist(max_vehicles); for (uint16 i=0;i<max_vehicles;i++) blacklist[i]=NULL;
+	vector_tpl<const vehikel_besch_t*> blacklist(max_vehicles); for (uint16 i=0;i<max_vehicles;i++) blacklist.append(NULL);
 
 	uint32 steps = 0;
 	sint8 i=0;
