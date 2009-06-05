@@ -90,5 +90,34 @@ public:
 	virtual sint64 valuate(const vehikel_prototype_t &proto) { return 0; }
 };
 
+// generates prototype for one given freight
+// saves the prototype parameters and the prototype itself
+// updates the prototype if called
+class simple_prototype_designer_t : public vehikel_evaluator_t {
+public:
+	waytype_t wt;
+	uint32 min_speed; // in km/h
+	uint8 max_length; // in tiles
+	uint32 max_weight;
+	ware_besch_t* freight;
+	bool include_electric;
+	bool not_obsolete;
+
+	spieler_t *sp;
+
+	vehikel_prototype_t *proto;
+
+	simple_prototype_designer_t(spieler_t *_sp) : sp(_sp) { proto = new vehikel_prototype_t(); }
+	
+	// computes / updates the prototype
+	void update();
+
+	// evaluate a convoi suggested by vehicle bauer
+	virtual sint64 valuate(const vehikel_prototype_t &proto);
+
+	void rdwr(loadsave_t *file);
+};
+
+
 
 #endif

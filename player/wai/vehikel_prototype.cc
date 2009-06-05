@@ -5,6 +5,7 @@
 #include "../../besch/vehikel_besch.h"
 #include "../../bauer/vehikelbauer.h"
 #include "../../dataobj/loadsave.h"
+#include "../../player/simplay.h"
 #include "../../vehicle/simvehikel.h"
 #include "../../simconvoi.h"
 #include "../../simdebug.h"
@@ -39,6 +40,12 @@ uint32 vehikel_prototype_t::get_maintenance() const{
  *
  * @author dwachs
  */
+// TODO: flags um verschiedene Heuristiken zu schalten
+//		-- nur bestimmte anzahl verschiedener fahrzeuge
+//		-- loks etc nur vorn
+//		-- kann nur geg. Fracht transportieren
+//		-- keine Permutationen (geht schlecht wenn <ab><ab>.. optimal ist)
+// TODO: zus. Parameter: vector_tpl<vehikel_besch_t*> .. prototyp muss mind ein Fahrzeug aus dieser Liste enthalten
 vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *eval, karte_t *world,
 							  const waytype_t wt,
 							  const uint32 min_speed, // in km/h
@@ -310,4 +317,55 @@ void vehikel_prototype_t::rdwr(loadsave_t *file)
 	if (!ok) {
 		besch.clear();
 	}
+}
+
+
+
+
+// the prototype designer
+
+void simple_prototype_designer_t::update()
+{
+	if (proto) {
+		delete proto;
+	}
+	slist_tpl<const ware_besch_t *> freights;
+	freights.append(freight);
+
+	proto = vehikel_prototype_t::vehikel_search(this, sp->get_welt(),
+							  wt, min_speed, max_length, max_weight, freights, include_electric, not_obsolete );
+}
+
+void simple_prototype_designer_t::rdwr(loadsave_t *file)
+{
+	// TODO
+}
+
+// evaluate a convoi suggested by vehicle bauer
+sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto) {
+	if (proto.is_empty()) return 0x8000000000000000;
+
+	const uint32 capacity = proto.get_capacity(freight);
+	const uint32 maintenance = proto.get_maintenance();
+
+	// simple net gain
+	//sint64 net_gain = ((sint64)( (capacity * (freight->get_preis()<<7)) / 3000ll - maintenance *3)) * (proto.max_speed*3) /4;
+
+	// speed bonus calculation see vehikel_t::calc_gewinn
+	const sint32 ref_speed = sp->get_welt()->get_average_speed( wt );
+	const sint32 speed_base = (100*speed_to_kmh(proto.min_top_speed))/ref_speed-100;
+	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
+
+	// net gain
+	//const sint64 value = ((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4;
+
+	// net gain per transported unit (matching freight)
+	const sint64 value = (((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4 *1000) / capacity;
+
+//	for(uint8 i=0;i<proto.besch.get_count(); i++)
+//		sp->log->message("ait_road_connectf_t::valuate", "[%d] %s",i,proto.besch[i]->get_name() );
+//	sp->log->message("ait_road_connectf_t::valuate", "cap=%d/%d maint=%d speed=%d freightprice=%d value=%ld ",
+//		capacity, proto.get_capacity(NULL), maintenance, proto.max_speed, freight_price, value);
+
+	return value; 
 }
