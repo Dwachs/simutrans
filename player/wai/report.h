@@ -32,7 +32,7 @@ public:
 
 	// vehicles
 	sint64 cost_per_vehicle;
-	sint64 cost_montly_per_vehicle;
+	sint64 cost_monthly_per_vehicle;
 	uint16 nr_vehicles;
 
 	// vehikel_besch_t *vehickelbesh;

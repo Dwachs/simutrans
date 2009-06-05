@@ -99,7 +99,7 @@ public:
 	uint32 min_speed; // in km/h
 	uint8 max_length; // in tiles
 	uint32 max_weight;
-	ware_besch_t* freight;
+	const ware_besch_t* freight;
 	bool include_electric;
 	bool not_obsolete;
 
@@ -108,7 +108,8 @@ public:
 	vehikel_prototype_t *proto;
 
 	simple_prototype_designer_t(spieler_t *_sp) : sp(_sp) { proto = new vehikel_prototype_t(); }
-	
+	~simple_prototype_designer_t() { if (proto) delete proto; }
+
 	// computes / updates the prototype
 	void update();
 
