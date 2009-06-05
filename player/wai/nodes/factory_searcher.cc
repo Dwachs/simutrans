@@ -1,5 +1,7 @@
 #include "factory_searcher.h"
 
+#include "industry_connection_planner.h"
+
 #include "../../../simfab.h"
 #include "../../../simtools.h"
 #include "../../../simworld.h"
@@ -11,7 +13,7 @@
 #include "../../../tpl/slist_tpl.h"
 
 // Copied from ai_goods
-return_code factory_searcher_t::step()
+return_code factory_searcher_t::work()
 {
 	// find a tree root to complete
 	weighted_vector_tpl<const fabrik_t *> start_fabs(20);
@@ -36,6 +38,10 @@ return_code factory_searcher_t::step()
 		// TODO
 		// create verbindungsplaner von start -> ziel
 		///////////////////////
+		char buf[200];
+		sprintf(buf, "ind_conn_plan freight %s from %s to %s by %d", freight->get_name(), start->get_pos().get_str(), ziel->get_pos().get_2d().get_str(), road_wt);
+		append_child( new industry_connection_planner_t(sp, buf, start, ziel, freight, road_wt ));
+
 		sp->get_log().message( "factory_searcher_t::step()","found route %s -> %s", start->get_name(), ziel->get_name() );
 	}
 	else {

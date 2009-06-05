@@ -1,5 +1,10 @@
 #include "bt.h"
 
+#include "manager.h"
+#include "planner.h"
+#include "nodes/factory_searcher.h"
+#include "nodes/industry_connection_planner.h"
+
 #include <string.h>
 #include "../../dataobj/loadsave.h"
 
@@ -11,12 +16,14 @@ void bt_node_t::debug( log_t &file, cstring_t prefix )
 bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_wai_t *sp_)
 {
 	switch(type) {
-		case BT_NULL:
-			return NULL;
-		case BT_NODE:
-			return new bt_node_t(sp_);
-		case BT_SEQUENTIAL:
-			return new bt_sequential_t(sp_, "");
+		case BT_NULL:			return NULL;
+		case BT_NODE:			return new bt_node_t(sp_);
+		case BT_SEQUENTIAL:		return new bt_sequential_t(sp_, "");
+		case BT_PLANNER:		return new planner_t(sp_, "");
+		case BT_IND_CONN_PLN:	return new industry_connection_planner_t(sp_, "");
+		case BT_MANAGER:		return new manager_t(sp_, "");
+		case BT_FACT_SRCH:		return new factory_searcher_t(sp_, "");
+
 		default:
 			assert(0);
 			return NULL;

@@ -15,9 +15,13 @@ class report_t;
  * all types of nodes 
  */
 enum bt_types {
-	BT_NULL=0,
-	BT_NODE,
-	BT_SEQUENTIAL 
+	BT_NULL			= 0,
+	BT_NODE			= 1,
+	BT_SEQUENTIAL	= 2,
+	BT_PLANNER		= 100,
+	BT_IND_CONN_PLN	= 101,
+	BT_MANAGER		= 200,
+	BT_FACT_SRCH	= 201
 };
 
 /*
