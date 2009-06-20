@@ -86,6 +86,9 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 
 	bt_root.append_child(new factory_searcher_t(this, "fac search"));
 
+	industry_manager = new industry_manager_t(this, "industrymanager");
+	bt_root.append_child(industry_manager);
+
 	/*bt_sequential_t *test = new bt_sequential_t(this, "hansi");
 	bt_sequential_t *test2 = new bt_sequential_t(this, "hanswurst");
 	test->append_child( test2 );

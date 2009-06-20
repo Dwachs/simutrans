@@ -4,6 +4,7 @@
 #include "planner.h"
 #include "nodes/factory_searcher.h"
 #include "nodes/industry_connection_planner.h"
+#include "nodes/industry_manager.h"
 
 #include <string.h>
 #include "../../dataobj/loadsave.h"
@@ -23,6 +24,7 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_wai_t *sp_)
 		case BT_IND_CONN_PLN:	return new industry_connection_planner_t(sp_, "");
 		case BT_MANAGER:		return new manager_t(sp_, "");
 		case BT_FACT_SRCH:		return new factory_searcher_t(sp_, "");
+		case BT_IND_MNGR:		return new industry_manager_t(sp_, "");
 
 		default:
 			assert(0);

@@ -565,6 +565,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\industry_manager.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\jump_frame.cc"
 				>
 			</File>
@@ -1110,6 +1114,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\industry_connection_planner.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_manager.h"
 				>
 			</File>
 			<File

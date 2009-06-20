@@ -1,6 +1,7 @@
 #include "ai.h"
 #include "simplay.h"
 #include "wai/bt.h"
+#include "wai/nodes/industry_manager.h"
 
 #include "../utils/log.h"
 
@@ -19,9 +20,13 @@ public:
 	virtual void rotate90( const sint16 y_size );
 	virtual void bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel );
 	ai_wai_t( karte_t *welt, uint8 nr );
+
+	industry_manager_t* get_industry_manager() const { return industry_manager; }
 private:
 	log_t log;
 	bt_sequential_t bt_root;
+
+	industry_manager_t* industry_manager;
 public:
 	log_t& get_log() { return log; };
 };
