@@ -283,6 +283,7 @@ SOURCES += player/wai/vehikel_prototype.cc
 SOURCES += player/wai/nodes/factory_searcher.cc
 SOURCES += player/wai/nodes/industry_connection_planner.cc
 SOURCES += player/wai/nodes/industry_manager.cc
+SOURCES += player/wai/nodes/connector_road.cc
 SOURCES += player/simplay.cc
 SOURCES += old_blockmanager.cc
 SOURCES += simcity.cc

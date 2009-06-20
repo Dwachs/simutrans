@@ -21,6 +21,10 @@ return_code industry_connection_planner_t::step()
 		// TODO: forbid connection
 		return RT_ERROR;
 	}
+	// check if we already have a report
+	if( report ) {
+		return RT_DONE_NOTHING;
+	}
 	// get a way
 	const weg_besch_t *wb = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
 	if (!wb) {
@@ -92,14 +96,14 @@ return_code industry_connection_planner_t::step()
 	// TODO: costs for depots, stations
 	// TODO: save the prototype-designer somewhere
 	report = new report_t();
-	report->cost_fix				 = dist*( wb->get_preis() + (e!=NULL ? e->get_preis() : 0) );
-	report->cost_monthly			 = dist*( wb->get_wartung() + (e!=NULL ? e->get_wartung() : 0) );
+	report->cost_fix                 = dist*( wb->get_preis() + (e!=NULL ? e->get_preis() : 0) );
+	report->cost_monthly             = dist*( wb->get_wartung() + (e!=NULL ? e->get_wartung() : 0) );
 	report->cost_monthly_per_vehicle = 0; 
-	report->cost_per_vehicle		 = 0;
-	report->gain_per_v_m			 = gain_per_tile * tiles_per_month ;
-	report->nr_vehicles				 = nr_vehicles;
+	report->cost_per_vehicle         = 0;
+	report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
+	report->nr_vehicles              = nr_vehicles;
 
-	report->action = new bt_sequential_t(sp, "");
+	report->action = new connector_road_t(sp, "connector_road_t", start, ziel);
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /v /m = %d", report->gain_per_v_m);
 
@@ -139,6 +143,7 @@ sint32 industry_connection_planner_t::calc_production()
 
 void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version)
 {
+	type = BT_IND_CONN_PLN;
 	planner_t::rdwr(file, version);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
