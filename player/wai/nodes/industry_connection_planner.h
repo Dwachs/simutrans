@@ -17,6 +17,7 @@ public:
 	virtual return_code step();
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 private:
+	sint32 calc_production();
 	
 	const fabrik_t *start;
 	const fabrik_t *ziel;

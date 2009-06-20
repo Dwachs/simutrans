@@ -27,7 +27,7 @@ public:
 	sint64 cost_fix;
 	sint64 cost_monthly;
 
-	// revenue
+	// revenue per vehicle and month
 	sint64 gain_per_v_m;
 
 	// vehicles
@@ -35,10 +35,12 @@ public:
 	sint64 cost_monthly_per_vehicle;
 	uint16 nr_vehicles;
 
-	// vehikel_besch_t *vehickelbesh;
+	report_t() : action(NULL) {}
 
-	// destructor ? 
-
+	~report_t() {
+		if (action) delete action;
+		action = NULL;
+	}
 	
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_);
 	virtual void rotate90( const sint16 y_size );
