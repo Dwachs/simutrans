@@ -69,6 +69,7 @@ return_code industry_connection_planner_t::step()
 
 	// create report
 	// TODO: costs for depots, stations
+	// TODO: save the prototype-designer somewhere
 	report = new report_t();
 	report->cost_fix				= dist*( wb->get_preis() + (e!=NULL ? e->get_preis() : 0) );
 	report->cost_monthly			= dist*( wb->get_wartung() + (e!=NULL ? e->get_wartung() : 0) );
