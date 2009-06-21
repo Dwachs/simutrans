@@ -5,6 +5,7 @@
 #include "nodes/factory_searcher.h"
 #include "nodes/industry_connection_planner.h"
 #include "nodes/industry_manager.h"
+#include "../ai_wai.h"
 
 #include <string.h>
 #include "../../dataobj/loadsave.h"
@@ -19,12 +20,12 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_wai_t *sp_)
 	switch(type) {
 		case BT_NULL:			return NULL;
 		case BT_NODE:			return new bt_node_t(sp_);
-		case BT_SEQUENTIAL:		return new bt_sequential_t(sp_, "");
-		case BT_PLANNER:		return new planner_t(sp_, "");
-		case BT_IND_CONN_PLN:	return new industry_connection_planner_t(sp_, "");
-		case BT_MANAGER:		return new manager_t(sp_, "");
-		case BT_FACT_SRCH:		return new factory_searcher_t(sp_, "");
-		case BT_IND_MNGR:		return new industry_manager_t(sp_, "");
+		case BT_SEQUENTIAL:		return new bt_sequential_t(sp_, NULL);
+		case BT_PLANNER:		return new planner_t(sp_, NULL);
+		case BT_IND_CONN_PLN:	return new industry_connection_planner_t(sp_, NULL);
+		case BT_MANAGER:		return new manager_t(sp_, NULL);
+		case BT_FACT_SRCH:		return new factory_searcher_t(sp_, NULL);
+		case BT_IND_MNGR:		{ industry_manager_t *im = new industry_manager_t(sp_, NULL); sp_->set_industry_manager(im); return im; }
 
 		default:
 			assert(0);
@@ -93,6 +94,7 @@ return_code bt_sequential_t::step()
 	for( uint32 i = next_to_step; i < num_childs; i++ ) {
 		// step the child
 		return_code childs_return = childs[i]->step();
+
 		if( childs_return == RT_ERROR ) {
 			// We give back an error. Can be caught by inherited functions.
 			return RT_ERROR;
@@ -105,10 +107,10 @@ return_code bt_sequential_t::step()
 			}
 		}
 		// step counter
-		if( childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
+		if( childs_return == RT_DONE_NOTHING || childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
 			last_step = i;
 			// Don't increase next_to_step, if child wants the next call.
-			if( childs_return == RT_SUCCESS ) {
+			if( childs_return == RT_DONE_NOTHING || childs_return == RT_SUCCESS ) {
 				next_to_step = next_to_step+1;
 			}
 			if( childs_return == RT_TOTAL_SUCCESS ) {

@@ -21,7 +21,8 @@ public:
 	virtual void bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel );
 	ai_wai_t( karte_t *welt, uint8 nr );
 
-	industry_manager_t* get_industry_manager() const { return industry_manager; }
+	industry_manager_t* get_industry_manager() { return industry_manager; }
+	void set_industry_manager(industry_manager_t *im) { industry_manager = im; }
 private:
 	log_t log;
 	bt_sequential_t bt_root;

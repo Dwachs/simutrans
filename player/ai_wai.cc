@@ -37,6 +37,13 @@ void ai_wai_t::step()
 		return;
 	};
 
+	if (bt_root.get_count()==0) {
+		bt_root.append_child(new factory_searcher_t(this, "fac search"));
+
+		industry_manager = new industry_manager_t(this, "ind manager");
+		bt_root.append_child(industry_manager);
+		return;
+	}
 	bt_root.step();
 }
 
@@ -60,6 +67,7 @@ void ai_wai_t::rdwr(loadsave_t *file)
 	file->rdwr_short(wai_version, " ");
 
 	log.message("ai_wai_t::rdwr", "%s v.%d", file->is_saving() ? "save" : "load", wai_version);
+
 	bt_root.rdwr(file, wai_version);
 	
 	bt_root.debug(log, "");
@@ -83,18 +91,5 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	bt_root(this, "root node" )
 {
 	log.message("ai_wai_t","log started.");
-
-	bt_root.append_child(new factory_searcher_t(this, "fac search"));
-
-	industry_manager = new industry_manager_t(this, "industrymanager");
-	bt_root.append_child(industry_manager);
-
-	/*bt_sequential_t *test = new bt_sequential_t(this, "hansi");
-	bt_sequential_t *test2 = new bt_sequential_t(this, "hanswurst");
-	test->append_child( test2 );
-	test2 = new bt_sequential_t(this, "hanswurst2");
-	test->append_child( test2 );
-	bt_root.append_child(test);
-	test2 = new bt_sequential_t(this, "hanswurst3");
-	bt_root.append_child(test2);*/
+	industry_manager = NULL;
 }

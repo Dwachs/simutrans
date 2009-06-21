@@ -1,6 +1,7 @@
 #include "factory_searcher.h"
 
 #include "industry_connection_planner.h"
+#include "industry_manager.h"
 
 #include "../../../simfab.h"
 #include "../../../simtools.h"
@@ -11,6 +12,12 @@
 
 #include "../../../tpl/weighted_vector_tpl.h"
 #include "../../../tpl/slist_tpl.h"
+
+
+bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const 
+{
+	return sp->get_industry_manager()->is_connection<forbidden>(s,z,f);
+}
 
 // Copied from ai_goods
 return_code factory_searcher_t::work()
@@ -154,12 +161,12 @@ int factory_searcher_t::get_factory_tree_missing_count( const fabrik_t *fab )
 	return numbers;
 }
 
-void factory_searcher_t::rdwr( loadsave_t* file, const uint16 /*version*/)
+void factory_searcher_t::rdwr( loadsave_t* file, const uint16 version)
 {
+	manager_t::rdwr(file, version);
+
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
 
 	ai_t::rdwr_freight(file, freight);
-
-	// Blacklist speichern?
 }

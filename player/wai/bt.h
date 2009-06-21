@@ -108,6 +108,7 @@ public:
 	virtual void rotate90( const sint16 y_size );
 	virtual void debug( log_t &file, cstring_t prefix );
 
+	uint32 get_count() const { return childs.get_count(); }
 protected:
 	vector_tpl< bt_node_t* > childs;
 
