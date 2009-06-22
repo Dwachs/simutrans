@@ -13,14 +13,14 @@ enum connection_status {
 	competitor = 2,	// connection of other player
 	exists = 3,		// connection exists
 	planned = 4,	// connection planned
-	
+
 	forbidden = 256
 };
 
 
 
 class industry_connection_t {
-public:	
+public:
 	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : status(0), line(0), start(s), ziel(z), freight(f) {}
 
 	void set_line(linehandle_t l) { line = l; }
@@ -41,13 +41,13 @@ private:
 
 	const fabrik_t *start;
 	const fabrik_t *ziel;
-	const ware_besch_t *freight;	
+	const ware_besch_t *freight;
 };
 
 class industry_manager_t : public manager_t {
 public:
 	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_) { type = BT_IND_MNGR; }
-	
+
 	/* these methods return the associated connection,
 	 *  if there is none, create it
 	 */
@@ -56,7 +56,7 @@ public:
 	industry_connection_t& get_connection(const fabrik_t *, const fabrik_t *, const ware_besch_t *);
 
 	/* returns false if the connection does not exist or if the corresponding bits are not set */
-	template<connection_status cs> 
+	template<connection_status cs>
 	bool is_connection(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) const
 	{
 		industry_connection_t ic(s,z,f);
@@ -68,13 +68,13 @@ public:
 		}
 	}
 	/* sets the status bit, creates connection if none exists */
-	template<connection_status cs> 
+	template<connection_status cs>
 	void set_connection(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
 	{
 		industry_connection_t& ic = get_connection(s,z,f);
 		ic.set<cs>();
 	}
-	
+
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ );
 	virtual void debug( log_t &file, cstring_t prefix );

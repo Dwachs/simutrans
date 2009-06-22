@@ -12,7 +12,7 @@ class loadsave_t;
 class report_t;
 
 /*
- * all types of nodes 
+ * all types of nodes
  */
 enum bt_types {
 	BT_NULL          = 0,
@@ -74,11 +74,11 @@ public:
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
 	virtual void debug( log_t &file, cstring_t prefix );
-	
+
 	uint16 get_type() const { return type;}
 	/*
 	 * Returns a new instance of a node from the right class
-	 * 
+	 *
 	 */
 	static bt_node_t *alloc_bt_node(uint16 type, ai_wai_t *sp_);
 
@@ -126,7 +126,7 @@ private:
  * Sollten wir noch eine Klasse caller_t einführen, von
  * der bt_sequential abgelitten wird und die an ::step()
  * übergeben wird?
- * 
+ *
  * Damit könnte dann ein bt_node_t auf seinen 'Vater'
  * zurückgreifen und ihm etwas mitteilen.
  *

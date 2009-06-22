@@ -6,13 +6,13 @@ Root-Knoten
 	-> Reaktionen auf Ereignisse von aussen
 	-> Bauer ??
 	-> Planer ??
-	-> Manager (viele)		
-		-- falls Probleme auftreten 
+	-> Manager (viele)
+		-- falls Probleme auftreten
 			a) Loesungen planen
 			b) die 'beste' herausnehmen und an den Root melden
 			   'billige' oder kritische Aktionen werden direkt als Kindknoten am Manager ausgefuehrt
 		-> Dringende Aktion
-		
+
 
 Ereignisse von aussen (neue Fahrzeuge, vehikel-Problem)
 	-> legen einen Kindknoten bei Root an
@@ -29,9 +29,9 @@ enum ret_code { SUCCESS, FAIL, NOTREADY, ...}
 // einfacher Knoten - Blatt
 class btleave_t {
 	spieler_t *sp;
-	
-	virtual ~btleave_t();	
-	virtual ret_code step();	
+
+	virtual ~btleave_t();
+	virtual ret_code step();
 	virtual undo();
 	// + die unvermeidlichen rdwr(), rotate90()
 }
@@ -80,16 +80,16 @@ class decisionmaker {
 //=================
 // manager
 //=================
-.. laufen als Kindknoten des root-Knoten mit. 
+.. laufen als Kindknoten des root-Knoten mit.
 
 //=================
 // events
 //=================
 
-wie reagiert man auf Ereignisse von aussen? 
+wie reagiert man auf Ereignisse von aussen?
 	-- vehikel findet keine route
 	-- neues Dings verfuegbar/ nicht mehr verfuegbar
-	
+
 	-> am root Knoten neue Kinder-Knoten/Baeume anlegen, mit hoher Prioritaet versehen.
 
 

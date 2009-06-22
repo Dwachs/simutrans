@@ -10,7 +10,7 @@ public:
 
 	// returns report and resets the pointer to NULL
 	virtual report_t* get_report() { report_t *r = report; report = NULL; return r; }
-	
+
 	virtual void rotate90( const sint16 y_size) { if (report) report->rotate90(y_size); };
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 protected:

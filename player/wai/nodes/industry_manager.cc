@@ -26,7 +26,7 @@ void industry_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_
 	ai_t::rdwr_freight(file, freight);
 }
 
-void industry_connection_t::debug( log_t &file, cstring_t prefix ) 
+void industry_connection_t::debug( log_t &file, cstring_t prefix )
 {
 	file.message("indc", "%s from    %s(%s)", (const char*)prefix, start->get_name(), start->get_pos().get_str() );
 	file.message("indc", "%s to      %s(%s)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str() );
@@ -65,7 +65,7 @@ industry_connection_t& industry_manager_t::get_connection(const fabrik_t *s, con
 		return connections[connections.get_count()-1];
 	}
 }
-	
+
 void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)
 {
 	manager_t::rdwr(file, version);
@@ -95,7 +95,7 @@ void industry_manager_t::debug( log_t &file, cstring_t prefix )
 {
 	manager_t::debug(file,prefix);
 
-	for(uint32 i=0; i<connections.get_count(); i++) 
+	for(uint32 i=0; i<connections.get_count(); i++)
 	{
 		char buf[40];
 		sprintf(buf, "  connections[%d] ", i);

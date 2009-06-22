@@ -352,7 +352,7 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 }
 
 // evaluate a convoi suggested by vehicle bauer
-sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto) 
+sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 {
 	// TODO: wartungskosten fuer Strecke und Elektrifizierung einkalkulieren
 	if (proto.is_empty()) return 0x8000000000000000ll;
@@ -379,5 +379,5 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 //	sp->log->message("ait_road_connectf_t::valuate", "cap=%d/%d maint=%d speed=%d freightprice=%d value=%ld ",
 //		capacity, proto.get_capacity(NULL), maintenance, proto.max_speed, freight_price, value);
 
-	return value; 
+	return value;
 }

@@ -530,7 +530,7 @@ void ai_t::rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab)
 }
 void ai_t::rdwr_freight(loadsave_t *file, const ware_besch_t * &freight)
 {
-	const char *s = NULL;	
+	const char *s = NULL;
 	if (file->is_saving()) { // save name
 		s =  freight->get_name();
 	}
@@ -553,5 +553,3 @@ void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 		}
 	}
 }
-
-

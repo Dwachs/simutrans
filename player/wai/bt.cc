@@ -119,7 +119,7 @@ return_code bt_sequential_t::step()
 			}
 			if( next_to_step == num_childs ) {
 				// Our last child.
-				// why reset it? 
+				// why reset it?
 				// If we are called the next time, we start again with first child.
 				next_to_step = 0;
 				return RT_SUCCESS;

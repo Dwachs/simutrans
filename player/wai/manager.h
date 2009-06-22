@@ -28,7 +28,7 @@ public:
 	vector_tpl<report_t*> reports;
 	virtual void append_report(report_t *report) { if (report) reports.append(report); }
 	virtual report_t* get_report();
-	
+
 };
 
 #endif

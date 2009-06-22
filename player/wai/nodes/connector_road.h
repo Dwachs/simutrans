@@ -1,5 +1,5 @@
 #ifndef CONNECTER_ROAD_H
-#define CONNECTER_ROAD_H 
+#define CONNECTER_ROAD_H
 
 /*
  * This node builds a road connection.

@@ -14,7 +14,7 @@
 #include "../../../tpl/slist_tpl.h"
 
 
-bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const 
+bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const
 {
 	return sp->get_industry_manager()->is_connection<forbidden>(s,z,f);
 }
@@ -137,7 +137,7 @@ int factory_searcher_t::get_factory_tree_missing_count( const fabrik_t *fab )
 			assert( qfab );
 			const fabrik_besch_t* const fb = qfab->get_besch();
 			for (uint qq = 0; qq < fb->get_produkte(); qq++) {
-				if (fb->get_produkt(qq)->get_ware() == ware 
+				if (fb->get_produkt(qq)->get_ware() == ware
 						// statt forbidden abzufragen sollte doch lieber -1 zurueckgegeben werden,
 						// falls ein Teil des Baumes verboten ist oder?
 						&& !is_forbidden( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware)) {

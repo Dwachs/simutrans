@@ -10,8 +10,8 @@ class loadsave_t;
 class log_t;
 class cstring_t;
 /*
- * A report consists of a list of actions which must be executed if this 
- * reports is selected for execution. 
+ * A report consists of a list of actions which must be executed if this
+ * reports is selected for execution.
  * It contains estimations of all costs and revenues.
  *
  * @author Dwachs
@@ -41,7 +41,7 @@ public:
 		if (action) delete action;
 		action = NULL;
 	}
-	
+
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_);
 	virtual void rotate90( const sint16 y_size );
 	virtual void debug( log_t &file, cstring_t prefix );

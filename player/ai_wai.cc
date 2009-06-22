@@ -57,7 +57,7 @@ void ai_wai_t::neues_jahr()
 {
 }
 
-void ai_wai_t::rdwr(loadsave_t *file) 
+void ai_wai_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t t( file, "ai_wai_t" );
 
@@ -69,7 +69,7 @@ void ai_wai_t::rdwr(loadsave_t *file)
 	log.message("ai_wai_t::rdwr", "%s v.%d", file->is_saving() ? "save" : "load", wai_version);
 
 	bt_root.rdwr(file, wai_version);
-	
+
 	bt_root.debug(log, "");
 }
 void ai_wai_t::laden_abschliessen()

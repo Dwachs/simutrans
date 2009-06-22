@@ -14,7 +14,7 @@ return_code manager_t::step()
 	}
 }
 
-report_t* manager_t::get_report() 
+report_t* manager_t::get_report()
 {
 	if (reports.get_count()==0) {
 		return NULL;

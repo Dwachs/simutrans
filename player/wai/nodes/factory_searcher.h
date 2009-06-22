@@ -1,5 +1,5 @@
 #ifndef FACTORY_SEARCHER_H
-#define FACTORY_SEARCHER_H 
+#define FACTORY_SEARCHER_H
 
 #include "../manager.h"
 

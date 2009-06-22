@@ -107,12 +107,16 @@ return_code connector_road_t::step()
 			ok = true;
 		}
 		if( ok ) {
+			bauigel.baue();
 			/*
-			 * Append bau-knoten
+			 * TODO: Append bau-knoten
 			 */
-			/* append_child( new builder_road_t( sp, "builder_road_t", start, ziel, road_besch ) );
-			append_child( new builder_road_station_t( sp, "builder_road_station_t", start ) );
-			append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel ) ); */
+			/*
+			append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
+			append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
+
+			Hier auch Vehikel bauen?
+			*/
 			return RT_PARTIAL_SUCCESS;
 		}
 		else {
@@ -125,4 +129,3 @@ return_code connector_road_t::step()
 		return bt_sequential_t::step();
 	}
 }
-

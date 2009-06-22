@@ -31,4 +31,3 @@ private:
 public:
 	log_t& get_log() { return log; };
 };
-
