@@ -540,3 +540,18 @@ void ai_t::rdwr_freight(loadsave_t *file, const ware_besch_t * &freight)
 		freight = s ? warenbauer_t::get_info(s) : NULL;
 	}
 }
+
+void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
+{
+	uint32 old_size = list.get_count();
+	koord test;
+	for( uint32 i = 0; i < old_size; i++ ) {
+		for( test.x = -size; test.x < size+1; test.x++ ) {
+			for( test.y = -size; test.y < size+1; test.y++ ) {
+				list.append_unique( list[i] + test );
+			}
+		}
+	}
+}
+
+

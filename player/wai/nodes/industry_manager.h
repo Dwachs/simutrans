@@ -21,7 +21,7 @@ enum connection_status {
 
 class industry_connection_t {
 public:	
-	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : start(s), ziel(z), freight(f), status(0), line(0) {}
+	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : status(0), line(0), start(s), ziel(z), freight(f) {}
 
 	void set_line(linehandle_t l) { line = l; }
 	linehandle_t get_line() const { return line; }

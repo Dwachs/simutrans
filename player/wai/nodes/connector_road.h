@@ -12,7 +12,7 @@
 class fabrik_t;
 class weg_besch_t;
 
-class connector_road_t : bt_sequential_t
+class connector_road_t : public bt_sequential_t
 {
 public:
 	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch );

@@ -29,24 +29,6 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	 */
 }
 
-/*
- * Helper function.
- */
-void add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
-{
-	uint32 old_size = list.get_count();
-	koord test;
-	for( uint32 i = 0; i < old_size; i++ ) {
-		for( test.x = -size; test.x < size+1; test.x++ ) {
-			for( test.y = -size; test.y < size+1; test.y++ ) {
-				list.append_unique( list[i] + test );
-			}
-		}
-	}
-}
-
-
-
 return_code connector_road_t::step()
 {
 	if( childs.empty() ) {
@@ -60,9 +42,9 @@ return_code connector_road_t::step()
 			const fabrik_t *fab =  i==0 ? fab1 : fab2;
 			vector_tpl<koord> fab_tiles;
 			fab->get_tile_list( fab_tiles );
-			add_neighbourhood( fab_tiles, cov );
+			ai_t::add_neighbourhood( fab_tiles, cov );
 			vector_tpl<koord> one_more( fab_tiles );
-			add_neighbourhood( one_more, 1 );
+			ai_t::add_neighbourhood( one_more, 1 );
 			// Any halts here?
 			vector_tpl<koord> connected_halts, other_halts;
 			for( uint32 j = 0; j < one_more.get_count(); j++ ) {
@@ -80,8 +62,8 @@ return_code connector_road_t::step()
 					}
 				}
 			}
-			add_neighbourhood( connected_halts, 1 );
-			add_neighbourhood( other_halts, 1 );
+			ai_t::add_neighbourhood( connected_halts, 1 );
+			ai_t::add_neighbourhood( other_halts, 1 );
 			vector_tpl<koord> halts( connected_halts );
 			for( uint32 j = 0; j < other_halts.get_count(); j++ ) {
 				if( fab_tiles.is_contained( other_halts[j] ) ) {

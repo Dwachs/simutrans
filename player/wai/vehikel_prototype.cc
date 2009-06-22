@@ -355,7 +355,7 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto) 
 {
 	// TODO: wartungskosten fuer Strecke und Elektrifizierung einkalkulieren
-	if (proto.is_empty()) return 0x8000000000000000;
+	if (proto.is_empty()) return 0x8000000000000000ll;
 
 	const uint32 capacity = proto.get_capacity(freight);
 	const uint32 maintenance = proto.get_maintenance();

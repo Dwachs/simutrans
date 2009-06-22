@@ -28,14 +28,14 @@ void industry_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_
 
 void industry_connection_t::debug( log_t &file, cstring_t prefix ) 
 {
-	file.message("indc", "%s from    %s(%s)", prefix, start->get_name(), start->get_pos().get_str() );
-	file.message("indc", "%s to      %s(%s)", prefix, ziel->get_name(), ziel->get_pos().get_str() );
-	file.message("indc", "%s freight %s", prefix, freight->get_name() );
+	file.message("indc", "%s from    %s(%s)", (const char*)prefix, start->get_name(), start->get_pos().get_str() );
+	file.message("indc", "%s to      %s(%s)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str() );
+	file.message("indc", "%s freight %s", (const char*)prefix, freight->get_name() );
 
 	if (line.is_bound()) {
-		file.message("indc", "%s line(%d) %s", prefix, line->get_line_id(), line->get_name() );
+		file.message("indc", "%s line(%d) %s", (const char*)prefix, line->get_line_id(), line->get_name() );
 	}
-	file.message("indc", "%s status=%d", prefix, status);
+	file.message("indc", "%s status=%d", (const char*)prefix, status);
 }
 
 uint32 industry_manager_t::get_connection_id(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)

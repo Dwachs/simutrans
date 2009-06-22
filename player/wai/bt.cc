@@ -36,7 +36,7 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_wai_t *sp_)
 void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, ai_wai_t *sp_, bt_node_t* &child)
 {
 	if (file->is_saving()) {
-		uint16 t = child ? child->get_type() : BT_NULL;
+		uint16 t = child ? (bt_types)child->get_type() : BT_NULL;
 		file->rdwr_short(t, " ");
 	}
 	else {

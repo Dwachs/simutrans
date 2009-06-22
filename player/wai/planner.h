@@ -6,7 +6,7 @@
 
 class planner_t : public bt_node_t {
 public:
-	planner_t(ai_wai_t *sp_, const char* name_) : report(0), bt_node_t(sp_, name_) { type = BT_PLANNER; };
+	planner_t(ai_wai_t *sp_, const char* name_) : bt_node_t(sp_, name_), report(NULL) { type = BT_PLANNER; };
 
 	// returns report and resets the pointer to NULL
 	virtual report_t* get_report() { report_t *r = report; report = NULL; return r; }

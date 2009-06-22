@@ -1,6 +1,7 @@
 #include "industry_connection_planner.h"
 
 #include "industry_manager.h"
+#include "connector_road.h"
 #include "../vehikel_prototype.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
@@ -103,7 +104,7 @@ return_code industry_connection_planner_t::step()
 	report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
 	report->nr_vehicles              = nr_vehicles;
 
-	report->action = new connector_road_t(sp, "connector_road_t", start, ziel);
+	report->action = new connector_road_t(sp, "connector_road_t", start, ziel, wb);
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /v /m = %d", report->gain_per_v_m);
 
