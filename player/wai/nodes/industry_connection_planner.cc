@@ -144,7 +144,6 @@ sint32 industry_connection_planner_t::calc_production()
 
 void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version)
 {
-	type = BT_IND_CONN_PLN;
 	planner_t::rdwr(file, version);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
