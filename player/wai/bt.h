@@ -18,12 +18,16 @@ enum bt_types {
 	BT_NULL          = 0,
 	BT_NODE          = 1,
 	BT_SEQUENTIAL    = 2,
-	BT_CON_ROAD      = 3,
+	// Planner:
 	BT_PLANNER       = 100,
 	BT_IND_CONN_PLN  = 101,
+	// Manager:
 	BT_MANAGER       = 200,
 	BT_FACT_SRCH     = 201,
-	BT_IND_MNGR      = 202
+	BT_IND_MNGR      = 202,
+	// Builder:
+	BT_CON_ROAD      = 301,
+	BT_ROAD_STATION  = 302
 };
 
 /*
