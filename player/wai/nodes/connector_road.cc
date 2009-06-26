@@ -20,13 +20,10 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 
 void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 {
-	type = BT_CON_ROAD;
 	bt_sequential_t::rdwr( file, version );
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
-	/*
-	 * TODO: road_besch speichern
-	 */
+	ai_t::rdwr_weg_besch(file, road_besch);
 }
 
 return_code connector_road_t::step()

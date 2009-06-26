@@ -5,7 +5,7 @@
 #include "../../besch/vehikel_besch.h"
 #include "../../bauer/vehikelbauer.h"
 #include "../../dataobj/loadsave.h"
-#include "../../player/simplay.h"
+#include "../../player/ai.h"
 #include "../../vehicle/simvehikel.h"
 #include "../../simconvoi.h"
 #include "../../simdebug.h"
@@ -348,7 +348,20 @@ void simple_prototype_designer_t::update()
 
 void simple_prototype_designer_t::rdwr(loadsave_t *file)
 {
-	// TODO
+	sint16 _wt = (uint8)wt;
+	file->rdwr_short(_wt, "");
+	if (file->is_loading()) {
+		wt = (waytype_t)_wt;
+	}
+	file->rdwr_long(min_speed, "");
+	file->rdwr_byte(max_length, ""); 
+	file->rdwr_long(max_weight, "");
+	ai_t::rdwr_ware_besch(file, freight);
+	file->rdwr_bool(include_electric, "");
+	file->rdwr_bool(not_obsolete, "");
+
+	proto = new vehikel_prototype_t();
+	proto->rdwr(file);
 }
 
 // evaluate a convoi suggested by vehicle bauer

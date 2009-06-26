@@ -528,7 +528,7 @@ void ai_t::rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab)
 		fab = fabrik_t::get_fab(welt, pos);
 	}
 }
-void ai_t::rdwr_freight(loadsave_t *file, const ware_besch_t * &freight)
+void ai_t::rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight)
 {
 	const char *s = NULL;
 	if (file->is_saving()) { // save name
@@ -538,6 +538,20 @@ void ai_t::rdwr_freight(loadsave_t *file, const ware_besch_t * &freight)
 	if (file->is_loading())
 	{
 		freight = s ? warenbauer_t::get_info(s) : NULL;
+		if (s) delete s;
+	}
+}
+void ai_t::rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg)
+{
+	const char *s = NULL;
+	if (file->is_saving()) { // save name
+		s =  weg->get_name();
+	}
+	file->rdwr_str( s );
+	if (file->is_loading())
+	{
+		weg = s ? wegbauer_t::get_besch(s,0) : NULL;
+		if (s) delete s;
 	}
 }
 

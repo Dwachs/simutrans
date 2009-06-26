@@ -147,7 +147,7 @@ void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version
 	planner_t::rdwr(file, version);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
-	ai_t::rdwr_freight(file, freight);
+	ai_t::rdwr_ware_besch(file, freight);
 
 	sint16 iwt = wt;
 	file->rdwr_short(iwt,"");

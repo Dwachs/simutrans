@@ -70,7 +70,8 @@ public:
 	// rdwr helper functions
 	static void rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab);
 
-	static void rdwr_freight(loadsave_t *file, const ware_besch_t * &freight);
+	static void rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight);
+	static void rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg);
 
 	static void add_neighbourhood( vector_tpl<koord> &list, const uint16 size);
 };

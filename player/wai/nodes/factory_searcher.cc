@@ -168,5 +168,5 @@ void factory_searcher_t::rdwr( loadsave_t* file, const uint16 version)
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
 
-	ai_t::rdwr_freight(file, freight);
+	ai_t::rdwr_ware_besch(file, freight);
 }

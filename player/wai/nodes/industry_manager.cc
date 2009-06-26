@@ -23,7 +23,7 @@ void industry_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_
 
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
-	ai_t::rdwr_freight(file, freight);
+	ai_t::rdwr_ware_besch(file, freight);
 }
 
 void industry_connection_t::debug( log_t &file, cstring_t prefix )

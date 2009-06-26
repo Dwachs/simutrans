@@ -281,6 +281,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\connector_road.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\convoi_detail_t.cc"
 				>
 			</File>
@@ -1106,6 +1110,10 @@
 			>
 			<File
 				RelativePath=".\player\wai\bt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_road.h"
 				>
 			</File>
 			<File
