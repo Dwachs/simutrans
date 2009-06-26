@@ -45,18 +45,18 @@ return_code industry_connection_planner_t::step()
 	// TODO: check for depots, station,
 
 	// get a vehicle
-	simple_prototype_designer_t d(sp);
-	d.freight = freight;
-	d.include_electric = true;
-	d.max_length = 1;
-	d.max_weight = 0xffffffff;
-	d.min_speed  = 1;
-	d.not_obsolete = false;
-	d.wt = wt;
+	simple_prototype_designer_t* d = new simple_prototype_designer_t(sp);
+	d->freight = freight;
+	d->include_electric = wt != road_wt;
+	d->max_length = 1;
+	d->max_weight = 0xffffffff;
+	d->min_speed  = 1;
+	d->not_obsolete = false;
+	d->wt = wt;
 
-	d.update();
+	d->update();
 
-	if (d.proto->is_empty()) {
+	if (d->proto->is_empty()) {
 		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
 		// TODO: forbid connection
 		return RT_ERROR;
@@ -64,7 +64,7 @@ return_code industry_connection_planner_t::step()
 
 	// electrification available?
 	const way_obj_besch_t *e = NULL;
-	if (d.proto->is_electric()) {
+	if (d->proto->is_electric()) {
 		e = wayobj_t::wayobj_search(wt,overheadlines_wt,sp->get_welt()->get_timeline_year_month());
 		if (!e) {
 			sp->get_log().warning("industry_connection_planner_t::step","no electrification found for waytype %d", wt);
@@ -73,25 +73,25 @@ return_code industry_connection_planner_t::step()
 		}
 	}
 	// update way
-	wb = wegbauer_t::weg_search(wt, d.proto->max_speed, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat );
+	wb = wegbauer_t::weg_search(wt, d->proto->max_speed, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat );
 
 	// calculate distance
 	const uint32 dist = koord_distance(start->get_pos(), ziel->get_pos());
 
-	uint32 max_speed = min( d.proto->max_speed, wb->get_topspeed() );
+	uint32 max_speed = min( d->proto->max_speed, wb->get_topspeed() );
 	if (e) max_speed = min( max_speed, e->get_topspeed());
 	const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
 
 	// speed bonus calculation see vehikel_t::calc_gewinn
 	const sint32 ref_speed = sp->get_welt()->get_average_speed(wt );
-	const sint32 speed_base = (100*speed_to_kmh(d.proto->min_top_speed))/ref_speed-100;
+	const sint32 speed_base = (100*speed_to_kmh(d->proto->min_top_speed))/ref_speed-100;
 	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
 
 	// net gain per tile (matching freight)
-	const sint64 gain_per_tile = ((sint64)d.proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*d.proto->get_maintenance();
+	const sint64 gain_per_tile = ((sint64)d->proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*d->proto->get_maintenance();
 
 	// number of vehicles
-	const sint32 nr_vehicles = min( min(254,dist), (2*prod*dist) / (d.proto->get_capacity(freight)*tiles_per_month)+1 );
+	const sint32 nr_vehicles = min( min(254,dist), (2*prod*dist) / (d->proto->get_capacity(freight)*tiles_per_month)+1 );
 
 	// create report
 	// TODO: costs for depots, stations
@@ -104,7 +104,7 @@ return_code industry_connection_planner_t::step()
 	report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
 	report->nr_vehicles              = nr_vehicles;
 
-	report->action = new connector_road_t(sp, "connector_road_t", start, ziel, wb);
+	report->action = new connector_road_t(sp, "connector_road_t", start, ziel, wb, d);
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /v /m = %d", report->gain_per_v_m);
 

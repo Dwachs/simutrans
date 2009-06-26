@@ -1,21 +1,27 @@
 #include "connector_road.h"
 #include "../bt.h"
-#include "../../ai.h"
+#include "../vehikel_prototype.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
-#include "../../../simworld.h"
 #include "../../../bauer/brueckenbauer.h"
 #include "../../../bauer/tunnelbauer.h"
 #include "../../../bauer/wegbauer.h"
-#include "../../../dataobj/koord.h"
+#include "../../../dataobj/loadsave.h"
 
-connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_ ) : bt_sequential_t( sp, name)
+connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d ) : bt_sequential_t( sp, name)
 {
 	type = BT_CON_ROAD;
 	fab1 = fab1_;
 	fab2 = fab2_;
 	road_besch = road_besch_;
+	prototyper = d;
+}
+
+connector_road_t::~connector_road_t()
+{
+	delete prototyper;
+	prototyper = NULL;
 }
 
 void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
@@ -24,6 +30,10 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
 	ai_t::rdwr_weg_besch(file, road_besch);
+	if (file->is_loading()) {
+		prototyper = new simple_prototype_designer_t(sp);
+	}
+	prototyper->rdwr(file);
 }
 
 return_code connector_road_t::step()

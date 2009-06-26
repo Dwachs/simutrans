@@ -1031,6 +1031,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\vehikel_builder.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\vehikel_prototype.cc"
 				>
 			</File>
@@ -1138,6 +1142,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\report.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\vehikel_builder.h"
 				>
 			</File>
 			<File

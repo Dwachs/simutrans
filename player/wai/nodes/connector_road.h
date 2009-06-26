@@ -11,16 +11,19 @@
 
 class fabrik_t;
 class weg_besch_t;
+class simple_prototype_designer_t;
 
 class connector_road_t : public bt_sequential_t
 {
 public:
-	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch );
+	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d );
+	~connector_road_t();
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual return_code step();
 private:
 	const fabrik_t *fab1, *fab2;
 	const weg_besch_t *road_besch;
+	simple_prototype_designer_t *prototyper;
 };
 
 
