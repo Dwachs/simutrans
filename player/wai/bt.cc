@@ -10,6 +10,12 @@
 #include <string.h>
 #include "../../dataobj/loadsave.h"
 
+return_code bt_node_t::step()
+{
+	sp->get_log().message( name, "dummy step, done nothing" );
+	return RT_DONE_NOTHING;
+}
+
 void bt_node_t::debug( log_t &file, cstring_t prefix )
 {
 	file.message("node","%s%s", (const char*)prefix, (const char*)name);
@@ -95,40 +101,40 @@ return_code bt_sequential_t::step()
 		// step the child
 		return_code childs_return = childs[i]->step();
 
-		if( childs_return == RT_ERROR ) {
-			// We give back an error. Can be caught by inherited functions.
-			return RT_ERROR;
-		}
 		// successfull: get and append report of child
 		if( childs_return == RT_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
-			report_t* report = childs[i]->get_report();
+			/* report_t* report = childs[i]->get_report();
 			if (report) {
 				append_report(report);
-			}
+			} */
 		}
-		// step counter
-		if( childs_return == RT_DONE_NOTHING || childs_return == RT_SUCCESS  ||  childs_return == RT_PARTIAL_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
-			last_step = i;
-			// Don't increase next_to_step, if child wants the next call.
-			if( childs_return == RT_DONE_NOTHING || childs_return == RT_SUCCESS ) {
-				next_to_step = next_to_step+1;
-			}
-			if( childs_return == RT_TOTAL_SUCCESS ) {
-				delete childs[i];
-				childs.remove_at(i);
-			}
-			if( next_to_step == num_childs ) {
-				// Our last child.
-				// why reset it?
-				// If we are called the next time, we start again with first child.
-				next_to_step = 0;
-				return RT_SUCCESS;
-			}
-			else {
-				// This wasn't our last child -> we want the next call, too.
-				return RT_PARTIAL_SUCCESS;
-			}
+		// Do step counter things
+		// Don't increase next_to_step, if child wants the next call.
+		if( childs_return == RT_DONE_NOTHING || childs_return == RT_SUCCESS || childs_return == RT_ERROR ) {
+			next_to_step = next_to_step+1;
 		}
+		if( childs_return == RT_TOTAL_SUCCESS ) {
+			delete childs[i];
+			childs.remove_at(i);
+			num_childs = childs.get_count();
+		}
+		return_code our_return_code;
+		if( next_to_step == num_childs ) {
+			// Our last child.
+			// why reset it?
+			// If we are called the next time, we start again with first child.
+			next_to_step = 0;
+			our_return_code = RT_SUCCESS;
+		}
+		else {
+			// This wasn't our last child -> we want the next call, too.
+			our_return_code = RT_PARTIAL_SUCCESS;
+		}
+		if( childs_return == RT_ERROR ) {
+			// We _always_ give back an error if our child does so. Can be caught by inherited functions.
+			our_return_code = RT_ERROR;
+		}
+		return our_return_code;
 	}
 	// No child has done something...
 	return RT_DONE_NOTHING;

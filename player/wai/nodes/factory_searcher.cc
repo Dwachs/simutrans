@@ -28,6 +28,21 @@ void factory_searcher_t::append_report(report_t *report)
 	}
 }
 
+return_code factory_searcher_t::step()
+{
+	return_code rc = manager_t::step();
+	if( childs.get_count() > 0 ) {
+		// We have a child. This is a industry_connection_planner.
+		if( rc == RT_TOTAL_SUCCESS ) {
+			// TODO: Report abholen.
+		}
+		if( rc == RT_TOTAL_SUCCESS  ||  rc == RT_ERROR ) {
+			childs.remove_at( get_last_step() );
+		}
+	}
+	return rc;
+}
+
 bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const
 {
 	return sp->get_industry_manager()->is_connection<forbidden>(s,z,f);
@@ -68,6 +83,7 @@ return_code factory_searcher_t::work()
 		append_child( new industry_connection_planner_t(sp, buf, start, ziel, freight, road_wt ));
 
 		sp->get_log().message( "factory_searcher_t::work()","found route %s -> %s", start->get_name(), ziel->get_name() );
+		return RT_PARTIAL_SUCCESS;
 	}
 	else {
 		sp->get_log().message( "factory_searcher_t::work()","found no route");
@@ -188,3 +204,4 @@ void factory_searcher_t::rdwr( loadsave_t* file, const uint16 version)
 
 	ai_t::rdwr_ware_besch(file, freight);
 }
+

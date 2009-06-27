@@ -25,6 +25,8 @@ return_code industry_connection_planner_t::step()
 	}
 	// check if we already have a report
 	if( report ) {
+		// This shouldn't happen. We are deleted, if we delivered a report.
+		assert( false );
 		return RT_TOTAL_SUCCESS; // .. to kill this instance
 	}
 	// get a way

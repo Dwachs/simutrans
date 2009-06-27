@@ -6,11 +6,12 @@
 
 return_code manager_t::step()
 {
-	if (bt_sequential_t::step() == RT_DONE_NOTHING) {
+	return_code rc = bt_sequential_t::step();
+	if ( rc == RT_DONE_NOTHING ) {
 		return work();
 	}
 	else {
-		return RT_PARTIAL_SUCCESS;
+		return rc;
 	}
 }
 

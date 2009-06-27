@@ -238,6 +238,8 @@ return_code connector_road_t::step()
 				prototyper = NULL;
 				break;
 			}
+			/* sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
+			sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() ); */
 		}
 		phase ++;
 		return phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;

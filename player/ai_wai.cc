@@ -44,6 +44,8 @@ void ai_wai_t::step()
 		bt_root.append_child(industry_manager);
 		return;
 	}
+	log.message("", "");
+	log.message("ai_wai_t::step", "next step:");
 	bt_root.step();
 }
 

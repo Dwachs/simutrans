@@ -70,7 +70,7 @@ public:
 	bt_node_t( ai_wai_t *sp_, const char* name_) : name( name_ ), type(BT_NODE), sp(sp_) {};
 	virtual ~bt_node_t() {};
 
-	virtual return_code step() {return RT_DONE_NOTHING;};
+	virtual return_code step();
 
 	virtual report_t* get_report() { return NULL; };
 	virtual void append_report(report_t * /*report*/) {};
@@ -123,6 +123,8 @@ private:
 
 	// Which child has done something?
 	uint32 last_step;
+public:
+	uint32 get_last_step() { return last_step; }
 };
 
 /*
