@@ -6,6 +6,7 @@
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
 #include "../../../bauer/brueckenbauer.h"
+#include "../../../bauer/hausbauer.h"
 #include "../../../bauer/tunnelbauer.h"
 #include "../../../bauer/wegbauer.h"
 #include "../../../dataobj/loadsave.h"
@@ -115,7 +116,22 @@ return_code connector_road_t::step()
 			ok = true;
 		}
 		if( ok ) {
-			bauigel.baue();
+			// get a suitable station
+			const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
+			ok = fh!=NULL;
+
+			// TODO: kontostand checken!
+			if (ok) {
+				bauigel.baue();
+			}
+			
+			// build immediately 1x1 stations
+			if (ok) {
+				ok = sp->call_general_tool(WKZ_STATION, start, fh->get_name());
+				ok = ok && sp->call_general_tool(WKZ_STATION, ziel, fh->get_name());
+			}
+			// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
+
 			/*
 			 * TODO: sofort station bauen, depot bauen, linie einrichten, convois kaufen
 			 */
@@ -137,3 +153,4 @@ return_code connector_road_t::step()
 		return bt_sequential_t::step();
 	}
 }
+
