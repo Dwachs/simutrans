@@ -1,3 +1,6 @@
+#ifndef _AI_WAI_H_
+#define _AI_WAI_H_
+
 #include "ai.h"
 #include "simplay.h"
 #include "wai/bt.h"
@@ -31,3 +34,5 @@ private:
 public:
 	log_t& get_log() { return log; };
 };
+
+#endif

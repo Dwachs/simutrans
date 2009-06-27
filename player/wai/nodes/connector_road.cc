@@ -1,4 +1,5 @@
 #include "connector_road.h"
+#include "vehikel_builder.h"
 #include "../bt.h"
 #include "../vehikel_prototype.h"
 #include "../../ai_wai.h"
@@ -116,14 +117,14 @@ return_code connector_road_t::step()
 		if( ok ) {
 			bauigel.baue();
 			/*
-			 * TODO: Append bau-knoten
+			 * TODO: sofort station bauen, depot bauen, linie einrichten, convois kaufen
 			 */
 			/*
 			append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
 			append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
-
-			Hier auch Vehikel bauen?
-			*/
+*/
+			append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, linehandle_t(), koord3d::invalid, 0) ); 
+			
 			return RT_PARTIAL_SUCCESS;
 		}
 		else {

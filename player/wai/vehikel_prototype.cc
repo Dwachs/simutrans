@@ -45,6 +45,16 @@ bool vehikel_prototype_t::is_electric() const{
 	return false;
 }
 
+waytype_t vehikel_prototype_t::get_waytype() const
+{
+	if (besch.empty()) {
+		return invalid_wt;
+	}
+	else {
+		return besch[1]->get_waytype();
+	}
+}
+
 /* extended search for vehicles for KI *
  * checks also timeline and constraints
  *
@@ -394,3 +404,4 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 
 	return value;
 }
+

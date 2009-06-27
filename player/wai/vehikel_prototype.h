@@ -65,6 +65,8 @@ public:
 		weight = wei; power = pow; length = len; min_top_speed = mints; max_speed = maxsp; missing_freights =msf;
 	}
 
+	waytype_t get_waytype() const;
+
 	// calculates capacity for a certain good
 	uint32 get_capacity(const ware_besch_t*) const;
 	uint32 get_maintenance() const;

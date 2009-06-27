@@ -283,6 +283,7 @@ bool depot_t::disassemble_convoi(convoihandle_t cnv, bool sell)
 
 bool depot_t::start_convoi(convoihandle_t cnv)
 {
+	bool can_create_win =get_besitzer()==welt->get_active_player();
 	// close schedule window if not yet closed
 	if(cnv.is_bound() &&  cnv->get_schedule()!=NULL) {
 		if(!cnv->get_schedule()->ist_abgeschlossen()) {
@@ -305,12 +306,14 @@ bool depot_t::start_convoi(convoihandle_t cnv)
 
 		// pruefen ob zug vollstaendig
 		if(cnv->get_sum_leistung() == 0 || !cnv->pruefe_alle()) {
-			create_win( new news_img("Diese Zusammenstellung kann nicht fahren!\n"), w_time_delete, magic_none);
+			if (can_create_win) create_win( new news_img("Diese Zusammenstellung kann nicht fahren!\n"), w_time_delete, magic_none);
 		} else if (!cnv->get_vehikel(0)->calc_route(this->get_pos(), cur_pos, cnv->get_min_top_speed(), cnv->get_route())) {
 			// no route to go ...
-			static char buf[256];
-			sprintf(buf,translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
-			create_win( new news_img(buf), w_time_delete, magic_none);
+			if (can_create_win) {
+				static char buf[256];
+				sprintf(buf,translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
+				create_win( new news_img(buf), w_time_delete, magic_none);
+			}
 		} else if (can_convoi_start(cnv)) {
 			// der Convoi kann losdüsen
 			welt->sync_add( cnv.get_rep() );
@@ -320,11 +323,11 @@ bool depot_t::start_convoi(convoihandle_t cnv)
 			return true;
 		}
 		else {
-			create_win(new news_img("Blockstrecke ist\nbelegt\n"), w_time_delete, magic_none);
+			if (can_create_win) create_win(new news_img("Blockstrecke ist\nbelegt\n"), w_time_delete, magic_none);
 		}
 	}
 	else {
-		create_win( new news_img("Noch kein Fahrzeug\nmit Fahrplan\nvorhanden\n"), w_time_delete, magic_none);
+		if (can_create_win) create_win( new news_img("Noch kein Fahrzeug\nmit Fahrplan\nvorhanden\n"), w_time_delete, magic_none);
 
 		if(!cnv.is_bound()) {
 			dbg->warning("depot_t::start_convoi()","No convoi to start!");
