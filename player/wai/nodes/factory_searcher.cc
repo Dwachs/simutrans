@@ -33,6 +33,10 @@ bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, c
 	return sp->get_industry_manager()->is_connection<forbidden>(s,z,f);
 }
 
+bool factory_searcher_t::is_planable( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const
+{
+	return !sp->get_industry_manager()->is_connection<unplanable>(s,z,f);
+}
 // Copied from ai_goods
 return_code factory_searcher_t::work()
 {
@@ -99,7 +103,7 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 			const fabrik_besch_t* const fb = qfab->get_besch();
 			for (uint qq = 0; qq < fb->get_produkte(); qq++) {
 				if (fb->get_produkt(qq)->get_ware() == ware
-					  &&  !is_forbidden( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware )
+					  &&  is_planable( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware )
 					  &&  !ai_t::is_connected( sources[q], fab->get_pos().get_2d(), ware )  ) {
 					// find out how much is there
 					const vector_tpl<ware_production_t>& ausgang = qfab->get_ausgang();

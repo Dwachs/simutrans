@@ -61,7 +61,7 @@ return_code vehikel_builder_t::step()
 	}
 	
 	if (nr_vehikel>0 || cnv.is_bound()) {
-		// TODO: add some until next vehicle is created
+		// TODO: add some delay until next vehicle is created
 		return RT_PARTIAL_SUCCESS;
 	}
 	else {

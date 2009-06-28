@@ -27,6 +27,7 @@ private:
 	int get_factory_tree_missing_count( const fabrik_t *root );
 
 	bool is_forbidden( const fabrik_t * /*start*/, const fabrik_t * /*end*/, const ware_besch_t * /*w*/ ) const;
+	bool is_planable( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const;
 
 	const fabrik_t *start;
 	const fabrik_t *ziel;

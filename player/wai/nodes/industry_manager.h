@@ -14,7 +14,8 @@ enum connection_status {
 	exists = 3,		// connection exists
 	planned = 4,	// connection planned
 
-	forbidden = 256
+	forbidden = 256,
+	unplanable = planned | exists | forbidden
 };
 
 
@@ -28,6 +29,7 @@ public:
 
 	template<connection_status cs> bool is() const { return (status & cs)!=0; }
 	template<connection_status cs> void set() { status |= cs; }
+	template<connection_status cs> void unset() { status &= ~cs; }
 
 	bool operator != (const industry_connection_t & k) { return start != k.start || ziel != k.ziel || freight != k.freight; }
 	bool operator == (const industry_connection_t & k) { return start == k.start && ziel == k.ziel && freight == k.freight; }
@@ -73,6 +75,15 @@ public:
 	{
 		industry_connection_t& ic = get_connection(s,z,f);
 		ic.set<cs>();
+	}
+	/* unsets the status bit, creates no new connection */
+	template<connection_status cs>
+	void unset_connection(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
+	{
+		industry_connection_t ic(s,z,f);
+		if (connections.is_contained(ic)) {
+			get_connection(s,z,f)->unset<cs>();
+		}
 	}
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);

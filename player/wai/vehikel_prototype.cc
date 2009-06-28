@@ -51,7 +51,7 @@ waytype_t vehikel_prototype_t::get_waytype() const
 		return invalid_wt;
 	}
 	else {
-		return besch[1]->get_waytype();
+		return besch[0]->get_waytype();
 	}
 }
 

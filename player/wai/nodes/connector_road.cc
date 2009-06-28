@@ -5,10 +5,12 @@
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
+#include "../../../simmesg.h"
 #include "../../../bauer/brueckenbauer.h"
 #include "../../../bauer/hausbauer.h"
 #include "../../../bauer/tunnelbauer.h"
 #include "../../../bauer/wegbauer.h"
+#include "../../../besch/vehikel_besch.h"
 #include "../../../dataobj/loadsave.h"
 
 connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d, uint16 nr_veh) : bt_sequential_t( sp, name)
@@ -26,20 +28,26 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 
 connector_road_t::~connector_road_t()
 {
-	if (prototyper) delete prototyper;
+	if (prototyper && phase<=2) delete prototyper;
 	prototyper = NULL;
 }
 
 void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_sequential_t::rdwr( file, version );
+	file->rdwr_byte(phase, "");
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
 	ai_t::rdwr_weg_besch(file, road_besch);
-	if (file->is_loading()) {
-		prototyper = new simple_prototype_designer_t(sp);
+	if (phase<=2) {
+		if (file->is_loading()) {
+			prototyper = new simple_prototype_designer_t(sp);
+		}
+		prototyper->rdwr(file);
 	}
-	prototyper->rdwr(file);
+	else {
+		prototyper = NULL;
+	}
 	file->rdwr_short(nr_vehicles, "");
 	start.rdwr(file);
 	ziel.rdwr(file);
@@ -178,7 +186,7 @@ return_code connector_road_t::step()
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
 				bauigel.calc_route(dep_start, dep_ziele);
-				if(bauigel.max_n > 1) {
+				if(bauigel.max_n >= 1) {
 					// Sometimes reverse route is the best, so we have to change the koords.
 					deppos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.max_n] : bauigel.get_route()[0];	
 					ok = true;
@@ -190,6 +198,9 @@ return_code connector_road_t::step()
 					// built depot
 					sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
+				else {
+					sp->get_log().message( "connector_road::step()","depot building failed");
+				}
 				break;
 			}
 			case 2: {
@@ -199,7 +210,7 @@ return_code connector_road_t::step()
 				// full load? or do we have unused capacity?
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
-				fpl->append(sp->get_welt()->lookup(start), ladegrad);
+				fpl->append(sp->get_welt()->lookup(start), ladegrad, 15);
 				fpl->append(sp->get_welt()->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -207,8 +218,21 @@ return_code connector_road_t::step()
 				linehandle_t line=sp->simlinemgmt.create_line(simline_t::truckline, sp, fpl);
 				delete fpl;
 
-				append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, line, deppos, nr_vehicles) ); 
+				append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, line, deppos, nr_vehicles) );
+				
+				// tell the player
+				char buf[256];
+				sprintf(buf, translator::translate("%s\nnow operates\n%i trucks between\n%s at (%i,%i)\nand %s at (%i,%i)."), sp->get_name(), nr_vehicles, translator::translate(fab1->get_name()), start.x, start.y, translator::translate(fab2->get_name()), ziel.x, ziel.y);
+				sp->get_welt()->get_message()->add_message(buf, start.get_2d(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), prototyper->proto->besch[0]->get_basis_bild());
+
+				// tell the industrymanager
+				industry_connection_t& ic = sp->get_industry_manager()->get_connection(fab1, fab2, prototyper->freight);
+				ic.set<exists>();
+				ic.unset<planned>();
+
+				// reset prototyper, will be deleted in vehikel_builder
 				prototyper = NULL;
+				break;
 			}
 		}
 		phase ++;
@@ -225,5 +249,5 @@ void connector_road_t::debug( log_t &file, cstring_t prefix )
 	bt_sequential_t::debug(file, prefix);
 	file.message("mana","%s phase=%d", (const char*)prefix, phase);
 	cstring_t next_prefix( prefix + " prototyp");
-	prototyper->debug(file, next_prefix);
+	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
 }
