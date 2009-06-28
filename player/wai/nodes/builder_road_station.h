@@ -8,20 +8,20 @@
  */
 
 #include "../bt.h"
-#include "../../../dataobj/koord.h"
+#include "../../../dataobj/koord3d.h"
 
 class ware_besch_t;
 
 class builder_road_station_t : public bt_node_t
 {
 public:
-	builder_road_station_t( ai_wai_t *sp, const char *name, const koord &place );
+	builder_road_station_t( ai_wai_t *sp, const char *name, const koord3d &place );
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16 y_size ) { place.rotate90(y_size); };
 	virtual return_code step();
 private:
 	const ware_besch_t *ware;
-	koord place;
+	koord3d place;
 };
 
 #endif /* BUILDER_ROAD_STATION_H */

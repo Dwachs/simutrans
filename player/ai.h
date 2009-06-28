@@ -73,6 +73,8 @@ public:
 	static void rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight);
 	static void rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg);
 
+	static bool rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel_besch_t*> &besch );
+
 	static void add_neighbourhood( vector_tpl<koord> &list, const uint16 size);
 };
 

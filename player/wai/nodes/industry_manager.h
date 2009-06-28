@@ -89,7 +89,7 @@ public:
 	{
 		industry_connection_t ic(s,z,f);
 		if (connections.is_contained(ic)) {
-			get_connection(s,z,f)->unset<cs>();
+			get_connection(s,z,f).unset<cs>();
 		}
 	}
 

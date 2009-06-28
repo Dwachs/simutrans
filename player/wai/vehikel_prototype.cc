@@ -5,7 +5,7 @@
 #include "../../besch/vehikel_besch.h"
 #include "../../bauer/vehikelbauer.h"
 #include "../../dataobj/loadsave.h"
-#include "../../player/ai.h"
+#include "../ai.h"
 #include "../../vehicle/simvehikel.h"
 #include "../../simconvoi.h"
 #include "../../simdebug.h"
@@ -305,7 +305,6 @@ convoi_t*  vehikel_prototype_t::baue(koord3d k, spieler_t* sp, const vehikel_pro
 
 void vehikel_prototype_t::rdwr(loadsave_t *file)
 {
-	bool ok = true;
 	file->rdwr_long( weight, " ");
 	file->rdwr_long( power, " ");
 	file->rdwr_short(min_top_speed, " ");
@@ -313,26 +312,7 @@ void vehikel_prototype_t::rdwr(loadsave_t *file)
 	file->rdwr_long( max_speed, " ");
 	file->rdwr_byte( missing_freights, " ");
 
-	uint32 count = besch.get_count();
-	file->rdwr_long( count, " ");
-
-	const char *s;
-	for(uint32 i=0; i<count; i++) {
-		if (file->is_saving()) {
-			s = besch[i]->get_name();
-		}
-		file->rdwr_str( s );
-		if (file->is_loading()) {
-			const vehikel_besch_t *b = vehikelbauer_t::get_info(s);
-			if (b) {
-				besch.append(b);
-			}
-			else {
-				ok = false;
-			}
-		}
-	}
-
+	bool ok = ai_t::rdwr_vector_vehicle_besch( file, besch );
 	// prototype invalid ...
 	if (!ok) {
 		besch.clear();
@@ -413,7 +393,6 @@ void simple_prototype_designer_t::debug( log_t &file, cstring_t prefix )
 		file.message("prot", "%s[%d] = %s", (const char*)prefix, i, proto->besch[i]->get_name());
 	}
 }
-
 
 simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, const ware_besch_t *f)
 {	

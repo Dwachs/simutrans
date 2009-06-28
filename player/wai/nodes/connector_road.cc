@@ -2,6 +2,7 @@
 
 #include "builder_road_station.h"
 #include "vehikel_builder.h"
+#include "builder_way_obj.h"
 
 #include "../bt.h"
 #include "../vehikel_prototype.h"
@@ -16,7 +17,8 @@
 #include "../../../besch/vehikel_besch.h"
 #include "../../../dataobj/loadsave.h"
 
-connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d, uint16 nr_veh) : bt_sequential_t( sp, name)
+connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e_ ) :
+	bt_sequential_t( sp, name)
 {
 	type = BT_CON_ROAD;
 	fab1 = fab1_;
@@ -27,6 +29,7 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 	phase = 0;
 	start = koord3d::invalid;
 	ziel = koord3d::invalid;
+	e = e_;
 }
 
 connector_road_t::~connector_road_t()
@@ -55,6 +58,9 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	start.rdwr(file);
 	ziel.rdwr(file);
 	deppos.rdwr(file);
+	/*
+	 * TODO: road_besch, e speichern
+	 */
 }
 
 void connector_road_t::rotate90( const sint16 y_size)
@@ -148,6 +154,10 @@ return_code connector_road_t::step()
 					// TODO: kontostand checken!
 					if (ok) {
 						bauigel.baue();
+						sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
+					}
+					else {
+						sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
 					}
 					
 					// build immediately 1x1 stations
@@ -238,8 +248,6 @@ return_code connector_road_t::step()
 				prototyper = NULL;
 				break;
 			}
-			/* sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
-			sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() ); */
 		}
 		phase ++;
 		return phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;

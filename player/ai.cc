@@ -555,6 +555,31 @@ void ai_t::rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg)
 	}
 }
 
+bool ai_t::rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel_besch_t*> &besch )
+{
+	uint32 count = besch.get_count();
+	file->rdwr_long( count, " ");
+
+	bool ok = true;
+	const char *s;
+	for(uint32 i=0; i<count; i++) {
+		if (file->is_saving()) {
+			s = besch[i]->get_name();
+		}
+		file->rdwr_str( s );
+		if (file->is_loading()) {
+			const vehikel_besch_t *b = vehikelbauer_t::get_info(s);
+			if (b) {
+				besch.append(b);
+			}
+			else {
+				ok = false;
+			}
+		}
+	}
+	return ok;
+}
+
 void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 {
 	uint32 old_size = list.get_count();

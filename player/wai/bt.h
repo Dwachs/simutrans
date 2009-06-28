@@ -27,7 +27,8 @@ enum bt_types {
 	BT_IND_MNGR      = 202,
 	// Builder:
 	BT_CON_ROAD      = 301,
-	BT_ROAD_STATION  = 302
+	BT_ROAD_STATION  = 302,
+	BT_WAYOBJ        = 303
 };
 
 /*

@@ -13,11 +13,12 @@
 class fabrik_t;
 class weg_besch_t;
 class simple_prototype_designer_t;
+class way_obj_besch_t;
 
 class connector_road_t : public bt_sequential_t
 {
 public:
-	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh);
+	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e );
 	~connector_road_t();
 	virtual return_code step();
 
@@ -31,6 +32,7 @@ private:
 	uint16 nr_vehicles;
 	uint8 phase;
 	koord3d start, ziel, deppos;
+	const way_obj_besch_t *e;
 };
 
 

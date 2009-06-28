@@ -281,6 +281,7 @@ SOURCES += player/wai/planner.cc
 SOURCES += player/wai/report.cc
 SOURCES += player/wai/vehikel_prototype.cc
 SOURCES += player/wai/nodes/builder_road_station.cc
+SOURCES += player/wai/nodes/builder_way_obj.cc
 SOURCES += player/wai/nodes/connector_road.cc
 SOURCES += player/wai/nodes/factory_searcher.cc
 SOURCES += player/wai/nodes/industry_connection_planner.cc
