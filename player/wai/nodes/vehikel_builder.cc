@@ -43,6 +43,7 @@ return_code vehikel_builder_t::step()
 		}
 		// indicate the current status (for saving / loading)
 		cnv->set_name(start_name);
+		cnv->set_line(line);
 		nr_vehikel--;
 	}
 	// try to start the convoi

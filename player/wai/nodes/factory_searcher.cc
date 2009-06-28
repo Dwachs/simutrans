@@ -13,6 +13,20 @@
 #include "../../../tpl/weighted_vector_tpl.h"
 #include "../../../tpl/slist_tpl.h"
 
+void factory_searcher_t::append_report(report_t *report)
+{ 
+	if(report) {
+		if (report->gain_per_v_m > 0) {
+			sp->get_log().message( "factory_searcher_t::append_report()","got a nice report for immediate execution");
+			append_child( report->action );
+			report->action = NULL;
+			delete report;
+		}
+		else {
+			reports.append(report);
+		}
+	}
+}
 
 bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const
 {

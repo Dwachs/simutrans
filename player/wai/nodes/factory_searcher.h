@@ -20,6 +20,7 @@ public:
 	virtual void rotate90( const sint16 ) {};
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 
+	virtual void append_report(report_t *report);
 private:
 
 	bool get_factory_tree_lowest_missing( const fabrik_t *root );

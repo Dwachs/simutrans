@@ -26,7 +26,7 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 
 connector_road_t::~connector_road_t()
 {
-	delete prototyper;
+	if (prototyper) delete prototyper;
 	prototyper = NULL;
 }
 
@@ -43,6 +43,7 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	file->rdwr_short(nr_vehicles, "");
 	start.rdwr(file);
 	ziel.rdwr(file);
+	deppos.rdwr(file);
 }
 
 void connector_road_t::rotate90( const sint16 y_size)
@@ -50,6 +51,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 	bt_sequential_t::rotate90(y_size);
 	start.rotate90(y_size);
 	ziel.rotate90(y_size);
+	deppos.rotate90(y_size);
 }
 
 return_code connector_road_t::step()
@@ -176,7 +178,6 @@ return_code connector_road_t::step()
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
 				bauigel.calc_route(dep_start, dep_ziele);
-				koord3d deppos;
 				if(bauigel.max_n > 1) {
 					// Sometimes reverse route is the best, so we have to change the koords.
 					deppos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.max_n] : bauigel.get_route()[0];	
@@ -189,8 +190,7 @@ return_code connector_road_t::step()
 					// built depot
 					sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
-
-
+				break;
 			}
 			case 2: {
 				// create line
@@ -207,11 +207,12 @@ return_code connector_road_t::step()
 				linehandle_t line=sp->simlinemgmt.create_line(simline_t::truckline, sp, fpl);
 				delete fpl;
 
-				append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, line, koord3d::invalid, nr_vehicles) ); 
+				append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, line, deppos, nr_vehicles) ); 
+				prototyper = NULL;
 			}
 		}
 		phase ++;
-		return phase>2 ? RT_SUCCESS : RT_PARTIAL_SUCCESS;
+		return phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
 	}
 	else {
 		// Step the childs.

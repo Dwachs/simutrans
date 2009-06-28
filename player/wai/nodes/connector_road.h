@@ -30,7 +30,7 @@ private:
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
 	uint8 phase;
-	koord3d start, ziel;
+	koord3d start, ziel, deppos;
 };
 
 
