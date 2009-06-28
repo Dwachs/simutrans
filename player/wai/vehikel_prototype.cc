@@ -405,3 +405,11 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 	return value;
 }
 
+
+void simple_prototype_designer_t::debug( log_t &file, cstring_t prefix )
+{
+	for(uint32 i=0; i<proto->besch.get_count(); i++)
+	{
+		file.message("prot", "%s[%d] = %s", (const char*)prefix, i, proto->besch[i]->get_name());
+	}
+}

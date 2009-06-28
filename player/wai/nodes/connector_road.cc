@@ -219,3 +219,10 @@ return_code connector_road_t::step()
 	}
 }
 
+void connector_road_t::debug( log_t &file, cstring_t prefix )
+{
+	bt_sequential_t::debug(file, prefix);
+	file.message("mana","%s phase=%d", (const char*)prefix, phase);
+	cstring_t next_prefix( prefix + " prototyp");
+	prototyper->debug(file, next_prefix);
+}

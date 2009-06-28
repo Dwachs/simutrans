@@ -49,3 +49,16 @@ void manager_t::rotate90( const sint16 y_size)
 		reports[i]->rotate90(y_size);
 	}
 }
+
+void manager_t::debug( log_t &file, cstring_t prefix )
+{
+	bt_sequential_t::debug(file, prefix);
+	file.message("mana","%s reports received: %d", (const char*)prefix, reports.get_count());
+	cstring_t next_prefix( prefix + "  " );
+	for(uint32 i=0; i<reports.get_count(); i++)
+	{
+		char buf[40];
+		sprintf(buf, "  report[%d] ", i);
+		reports[i]->debug(file, prefix+buf);
+	}
+}

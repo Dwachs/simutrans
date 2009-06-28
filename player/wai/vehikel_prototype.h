@@ -4,6 +4,7 @@
 #include "../../tpl/vector_tpl.h"
 #include "../../tpl/slist_tpl.h"
 #include "../../simtypes.h"
+#include "../../utils/cstring_t.h"
 
 class convoi_t;
 class karte_t;
@@ -120,6 +121,7 @@ public:
 	virtual sint64 valuate(const vehikel_prototype_t &proto);
 
 	void rdwr(loadsave_t *file);
+	void debug( log_t &file, cstring_t prefix );
 };
 
 

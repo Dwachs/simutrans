@@ -95,6 +95,7 @@ void industry_manager_t::debug( log_t &file, cstring_t prefix )
 {
 	manager_t::debug(file,prefix);
 
+	file.message("indm","%s connections: %d", (const char*)prefix, connections.get_count());
 	for(uint32 i=0; i<connections.get_count(); i++)
 	{
 		char buf[40];

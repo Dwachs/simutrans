@@ -19,9 +19,11 @@ class connector_road_t : public bt_sequential_t
 public:
 	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh);
 	~connector_road_t();
-	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual return_code step();
+
+	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16);
+	virtual void debug( log_t &file, cstring_t prefix );
 private:
 	const fabrik_t *fab1, *fab2;
 	const weg_besch_t *road_besch;
