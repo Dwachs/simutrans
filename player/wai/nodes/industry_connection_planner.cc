@@ -91,7 +91,7 @@ return_code industry_connection_planner_t::step()
 	const sint64 gain_per_tile = ((sint64)d->proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*d->proto->get_maintenance();
 
 	// number of vehicles
-	const sint32 nr_vehicles = min( min(254,dist), (2*prod*dist) / (d->proto->get_capacity(freight)*tiles_per_month)+1 );
+	const uint16 nr_vehicles = min( min(254,dist), (2*prod*dist) / (d->proto->get_capacity(freight)*tiles_per_month)+1 );
 
 	// create report
 	// TODO: costs for depots, stations
@@ -104,7 +104,7 @@ return_code industry_connection_planner_t::step()
 	report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
 	report->nr_vehicles              = nr_vehicles;
 
-	report->action = new connector_road_t(sp, "connector_road_t", start, ziel, wb, d);
+	report->action = new connector_road_t(sp, "connector_road_t", start, ziel, wb, d, nr_vehicles);
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /v /m = %d", report->gain_per_v_m);
 

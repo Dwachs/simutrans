@@ -11,13 +11,17 @@
 #include "../../../bauer/wegbauer.h"
 #include "../../../dataobj/loadsave.h"
 
-connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d ) : bt_sequential_t( sp, name)
+connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d, uint16 nr_veh) : bt_sequential_t( sp, name)
 {
 	type = BT_CON_ROAD;
 	fab1 = fab1_;
 	fab2 = fab2_;
 	road_besch = road_besch_;
 	prototyper = d;
+	nr_vehicles = nr_veh;
+	phase = 0;
+	start = koord3d::invalid;
+	ziel = koord3d::invalid;
 }
 
 connector_road_t::~connector_road_t()
@@ -36,117 +40,178 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 		prototyper = new simple_prototype_designer_t(sp);
 	}
 	prototyper->rdwr(file);
+	file->rdwr_short(nr_vehicles, "");
+	start.rdwr(file);
+	ziel.rdwr(file);
+}
+
+void connector_road_t::rotate90( const sint16 y_size)
+{
+	bt_sequential_t::rotate90(y_size);
+	start.rotate90(y_size);
+	ziel.rotate90(y_size);
 }
 
 return_code connector_road_t::step()
 {
 	if( childs.empty() ) {
-		// Our first step -> calc the route.
-		koord start( fab1->get_pos().get_2d() );
-		koord ziel( fab2->get_pos().get_2d() );
-		vector_tpl<koord3d> tile_list[2];
-		const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
-		koord test;
-		for( uint8 i = 0; i < 2; i++ ) {
-			const fabrik_t *fab =  i==0 ? fab1 : fab2;
-			vector_tpl<koord> fab_tiles;
-			fab->get_tile_list( fab_tiles );
-			ai_t::add_neighbourhood( fab_tiles, cov );
-			vector_tpl<koord> one_more( fab_tiles );
-			ai_t::add_neighbourhood( one_more, 1 );
-			// Any halts here?
-			vector_tpl<koord> connected_halts, other_halts;
-			for( uint32 j = 0; j < one_more.get_count(); j++ ) {
-				halthandle_t halt = haltestelle_t::get_halt( sp->get_welt(), one_more[j], sp );
-				if( halt.is_bound() && !( other_halts.is_contained(halt->get_basis_pos()) || connected_halts.is_contained(halt->get_basis_pos()) ) ) {
-					bool halt_connected = halt->get_fab_list().is_contained( (fabrik_t*)fab );
-					for( slist_tpl< haltestelle_t::tile_t >::const_iterator iter = halt->get_tiles().begin(); iter != halt->get_tiles().end(); ++iter ) {
-						koord pos = iter->grund->get_pos().get_2d();
-						if( halt_connected ) {
-							connected_halts.append_unique( pos );
-						}
-						else {
-							other_halts.append_unique( pos );
+		switch(phase) {
+			case 0: {
+				// Our first step -> calc the route.
+				vector_tpl<koord3d> tile_list[2];
+				const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
+				koord test;
+				for( uint8 i = 0; i < 2; i++ ) {
+					const fabrik_t *fab =  i==0 ? fab1 : fab2;
+					vector_tpl<koord> fab_tiles;
+					fab->get_tile_list( fab_tiles );
+					ai_t::add_neighbourhood( fab_tiles, cov );
+					vector_tpl<koord> one_more( fab_tiles );
+					ai_t::add_neighbourhood( one_more, 1 );
+					// Any halts here?
+					vector_tpl<koord> connected_halts, other_halts;
+					for( uint32 j = 0; j < one_more.get_count(); j++ ) {
+						halthandle_t halt = haltestelle_t::get_halt( sp->get_welt(), one_more[j], sp );
+						if( halt.is_bound() && !( other_halts.is_contained(halt->get_basis_pos()) || connected_halts.is_contained(halt->get_basis_pos()) ) ) {
+							bool halt_connected = halt->get_fab_list().is_contained( (fabrik_t*)fab );
+							for( slist_tpl< haltestelle_t::tile_t >::const_iterator iter = halt->get_tiles().begin(); iter != halt->get_tiles().end(); ++iter ) {
+								koord pos = iter->grund->get_pos().get_2d();
+								if( halt_connected ) {
+									connected_halts.append_unique( pos );
+								}
+								else {
+									other_halts.append_unique( pos );
+								}
+							}
 						}
 					}
+					ai_t::add_neighbourhood( connected_halts, 1 );
+					ai_t::add_neighbourhood( other_halts, 1 );
+					vector_tpl<koord> halts( connected_halts );
+					for( uint32 j = 0; j < other_halts.get_count(); j++ ) {
+						if( fab_tiles.is_contained( other_halts[j] ) ) {
+								halts.append_unique( other_halts[j] );
+						}
+					}
+					vector_tpl<koord> *next = &halts;
+					for( uint8 k = 0; k < 2; k++ ) {
+						// On which tiles we can start?
+						for( uint32 j = 0; j < next->get_count(); j++ ) {
+							const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
+							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  ) {
+								tile_list[i].append_unique( gr->get_pos() );
+							}
+						}
+						if( !tile_list[i].empty() ) {
+							// Skip, if found tiles beneath halts.
+							break;
+						}
+						next = &fab_tiles;
+					}
 				}
-			}
-			ai_t::add_neighbourhood( connected_halts, 1 );
-			ai_t::add_neighbourhood( other_halts, 1 );
-			vector_tpl<koord> halts( connected_halts );
-			for( uint32 j = 0; j < other_halts.get_count(); j++ ) {
-				if( fab_tiles.is_contained( other_halts[j] ) ) {
-						halts.append_unique( other_halts[j] );
+				bool ok = false;
+				// Test which tiles are the best:
+				wegbauer_t bauigel(sp->get_welt(), sp );
+				bauigel.route_fuer( wegbauer_t::strasse, road_besch, tunnelbauer_t::find_tunnel(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()), brueckenbauer_t::find_bridge(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()) );
+				// we won't destroy cities (and save the money)
+				bauigel.set_keep_existing_faster_ways(true);
+				bauigel.set_keep_city_roads(true);
+				bauigel.set_maximum(10000);
+				bauigel.calc_route(tile_list[0], tile_list[1]);
+				if(bauigel.max_n > 1) {
+					// Sometimes reverse route is the best, so we have to change the koords.
+					if( tile_list[0].is_contained( bauigel.get_route()[0]) ) {
+						start = bauigel.get_route()[0];
+						ziel = bauigel.get_route()[bauigel.max_n];
+					} else {
+						start = bauigel.get_route()[bauigel.max_n];
+						ziel = bauigel.get_route()[0];
+					}
+
+					// get a suitable station
+					const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
+					ok = fh!=NULL;
+
+					// TODO: kontostand checken!
+					if (ok) {
+						bauigel.baue();
+					}
+					
+					// build immediately 1x1 stations
+					if (ok) {
+						ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), fh->get_name());
+						ok = ok && sp->call_general_tool(WKZ_STATION, ziel.get_2d(), fh->get_name());
+					}
+					// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
+					/*
+					append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
+					append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
+					*/
 				}
+				else { 
+					return RT_ERROR;
+				}
+				break;
 			}
-			vector_tpl<koord> *next = &halts;
-			for( uint8 k = 0; k < 2; k++ ) {
-				// On which tiles we can start?
-				for( uint32 j = 0; j < next->get_count(); j++ ) {
-					const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
+			case 1: {
+				// TODO: do something smarter here
+				vector_tpl<koord> tiles;
+				tiles.append(start.get_2d());
+				ai_t::add_neighbourhood( tiles, 5 );
+				vector_tpl<koord3d> dep_ziele;
+				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
+					const grund_t* gr = sp->get_welt()->lookup_kartenboden( tiles[j] );
 					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  ) {
-						tile_list[i].append_unique( gr->get_pos() );
+						dep_ziele.append_unique( gr->get_pos() );
 					}
 				}
-				if( !tile_list[i].empty() ) {
-					// Skip, if found tiles beneath halts.
-					break;
+				vector_tpl<koord3d> dep_start; 
+				dep_start.append(start);
+				bool ok = false;
+				// Test which tiles are the best:
+				wegbauer_t bauigel(sp->get_welt(), sp );
+				bauigel.route_fuer( wegbauer_t::strasse, road_besch, tunnelbauer_t::find_tunnel(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()), brueckenbauer_t::find_bridge(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()) );
+				// we won't destroy cities (and save the money)
+				bauigel.set_keep_existing_faster_ways(true);
+				bauigel.set_keep_city_roads(true);
+				bauigel.set_maximum(10000);
+				bauigel.calc_route(dep_start, dep_ziele);
+				koord3d deppos;
+				if(bauigel.max_n > 1) {
+					// Sometimes reverse route is the best, so we have to change the koords.
+					deppos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.max_n] : bauigel.get_route()[0];	
+					ok = true;
 				}
-				next = &fab_tiles;
-			}
-		}
-		bool ok;
-		// Test which tiles are the best:
-		wegbauer_t bauigel(sp->get_welt(), sp );
-		bauigel.route_fuer( wegbauer_t::strasse, road_besch, tunnelbauer_t::find_tunnel(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()), brueckenbauer_t::find_bridge(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()) );
-		// we won't destroy cities (and save the money)
-		bauigel.set_keep_existing_faster_ways(true);
-		bauigel.set_keep_city_roads(true);
-		bauigel.set_maximum(10000);
-		bauigel.calc_route(tile_list[0], tile_list[1]);
-		if(bauigel.max_n > 1) {
-			// Sometimes reverse route is the best, so we have to change the koords.
-			if( tile_list[0].is_contained( bauigel.get_route()[0]) ) {
-				start = bauigel.get_route()[0].get_2d();
-				ziel = bauigel.get_route()[bauigel.max_n].get_2d();
-			} else {
-				start = bauigel.get_route()[bauigel.max_n].get_2d();
-				ziel = bauigel.get_route()[0].get_2d();
-			}
-			ok = true;
-		}
-		if( ok ) {
-			// get a suitable station
-			const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
-			ok = fh!=NULL;
+				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, road_wt, sp->get_welt()->get_timeline_year_month(), 0);
+				ok = ok && dep!=NULL;
+				if (ok) {
+					bauigel.baue();		
+					// built depot
+					sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+				}
 
-			// TODO: kontostand checken!
-			if (ok) {
-				bauigel.baue();
-			}
-			
-			// build immediately 1x1 stations
-			if (ok) {
-				ok = sp->call_general_tool(WKZ_STATION, start, fh->get_name());
-				ok = ok && sp->call_general_tool(WKZ_STATION, ziel, fh->get_name());
-			}
-			// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
 
-			/*
-			 * TODO: sofort station bauen, depot bauen, linie einrichten, convois kaufen
-			 */
-			/*
-			append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
-			append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
-*/
-			append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, linehandle_t(), koord3d::invalid, 0) ); 
-			
-			return RT_PARTIAL_SUCCESS;
-		}
-		else {
-			return RT_ERROR;
-		}
+			}
+			case 2: {
+				// create line
+				schedule_t *fpl=new autofahrplan_t();
 
+				// full load? or do we have unused capacity?
+				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
+
+				fpl->append(sp->get_welt()->lookup(start), ladegrad);
+				fpl->append(sp->get_welt()->lookup(ziel), 0);
+				fpl->set_aktuell( 0 );
+				fpl->eingabe_abschliessen();
+
+				linehandle_t line=sp->simlinemgmt.create_line(simline_t::truckline, sp, fpl);
+				delete fpl;
+
+				append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, line, koord3d::invalid, nr_vehicles) ); 
+			}
+		}
+		phase ++;
+		return phase>2 ? RT_SUCCESS : RT_PARTIAL_SUCCESS;
 	}
 	else {
 		// Step the childs.
