@@ -273,8 +273,8 @@ Strassenlinie:
 	Aufgaben
 	== Station erweitern (Schilder Extensions Depot)
 
-
-
+	getrennte Anfahrtspuren fuer Abladen/ Aufladen
+	Templates aehnlich wie cityrules.tab fuer Stations-Layout nutzen
 
 
 ######Powernet-Manager
@@ -289,6 +289,8 @@ Liste
 	Falls neue Fahrzeuge verfuegbar
 	-> alle neu evaluieren
 	-> den Linien mitteilen
+Spionage
+	bei anderen Spielern abgucken :)
 
 =============
 Trunk Funktionen
