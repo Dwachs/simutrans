@@ -413,3 +413,25 @@ void simple_prototype_designer_t::debug( log_t &file, cstring_t prefix )
 		file.message("prot", "%s[%d] = %s", (const char*)prefix, i, proto->besch[i]->get_name());
 	}
 }
+
+
+simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, const ware_besch_t *f)
+{	
+	sp = cnv->get_besitzer();
+	proto = new vehikel_prototype_t();
+	wt = invalid_wt;
+	for(uint8 i=0; i<cnv->get_vehikel_anzahl(); i++) {
+		const vehikel_besch_t *besch = cnv->get_vehikel(i)->get_besch();
+		if (besch) {
+			wt = besch->get_waytype();
+			proto->besch.append(besch);
+		}		
+	}
+	
+	min_speed = 1; // in km/h
+	max_length = cnv->get_length() / 16; // in tiles
+	max_weight = 0;
+	freight = f;
+	include_electric = cnv->needs_electrification();
+	not_obsolete = cnv->has_obsolete_vehicles();
+}

@@ -54,6 +54,8 @@ public:
 
 	// will check each line and generate reports
 	virtual return_code work();
+	// will immediately execute positive reports (ie buy vehicles)
+	virtual void append_report(report_t *report);
 
 	/* these methods return the associated connection,
 	 *  if there is none, create it

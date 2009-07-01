@@ -1,9 +1,10 @@
 #ifndef vehikel_prototype_h
 #define vehikel_prototype_h
 
+#include "../../convoihandle_t.h"
+#include "../../simtypes.h"
 #include "../../tpl/vector_tpl.h"
 #include "../../tpl/slist_tpl.h"
-#include "../../simtypes.h"
 #include "../../utils/cstring_t.h"
 
 class convoi_t;
@@ -112,6 +113,8 @@ public:
 	vehikel_prototype_t *proto;
 
 	simple_prototype_designer_t(spieler_t *_sp) : sp(_sp) { proto = new vehikel_prototype_t(); }
+	// creates a designer to clone the convoi
+	simple_prototype_designer_t(convoihandle_t cnv, const ware_besch_t *f);
 	~simple_prototype_designer_t() { if (proto) delete proto; }
 
 	// computes / updates the prototype
