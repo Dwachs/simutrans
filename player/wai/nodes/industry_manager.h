@@ -24,6 +24,8 @@ class industry_connection_t {
 public:
 	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : status(0), line(0), start(s), ziel(z), freight(f) {}
 
+	report_t* get_report(ai_wai_t *sp);
+
 	void set_line(linehandle_t l) { line = l; }
 	linehandle_t get_line() const { return line; }
 
@@ -48,7 +50,10 @@ private:
 
 class industry_manager_t : public manager_t {
 public:
-	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_) { type = BT_IND_MNGR; }
+	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_), next_cid(0) { type = BT_IND_MNGR; }
+
+	// will check each line and generate reports
+	virtual return_code work();
 
 	/* these methods return the associated connection,
 	 *  if there is none, create it
@@ -91,6 +96,7 @@ public:
 	virtual void debug( log_t &file, cstring_t prefix );
 private:
 	vector_tpl<industry_connection_t> connections;
+	uint32 next_cid;
 };
 
 

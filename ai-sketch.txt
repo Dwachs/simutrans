@@ -186,6 +186,7 @@ Manager
 Strassenlinie:
 --Funktionen
 ::Check_Line
+	0) Fahrzeug leer, alt genug, nichts transportiert -> weg
 	I) zuviele Fahrzeuge warten
 	?? Sum(Vehicle::Status == Waiting / Loading) > fact * Sum(Vehicle)
 		Ia) Station zu klein (Ladezeiten dominieren)

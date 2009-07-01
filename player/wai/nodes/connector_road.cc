@@ -218,7 +218,7 @@ return_code connector_road_t::step()
 				linehandle_t line=sp->simlinemgmt.create_line(simline_t::truckline, sp, fpl);
 				delete fpl;
 
-				append_child( new vehikel_builder_t(sp, "vehickel builder", prototyper, line, deppos, nr_vehicles) );
+				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, nr_vehicles) );
 				
 				// tell the player
 				char buf[256];
@@ -227,8 +227,9 @@ return_code connector_road_t::step()
 
 				// tell the industrymanager
 				industry_connection_t& ic = sp->get_industry_manager()->get_connection(fab1, fab2, prototyper->freight);
-				ic.set<exists>();
+				ic.set<own>();
 				ic.unset<planned>();
+				ic.set_line(line);
 
 				// reset prototyper, will be deleted in vehikel_builder
 				prototyper = NULL;
@@ -247,7 +248,7 @@ return_code connector_road_t::step()
 void connector_road_t::debug( log_t &file, cstring_t prefix )
 {
 	bt_sequential_t::debug(file, prefix);
-	file.message("mana","%s phase=%d", (const char*)prefix, phase);
+	file.message("conr","%s phase=%d", (const char*)prefix, phase);
 	cstring_t next_prefix( prefix + " prototyp");
 	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
 }

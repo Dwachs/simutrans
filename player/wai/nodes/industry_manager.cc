@@ -3,8 +3,111 @@
 #include "../../ai.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
+#include "../../../simhalt.h"
 #include "../../../simline.h"
 #include "../../../dataobj/loadsave.h"
+#include "../../../vehicle/simvehikel.h"
+
+report_t* industry_connection_t::get_report(ai_wai_t *sp)
+{
+	if (!is<own>() || !line.is_bound()) {
+		return NULL;
+	}
+	if (line->count_convoys()==0) {
+		// TODO: remove the line, wird die vielleicht gebraucht??
+		return NULL;
+	}
+	karte_t* welt = sp->get_welt();
+	// check wether freight is available at loading stations (with ladegrad >0)
+	// calculate capacities
+	bool freight_available = false;
+
+	convoihandle_t cnv = line->get_convoy(0);
+	uint32 cap_cnv = 0;
+	for(uint8 i=0; i<cnv->get_vehikel_anzahl(); i++) {
+		const vehikel_besch_t* besch = cnv->get_vehikel(i)->get_besch();
+		if (besch) {
+			// compatible freights?
+			if(besch->get_ware()->get_catg_index()==freight->get_catg_index()) {
+				cap_cnv += besch->get_zuladung();
+			}
+		}
+	}
+	schedule_t* fpl = line->get_schedule();
+	for(uint32 i=0; i<fpl->get_count(); i++) {
+		if (fpl->eintrag[i].ladegrad>0) {
+			grund_t* gr = welt->lookup(fpl->eintrag[i].pos);
+			if (!gr) {
+				// TODO: correct schedule
+				sp->get_log().error( "industry_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
+				return NULL;
+			}
+			halthandle_t h = gr->get_halt();
+			if (!h.is_bound()) {
+				// TODO: correct schedule
+				sp->get_log().error( "industry_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
+				return NULL;
+			}
+			uint32 cap_halt = h->get_capacity(2);
+			uint32 goods_halt = h->get_ware_fuer_zielpos(freight, ziel->get_pos().get_2d());
+			// freight available ?
+			// either start is 2/3 full or more good available as one cnv can transort
+			freight_available = (3*goods_halt > 2*cap_halt) || (goods_halt > (fpl->eintrag[i].ladegrad*cap_cnv)/100 );
+			sp->get_log().message( "industry_connection_t::get_report()","line '%s' freight_available=%d (cap_cnv: %d, cap_halt: %d, goods_halt: %d)", line->get_name(), freight_available, cap_cnv, cap_halt, goods_halt);
+		}
+	}
+
+	// count status of convois
+	vector_tpl<convoihandle_t> stopped, empty, loss;
+	for(uint32 i=0; i<line->count_convoys(); i++) {
+		convoihandle_t cnv = line->get_convoy(i);
+		if (cnv->get_loading_level()==0) {
+			empty.append(cnv);
+		}
+
+		sint64 gewinn = 0;
+		for( int j=0;  j<12;  j++  ) {
+			gewinn += cnv->get_finance_history( j, CONVOI_PROFIT );
+		}
+		if (welt->get_current_month()-cnv->get_vehikel(0)->get_insta_zeit()>2  &&  gewinn<=0  ) {
+			loss.append(cnv);
+		}
+		switch (cnv->get_state()){
+			case convoi_t::INITIAL: 
+			case convoi_t::NO_ROUTE:
+			case convoi_t::LOADING:
+			case convoi_t::WAITING_FOR_CLEARANCE:
+			case convoi_t::WAITING_FOR_CLEARANCE_ONE_MONTH:
+			case convoi_t::CAN_START:
+			case convoi_t::CAN_START_ONE_MONTH:
+			case convoi_t::WAITING_FOR_CLEARANCE_TWO_MONTHS:
+			case convoi_t::CAN_START_TWO_MONTHS:
+				stopped.append(cnv);
+				break;
+			default:
+				break;
+		}
+	}
+	sp->get_log().message( "industry_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count());
+	// now decide something
+	if (freight_available) {
+		if (stopped.get_count()>0) {
+			// TODO: traffic jam ..
+		}
+	}
+	else {
+		// TODO: increase_productivity somewhere
+		if (empty.get_count() > 3) {
+			sp->get_log().message( "industry_connection_t::get_report()","line '%s' sell %d convois", line->get_name(), (empty.get_count()+2)/3);
+			// sell one third of the empty convois
+			for(uint32 i=0; i<empty.get_count(); i+=3) {
+				empty[i]->self_destruct();
+				empty[i]->step();	// to really get rid of it
+			}
+		}
+	}
+	return NULL;
+}
 
 void industry_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
 {
@@ -65,11 +168,26 @@ industry_connection_t& industry_manager_t::get_connection(const fabrik_t *s, con
 		return connections[connections.get_count()-1];
 	}
 }
+return_code industry_manager_t::work()
+{
+	if (connections.get_count()==0) return RT_DONE_NOTHING;
 
+	if (next_cid == connections.get_count()) next_cid = 0;
+
+	report_t* report = connections[next_cid].get_report(sp);
+
+	if (report) {
+		append_report(report);
+	}
+
+	next_cid ++;
+	return RT_SUCCESS;
+}
 void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)
 {
 	manager_t::rdwr(file, version);
 
+	file->rdwr_long(next_cid, "");
 	uint32 count;
 	if (file->is_saving()) {
 		count = connections.get_count();
