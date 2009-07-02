@@ -30,7 +30,7 @@ ai_wai_t::~ai_wai_t()
 
 void ai_wai_t::step()
 {
-	spieler_t::step();
+	ai_t::step();
 
 	if( !automat ) {
 		// This ai is turned off.
@@ -51,6 +51,7 @@ void ai_wai_t::step()
 
 void ai_wai_t::neuer_monat()
 {
+	ai_t::neuer_monat();
 	cstring_t empty("");
 	bt_root.debug( log, empty );
 }
@@ -74,12 +75,15 @@ void ai_wai_t::rdwr(loadsave_t *file)
 
 	bt_root.debug(log, "");
 }
+
 void ai_wai_t::laden_abschliessen()
 {
+	ai_t::laden_abschliessen();
 }
 
 void ai_wai_t::rotate90( const sint16 y_size )
 {
+	ai_t::rotate90( y_size );
 	bt_root.rotate90( y_size );
 }
 
