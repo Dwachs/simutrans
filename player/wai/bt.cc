@@ -100,13 +100,11 @@ return_code bt_sequential_t::step()
 	for( uint32 i = next_to_step; i < num_childs; i++ ) {
 		// step the child
 		return_code childs_return = childs[i]->step();
+		last_step = i;
 
 		// successfull: get and append report of child
 		if( childs_return == RT_SUCCESS  ||  childs_return == RT_TOTAL_SUCCESS ) {
-			/* report_t* report = childs[i]->get_report();
-			if (report) {
-				append_report(report);
-			} */
+			collect_reports();
 		}
 		// Do step counter things
 		// Don't increase next_to_step, if child wants the next call.

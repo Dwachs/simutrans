@@ -14,6 +14,7 @@ vehikel_builder_t::~vehikel_builder_t()
 
 return_code vehikel_builder_t::step()
 {
+	sp->get_log().message("vehikel_builder::step","ich mach jetzt was.");
 	if (!line.is_bound()) {
 		return RT_ERROR;
 	}

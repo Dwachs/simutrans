@@ -15,10 +15,10 @@ public:
 	virtual return_code step();
 	virtual void rotate90( const sint16 y_size );
 private:
-	uint8 nr_vehikel;
 	simple_prototype_designer_t *prototyper;
-	koord3d pos;
 	linehandle_t line;
+	koord3d pos;
+	uint8 nr_vehikel;
 	convoihandle_t cnv;
 };
 

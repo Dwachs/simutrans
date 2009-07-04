@@ -26,6 +26,13 @@ report_t* manager_t::get_report()
 	}
 }
 
+void manager_t::collect_reports()
+{
+	report_t* report = childs[ get_last_step() ]->get_report();
+	if (report) {
+		append_report(report);
+	}
+}
 
 void manager_t::rdwr(loadsave_t* file, const uint16 version)
 {

@@ -74,7 +74,7 @@ public:
 	virtual return_code step();
 
 	virtual report_t* get_report() { return NULL; };
-	virtual void append_report(report_t * /*report*/) {};
+	virtual void collect_reports() {};
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
