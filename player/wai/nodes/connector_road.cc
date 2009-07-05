@@ -166,10 +166,7 @@ return_code connector_road_t::step()
 						//	sp->get_log().message( "connector_road_t::step", "not enough money (cost: %ld, cash: %ld)", cost, cash );
 						//}
 					}
-					else {
-						sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
-					}
-					
+
 					// build immediately 1x1 stations
 					if (ok) {
 						ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), fh->get_name());
@@ -182,8 +179,9 @@ return_code connector_road_t::step()
 					*/
 				}
 
-				if (!ok) {
-					return RT_ERROR;
+				if( !ok ) {
+					sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
+					return RT_TOTAL_SUCCESS;
 				}
 				break;
 			}
@@ -260,6 +258,7 @@ return_code connector_road_t::step()
 				break;
 			}
 		}
+		sp->get_log().message( "connector_road_t::step", "completed phase %d", phase);
 		phase ++;
 		return phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
 	}
