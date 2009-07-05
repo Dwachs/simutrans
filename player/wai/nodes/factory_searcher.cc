@@ -112,6 +112,12 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 					uint ware_nr;
 					for(ware_nr=0;  ware_nr<ausgang.get_count()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
 						;
+					// no suppliers for this good!
+					if (ware_nr>=ausgang.get_count()) {
+						assert(fab->get_besch()->get_produkte()==0);
+						continue;
+					}
+
 					// ok, there is no connection and it is not banned, so we if there is enough for us
 					if(  ((ausgang[ware_nr].menge*4)/3) > ausgang[ware_nr].max  ) {
 						// bingo: soure
@@ -150,17 +156,18 @@ int factory_searcher_t::get_factory_tree_missing_count( const fabrik_t *fab )
 	for( int i=0;  i<fab->get_besch()->get_lieferanten();  i++  ) {
 		const ware_besch_t *ware = fab->get_besch()->get_lieferant(i)->get_ware();
 
-		bool complete = false;	// found at least one factory
+		bool complete = false;	// found at least one supplier for ware
 		const vector_tpl <koord> & sources = fab->get_suppliers();
 		for( unsigned q=0;  q<sources.get_count();  q++  ) {
 			fabrik_t *qfab = fabrik_t::get_fab(sp->get_welt(),sources[q]);
 			assert( qfab );
 			const fabrik_besch_t* const fb = qfab->get_besch();
 			for (uint qq = 0; qq < fb->get_produkte(); qq++) {
-				if (fb->get_produkt(qq)->get_ware() == ware
-						// statt forbidden abzufragen sollte doch lieber -1 zurueckgegeben werden,
-						// falls ein Teil des Baumes verboten ist oder?
-						&& !is_forbidden( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware)) {
+				if (fb->get_produkt(qq)->get_ware() == ware)
+				{
+					if(is_forbidden( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware)) {
+						return -1;
+					}
 					int n = get_factory_tree_missing_count( qfab );
 					if(n>=0) {
 						complete = true;
@@ -172,10 +179,9 @@ int factory_searcher_t::get_factory_tree_missing_count( const fabrik_t *fab )
 				}
 			}
 		}
-		if(!complete) {
-			if(fab->get_besch()->get_lieferanten()==0  ||  numbers==0) {
-				return -1;
-			}
+		// some necessary good is not supplied
+		if(!complete && fab->get_besch()->get_produkte()!=0) {
+			return -1;
 		}
 	}
 	return numbers;

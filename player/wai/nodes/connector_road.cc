@@ -218,7 +218,7 @@ return_code connector_road_t::step()
 				if (ok) {
 					bauigel.baue();		
 					// built depot
-					sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
 				else {
 					sp->get_log().message( "connector_road::step()","depot building failed");
@@ -240,7 +240,7 @@ return_code connector_road_t::step()
 				linehandle_t line=sp->simlinemgmt.create_line(simline_t::truckline, sp, fpl);
 				delete fpl;
 
-				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, nr_vehicles) );
+				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, min(nr_vehicles,3) ) );
 				
 				// tell the player
 				char buf[256];
