@@ -249,6 +249,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\builder_road_station.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_way_obj.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\building_reader.cc"
 				>
 			</File>
@@ -1114,6 +1122,14 @@
 			>
 			<File
 				RelativePath=".\player\wai\bt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_road_station.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_way_obj.h"
 				>
 			</File>
 			<File

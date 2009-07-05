@@ -137,7 +137,9 @@ return_code connector_road_t::step()
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
 				bauigel.calc_route(tile_list[0], tile_list[1]);
-				if(bauigel.max_n > 1) {
+
+				ok = bauigel.max_n > 1;
+				if(ok) {
 					// Sometimes reverse route is the best, so we have to change the koords.
 					if( tile_list[0].is_contained( bauigel.get_route()[0]) ) {
 						start = bauigel.get_route()[0];
@@ -153,8 +155,16 @@ return_code connector_road_t::step()
 
 					// TODO: kontostand checken!
 					if (ok) {
-						bauigel.baue();
-						sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
+						//sint64 cost = bauigel.calc_costs();
+						//sint64 cash = sp->get_finance_history_year(0, COST_CASH);
+						//if (10*cost < 9*cash) {
+							bauigel.baue();
+							sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
+						//}
+						//else {
+						//	ok = false;
+						//	sp->get_log().message( "connector_road_t::step", "not enough money (cost: %ld, cash: %ld)", cost, cash );
+						//}
 					}
 					else {
 						sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
@@ -171,7 +181,8 @@ return_code connector_road_t::step()
 					append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
 					*/
 				}
-				else { 
+
+				if (!ok) {
 					return RT_ERROR;
 				}
 				break;
