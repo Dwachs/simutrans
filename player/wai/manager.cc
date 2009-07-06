@@ -7,7 +7,7 @@
 return_code manager_t::step()
 {
 	return_code rc = bt_sequential_t::step();
-	if ( rc == RT_DONE_NOTHING ) {
+	if ( rc == RT_DONE_NOTHING || rc == RT_TOTAL_SUCCESS ) {
 		return work();
 	}
 	else {

@@ -93,8 +93,8 @@ return_code bt_sequential_t::step()
 	uint32 num_childs = childs.get_count();
 
 	if(  num_childs == 0  ) {
-		// We have nothing to do...
-		return RT_DONE_NOTHING;
+		// We have nothing to do... => Kill us.
+		return RT_TOTAL_SUCCESS;
 	}
 
 	for( uint32 i = next_to_step; i < num_childs; i++ ) {

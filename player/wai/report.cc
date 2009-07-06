@@ -13,6 +13,7 @@ void report_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_)
 	file->rdwr_longlong(cost_per_vehicle, "");
 	file->rdwr_longlong(cost_monthly_per_vehicle, "");
 	file->rdwr_short(nr_vehicles, "");
+	file->rdwr_short(nr_ships, "");
 
 	bt_node_t::rdwr_child(file, version, sp_, action);
 }

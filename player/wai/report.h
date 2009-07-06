@@ -33,9 +33,9 @@ public:
 	// vehicles
 	sint64 cost_per_vehicle;
 	sint64 cost_monthly_per_vehicle;
-	uint16 nr_vehicles;
+	uint16 nr_vehicles, nr_ships;
 
-	report_t() : action(NULL), cost_fix(0), cost_monthly(0), gain_per_v_m(0), cost_per_vehicle(0), cost_monthly_per_vehicle(0), nr_vehicles(0) {}
+	report_t() : action(NULL), cost_fix(0), cost_monthly(0), gain_per_v_m(0), cost_per_vehicle(0), cost_monthly_per_vehicle(0), nr_vehicles(0), nr_ships(0) {}
 
 	~report_t() {
 		if (action) delete action;

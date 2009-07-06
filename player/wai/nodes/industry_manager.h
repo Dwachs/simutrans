@@ -22,12 +22,15 @@ enum connection_status {
 
 class industry_connection_t {
 public:
-	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : status(0), line(0), start(s), ziel(z), freight(f) {}
+	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : status(0), line(0), shipline(0), start(s), ziel(z), freight(f) {}
 
 	report_t* get_report(ai_wai_t *sp);
 
 	void set_line(linehandle_t l) { line = l; }
 	linehandle_t get_line() const { return line; }
+
+	void set_shipline(linehandle_t l) { shipline = l; }
+	linehandle_t get_shipline() const { return shipline; }
 
 	template<connection_status cs> bool is() const { return (status & cs)!=0; }
 	template<connection_status cs> void set() { status |= cs; }
@@ -41,7 +44,7 @@ public:
 	void debug( log_t &file, cstring_t prefix );
 private:
 	sint64 status;
-	linehandle_t line;
+	linehandle_t line, shipline;
 
 	const fabrik_t *start;
 	const fabrik_t *ziel;

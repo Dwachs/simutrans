@@ -71,7 +71,7 @@ public:
 		tunnel_flag=0x800				// underground structure
 	};
 
-private:
+protected:
 	struct next_gr_t
 	{
 		next_gr_t() {}
@@ -131,13 +131,15 @@ private:
 	// allowed slope?
 	bool check_slope( const grund_t *from, const grund_t *to );
 
+	static bool check_building( const grund_t *to, const koord dir );
+
 	/* This is the core routine for the way search
 	* it will check
 	* A) allowed step
 	* B) if allowed, calculate the cost for the step from from to to
 	* @author prissi
 	*/
-	bool is_allowed_step( const grund_t *from, const grund_t *to, long *costs );
+	virtual bool is_allowed_step( const grund_t *from, const grund_t *to, long *costs );
 
 	// checks, if we can built a bridge here ...
 	// may modify next_gr array!
