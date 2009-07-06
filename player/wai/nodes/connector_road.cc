@@ -76,6 +76,8 @@ return_code connector_road_t::step()
 	if( childs.empty() ) {
 		switch(phase) {
 			case 0: {
+				// need through station?
+				bool through = false;
 				// Our first step -> calc the route.
 				vector_tpl<koord3d> tile_list[2];
 				const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
@@ -117,7 +119,7 @@ return_code connector_road_t::step()
 						// On which tiles we can start?
 						for( uint32 j = 0; j < next->get_count(); j++ ) {
 							const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
-							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  ) {
+							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  && !gr->find<gebaeude_t>() ) {
 								tile_list[i].append_unique( gr->get_pos() );
 							}
 						}
@@ -126,6 +128,23 @@ return_code connector_road_t::step()
 							break;
 						}
 						next = &fab_tiles;
+					}
+					// try to find a place for a durchgangshalt
+					if( tile_list[i].empty() ) {
+						for( uint32 j = 0; j < next->get_count(); j++ ) {
+							const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
+							// TODO: reicht diese Abfrage aus??
+							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(road_wt) &&  !gr->has_two_ways() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
+								weg_t *w = gr->get_weg(road_wt);
+								if (spieler_t::check_owner(sp, w->get_besitzer()) && ribi_t::ist_gerade(w->get_ribi_unmasked())) {
+									tile_list[i].append_unique( gr->get_pos() );
+									through = true;
+								}
+							}
+						}
+					}
+					for(uint32 j=0; j < tile_list[i].get_count(); j++) {
+						sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
 					}
 				}
 				bool ok = false;
@@ -150,7 +169,7 @@ return_code connector_road_t::step()
 					}
 
 					// get a suitable station
-					const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
+					const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, through ? hausbauer_t::through_station : hausbauer_t::generic_station );
 					ok = fh!=NULL;
 
 					// TODO: kontostand checken!

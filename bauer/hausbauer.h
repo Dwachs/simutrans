@@ -57,8 +57,10 @@ private:
 public:
 	/* finds a station building, which enables pas/mail/goods for the AI
 	 * for time==0 the timeline will be ignored
+	 * layout=1 .. through station, layout=2 .. terminal
 	 */
-	static const haus_besch_t* get_random_station(const haus_besch_t::utyp utype, const waytype_t wt, const uint16 time, const uint8 enables);
+	enum { generic_station = 0, through_station = 1, terminal_station = 2 };
+	static const haus_besch_t* get_random_station(const haus_besch_t::utyp utype, const waytype_t wt, const uint16 time, const uint8 enables, const uint8 layout=generic_station);
 
 	static const haus_tile_besch_t* find_tile(const char* name, int idx);
 
