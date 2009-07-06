@@ -11,7 +11,7 @@
 
 report_t* industry_connection_t::get_report(ai_wai_t *sp)
 {
-	if (!is<own>() || !line.is_bound()) {
+	if (!is<own>() || (!line.is_bound() && !shipline.is_bound())) {
 		return NULL;
 	}
 	if (line->count_convoys()==0) {
@@ -94,7 +94,7 @@ report_t* industry_connection_t::get_report(ai_wai_t *sp)
 	sp->get_log().message( "industry_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count());
 	// now decide something
 	if (freight_available) {
-		if (stopped.get_count()> min(line->count_convoys()/2, 2) ) {
+		if (stopped.get_count()> max(line->count_convoys()/2, 2) ) {
 			// TODO: traffic jam ..		
 			sp->get_log().message( "industry_connection_t::get_report()","line '%s' sell %d convois due to traffic jam", line->get_name(), 1);	
 			// sell one empty & stopped convois
@@ -146,6 +146,17 @@ void industry_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_
 		}
 	}
 
+	uint16 shipline_id;
+	if (file->is_saving()) {
+		shipline_id = shipline.is_bound() ? shipline->get_line_id() : INVALID_LINE_ID;
+	}
+	file->rdwr_short(shipline_id, " ");
+	if (file->is_loading()) {
+		if (shipline_id != INVALID_LINE_ID) {
+			shipline = sp->simlinemgmt.get_line_by_id(shipline_id);
+		}
+	}
+
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
 	ai_t::rdwr_ware_besch(file, freight);
@@ -159,6 +170,9 @@ void industry_connection_t::debug( log_t &file, cstring_t prefix )
 
 	if (line.is_bound()) {
 		file.message("indc", "%s line(%d) %s", (const char*)prefix, line->get_line_id(), line->get_name() );
+	}
+	if (shipline.is_bound()) {
+		file.message("indc", "%s shipline(%d) %s", (const char*)prefix, shipline->get_line_id(), shipline->get_name() );
 	}
 	file.message("indc", "%s status=%d", (const char*)prefix, status);
 }

@@ -431,7 +431,7 @@ bool wegbauer_t::check_owner( const spieler_t *sp1, const spieler_t *sp2 ) const
 /* do not go through depots, station buildings etc. ...
  * direction results from layout
  */
-static bool check_building( const grund_t *to, const koord dir )
+bool wegbauer_t::check_building( const grund_t *to, const koord dir )
 {
 	if(dir==koord(0,0)) {
 		return true;

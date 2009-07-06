@@ -28,7 +28,8 @@ enum bt_types {
 	// Builder:
 	BT_CON_ROAD      = 301,
 	BT_ROAD_STATION  = 302,
-	BT_WAYOBJ        = 303
+	BT_WAYOBJ        = 303,
+	BT_CON_SHIP      = 304
 };
 
 /*
@@ -46,6 +47,7 @@ enum return_code {
 	RT_ERROR            // Some error occured.
 };
 
+/*
 static const char *return_code_to_char [] =
 {
 	"Done nothing.",
@@ -54,6 +56,7 @@ static const char *return_code_to_char [] =
 	"Total success.",
 	"Error."
 };
+*/
 
 /*
  * This defines a node of a behaviour tree.

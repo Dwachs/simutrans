@@ -25,7 +25,7 @@ return_code vehikel_builder_t::step()
 	}
 	// valid ground ?
 	grund_t* gr = sp->get_welt()->lookup(pos);
-	if (gr==NULL || !gr->hat_weg(wt)) {
+	if(  gr == NULL  ) {
 		return RT_ERROR;
 	}
 	// depot ?

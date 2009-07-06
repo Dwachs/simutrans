@@ -30,6 +30,23 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 	start = koord3d::invalid;
 	ziel = koord3d::invalid;
 	e = e_;
+	harbour_pos = koord3d::invalid;
+}
+
+connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t *road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e_, const koord3d &harbour_pos_ ) :
+	bt_sequential_t( sp, name )
+{
+	type = BT_CON_ROAD;
+	fab1 = fab1_;
+	fab2 = fab2_;
+	road_besch = road_besch_;
+	prototyper = d;
+	nr_vehicles = nr_veh;
+	phase = 0;
+	start = koord3d::invalid;
+	ziel = koord3d::invalid;
+	e = e_;
+	harbour_pos = harbour_pos_;
 }
 
 connector_road_t::~connector_road_t()
@@ -45,6 +62,7 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
 	ai_t::rdwr_weg_besch(file, road_besch);
+	file->rdwr_short(nr_vehicles, "");
 	if (phase<=2) {
 		if (file->is_loading()) {
 			prototyper = new simple_prototype_designer_t(sp);
@@ -54,10 +72,10 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	else {
 		prototyper = NULL;
 	}
-	file->rdwr_short(nr_vehicles, "");
 	start.rdwr(file);
 	ziel.rdwr(file);
 	deppos.rdwr(file);
+	harbour_pos.rdwr(file);
 	/*
 	 * TODO: road_besch, e speichern
 	 */
@@ -69,6 +87,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 	start.rotate90(y_size);
 	ziel.rotate90(y_size);
 	deppos.rotate90(y_size);
+	harbour_pos.rotate90(y_size);
 }
 
 return_code connector_road_t::step()
@@ -83,6 +102,11 @@ return_code connector_road_t::step()
 				const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
 				koord test;
 				for( uint8 i = 0; i < 2; i++ ) {
+					if( i == 0  &&  harbour_pos != koord3d::invalid ) {
+						const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
+						tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
+						continue;
+					}
 					const fabrik_t *fab =  i==0 ? fab1 : fab2;
 					vector_tpl<koord> fab_tiles;
 					fab->get_tile_list( fab_tiles );

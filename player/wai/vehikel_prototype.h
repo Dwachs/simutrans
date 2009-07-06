@@ -92,7 +92,7 @@ public:
 class vehikel_evaluator_t {
 public:
 	// evaluate a convoi suggested by vehicle bauer
-	virtual sint64 valuate(const vehikel_prototype_t &proto) { return 0; }
+	virtual sint64 valuate(const vehikel_prototype_t &) { return 0; }
 };
 
 // generates prototype for one given freight
