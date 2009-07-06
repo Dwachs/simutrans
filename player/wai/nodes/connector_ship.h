@@ -8,6 +8,7 @@
  */
 
 #include "../bt.h"
+#include "../../../bauer/hausbauer.h"
 #include "../../../dataobj/koord3d.h"
 
 class fabrik_t;
@@ -30,8 +31,10 @@ private:
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
 	uint8 phase;
-	koord3d start, ziel, deppos, harbour_pos;
-};
+	koord3d start, deppos, harbour_pos;
 
+	// Helper function:
+	const haus_besch_t* get_random_harbour(const uint16 time, const uint8 enables);
+};
 
 #endif /* CONNECTER_SHIP_H */

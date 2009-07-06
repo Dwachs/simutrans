@@ -47,6 +47,7 @@ enum return_code {
 	RT_ERROR            // Some error occured.
 };
 
+/*
 static const char *return_code_to_char [] =
 {
 	"Done nothing.",
@@ -55,6 +56,7 @@ static const char *return_code_to_char [] =
 	"Total success.",
 	"Error."
 };
+*/
 
 /*
  * This defines a node of a behaviour tree.

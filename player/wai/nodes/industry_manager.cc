@@ -94,7 +94,7 @@ report_t* industry_connection_t::get_report(ai_wai_t *sp)
 	sp->get_log().message( "industry_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count());
 	// now decide something
 	if (freight_available) {
-		if (stopped.get_count()> min(line->count_convoys()/2, 2) ) {
+		if (stopped.get_count()> max(line->count_convoys()/2, 2) ) {
 			// TODO: traffic jam ..		
 			sp->get_log().message( "industry_connection_t::get_report()","line '%s' sell %d convois due to traffic jam", line->get_name(), 1);	
 			// sell one empty & stopped convois

@@ -2,8 +2,8 @@
 #define REPORT_H
 
 #include "../../simtypes.h"
+#include "bt.h"
 
-class bt_node_t;
 class ai_wai_t;
 
 class loadsave_t;

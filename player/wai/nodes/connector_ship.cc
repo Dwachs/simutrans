@@ -10,6 +10,7 @@
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
 #include "../../../simmesg.h"
+#include "../../../simtools.h"
 #include "../../../bauer/hausbauer.h"
 #include "../../../besch/vehikel_besch.h"
 #include "../../../dataobj/loadsave.h"
@@ -25,9 +26,6 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik
 	phase = 0;
 	start = fab1->get_pos();
 	harbour_pos = harbour_pos_;
-
-	const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
-	ziel =  harbour_pos - koord(gr->get_grund_hang());
 }
 
 connector_ship_t::~connector_ship_t()
@@ -53,7 +51,6 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 		prototyper = NULL;
 	}
 	start.rdwr(file);
-	ziel.rdwr(file);
 	deppos.rdwr(file);
 	harbour_pos.rdwr(file);
 }
@@ -62,7 +59,6 @@ void connector_ship_t::rotate90( const sint16 y_size)
 {
 	bt_sequential_t::rotate90(y_size);
 	start.rotate90(y_size);
-	ziel.rotate90(y_size);
 	deppos.rotate90(y_size);
 	harbour_pos.rotate90(y_size);
 }
@@ -72,12 +68,9 @@ return_code connector_ship_t::step()
 	if( childs.empty() ) {
 		switch(phase) {
 			case 0: {
-				// Our first step -> calc the route.
-				const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
-				koord test;
-
+				// Our first step
 				// get a suitable station
-				const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::hafen, water_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
+				const haus_besch_t* fh = get_random_harbour(sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
 				bool ok = fh!=NULL;
 
 				// build immediately 1x1 stations
@@ -126,7 +119,8 @@ return_code connector_ship_t::step()
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
 				fpl->append(sp->get_welt()->lookup(start), ladegrad, 15);
-				// FIXME: Wenn langer Kai gebaut wird, liegt das auf dem Kai.
+				const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
+				koord3d ziel =  harbour_pos - koord(gr->get_grund_hang());
 				fpl->append(sp->get_welt()->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -168,4 +162,22 @@ void connector_ship_t::debug( log_t &file, cstring_t prefix )
 	file.message("conr","%s phase=%d", (const char*)prefix, phase);
 	cstring_t next_prefix( prefix + " prototyp");
 	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
+}
+
+const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, const uint8 enables)
+{
+	weighted_vector_tpl<const haus_besch_t*> stops;
+
+	for(  vector_tpl<const haus_besch_t *>::const_iterator iter = hausbauer_t::station_building.begin(), end = hausbauer_t::station_building.end();  iter != end;  ++iter  ) {
+		const haus_besch_t* besch = (*iter);
+		if(besch->get_utyp()==haus_besch_t::hafen  &&  besch->get_extra()==water_wt  &&  (enables==0  ||  (besch->get_enabled()&enables)!=0)) {
+			// ok, now check timeline
+			if(time==0  ||  (besch->get_intro_year_month()<=time  &&  besch->get_retire_year_month()>time)) {
+				if( besch->get_b() == 1  &&  besch->get_h() == 1  ) {
+					stops.append(besch,max(1,16-besch->get_level()),16);
+				}
+			}
+		}
+	}
+	return stops.empty() ? NULL : stops.at_weight(simrand(stops.get_sum_weight()));
 }
