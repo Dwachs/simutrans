@@ -205,6 +205,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\utils\amphi_searcher.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\banner.cc"
 				>
 			</File>
@@ -290,6 +294,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\connector_road.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_ship.cc"
 				>
 			</File>
 			<File
@@ -999,6 +1007,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\utils\through_station.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\translator.cc"
 				>
 			</File>
@@ -1121,6 +1133,10 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\player\wai\utils\amphi_searcher.h"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\bt.h"
 				>
 			</File>
@@ -1134,6 +1150,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\connector_road.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_ship.h"
 				>
 			</File>
 			<File
@@ -1158,6 +1178,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\report.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\through_station.h"
 				>
 			</File>
 			<File

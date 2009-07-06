@@ -96,9 +96,10 @@ return_code connector_road_t::step()
 		switch(phase) {
 			case 0: {
 				// need through station?
-				bool through = false;
+				uint through = 0;
 				// Our first step -> calc the route.
 				vector_tpl<koord3d> tile_list[2];
+				vector_tpl<koord3d> through_tile_list[2];
 				const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
 				koord test;
 				for( uint8 i = 0; i < 2; i++ ) {
@@ -153,25 +154,43 @@ return_code connector_road_t::step()
 						}
 						next = &fab_tiles;
 					}
-					// try to find a place for a durchgangshalt
+					// try to find a place for a durchgangshalt - append the neighbors of possible positions to tilelist
+					// remember the candidates for the stations in a separate list
 					if( tile_list[i].empty() ) {
 						for( uint32 j = 0; j < next->get_count(); j++ ) {
 							const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
 							// TODO: reicht diese Abfrage aus??
 							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(road_wt) &&  !gr->has_two_ways() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
-								weg_t *w = gr->get_weg(road_wt);
-								if (spieler_t::check_owner(sp, w->get_besitzer()) && ribi_t::ist_gerade(w->get_ribi_unmasked())) {
-									tile_list[i].append_unique( gr->get_pos() );
-									through = true;
+								const weg_t *w = gr->get_weg(road_wt);
+								const ribi_t::ribi ribi = w->get_ribi_unmasked();
+								if (spieler_t::check_owner(sp, w->get_besitzer()) && ribi_t::ist_gerade(ribi)) {
+									grund_t *to; 
+									bool found = false;
+									if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
+										tile_list[i].append_unique( to->get_pos() );
+										found = true;
+									}
+									if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
+										tile_list[i].append_unique( to->get_pos() );
+										found = true;
+									}
+									if (found) {
+										through_tile_list[i].append_unique(gr->get_pos());
+										through |= i+1;
+									}
 								}
 							}
 						}
 					}
-					for(uint32 j=0; j < tile_list[i].get_count(); j++) {
-						sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
+					if (through & (i+1)) {
+						for(uint32 j=0; j < tile_list[i].get_count(); j++) {
+							sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
+						}
+						for(uint32 j=0; j < through_tile_list[i].get_count(); j++) {
+							sp->get_log().message( "connector_road_t::step", "through_tile_list[%d][%d] = %s", i,j,through_tile_list[i][j].get_str());
+						}
 					}
 				}
-				bool ok = false;
 				// Test which tiles are the best:
 				wegbauer_t bauigel(sp->get_welt(), sp );
 				bauigel.route_fuer( wegbauer_t::strasse, road_besch, tunnelbauer_t::find_tunnel(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()), brueckenbauer_t::find_bridge(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()) );
@@ -179,21 +198,65 @@ return_code connector_road_t::step()
 				bauigel.set_keep_existing_faster_ways(true);
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
+				bool ok = true;
+
 				bauigel.calc_route(tile_list[0], tile_list[1]);
-
 				ok = bauigel.max_n > 1;
-				if(ok) {
-					// Sometimes reverse route is the best, so we have to change the koords.
-					if( tile_list[0].is_contained( bauigel.get_route()[0]) ) {
-						start = bauigel.get_route()[0];
-						ziel = bauigel.get_route()[bauigel.max_n];
-					} else {
-						start = bauigel.get_route()[bauigel.max_n];
-						ziel = bauigel.get_route()[0];
+				// find locations of stations (special search for through stations)
+				uint8 found = 3 ^ through;
+				if (ok) {
+					for(uint8 i=0;  i<2; i++) {
+						for(uint8 j=0; j<2; j++) {
+							// Sometimes reverse route is the best - try both ends of the routes
+							uint32 n = j==0 ? 0 : bauigel.max_n;
+							if( tile_list[i].is_contained( bauigel.get_route()[n]) ) { 
+								// through station
+								if (through & (i+1) ) {
+									grund_t * gr = sp->get_welt()->lookup(bauigel.get_route()[n]);
+									sp->get_log().message( "connector_road_t::step", "found route to tile (%s)", gr->get_pos().get_str());
+									// now find the right neighbor
+									for(uint8 r=0; r<4; r++) {
+										grund_t *to;
+										// append the through station tile to the bauigel route
+										if (gr->get_neighbour(to, road_wt, koord::nsow[r])) {
+											sp->get_log().message( "connector_road_t::step", "try neighbor (%s)", to->get_pos().get_str());
+											if (through_tile_list[i].is_contained(to->get_pos())) {
+												bool ribi_ok = !bauigel.get_route().is_contained(to->get_pos());
+												if (!ribi_ok) {
+													ribi_ok = ribi_t::ist_gerade(bauigel.get_route().get_ribi(n) & to->get_weg(road_wt)->get_ribi_unmasked());
+												}
+												if (ribi_ok) {
+													if (i==0) {
+														start = to->get_pos();
+													}
+													else {
+														ziel = to->get_pos();
+													}
+													sp->get_log().message( "connector_road_t::step", "passt", to->get_pos().get_str());
+													found |= i+1;
+												}
+												// TODO: catch the else branch here
+											}
+										}
+									}
+								}
+								// generic station - can be built on top of the last tile
+								else {
+									if (i==0) {
+										start = bauigel.get_route()[n];
+									}
+									else {
+										ziel = bauigel.get_route()[n];
+									}
+								}
+							}
+						}
 					}
-
+				}
+				ok = ok && found == 3;
+				if(ok) {
 					// get a suitable station
-					const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, through ? hausbauer_t::through_station : hausbauer_t::generic_station );
+					const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, through!=0 ? hausbauer_t::through_station : hausbauer_t::generic_station );
 					ok = fh!=NULL;
 
 					// TODO: kontostand checken!
@@ -215,6 +278,11 @@ return_code connector_road_t::step()
 						ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), fh->get_name());
 						ok = ok && sp->call_general_tool(WKZ_STATION, ziel.get_2d(), fh->get_name());
 					}
+					else {
+						sp->get_log().message( "connector_road_t::step", "failed to built road station at (%s) or (%s)", start.get_2d().get_str(), ziel.get_str() );
+						sp->get_log().message( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.max_n-1].get_str() );
+					}
+
 					// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
 					/*
 					append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );

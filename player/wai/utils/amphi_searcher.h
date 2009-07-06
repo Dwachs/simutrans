@@ -15,7 +15,7 @@ class amphi_searcher_t : public wegbauer_t
 {
 public:
 	amphi_searcher_t(karte_t *welt, spieler_t *spl) : wegbauer_t(welt, spl) {};
-private:
+protected:
 	virtual bool is_allowed_step( const grund_t *from, const grund_t *to, long *costs );
 };
 
