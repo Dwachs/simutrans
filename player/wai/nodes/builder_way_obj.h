@@ -9,7 +9,7 @@ class way_obj_besch_t;
 class builder_wayobj_t : public bt_node_t
 {
 public:
-	builder_wayobj_t( ai_wai_t* sp, const char *name, koord3d &start_, koord3d &ziel_, const way_obj_besch_t *e_ ) :
+	builder_wayobj_t( ai_wai_t* sp, const char *name, koord3d start_, koord3d ziel_, const way_obj_besch_t *e_ ) :
 		bt_node_t( sp, name ),
 		start( start_ ),
 		ziel( ziel_ ),

@@ -15,6 +15,18 @@
 #include "../../../besch/vehikel_besch.h"
 #include "../../../dataobj/loadsave.h"
 
+connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
+	bt_sequential_t( sp, name )
+{
+	type = BT_CON_SHIP;
+	fab1 = NULL;
+	fab2 = NULL;
+	prototyper = NULL;
+	nr_vehicles = 0;
+	phase = 0;
+	start = koord3d::invalid;
+	harbour_pos = koord3d::invalid;;
+}
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos_ ) :
 	bt_sequential_t( sp, name )
 {

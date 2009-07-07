@@ -19,6 +19,7 @@ class way_obj_besch_t;
 class connector_ship_t : public bt_sequential_t
 {
 public:
+	connector_ship_t( ai_wai_t *sp, const char *name);
 	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos );
 	~connector_ship_t();
 	virtual return_code step();

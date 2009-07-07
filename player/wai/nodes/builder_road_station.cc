@@ -6,7 +6,7 @@
 #include "../../ai.h"
 #include "../../ai_wai.h"
 
-builder_road_station_t::builder_road_station_t( ai_wai_t *sp, const char *name, const koord3d &place_ ) :
+builder_road_station_t::builder_road_station_t( ai_wai_t *sp, const char *name, const koord3d place_ ) :
 	bt_node_t( sp, name ),
 	place( place_ )
 {

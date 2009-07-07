@@ -2,6 +2,10 @@
 
 #include "manager.h"
 #include "planner.h"
+#include "nodes/builder_road_station.h"
+#include "nodes/builder_way_obj.h"
+#include "nodes/connector_road.h"
+#include "nodes/connector_ship.h"
 #include "nodes/factory_searcher.h"
 #include "nodes/industry_connection_planner.h"
 #include "nodes/industry_manager.h"
@@ -27,12 +31,18 @@ bt_node_t* bt_node_t::alloc_bt_node(uint16 type, ai_wai_t *sp_)
 		case BT_NULL:			return NULL;
 		case BT_NODE:			return new bt_node_t(sp_);
 		case BT_SEQUENTIAL:		return new bt_sequential_t(sp_, NULL);
+
 		case BT_PLANNER:		return new planner_t(sp_, NULL);
 		case BT_IND_CONN_PLN:	return new industry_connection_planner_t(sp_, NULL);
+
 		case BT_MANAGER:		return new manager_t(sp_, NULL);
 		case BT_FACT_SRCH:		return new factory_searcher_t(sp_, NULL);
 		case BT_IND_MNGR:		{ industry_manager_t *im = new industry_manager_t(sp_, NULL); sp_->set_industry_manager(im); return im; }
 
+		case BT_CON_ROAD:		return new connector_road_t(sp_, NULL);
+		case BT_ROAD_STATION:	return new builder_road_station_t(sp_, NULL, koord3d::invalid);
+		case BT_WAYOBJ:			return new builder_wayobj_t(sp_, NULL, koord3d::invalid, koord3d::invalid, NULL);
+		case BT_CON_SHIP:		return new connector_ship_t(sp_, NULL);
 		default:
 			assert(0);
 			return NULL;
