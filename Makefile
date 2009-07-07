@@ -279,6 +279,7 @@ SOURCES += player/wai/bt.cc
 SOURCES += player/wai/manager.cc
 SOURCES += player/wai/planner.cc
 SOURCES += player/wai/report.cc
+SOURCES += player/wai/return_value.cc
 SOURCES += player/wai/vehikel_prototype.cc
 SOURCES += player/wai/nodes/builder_road_station.cc
 SOURCES += player/wai/nodes/builder_way_obj.cc

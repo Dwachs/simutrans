@@ -1,7 +1,7 @@
 #ifndef BT_H
 #define BT_H
 
-
+#include "return_value.h"
 #include "../../simtypes.h"
 #include "../../tpl/vector_tpl.h"
 #include "../../utils/cstring_t.h"
@@ -31,32 +31,6 @@ enum bt_types {
 	BT_WAYOBJ        = 303,
 	BT_CON_SHIP      = 304
 };
-
-/*
- * This class defines the return code of
- * bt_node_t::step().
- * @author Daniel, Gerd Wachsmuth
- * @date  08.05.2009
- */
-
-enum return_code {
-	RT_DONE_NOTHING,    // Done nothing.
-	RT_SUCCESS,         // Done something.
-	RT_PARTIAL_SUCCESS, // Done something, want to continue next step.
-	RT_TOTAL_SUCCESS,   // Done all, can be destroyed by parent.
-	RT_ERROR            // Some error occured.
-};
-
-/*
-static const char *return_code_to_char [] =
-{
-	"Done nothing.",
-	"Success.",
-	"Partial success.",
-	"Total success.",
-	"Error."
-};
-*/
 
 /*
  * This defines a node of a behaviour tree.

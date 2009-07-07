@@ -753,6 +753,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\return_value.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\ribi.cc"
 				>
 			</File>
@@ -1178,6 +1182,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\report.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\return_value.h"
 				>
 			</File>
 			<File
