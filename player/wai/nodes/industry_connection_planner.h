@@ -14,7 +14,7 @@ public:
 	industry_connection_planner_t(ai_wai_t *sp_, const char* name_)
 		: planner_t(sp_,name_), start(0), ziel(0), freight(0), wt(invalid_wt) { type = BT_IND_CONN_PLN;}
 
-	virtual return_code step();
+	virtual return_value_t *step();
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 private:
 	sint32 calc_production();

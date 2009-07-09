@@ -22,7 +22,7 @@ public:
 	connector_ship_t( ai_wai_t *sp, const char *name);
 	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos );
 	~connector_ship_t();
-	virtual return_code step();
+	virtual return_value_t *step();
 
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16);

@@ -14,7 +14,7 @@ public:
 		start( start_ ),
 		ziel( ziel_ ),
 		e( e_ ) { type = BT_WAYOBJ; };
-	virtual return_code step();
+	virtual return_value_t *step();
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16 y_size );
 private:

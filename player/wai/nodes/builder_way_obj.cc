@@ -2,7 +2,7 @@
 #include "../../ai_wai.h"
 #include "../../../simwerkz.h"
 
-return_code builder_wayobj_t::step()
+return_value_t *builder_wayobj_t::step()
 {
 	const char* error;
 	karte_t *welt = sp->get_welt();
@@ -17,11 +17,11 @@ return_code builder_wayobj_t::step()
 	wkz.exit( welt, sp );
 	if( error ) {
 		sp->get_log().warning("builder_wayobj_t::step","Can't build from %s to %s", start.get_str(), ziel.get_str());
-		return RT_ERROR;
+		return new_return_value(RT_ERROR);
 	}
 	else {
 		sp->get_log().warning("builder_wayobj_t::step","Build wayobj from %s to %s", start.get_str(), ziel.get_str());
-		return RT_TOTAL_SUCCESS;
+		return new_return_value(RT_TOTAL_SUCCESS);
 	}
 }
 

@@ -105,7 +105,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 	harbour_pos.rotate90(y_size);
 }
 
-return_code connector_road_t::step()
+return_value_t *connector_road_t::step()
 {
 	if( childs.empty() ) {
 		switch(phase) {
@@ -307,7 +307,7 @@ return_code connector_road_t::step()
 
 				if( !ok ) {
 					sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
-					return RT_TOTAL_SUCCESS;
+					return new_return_value(RT_TOTAL_SUCCESS);
 				}
 				break;
 			}
@@ -386,7 +386,7 @@ return_code connector_road_t::step()
 		}
 		sp->get_log().message( "connector_road_t::step", "completed phase %d", phase);
 		phase ++;
-		return phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
+		return new_return_value(phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS);
 	}
 	else {
 		// Step the childs.

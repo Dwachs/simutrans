@@ -56,7 +56,7 @@ public:
 	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_), next_cid(0) { type = BT_IND_MNGR; }
 
 	// will check each line and generate reports
-	virtual return_code work();
+	virtual return_value_t *work();
 	// will immediately execute positive reports (ie buy vehicles)
 	virtual void append_report(report_t *report);
 

@@ -13,24 +13,24 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../dings/wayobj.h"
 
-return_code industry_connection_planner_t::step()
+return_value_t *industry_connection_planner_t::step()
 {
 	if(sp->get_industry_manager()->is_connection<unplanable>(start, ziel, freight)) {		
 		sp->get_log().warning("industry_connection_planner_t::step", "connection already planned/built/forbidden");
-		return RT_TOTAL_SUCCESS; // .. to kill this instance
+		return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 	}
 	// check if we already have a report
 	if( report ) {
 		// This shouldn't happen. We are deleted, if we delivered a report.
 		assert( false );
-		return RT_TOTAL_SUCCESS; // .. to kill this instance
+		return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 	}
 	// get a way
 	const weg_besch_t *wb = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
 	if (!wb) {
 		sp->get_log().warning("industry_connection_planner_t::step","no way found for waytype %d", wt);
 		sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
-		return RT_TOTAL_SUCCESS; // .. to kill this instance
+		return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 	}
 
 	// estimate production
@@ -38,7 +38,7 @@ return_code industry_connection_planner_t::step()
 	if (prod<0) {
 		sp->get_log().warning("industry_connection_planner_t::step","production = %d", prod);
 		sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
-		return RT_TOTAL_SUCCESS; // .. to kill this instance
+		return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 	}
 
 	// TODO: check for depots, station,
@@ -58,7 +58,7 @@ return_code industry_connection_planner_t::step()
 	if (d->proto->is_empty()) {
 		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
 		sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
-		return RT_TOTAL_SUCCESS; // .. to kill this instance
+		return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 	}
 
 	// electrification available?
@@ -68,7 +68,7 @@ return_code industry_connection_planner_t::step()
 		if (!e) {
 			sp->get_log().warning("industry_connection_planner_t::step","no electrification found for waytype %d", wt);
 			sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
-			return RT_TOTAL_SUCCESS; // .. to kill this instance
+			return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 		}
 	}
 	// update way
@@ -82,7 +82,7 @@ return_code industry_connection_planner_t::step()
 	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 		if(! (start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser && !ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser)) {
 			sp->get_log().warning("industry_connection_planner_t::step", "only oil rigs supported yet");
-			return RT_TOTAL_SUCCESS;
+			return new_return_value(RT_TOTAL_SUCCESS);
 		}
 		sp->get_log().warning("industry_connection_planner_t::step", "start factory at water side spotted");
 		include_ships = true;
@@ -130,7 +130,7 @@ return_code industry_connection_planner_t::step()
 		else {
 			sp->get_log().warning("industry_connection_planner_t::step", "Keine Amphibienroute");
 			sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
-			return RT_TOTAL_SUCCESS; // .. to kill this instance
+			return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 		}
 
 		d2->freight = freight;
@@ -146,7 +146,7 @@ return_code industry_connection_planner_t::step()
 		if (d2->proto->is_empty()) {
 			sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", water_wt, freight->get_name());
 			sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
-			return RT_TOTAL_SUCCESS; // .. to kill this instance
+			return new_return_value(RT_TOTAL_SUCCESS); // .. to kill this instance
 		}
 		const uint32 dist = koord_distance(harbour_pos, ziel->get_pos());
 
@@ -201,7 +201,7 @@ return_code industry_connection_planner_t::step()
 
 	sp->get_industry_manager()->set_connection<planned>(start, ziel, freight);
 
-	return RT_TOTAL_SUCCESS;
+	return new_return_value(RT_TOTAL_SUCCESS);
 }
 
 

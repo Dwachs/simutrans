@@ -1,6 +1,7 @@
 #ifndef BT_H
 #define BT_H
 
+#include "alloc_node.h"
 #include "return_value.h"
 #include "../../simtypes.h"
 #include "../../tpl/vector_tpl.h"
@@ -11,26 +12,6 @@ class ai_wai_t;
 class loadsave_t;
 class report_t;
 
-/*
- * all types of nodes
- */
-enum bt_types {
-	BT_NULL          = 0,
-	BT_NODE          = 1,
-	BT_SEQUENTIAL    = 2,
-	// Planner:
-	BT_PLANNER       = 100,
-	BT_IND_CONN_PLN  = 101,
-	// Manager:
-	BT_MANAGER       = 200,
-	BT_FACT_SRCH     = 201,
-	BT_IND_MNGR      = 202,
-	// Builder:
-	BT_CON_ROAD      = 301,
-	BT_ROAD_STATION  = 302,
-	BT_WAYOBJ        = 303,
-	BT_CON_SHIP      = 304
-};
 
 /*
  * This defines a node of a behaviour tree.
@@ -43,27 +24,22 @@ protected:
 	cstring_t name; // for debugging purposes
 	uint16 type;    // to get the right class for loading / saving
 	ai_wai_t *sp;
+	virtual return_value_t* new_return_value(return_code rc);
 public:
 	bt_node_t( ai_wai_t *sp_) : type(BT_NODE), sp(sp_) {}
 	bt_node_t( ai_wai_t *sp_, const char* name_) : name( name_ ), type(BT_NODE), sp(sp_) {};
 	virtual ~bt_node_t() {};
 
-	virtual return_code step();
+	virtual return_value_t* step();
 
 	virtual report_t* get_report() { return NULL; };
-	virtual void collect_reports() {};
+	virtual void append_report(report_t *report) {};
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
 	virtual void debug( log_t &file, cstring_t prefix );
 
 	uint16 get_type() const { return type;}
-	/*
-	 * Returns a new instance of a node from the right class
-	 *
-	 */
-	static bt_node_t *alloc_bt_node(uint16 type, ai_wai_t *sp_);
-
 	/*
 	 * Saves the given child / loads the next child
 	 * .. sets: sp, type
@@ -83,7 +59,7 @@ public:
 	bt_sequential_t( ai_wai_t *sp_, const char* name_ );
 	virtual ~bt_sequential_t();
 
-	virtual return_code step();
+	virtual return_value_t*  step();
 
 	void append_child( bt_node_t *new_child );
 
@@ -98,11 +74,6 @@ protected:
 private:
 	// Which child should get the next step?
 	uint32 next_to_step;
-
-	// Which child has done something?
-	uint32 last_step;
-public:
-	uint32 get_last_step() { return last_step; }
 };
 
 /*

@@ -12,7 +12,7 @@ public:
 	vehikel_builder_t( ai_wai_t *sp, const char *name, simple_prototype_designer_t *d, linehandle_t _line, koord3d p, uint8 n ) : bt_node_t(sp,name), prototyper(d), line(_line), pos(p), nr_vehikel(n) {};
 	~vehikel_builder_t();
 	virtual void rdwr( loadsave_t *file, const uint16 version );
-	virtual return_code step();
+	virtual return_value_t *step();
 	virtual void rotate90( const sint16 y_size );
 private:
 	simple_prototype_designer_t *prototyper;

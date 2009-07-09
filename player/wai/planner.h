@@ -6,9 +6,11 @@
 
 class planner_t : public bt_node_t {
 public:
-	planner_t(ai_wai_t *sp_, const char* name_) : bt_node_t(sp_, name_), report(NULL) { type = BT_PLANNER; };
+	planner_t(ai_wai_t *sp_, const char* name_) : bt_node_t(sp_, name_) , report(NULL) { type = BT_PLANNER; };
 
 	// returns report and resets the pointer to NULL
+	virtual return_value_t* new_return_value(return_code rc);
+	// TODO: noch gebraucht?
 	virtual report_t* get_report() { report_t *r = report; report = NULL; return r; }
 
 	virtual void rotate90( const sint16 y_size) { if (report) report->rotate90(y_size); };

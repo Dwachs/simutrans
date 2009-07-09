@@ -18,7 +18,7 @@ public:
 	builder_road_station_t( ai_wai_t *sp, const char *name, const koord3d place );
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16 y_size ) { place.rotate90(y_size); };
-	virtual return_code step();
+	virtual return_value_t *step();
 private:
 	const ware_besch_t *ware;
 	koord3d place;

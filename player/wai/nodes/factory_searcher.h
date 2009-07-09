@@ -16,7 +16,7 @@ class factory_searcher_t : public manager_t {
 public:
 	factory_searcher_t( ai_wai_t *sp_, const char* name_ ) : manager_t(sp_, name_), start(0), ziel(0), freight(0) { type = BT_FACT_SRCH;};
 
-	virtual return_code work();
+	virtual return_value_t *work();
 	virtual void rotate90( const sint16 ) {};
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 

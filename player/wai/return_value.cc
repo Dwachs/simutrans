@@ -1,6 +1,7 @@
 #include "return_value.h"
 #include "bt.h"
 #include "report.h"
+#include "../../dataobj/freelist.h"
 
 return_value_t::~return_value_t() 
 {
@@ -16,4 +17,17 @@ return_value_t::~return_value_t()
 		delete undo;
 		undo = NULL;
 	}
+}
+
+
+void *return_value_t::operator new(size_t /*s*/)
+{
+	return freelist_t::gimme_node(sizeof(return_value_t));
+}
+
+
+
+void return_value_t::operator delete(void *p)
+{
+	freelist_t::putback_node(sizeof(return_value_t),p);
 }

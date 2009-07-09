@@ -275,6 +275,7 @@ SOURCES += player/ai.cc
 SOURCES += player/ai_goods.cc
 SOURCES += player/ai_passenger.cc
 SOURCES += player/ai_wai.cc
+SOURCES += player/wai/alloc_node.cc
 SOURCES += player/wai/bt.cc
 SOURCES += player/wai/manager.cc
 SOURCES += player/wai/planner.cc

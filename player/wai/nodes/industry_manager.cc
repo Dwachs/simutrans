@@ -219,11 +219,11 @@ void industry_manager_t::append_report(report_t *report)
 		}
 	}
 }
-return_code industry_manager_t::work()
+return_value_t *industry_manager_t::work()
 {
 	sp->get_log().message("industry_manager_t::work","irgendwas.");
 
-	if (connections.get_count()==0) return RT_DONE_NOTHING;
+	if (connections.get_count()==0) return new_return_value(RT_DONE_NOTHING);
 
 	if (next_cid == connections.get_count()) next_cid = 0;
 
@@ -234,7 +234,7 @@ return_code industry_manager_t::work()
 	}
 
 	next_cid ++;
-	return RT_SUCCESS;
+	return new_return_value(RT_SUCCESS);
 }
 
 void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)

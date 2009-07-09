@@ -4,10 +4,11 @@
 #include "../../dataobj/loadsave.h"
 #include "planner.h"
 
-return_code manager_t::step()
+return_value_t *manager_t::step()
 {
-	return_code rc = bt_sequential_t::step();
-	if ( rc == RT_DONE_NOTHING || rc == RT_TOTAL_SUCCESS ) {
+	return_value_t *rc = bt_sequential_t::step();
+	if ( rc->code == RT_DONE_NOTHING || rc->code == RT_TOTAL_SUCCESS ) {
+		delete rc;
 		return work();
 	}
 	else {
@@ -23,14 +24,6 @@ report_t* manager_t::get_report()
 	else {
 		// TODO: do something more reasonable here
 		return reports[simrand(reports.get_count())];
-	}
-}
-
-void manager_t::collect_reports()
-{
-	report_t* report = childs[ get_last_step() ]->get_report();
-	if (report) {
-		append_report(report);
 	}
 }
 

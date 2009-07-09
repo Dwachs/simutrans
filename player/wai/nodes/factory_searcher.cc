@@ -39,7 +39,7 @@ bool factory_searcher_t::is_planable( const fabrik_t * s, const fabrik_t * z, co
 }
 
 // Copied from ai_goods
-return_code factory_searcher_t::work()
+return_value_t *factory_searcher_t::work()
 {
 	// find a tree root to complete
 	weighted_vector_tpl<const fabrik_t *> start_fabs(20);
@@ -69,14 +69,14 @@ return_code factory_searcher_t::work()
 		append_child( new industry_connection_planner_t(sp, buf, start, ziel, freight, road_wt ));
 
 		sp->get_log().message( "factory_searcher_t::work()","found route %s -> %s", start->get_name(), ziel->get_name() );
-		return RT_PARTIAL_SUCCESS;
+		return new_return_value(RT_PARTIAL_SUCCESS);
 	}
 	else {
 		sp->get_log().message( "factory_searcher_t::work()","found no route");
 	}
 
 
-	return RT_SUCCESS;
+	return new_return_value(RT_SUCCESS);
 }
 
 

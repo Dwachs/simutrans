@@ -18,8 +18,8 @@ class manager_t : public bt_sequential_t {
 public:
 	manager_t( ai_wai_t *sp, const char* name ) : bt_sequential_t(sp, name) { type = BT_MANAGER; }
 	// regular work will be done here
-	virtual return_code step();
-	virtual return_code work() {return bt_node_t::step(); };
+	virtual return_value_t * step();
+	virtual return_value_t * work() {return bt_node_t::step(); };
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ );
@@ -27,7 +27,6 @@ public:
 
 	// reports
 	vector_tpl<report_t*> reports;
-	virtual void collect_reports();
 	virtual void append_report(report_t *report) { if (report) reports.append(report); }
 	virtual report_t* get_report();
 

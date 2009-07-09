@@ -205,6 +205,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\alloc_node.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\utils\amphi_searcher.cc"
 				>
 			</File>
@@ -1136,6 +1140,10 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\player\wai\alloc_node.h"
+				>
+			</File>
 			<File
 				RelativePath=".\player\wai\utils\amphi_searcher.h"
 				>

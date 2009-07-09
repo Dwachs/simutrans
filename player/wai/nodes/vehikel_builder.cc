@@ -12,26 +12,26 @@ vehikel_builder_t::~vehikel_builder_t()
 	prototyper = NULL;
 }
 
-return_code vehikel_builder_t::step()
+return_value_t *vehikel_builder_t::step()
 {
 	sp->get_log().message("vehikel_builder::step","ich mach jetzt was.");
 	if (!line.is_bound()) {
-		return RT_ERROR;
+		return new_return_value(RT_ERROR);
 	}
 	waytype_t wt = prototyper->proto->get_waytype();
 	// prototype empty
 	if (wt == invalid_wt) {
-		return RT_ERROR;
+		return new_return_value(RT_ERROR);
 	}
 	// valid ground ?
 	grund_t* gr = sp->get_welt()->lookup(pos);
 	if(  gr == NULL  ) {
-		return RT_ERROR;
+		return new_return_value(RT_ERROR);
 	}
 	// depot ?
 	depot_t *dp = gr->get_depot();
 	if (dp==NULL || dp->get_besitzer()!=sp || dp->get_wegtyp()!=wt) {
-		return RT_ERROR;
+		return new_return_value(RT_ERROR);
 	}
 	
 	if (!cnv.is_bound() && nr_vehikel>0) {
@@ -57,16 +57,16 @@ return_code vehikel_builder_t::step()
 		}
 		else {
 			// TODO: add some delay for retrying
-			return RT_DONE_NOTHING;
+			return new_return_value(RT_DONE_NOTHING);
 		}
 	}
 	
 	if (nr_vehikel>0 || cnv.is_bound()) {
 		// TODO: add some delay until next vehicle is created
-		return RT_PARTIAL_SUCCESS;
+		return new_return_value(RT_PARTIAL_SUCCESS);
 	}
 	else {
-		return RT_TOTAL_SUCCESS;
+		return new_return_value(RT_TOTAL_SUCCESS);
 	}
 }
 
