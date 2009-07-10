@@ -1015,10 +1015,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\player\wai\utils\through_station.cc"
-				>
-			</File>
-			<File
 				RelativePath=".\dataobj\translator.cc"
 				>
 			</File>
@@ -1194,10 +1190,6 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\return_value.h"
-				>
-			</File>
-			<File
-				RelativePath=".\player\wai\utils\through_station.h"
 				>
 			</File>
 			<File

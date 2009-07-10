@@ -32,6 +32,7 @@ public:
 
 	virtual return_value_t* step();
 
+	// TODO: kann weg?
 	virtual report_t* get_report() { return NULL; };
 	virtual void append_report(report_t *report) {};
 

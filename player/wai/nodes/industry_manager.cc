@@ -11,6 +11,7 @@
 
 report_t* industry_connection_t::get_report(ai_wai_t *sp)
 {
+	// TODO: process the shipline here too
 	if (!is<own>() || (!line.is_bound() && !shipline.is_bound())) {
 		return NULL;
 	}
@@ -119,10 +120,10 @@ report_t* industry_connection_t::get_report(ai_wai_t *sp)
 	}
 	else {
 		// TODO: increase_productivity somewhere
-		if (empty.get_count() > 3) {
+		if (empty.get_count() > 1) {
 			sp->get_log().message( "industry_connection_t::get_report()","line '%s' sell %d convois", line->get_name(), (empty.get_count()+2)/3);
-			// sell one third of the empty convois
-			for(uint32 i=0; i<empty.get_count(); i+=3) {
+			// sell one third of the empty convois, keep minmum one convoi
+			for(uint32 i=1; i<empty.get_count(); i+=3) {
 				empty[i]->self_destruct();
 				empty[i]->step();	// to really get rid of it
 			}

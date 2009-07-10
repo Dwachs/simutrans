@@ -46,7 +46,8 @@ void ai_wai_t::step()
 	}
 	log.message("", "");
 	log.message("ai_wai_t::step", "next step:");
-	bt_root.step();
+	return_value_t * rv = bt_root.step();
+	delete rv;
 }
 
 void ai_wai_t::neuer_monat()

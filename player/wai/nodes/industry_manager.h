@@ -29,6 +29,7 @@ public:
 	void set_line(linehandle_t l) { line = l; }
 	linehandle_t get_line() const { return line; }
 
+	// TODO: store more than these two lines for one connection
 	void set_shipline(linehandle_t l) { shipline = l; }
 	linehandle_t get_shipline() const { return shipline; }
 

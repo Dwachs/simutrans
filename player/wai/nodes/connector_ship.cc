@@ -91,7 +91,7 @@ return_value_t *connector_ship_t::step()
 				}
 
 				if( !ok ) {
-					sp->get_log().message( "connector_ship_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
+					sp->get_log().warning( "connector_ship_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
 					return new_return_value(RT_TOTAL_SUCCESS);
 				}
 				break;
@@ -119,7 +119,7 @@ return_value_t *connector_ship_t::step()
 				bool ok = dep!=NULL;
 				ok &= sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				if( !ok ) {
-					sp->get_log().message( "connector_ship::step()","depot building failed");
+					sp->get_log().warning( "connector_ship::step()","depot building failed");
 				}
 				break;
 			}

@@ -14,27 +14,31 @@ vehikel_builder_t::~vehikel_builder_t()
 
 return_value_t *vehikel_builder_t::step()
 {
-	sp->get_log().message("vehikel_builder::step","ich mach jetzt was.");
 	if (!line.is_bound()) {
+		sp->get_log().warning("vehikel_builder::step", "invalid linehandle");
 		return new_return_value(RT_ERROR);
 	}
 	waytype_t wt = prototyper->proto->get_waytype();
 	// prototype empty
 	if (wt == invalid_wt) {
+		sp->get_log().warning("vehikel_builder::step", "invalid prototype waytype");
 		return new_return_value(RT_ERROR);
 	}
 	// valid ground ?
 	grund_t* gr = sp->get_welt()->lookup(pos);
 	if(  gr == NULL  ) {
+		sp->get_log().warning("vehikel_builder::step", "no valid starting position (%s)", pos.get_str());
 		return new_return_value(RT_ERROR);
 	}
 	// depot ?
 	depot_t *dp = gr->get_depot();
 	if (dp==NULL || dp->get_besitzer()!=sp || dp->get_wegtyp()!=wt) {
+		sp->get_log().warning("vehikel_builder::step", "no valid depot at (%s)", pos.get_str());
 		return new_return_value(RT_ERROR);
 	}
 	
 	if (!cnv.is_bound() && nr_vehikel>0) {
+		sp->get_log().message("vehikel_builder::step","create convoi for line %s", line->get_name());
 		// create a new one
 		cnv = dp->add_convoi();
 		bool ok= true;
@@ -50,12 +54,14 @@ return_value_t *vehikel_builder_t::step()
 	// try to start the convoi
 	if (cnv.is_bound() && cnv->get_pos()==pos) {
 		if (dp->start_convoi(cnv)) {
+			sp->get_log().message("vehikel_builder::step","started convoi");
 			// now give the new convoi name from first vehicle
 			cnv->set_name(prototyper->proto->besch[0]->get_name());
 			// unset cnv, the next step can create a new one
 			cnv = convoihandle_t();
 		}
 		else {
+			sp->get_log().message("vehikel_builder::step","convoi not started");
 			// TODO: add some delay for retrying
 			return new_return_value(RT_DONE_NOTHING);
 		}
@@ -93,12 +99,14 @@ void vehikel_builder_t::rdwr( loadsave_t *file, const uint16 version )
 			line = linehandle_t();
 		}
 	}
-	// cannot save convoihandle - try to reconstruct
-	for(uint32 i=0; i<line->count_convoys(); i++) {
-		convoihandle_t ccc = line->get_convoy(i);
-		if (strcmp(ccc->get_name(), start_name)==0) {
-			cnv = ccc;
-			break;
+	// cannot save convoihandle - try to reconstruct during loading
+	if (file->is_loading() && line.is_bound()) {
+		for(uint32 i=0; i<line->count_convoys(); i++) {
+			convoihandle_t ccc = line->get_convoy(i);
+			if (strcmp(ccc->get_name(), start_name)==0) {
+				cnv = ccc;
+				break;
+			}
 		}
 	}
 }

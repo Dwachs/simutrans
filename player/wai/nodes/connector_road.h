@@ -19,8 +19,7 @@ class connector_road_t : public bt_sequential_t
 {
 public:
 	connector_road_t( ai_wai_t *sp, const char *name);
-	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e );
-	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e, const koord3d &harbour_pos );
+	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e, const koord3d harbour_pos = koord3d::invalid);
 	~connector_road_t();
 	virtual return_value_t *step();
 

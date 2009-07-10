@@ -32,23 +32,8 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name) :
 	e = NULL;
 	harbour_pos = koord3d::invalid;
 }
-connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t* road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e_ ) :
-	bt_sequential_t( sp, name)
-{
-	type = BT_CON_ROAD;
-	fab1 = fab1_;
-	fab2 = fab2_;
-	road_besch = road_besch_;
-	prototyper = d;
-	nr_vehicles = nr_veh;
-	phase = 0;
-	start = koord3d::invalid;
-	ziel = koord3d::invalid;
-	e = e_;
-	harbour_pos = koord3d::invalid;
-}
 
-connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t *road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e_, const koord3d &harbour_pos_ ) :
+connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t *road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e_, const koord3d harbour_pos_ ) :
 	bt_sequential_t( sp, name )
 {
 	type = BT_CON_ROAD;
@@ -247,8 +232,11 @@ return_value_t *connector_road_t::step()
 													else {
 														ziel = to->get_pos();
 													}
-													sp->get_log().message( "connector_road_t::step", "passt", to->get_pos().get_str());
+													sp->get_log().message( "connector_road_t::step", "passt (%s)", to->get_pos().get_str());
 													found |= i+1;
+												}
+												else {
+													sp->get_log().warning( "connector_road_t::step", "passt nicht: (%s)", to->get_pos().get_str());
 												}
 												// TODO: catch the else branch here
 											}
