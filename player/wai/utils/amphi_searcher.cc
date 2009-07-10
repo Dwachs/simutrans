@@ -9,6 +9,7 @@ bool amphi_searcher_t::is_allowed_step( const grund_t *from, const grund_t *to, 
 	const koord zv=to_pos-from_pos;
 
 	// Switching only one times from water to ground:
+	// (enforces also start on water!)
 	if( to->ist_wasser()  &&  !from->ist_wasser() )
 	{
 		return false;

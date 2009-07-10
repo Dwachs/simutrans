@@ -20,7 +20,7 @@ return_value_t *builder_wayobj_t::step()
 		return new_return_value(RT_ERROR);
 	}
 	else {
-		sp->get_log().warning("builder_wayobj_t::step","Build wayobj from %s to %s", start.get_str(), ziel.get_str());
+		sp->get_log().message("builder_wayobj_t::step","Build wayobj from %s to %s", start.get_str(), ziel.get_str());
 		return new_return_value(RT_TOTAL_SUCCESS);
 	}
 }
