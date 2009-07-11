@@ -14,27 +14,28 @@ vehikel_builder_t::~vehikel_builder_t()
 
 return_value_t *vehikel_builder_t::step()
 {
+	sp->get_log().message("vehikel_builder::step","build %s for line %s", (const char*)name, line->get_name());
 	if (!line.is_bound()) {
 		sp->get_log().warning("vehikel_builder::step", "invalid linehandle");
-		return new_return_value(RT_ERROR);
+		return new_return_value(RT_TOTAL_FAIL);
 	}
 	waytype_t wt = prototyper->proto->get_waytype();
 	// prototype empty
 	if (wt == invalid_wt) {
 		sp->get_log().warning("vehikel_builder::step", "invalid prototype waytype");
-		return new_return_value(RT_ERROR);
+		return new_return_value(RT_TOTAL_FAIL);
 	}
 	// valid ground ?
 	grund_t* gr = sp->get_welt()->lookup(pos);
 	if(  gr == NULL  ) {
 		sp->get_log().warning("vehikel_builder::step", "no valid starting position (%s)", pos.get_str());
-		return new_return_value(RT_ERROR);
+		return new_return_value(RT_TOTAL_FAIL);
 	}
 	// depot ?
 	depot_t *dp = gr->get_depot();
 	if (dp==NULL || dp->get_besitzer()!=sp || dp->get_wegtyp()!=wt) {
 		sp->get_log().warning("vehikel_builder::step", "no valid depot at (%s)", pos.get_str());
-		return new_return_value(RT_ERROR);
+		return new_return_value(RT_TOTAL_FAIL);
 	}
 	
 	if (!cnv.is_bound() && nr_vehikel>0) {
@@ -114,4 +115,11 @@ void vehikel_builder_t::rdwr( loadsave_t *file, const uint16 version )
 void vehikel_builder_t::rotate90( const sint16 y_size )
 {
 	pos.rotate90(y_size);
+}
+
+
+void vehikel_builder_t::debug( log_t &file, cstring_t prefix )
+{
+	file.message("vehb","%s%s build %d for line %s", (const char*)prefix, (const char*)name, nr_vehikel, line.is_bound() ? line->get_name() : "<error>");
+	prototyper->debug(file,prefix+ "  " );
 }

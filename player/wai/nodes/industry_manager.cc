@@ -12,7 +12,7 @@
 report_t* industry_connection_t::get_report(ai_wai_t *sp)
 {
 	// TODO: process the shipline here too
-	if (!is<own>() || (!line.is_bound() && !shipline.is_bound())) {
+	if (!is<own>() || !line.is_bound()) {
 		return NULL;
 	}
 	if (line->count_convoys()==0) {

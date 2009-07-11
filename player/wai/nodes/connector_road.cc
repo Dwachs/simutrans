@@ -77,7 +77,7 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	deppos.rdwr(file);
 	harbour_pos.rdwr(file);
 	/*
-	 * TODO: road_besch, e speichern
+	 * TODO: e speichern
 	 */
 }
 
@@ -93,6 +93,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 return_value_t *connector_road_t::step()
 {
 	if( childs.empty() ) {
+		sp->get_log().message("connector_road_t::step", "phase %d of build route %s => %s", phase, fab1->get_name(), fab2->get_name() );
 		switch(phase) {
 			case 0: {
 				// need through station?
@@ -202,6 +203,17 @@ return_value_t *connector_road_t::step()
 
 				bauigel.calc_route(tile_list[0], tile_list[1]);
 				ok = bauigel.max_n > 1;
+				if( !ok ) {
+					sp->get_log().warning( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
+					/* sp->get_log().message( "connector_road_t::step", "harbour pos = (%s)", harbour_pos.get_str() );
+
+					for(uint8 i=0; i<2; i++) {
+						for(uint32 j=0; j < tile_list[i].get_count(); j++) {
+							sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
+						}
+					} */
+					return new_return_value(RT_TOTAL_SUCCESS);
+				}
 				// find locations of stations (special search for through stations)
 				uint8 found = 3 ^ through;
 				if (ok) {
@@ -257,46 +269,50 @@ return_value_t *connector_road_t::step()
 					}
 				}
 				ok = ok && found == 3;
-				if(ok) {
-					// get a suitable station
-					const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, through!=0 ? hausbauer_t::through_station : hausbauer_t::generic_station );
-					ok = fh!=NULL;
-
-					// TODO: kontostand checken!
-					if (ok) {
-						//sint64 cost = bauigel.calc_costs();
-						//sint64 cash = sp->get_finance_history_year(0, COST_CASH);
-						//if (10*cost < 9*cash) {
-							bauigel.baue();
-							sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
-						//}
-						//else {
-						//	ok = false;
-						//	sp->get_log().message( "connector_road_t::step", "not enough money (cost: %ld, cash: %ld)", cost, cash );
-						//}
-					}
-
-					// build immediately 1x1 stations
-					if (ok) {
-						ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), fh->get_name());
-						ok = ok && sp->call_general_tool(WKZ_STATION, ziel.get_2d(), fh->get_name());
-					}
-					else {
-						sp->get_log().message( "connector_road_t::step", "failed to built road station at (%s) or (%s)", start.get_2d().get_str(), ziel.get_str() );
-						sp->get_log().message( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.max_n-1].get_str() );
-					}
-
-					// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
-					/*
-					append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
-					append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
-					*/
-				}
-
 				if( !ok ) {
-					sp->get_log().message( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
+					sp->get_log().warning( "connector_road_t::step", "could not find places for road stations" );
 					return new_return_value(RT_TOTAL_SUCCESS);
 				}
+				// get a suitable station
+				const haus_besch_t* terminal_st = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::terminal_station );
+				const haus_besch_t* through_st = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::through_station );
+				if (terminal_st==NULL) {
+					terminal_st = through_st;
+				}
+				ok = (through_st!=NULL) || (through==0);
+				if (!ok) {
+					sp->get_log().warning( "connector_road_t::step", "no suitable station found" );
+					return new_return_value(RT_TOTAL_SUCCESS);
+				}
+
+				// TODO: kontostand checken!
+				//sint64 cost = bauigel.calc_costs();
+				//sint64 cash = sp->get_finance_history_year(0, COST_CASH);
+				//if (10*cost < 9*cash) {
+					bauigel.baue();
+					sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
+				//}
+				//else {
+				//	ok = false;
+				//	sp->get_log().message( "connector_road_t::step", "not enough money (cost: %ld, cash: %ld)", cost, cash );
+				//}
+
+				// build immediately 1x1 stations
+				ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
+				ok = ok && sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
+				if (!ok) {
+					sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s) or (%s)", start.get_2d().get_str(), ziel.get_str() );
+					sp->get_log().warning( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.max_n-1].get_str() );
+					return new_return_value(RT_TOTAL_SUCCESS);
+				}
+
+				// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
+				/*
+				append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
+				append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
+				*/
+				
+
 				break;
 			}
 			case 1: {
@@ -335,7 +351,7 @@ return_value_t *connector_road_t::step()
 					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
 				else {
-					sp->get_log().message( "connector_road::step()","depot building failed");
+					sp->get_log().warning( "connector_road::step()","depot building failed");
 				}
 				break;
 			}

@@ -80,8 +80,9 @@ return_value_t *industry_connection_planner_t::step()
 	uint16 nr_ships = 0;
 
 	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
-		if(! (start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser && !ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser)) {
+		if(start->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 			sp->get_log().warning("industry_connection_planner_t::step", "only oil rigs supported yet");
+			sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
 			return new_return_value(RT_TOTAL_SUCCESS);
 		}
 		sp->get_log().warning("industry_connection_planner_t::step", "start factory at water side spotted");
@@ -190,6 +191,7 @@ return_value_t *industry_connection_planner_t::step()
 	if( include_ships ) {
 		bt_sequential_t *action = new bt_sequential_t( sp, "bt_sequential mit road+ship" );
 		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, d, nr_vehicles, NULL, harbour_pos) );
+		// TODO: was passiert, wenn der road-connector seine Route nicht bauen kann?
 		action->append_child( new connector_ship_t(sp, "connector_ship_t", start, ziel, d2, nr_ships, harbour_pos) );
 		report->action = action;
 	}

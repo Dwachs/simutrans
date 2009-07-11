@@ -350,7 +350,9 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 	file->rdwr_bool(include_electric, "");
 	file->rdwr_bool(not_obsolete, "");
 
-	proto = new vehikel_prototype_t();
+	if (file->is_loading()) {
+		proto = new vehikel_prototype_t();
+	}
 	proto->rdwr(file);
 }
 

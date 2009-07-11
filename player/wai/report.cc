@@ -27,7 +27,7 @@ void report_t::rotate90( const sint16 y_size )
 
 void report_t::debug( log_t &file, cstring_t prefix )
 {
-	file.message("sequ","%s cost %d", (const char*)prefix, cost_fix);
+	file.message("rprt","%s cost %d", (const char*)prefix, cost_fix);
 	// TODO: complete this
 	cstring_t next_prefix( prefix + "  " );
 	if (action) {

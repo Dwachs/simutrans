@@ -10,6 +10,7 @@ enum return_code {
 	RT_ERROR			=8,		// Some error occured.
 	RT_KILL_ME			=16,	// Can be destroyed by parent.
 	RT_TOTAL_SUCCESS	=RT_SUCCESS | RT_KILL_ME,
+	RT_TOTAL_FAIL		=RT_ERROR | RT_KILL_ME,
 	RT_READY			=RT_DONE_NOTHING | RT_SUCCESS | RT_ERROR | RT_KILL_ME
 };
 
