@@ -337,6 +337,7 @@ return_value_t *connector_road_t::step()
 			}
 			swap<koord3d>( tile_list[i], rv->data->pos1 );
 			swap<koord3d>( through_tile_list[i], rv->data->pos2 );
+			delete rv;
 			return new_return_value( RT_PARTIAL_SUCCESS );
 		}
 		else {

@@ -417,6 +417,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\free_tile_searcher.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\freelist.cc"
 				>
 			</File>
@@ -1166,6 +1170,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\factory_searcher.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\free_tile_searcher.h"
 				>
 			</File>
 			<File

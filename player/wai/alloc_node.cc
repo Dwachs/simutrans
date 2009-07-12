@@ -32,7 +32,7 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 		case BT_WAYOBJ:			return new builder_wayobj_t(sp, NULL, koord3d::invalid, koord3d::invalid, NULL);
 		case BT_CON_SHIP:		return new connector_ship_t(sp, NULL);
 		case BT_VEH_BUILDER:	return new vehikel_builder_t(sp, NULL);
-		case BT_FREE_TILE:	return new free_tile_searcher_t( sp, NULL );
+		case BT_FREE_TILE:		return new free_tile_searcher_t( sp, NULL );
 		default:
 			assert(0);
 			return NULL;

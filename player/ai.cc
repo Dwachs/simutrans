@@ -561,7 +561,7 @@ bool ai_t::rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel
 	file->rdwr_long( count, " ");
 
 	bool ok = true;
-	const char *s;
+	const char *s = NULL;
 	for(uint32 i=0; i<count; i++) {
 		if (file->is_saving()) {
 			s = besch[i]->get_name();
