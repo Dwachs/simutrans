@@ -35,7 +35,9 @@ private:
 	koord3d start, deppos, harbour_pos;
 
 	// Helper function:
-	const haus_besch_t* get_random_harbour(const uint16 time, const uint8 enables);
+	const haus_besch_t* get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len=1);
+	// Get position for ship schedule
+	koord3d get_ship_target();
 };
 
 #endif /* CONNECTER_SHIP_H */

@@ -81,17 +81,34 @@ return_value_t *connector_ship_t::step()
 		switch(phase) {
 			case 0: {
 				// Our first step: Build a harbour.
+				// calculate space
+				koord zv(sp->get_welt()->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
+				koord test_pos(harbour_pos.get_2d() - zv);
+				for(uint8 i = 1; i<8; i++) {
+					grund_t *gr = sp->get_welt()->lookup_kartenboden(test_pos);
+					// TODO: reicht abfrage?
+					if (gr && gr->ist_wasser() && !gr->get_halt().is_bound() && gr->find<gebaeude_t>()==NULL) {
+						test_pos -= zv;
+					}
+					else {
+						break;
+					}
+				}
+				uint32 len = koord_distance(harbour_pos, test_pos);
 
 				// get a suitable station
-				const haus_besch_t* fh = get_random_harbour(sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
+				const haus_besch_t* fh = get_random_harbour(sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, len);
 				bool ok = fh!=NULL;
 
 				// build immediately 1x1 stations
 				if (ok) {
 					ok = sp->call_general_tool(WKZ_STATION, harbour_pos.get_2d(), fh->get_name());
 				}
-
-				if( !ok ) {
+				// harbour_pos now the Molenende
+				if (ok) {
+					harbour_pos -= zv * (fh->get_h()-1);
+				}
+				else {
 					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour at %s (route %s => %s)", harbour_pos.get_str(), fab1->get_name(), fab2->get_name() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
@@ -135,7 +152,7 @@ return_value_t *connector_ship_t::step()
 
 				fpl->append(sp->get_welt()->lookup(start), ladegrad, 15);
 				const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
-				koord3d ziel =  harbour_pos - koord(gr->get_grund_hang());
+				koord3d ziel =  get_ship_target(); // harbour_pos - koord(gr->get_grund_hang());
 				fpl->append(sp->get_welt()->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -179,7 +196,7 @@ void connector_ship_t::debug( log_t &file, cstring_t prefix )
 	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
 }
 
-const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, const uint8 enables)
+const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len)
 {
 	weighted_vector_tpl<const haus_besch_t*> stops;
 
@@ -188,11 +205,36 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 		if(besch->get_utyp()==haus_besch_t::hafen  &&  besch->get_extra()==water_wt  &&  (enables==0  ||  (besch->get_enabled()&enables)!=0)) {
 			// ok, now check timeline
 			if(time==0  ||  (besch->get_intro_year_month()<=time  &&  besch->get_retire_year_month()>time)) {
-				if( besch->get_b() == 1  &&  besch->get_h() == 1  ) {
+				if( besch->get_b() == 1  &&  besch->get_h() <= max_len  ) {
 					stops.append(besch,max(1,16-besch->get_level()),16);
 				}
 			}
 		}
 	}
 	return stops.empty() ? NULL : stops.at_weight(simrand(stops.get_sum_weight()));
+}
+
+// from ai_goods
+koord3d connector_ship_t::get_ship_target() 
+{
+	karte_t *welt = sp->get_welt();
+	// sea pos (and not on harbour ... )
+	halthandle_t halt = haltestelle_t::get_halt(welt,harbour_pos,sp);
+	const grund_t *gr = welt->lookup(harbour_pos);
+	gebaeude_t *h = gr->find<gebaeude_t>();	
+	koord pos1 = harbour_pos.get_2d();
+	koord3d best_pos = koord3d::invalid;
+	uint8 radius = 1; // welt->get_einstellungen()->get_station_coverage()
+	for(  int y = pos1.y-radius;  y<=pos1.y+radius;  y++  ) {
+		for(  int x = pos1.x-radius;  x<=pos1.x+radius;  x++  ) {
+			const grund_t *gr = welt->lookup(koord3d(x,y,welt->get_grundwasser()));
+			// in water, the water tiles have no halt flag!
+			if(gr  &&  gr->ist_wasser() && !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)  &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),start)<koord_distance(best_pos,start))  ) {
+				best_pos = gr->get_pos();
+			}
+		}
+	}
+	assert(best_pos != koord3d::invalid);
+	// no copy constructor for koord3d available :P
+	return koord3d(best_pos.get_2d(), best_pos.z);
 }
