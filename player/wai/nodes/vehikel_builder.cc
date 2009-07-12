@@ -14,7 +14,7 @@ vehikel_builder_t::~vehikel_builder_t()
 
 return_value_t *vehikel_builder_t::step()
 {
-	sp->get_log().message("vehikel_builder::step","build %s for line %s", (const char*)name, line->get_name());
+	sp->get_log().message("vehikel_builder::step","[%p] build %s for line %s", this, (const char*)name, line->get_name());
 	if (!line.is_bound()) {
 		sp->get_log().warning("vehikel_builder::step", "invalid linehandle");
 		return new_return_value(RT_TOTAL_FAIL);
@@ -122,6 +122,6 @@ void vehikel_builder_t::rotate90( const sint16 y_size )
 
 void vehikel_builder_t::debug( log_t &file, cstring_t prefix )
 {
-	file.message("vehb","%s%s build %d for line %s", (const char*)prefix, (const char*)name, nr_vehikel, line.is_bound() ? line->get_name() : "<error>");
+	file.message("vehb","%s[%p]%s build %d for line %s", (const char*)prefix, this, (const char*)name, nr_vehikel, line.is_bound() ? line->get_name() : "<error>");
 	prototyper->debug(file,prefix+ "  " );
 }

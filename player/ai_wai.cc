@@ -76,6 +76,7 @@ void ai_wai_t::neuer_monat()
 {
 	ai_t::neuer_monat();
 	cstring_t empty("");
+	log.message("ai_wai_t::neuer_monat()", "debug output");
 	bt_root.debug( log, empty );
 }
 

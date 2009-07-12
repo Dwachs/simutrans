@@ -78,6 +78,7 @@ return_value_t* bt_sequential_t::step()
 		// We have nothing to do... => Kill us.
 		return new_return_value(RT_TOTAL_SUCCESS);
 	}
+	sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", (const char*)name, next_to_step, num_childs);
 
 	for( uint32 i = next_to_step; i < num_childs; i++ ) {
 		// step the child
@@ -101,7 +102,7 @@ return_value_t* bt_sequential_t::step()
 			}
 		}
 		return_code our_return_code;
-		if( next_to_step == num_childs ) {
+		if( next_to_step >= num_childs ) {
 			// Our last child.
 			// why reset it?
 			// If we are called the next time, we start again with first child.

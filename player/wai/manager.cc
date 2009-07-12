@@ -4,9 +4,12 @@
 #include "../../dataobj/loadsave.h"
 #include "planner.h"
 
+#include "../ai_wai.h"
+
 return_value_t *manager_t::step()
 {
 	return_value_t *rc = bt_sequential_t::step();
+	sp->get_log().message("manager_t::step","%s: node %d returns %d", (const char*)name, rc->type, rc->code);
 	if ( rc->code == RT_DONE_NOTHING || rc->code == RT_TOTAL_SUCCESS ) {
 		delete rc;
 		return work();

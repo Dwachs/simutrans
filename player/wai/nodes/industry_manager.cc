@@ -211,6 +211,12 @@ void industry_manager_t::append_report(report_t *report)
 	if(report) {
 		if (report->gain_per_v_m > 0) {
 			sp->get_log().message( "industry_manager_t::append_report()","got a nice report for immediate execution");
+			if (report->action) {
+				report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
+			}
+			else {
+				sp->get_log().warning( "industry_manager_t::append_report()","empty action");
+			}
 			append_child( report->action );
 			report->action = NULL;
 			delete report;
