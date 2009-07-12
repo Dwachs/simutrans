@@ -249,10 +249,8 @@ void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)
 	manager_t::rdwr(file, version);
 
 	file->rdwr_long(next_cid, "");
-	uint32 count;
-	if (file->is_saving()) {
-		count = connections.get_count();
-	}
+
+	uint32 count = connections.get_count();
 	file->rdwr_long(count,"");
 	for(uint32 i=0; i<count; i++) {
 		if (file->is_loading()) {
