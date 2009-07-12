@@ -70,9 +70,11 @@ return_value_t *vehikel_builder_t::step()
 	
 	if (nr_vehikel>0 || cnv.is_bound()) {
 		// TODO: add some delay until next vehicle is created
+		sp->get_log().message("vehikel_builder::step", "built a convoy.");
 		return new_return_value(RT_PARTIAL_SUCCESS);
 	}
 	else {
+		sp->get_log().warning("vehikel_builder::step", "error");
 		return new_return_value(RT_TOTAL_SUCCESS);
 	}
 }

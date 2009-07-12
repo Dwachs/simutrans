@@ -6,9 +6,9 @@
 
 class ai_wai_t;
 
+class cstring_t;
 class loadsave_t;
 class log_t;
-class cstring_t;
 /*
  * A report consists of a list of actions which must be executed if this
  * reports is selected for execution.

@@ -89,14 +89,16 @@ return_value_t* bt_sequential_t::step()
 			childs_return->set_report(NULL); // invalidate
 		}
 		// Do step counter things
-		// Don't increase next_to_step, if child wants the next call.
-		if( childs_return->is_ready()) {
-			next_to_step = next_to_step+1;
-		}
 		if( childs_return->can_be_deleted() ) {
 			delete childs[i];
 			childs.remove_at(i);
 			num_childs = childs.get_count();
+		}
+		else {
+		// Don't increase next_to_step, if child wants the next call or if it was deleted.
+			if( childs_return->is_ready() ) {
+				next_to_step = next_to_step+1;
+			}
 		}
 		return_code our_return_code;
 		if( next_to_step == num_childs ) {
@@ -114,8 +116,13 @@ return_value_t* bt_sequential_t::step()
 			// We _always_ give back an error if our child does so. Can be caught by inherited functions.
 			our_return_code = RT_ERROR;
 		}
-		delete childs_return;
-		return new_return_value(our_return_code);
+		/// TODO: was sollte hier gemacht werden? Wenn der return_value gekillt wird,
+		// bekommt der Elternknoten davon auch nichts mit...
+
+		/* delete childs_return;
+		return new_return_value(our_return_code); */
+		childs_return->code = our_return_code;
+		return childs_return;
 	}
 	// No child has done something...
 	return new_return_value(RT_DONE_NOTHING);

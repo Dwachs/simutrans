@@ -24,6 +24,7 @@ enum return_code {
 
 class bt_node_t;
 class report_t;
+class datablock_t;
 
 class return_value_t {
 public:
@@ -32,8 +33,9 @@ public:
 	report_t *report;
 	bt_node_t *successor;	// successor node of the original node
 	bt_node_t *undo;		// undo node for the original node
+	datablock_t *data; // contains some data.
 
-	return_value_t(return_code c, uint16 t) : code(c), type(t), report(NULL), successor(NULL), undo(NULL) {}
+	return_value_t(return_code c, uint16 t) : code(c), type(t), report(NULL), successor(NULL), undo(NULL), data(NULL) {}
 	~return_value_t();
 	
 	report_t *get_report() { return report; }

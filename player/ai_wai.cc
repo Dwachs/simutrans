@@ -88,7 +88,7 @@ void ai_wai_t::rotate90( const sint16 y_size )
 	bt_root.rotate90( y_size );
 }
 
-void ai_wai_t::bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel )
+void ai_wai_t::bescheid_vehikel_problem( convoihandle_t /*cnv*/, const koord3d /*ziel*/ )
 {
 }
 

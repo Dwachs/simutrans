@@ -1,10 +1,12 @@
 #include "connector_road.h"
 
 #include "builder_road_station.h"
-#include "vehikel_builder.h"
 #include "builder_way_obj.h"
+#include "free_tile_searcher.h"
+#include "vehikel_builder.h"
 
 #include "../bt.h"
+#include "../datablock.h"
 #include "../vehikel_prototype.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
@@ -47,6 +49,16 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 	ziel = koord3d::invalid;
 	e = e_;
 	harbour_pos = harbour_pos_;
+
+
+	if( harbour_pos != koord3d::invalid ) {
+		const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
+		tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
+	}
+	else {
+		append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1 ));
+	}
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2 ));
 }
 
 connector_road_t::~connector_road_t()
@@ -78,6 +90,7 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	harbour_pos.rdwr(file);
 	/*
 	 * TODO: e speichern
+	 * tile_lists speichern
 	 */
 }
 
@@ -88,6 +101,9 @@ void connector_road_t::rotate90( const sint16 y_size)
 	ziel.rotate90(y_size);
 	deppos.rotate90(y_size);
 	harbour_pos.rotate90(y_size);
+	/*
+	 * rotate tile_lists
+	 */
 }
 
 return_value_t *connector_road_t::step()
@@ -98,100 +114,14 @@ return_value_t *connector_road_t::step()
 			case 0: {
 				// need through station?
 				uint through = 0;
-				// Our first step -> calc the route.
-				vector_tpl<koord3d> tile_list[2];
-				vector_tpl<koord3d> through_tile_list[2];
-				const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
-				koord test;
-				for( uint8 i = 0; i < 2; i++ ) {
-					if( i == 0  &&  harbour_pos != koord3d::invalid ) {
-						const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
-						tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
-						continue;
-					}
-					const fabrik_t *fab =  i==0 ? fab1 : fab2;
-					vector_tpl<koord> fab_tiles;
-					fab->get_tile_list( fab_tiles );
-					ai_t::add_neighbourhood( fab_tiles, cov );
-					vector_tpl<koord> one_more( fab_tiles );
-					ai_t::add_neighbourhood( one_more, 1 );
-					// Any halts here?
-					vector_tpl<koord> connected_halts, other_halts;
-					for( uint32 j = 0; j < one_more.get_count(); j++ ) {
-						halthandle_t halt = haltestelle_t::get_halt( sp->get_welt(), one_more[j], sp );
-						if( halt.is_bound() && !( other_halts.is_contained(halt->get_basis_pos()) || connected_halts.is_contained(halt->get_basis_pos()) ) ) {
-							bool halt_connected = halt->get_fab_list().is_contained( (fabrik_t*)fab );
-							for( slist_tpl< haltestelle_t::tile_t >::const_iterator iter = halt->get_tiles().begin(); iter != halt->get_tiles().end(); ++iter ) {
-								koord pos = iter->grund->get_pos().get_2d();
-								if( halt_connected ) {
-									connected_halts.append_unique( pos );
-								}
-								else {
-									other_halts.append_unique( pos );
-								}
-							}
-						}
-					}
-					ai_t::add_neighbourhood( connected_halts, 1 );
-					ai_t::add_neighbourhood( other_halts, 1 );
-					vector_tpl<koord> halts( connected_halts );
-					for( uint32 j = 0; j < other_halts.get_count(); j++ ) {
-						if( fab_tiles.is_contained( other_halts[j] ) ) {
-								halts.append_unique( other_halts[j] );
-						}
-					}
-					vector_tpl<koord> *next = &halts;
-					for( uint8 k = 0; k < 2; k++ ) {
-						// On which tiles we can start?
-						for( uint32 j = 0; j < next->get_count(); j++ ) {
-							const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
-							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  && !gr->find<gebaeude_t>() ) {
-								tile_list[i].append_unique( gr->get_pos() );
-							}
-						}
-						if( !tile_list[i].empty() ) {
-							// Skip, if found tiles beneath halts.
-							break;
-						}
-						next = &fab_tiles;
-					}
-					// try to find a place for a durchgangshalt - append the neighbors of possible positions to tilelist
-					// remember the candidates for the stations in a separate list
-					if( tile_list[i].empty() ) {
-						for( uint32 j = 0; j < next->get_count(); j++ ) {
-							const grund_t* gr = sp->get_welt()->lookup_kartenboden( next->operator[](j) );
-							// TODO: reicht diese Abfrage aus??
-							if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(road_wt) &&  !gr->has_two_ways() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
-								const weg_t *w = gr->get_weg(road_wt);
-								const ribi_t::ribi ribi = w->get_ribi_unmasked();
-								if (spieler_t::check_owner(sp, w->get_besitzer()) && ribi_t::ist_gerade(ribi)) {
-									grund_t *to; 
-									bool found = false;
-									if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
-										tile_list[i].append_unique( to->get_pos() );
-										found = true;
-									}
-									if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
-										tile_list[i].append_unique( to->get_pos() );
-										found = true;
-									}
-									if (found) {
-										through_tile_list[i].append_unique(gr->get_pos());
-										through |= i+1;
-									}
-								}
-							}
-						}
-					}
-					if (through & (i+1)) {
-						for(uint32 j=0; j < tile_list[i].get_count(); j++) {
-							sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
-						}
-						for(uint32 j=0; j < through_tile_list[i].get_count(); j++) {
-							sp->get_log().message( "connector_road_t::step", "through_tile_list[%d][%d] = %s", i,j,through_tile_list[i][j].get_str());
-						}
-					}
+				if( !through_tile_list[0].empty() ) {
+					through |= 1;
 				}
+				if( !through_tile_list[1].empty() ) {
+					through |= 2;
+				}
+				// Our first step -> calc the route.
+
 				// Test which tiles are the best:
 				wegbauer_t bauigel(sp->get_welt(), sp );
 				bauigel.route_fuer( wegbauer_t::strasse, road_besch, tunnelbauer_t::find_tunnel(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()), brueckenbauer_t::find_bridge(road_wt,road_besch->get_topspeed(),sp->get_welt()->get_timeline_year_month()) );
@@ -394,7 +324,19 @@ return_value_t *connector_road_t::step()
 	}
 	else {
 		// Step the childs.
-		return bt_sequential_t::step();
+		return_value_t *rv = bt_sequential_t::step();
+		if( rv->type == BT_FREE_TILE ) {
+			uint8 i = 1;
+			if( tile_list[0].empty() && through_tile_list[0].empty() ) {
+				i = 0;
+			}
+			swap<koord3d>( tile_list[i], rv->data->pos1 );
+			swap<koord3d>( through_tile_list[i], rv->data->pos2 );
+			return new_return_value( RT_PARTIAL_SUCCESS );
+		}
+		else {
+			return rv;
+		}
 	}
 }
 
