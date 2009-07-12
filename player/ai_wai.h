@@ -5,6 +5,7 @@
 #include "simplay.h"
 #include "wai/bt.h"
 #include "wai/nodes/industry_manager.h"
+#include "wai/nodes/factory_searcher.h"
 
 #include "../utils/log.h"
 
@@ -26,11 +27,13 @@ public:
 
 	industry_manager_t* get_industry_manager() { return industry_manager; }
 	void set_industry_manager(industry_manager_t *im) { industry_manager = im; }
+	void set_factory_searcher(factory_searcher_t *fs) { factory_searcher = fs; }
 private:
 	log_t log;
 	bt_sequential_t bt_root;
 
 	industry_manager_t* industry_manager;
+	factory_searcher_t* factory_searcher;
 public:
 	log_t& get_log() { return log; };
 };

@@ -23,7 +23,10 @@ report_t* manager_t::get_report()
 	}
 	else {
 		// TODO: do something more reasonable here
-		return reports[simrand(reports.get_count())];
+		uint32 index = simrand(reports.get_count());
+		report_t* rep = reports[index];
+		reports.remove_at( index );
+		return rep;
 	}
 }
 

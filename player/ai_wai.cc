@@ -38,7 +38,8 @@ void ai_wai_t::step()
 	};
 
 	if (bt_root.get_count()==0) {
-		bt_root.append_child(new factory_searcher_t(this, "fac search"));
+		factory_searcher = new factory_searcher_t(this, "fac search");
+		bt_root.append_child( factory_searcher );
 
 		industry_manager = new industry_manager_t(this, "ind manager");
 		bt_root.append_child(industry_manager);
@@ -48,6 +49,27 @@ void ai_wai_t::step()
 	log.message("ai_wai_t::step", "next step:");
 	return_value_t * rv = bt_root.step();
 	delete rv;
+
+
+	if(  ( get_welt()->get_steps() & 31 ) == 0 ) {
+		report_t* report = factory_searcher->get_report();
+		if( report ) {
+			sint64 cost = report->cost_fix;
+			calc_finance_history();
+			sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
+
+			// Mit Polster von ca. 20.000
+			if( 10*cost + 20000000 < 9*cash ) {
+				bt_root.append_child( report->action );
+				report->action = NULL;
+				delete report;
+				get_log().message( "ai_wai_t::step", "appended report");
+			}
+			else {
+				factory_searcher->append_report( report );
+			}
+		}
+	}
 }
 
 void ai_wai_t::neuer_monat()
@@ -99,4 +121,5 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 {
 	log.message("ai_wai_t","log started.");
 	industry_manager = NULL;
+	factory_searcher = NULL;
 }

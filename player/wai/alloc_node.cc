@@ -24,7 +24,7 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 		case BT_IND_CONN_PLN:	return new industry_connection_planner_t(sp, NULL);
 
 		case BT_MANAGER:		return new manager_t(sp, NULL);
-		case BT_FACT_SRCH:		return new factory_searcher_t(sp, NULL);
+		case BT_FACT_SRCH:		{ factory_searcher_t *fs = new factory_searcher_t(sp, NULL); sp->set_factory_searcher(fs); return fs; }
 		case BT_IND_MNGR:		{ industry_manager_t *im = new industry_manager_t(sp, NULL); sp->set_industry_manager(im); return im; }
 
 		case BT_CON_ROAD:		return new connector_road_t(sp, NULL);

@@ -35,7 +35,7 @@ private:
 	koord3d start, ziel, deppos, harbour_pos;
 	const way_obj_besch_t *e;
 
-	vector_tpl<koord3d> tile_list[2], through_tile_list[2];
+	koord3d_vector_t tile_list[2], through_tile_list[2];
 };
 
 

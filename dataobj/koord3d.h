@@ -137,6 +137,7 @@ class koord3d_vector_t : public vector_tpl< koord3d > {
 public:
 	ribi_t::ribi get_ribi( uint32 index ) const;
 	void rotate90( sint16 );
+	void rdwr(loadsave_t* file);
 };
 
 #endif

@@ -80,7 +80,8 @@ return_value_t *connector_ship_t::step()
 	if( childs.empty() ) {
 		switch(phase) {
 			case 0: {
-				// Our first step
+				// Our first step: Build a harbour.
+
 				// get a suitable station
 				const haus_besch_t* fh = get_random_harbour(sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE);
 				bool ok = fh!=NULL;
@@ -91,18 +92,19 @@ return_value_t *connector_ship_t::step()
 				}
 
 				if( !ok ) {
-					sp->get_log().warning( "connector_ship_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
-					return new_return_value(RT_TOTAL_SUCCESS);
+					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour at %s (route %s => %s)", harbour_pos.get_str(), fab1->get_name(), fab2->get_name() );
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
 			}
+
 			case 1: {
-				// TODO: do something smarter here
 				vector_tpl<koord> tiles;
 				fab1->get_tile_list( tiles );
 				ai_t::add_neighbourhood( tiles, 5 );
 				koord3d best_tile = koord3d::invalid;
 				uint32 best_dist = 0xffffffff;
+				// Test which tiles are the best:
 				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
 					const grund_t* gr = sp->get_welt()->lookup_kartenboden( tiles[j] );
 					if(  gr  &&  gr->ist_wasser()  &&  !gr->find< gebaeude_t >()  ) {
@@ -113,16 +115,17 @@ return_value_t *connector_ship_t::step()
 						}
 					}
 				}
-				// Test which tiles are the best:
 				deppos = best_tile;
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, sp->get_welt()->get_timeline_year_month(), 0);
 				bool ok = dep!=NULL;
 				ok &= sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				if( !ok ) {
 					sp->get_log().warning( "connector_ship::step()","depot building failed");
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
 			}
+
 			case 2: {
 				// create line
 				schedule_t *fpl = new schifffahrplan_t();

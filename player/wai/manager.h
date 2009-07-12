@@ -26,10 +26,10 @@ public:
 	virtual void debug( log_t &file, cstring_t prefix );
 
 	// reports
-	vector_tpl<report_t*> reports;
 	virtual void append_report(report_t *report) { if (report) reports.append(report); }
 	virtual report_t* get_report();
-
+private:
+	vector_tpl<report_t*> reports;
 };
 
 #endif

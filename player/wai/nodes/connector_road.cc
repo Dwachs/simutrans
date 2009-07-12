@@ -88,9 +88,12 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	ziel.rdwr(file);
 	deppos.rdwr(file);
 	harbour_pos.rdwr(file);
+	tile_list[0].rdwr(file);
+	tile_list[1].rdwr(file);
+	through_tile_list[0].rdwr(file);
+	through_tile_list[1].rdwr(file);
 	/*
 	 * TODO: e speichern
-	 * tile_lists speichern
 	 */
 }
 
@@ -101,9 +104,10 @@ void connector_road_t::rotate90( const sint16 y_size)
 	ziel.rotate90(y_size);
 	deppos.rotate90(y_size);
 	harbour_pos.rotate90(y_size);
-	/*
-	 * rotate tile_lists
-	 */
+	tile_list[0].rotate90(y_size);
+	tile_list[1].rotate90(y_size);
+	through_tile_list[0].rotate90(y_size);
+	through_tile_list[1].rotate90(y_size);
 }
 
 return_value_t *connector_road_t::step()
@@ -142,7 +146,7 @@ return_value_t *connector_road_t::step()
 							sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
 						}
 					} */
-					return new_return_value(RT_TOTAL_SUCCESS);
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// find locations of stations (special search for through stations)
 				uint8 found = 3 ^ through;
@@ -217,7 +221,8 @@ return_value_t *connector_road_t::step()
 
 				// TODO: kontostand checken!
 				//sint64 cost = bauigel.calc_costs();
-				//sint64 cash = sp->get_finance_history_year(0, COST_CASH);
+				//sp->calc_finance_history();
+				//sint64 cash = sp->get_finance_history_year(0, COST_NET_WEALTH);
 				//if (10*cost < 9*cash) {
 					bauigel.baue();
 					sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
