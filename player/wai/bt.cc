@@ -73,60 +73,60 @@ bt_sequential_t::~bt_sequential_t()
 return_value_t* bt_sequential_t::step()
 {
 	uint32 num_childs = childs.get_count();
+	sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", (const char*)name, next_to_step, num_childs);
 
 	if(  num_childs == 0  ) {
 		// We have nothing to do... => Kill us.
 		return new_return_value(RT_TOTAL_SUCCESS);
 	}
-	sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", (const char*)name, next_to_step, num_childs);
-
-	for( uint32 i = next_to_step; i < num_childs; i++ ) {
-		// step the child
-		return_value_t *childs_return = childs[i]->step();
-
-		// get and append report of child
-		if( childs_return->get_report() ) {
-			append_report(childs_return->get_report());
-			childs_return->set_report(NULL); // invalidate
-		}
-		// Do step counter things
-		if( childs_return->can_be_deleted() ) {
-			delete childs[i];
-			childs.remove_at(i);
-			num_childs = childs.get_count();
-		}
-		else {
-		// Don't increase next_to_step, if child wants the next call or if it was deleted.
-			if( childs_return->is_ready() ) {
-				next_to_step = next_to_step+1;
-			}
-		}
-		return_code our_return_code;
-		if( next_to_step >= num_childs ) {
-			// Our last child.
-			// why reset it?
-			// If we are called the next time, we start again with first child.
-			next_to_step = 0;
-			our_return_code = RT_SUCCESS;
-		}
-		else {
-			// This wasn't our last child -> we want the next call, too.
-			our_return_code = RT_PARTIAL_SUCCESS;
-		}
-		if( childs_return->is_failed() ) {
-			// We _always_ give back an error if our child does so. Can be caught by inherited functions.
-			our_return_code = RT_ERROR;
-		}
-		/// TODO: was sollte hier gemacht werden? Wenn der return_value gekillt wird,
-		// bekommt der Elternknoten davon auch nichts mit...
-
-		/* delete childs_return;
-		return new_return_value(our_return_code); */
-		childs_return->code = our_return_code;
-		return childs_return;
+	if( next_to_step >= num_childs) {
+		next_to_step = 0;
+		return new_return_value(RT_DONE_NOTHING);
 	}
-	// No child has done something...
-	return new_return_value(RT_DONE_NOTHING);
+
+	// step the child
+	return_value_t *childs_return = childs[i]->step();
+
+	// get and append report of child
+	if( childs_return->get_report() ) {
+		append_report(childs_return->get_report());
+		childs_return->set_report(NULL); // invalidate
+	}
+	// Do step counter things
+	if( childs_return->can_be_deleted() ) {
+		delete childs[i];
+		childs.remove_at(i);
+		num_childs = childs.get_count();
+	}
+	else {
+	// Don't increase next_to_step, if child wants the next call or if it was deleted.
+		if( childs_return->is_ready() ) {
+			next_to_step = next_to_step+1;
+		}
+	}
+	return_code our_return_code;
+	if( next_to_step >= num_childs ) {
+		// Our last child.
+		// why reset it?
+		// If we are called the next time, we start again with first child.
+		next_to_step = 0;
+		our_return_code = RT_SUCCESS;
+	}
+	else {
+		// This wasn't our last child -> we want the next call, too.
+		our_return_code = RT_PARTIAL_SUCCESS;
+	}
+	if( childs_return->is_failed() ) {
+		// We _always_ give back an error if our child does so. Can be caught by inherited functions.
+		our_return_code = RT_ERROR;
+	}
+	/// TODO: was sollte hier gemacht werden? Wenn der return_value gekillt wird,
+	// bekommt der Elternknoten davon auch nichts mit...
+
+	/* delete childs_return;
+	return new_return_value(our_return_code); */
+	childs_return->code = our_return_code;
+	return childs_return;
 }
 
 void bt_sequential_t::rdwr( loadsave_t* file, const uint16 version )
