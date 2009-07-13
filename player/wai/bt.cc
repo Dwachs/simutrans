@@ -83,7 +83,7 @@ return_value_t* bt_sequential_t::step()
 		next_to_step = 0;
 		return new_return_value(RT_DONE_NOTHING);
 	}
-
+	uint32 i = next_to_step;
 	// step the child
 	return_value_t *childs_return = childs[i]->step();
 

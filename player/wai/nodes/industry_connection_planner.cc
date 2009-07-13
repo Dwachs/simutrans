@@ -7,8 +7,10 @@
 #include "../utils/amphi_searcher.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
+#include "../../../simhalt.h"
 #include "../../../simworld.h"
 #include "../../../bauer/wegbauer.h"
+#include "../../../besch/haus_besch.h"
 #include "../../../besch/weg_besch.h"
 #include "../../../dataobj/loadsave.h"
 #include "../../../dings/wayobj.h"
@@ -33,6 +35,18 @@ return_value_t *industry_connection_planner_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
+	// check for depots, station
+	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
+	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
+	if (st==NULL || dep ==NULL) {
+		sp->get_log().warning("industry_connection_planner_t::step", "no %s%s available for waytype=%d", (st==NULL?"station ":""), (dep==NULL?"depot":""), wt);
+		sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
+	// cost for stations
+	sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
+	// TODO: maintenance of these buildings
+
 	// estimate production
 	sint32 prod = calc_production();
 	if (prod<0) {
@@ -41,7 +55,6 @@ return_value_t *industry_connection_planner_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
-	// TODO: check for depots, station,
 
 	// get a vehicle
 	simple_prototype_designer_t* d = new simple_prototype_designer_t(sp);
@@ -88,6 +101,18 @@ return_value_t *industry_connection_planner_t::step()
 		sp->get_log().warning("industry_connection_planner_t::step", "start factory at water side spotted");
 		include_ships = true;
 
+		// check for ship depots, dock
+		const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, water_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
+		const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, sp->get_welt()->get_timeline_year_month(), 0);
+		if (st==NULL || dep ==NULL) {
+			sp->get_log().warning("industry_connection_planner_t::step", "no %s%s available for waytype=%d", (st==NULL?"station ":""), (dep==NULL?"depot":""), water_wt);
+			sp->get_industry_manager()->set_connection<forbidden>(start, ziel, freight);
+			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+		}
+		// cost for stations
+		cost_buildings += 2*calc_building_cost(st) + calc_building_cost(dep);
+
+		// find the harbour position
 		vector_tpl<koord> startplatz;
 		start->get_tile_list( startplatz );
 		ai_t::add_neighbourhood( startplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
@@ -105,8 +130,8 @@ return_value_t *industry_connection_planner_t::step()
 		}
 
 		amphi_searcher_t bauigel(sp->get_welt(), sp );
-		const weg_besch_t *road_besch = wegbauer_t::weg_search(road_wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
-		bauigel.route_fuer( wegbauer_t::strasse, road_besch, NULL, NULL );
+		const weg_besch_t *weg_besch = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
+		bauigel.route_fuer( (wegbauer_t::bautyp_t)wt, weg_besch, NULL, NULL );
 		// we won't destroy cities (and save the money)
 		bauigel.set_keep_existing_faster_ways(true);
 		bauigel.set_keep_city_roads(true);
@@ -177,10 +202,10 @@ return_value_t *industry_connection_planner_t::step()
 	const uint16 nr_vehicles = min( min(254,dist), (2*prod*dist) / (d->proto->get_capacity(freight)*tiles_per_month)+1 );
 
 	// create report
-	// TODO: costs for depots, stations
+	// TODO: maintenance for depots, stations
 	// TODO: save the prototype-designer somewhere
 	report = new report_t();
-	report->cost_fix                 = dist*( wb->get_preis() + (e!=NULL ? e->get_preis() : 0) );
+	report->cost_fix                 = dist*( wb->get_preis() + (e!=NULL ? e->get_preis() : 0) ) + cost_buildings;
 	report->cost_monthly             = dist*( wb->get_wartung() + (e!=NULL ? e->get_wartung() : 0) );
 	report->cost_monthly_per_vehicle = 0;
 	report->cost_per_vehicle         = 0;
@@ -232,6 +257,59 @@ sint32 industry_connection_planner_t::calc_production()
 	const sint32 prod = min(  prod_z,prod_s);
 
 	return prod;
+}
+
+
+sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
+{
+	switch(st->get_utyp()) {
+		case haus_besch_t::generic_stop: {
+			sint64 cost = - st->get_level()*st->get_b()*st->get_h();
+			switch(wt) {
+				case road_wt:
+					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_roadstop;
+					break;
+				case track_wt:
+				case monorail_wt:
+				case maglev_wt:
+				case narrowgauge_wt:
+				case tram_wt:
+					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_station;
+					break;
+				case water_wt:
+					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_dock;
+					break;
+				case air_wt:
+					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_airterminal;
+					break;
+				default:
+					assert(0);
+					return 0;
+			}
+			return cost;
+		}
+		case haus_besch_t::depot:
+			switch(wt) {
+				case road_wt:
+					return -sp->get_welt()->get_einstellungen()->cst_depot_road;
+				case track_wt:
+				case monorail_wt:
+				case tram_wt:
+				case maglev_wt:
+				case narrowgauge_wt:
+					return -sp->get_welt()->get_einstellungen()->cst_depot_rail;
+				case water_wt:
+					return -sp->get_welt()->get_einstellungen()->cst_depot_ship;
+				case air_wt:
+					return -sp->get_welt()->get_einstellungen()->cst_depot_air;
+				default:
+					assert(0);
+					return 0;
+			}
+		default:
+			assert(0);
+			return 0;
+	}
 }
 
 

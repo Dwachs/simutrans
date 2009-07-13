@@ -25,6 +25,7 @@ public:
 	virtual void bescheid_vehikel_problem( convoihandle_t cnv, const koord3d ziel );
 	ai_wai_t( karte_t *welt, uint8 nr );
 
+	bool is_cash_available(sint64 money);
 	industry_manager_t* get_industry_manager() { return industry_manager; }
 	void set_industry_manager(industry_manager_t *im) { industry_manager = im; }
 	void set_factory_searcher(factory_searcher_t *fs) { factory_searcher = fs; }

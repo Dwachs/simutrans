@@ -5,6 +5,7 @@
 
 class fabrik_t;
 class karte_t;
+class haus_besch_t;
 class ware_besch_t;
 
 class industry_connection_planner_t : public planner_t {
@@ -18,6 +19,7 @@ public:
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 private:
 	sint32 calc_production();
+	sint64 calc_building_cost(const haus_besch_t* st);
 
 	const fabrik_t *start;
 	const fabrik_t *ziel;

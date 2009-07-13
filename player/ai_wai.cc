@@ -58,18 +58,28 @@ void ai_wai_t::step()
 			calc_finance_history();
 			sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
 
-			// Mit Polster von ca. 20.000
-			if( 10*cost + 20000000 < 9*cash ) {
+			// ausfuehren, falls genug Geld da ist
+			if (is_cash_available(cost)) {
 				bt_root.append_child( report->action );
 				report->action = NULL;
 				delete report;
-				get_log().message( "ai_wai_t::step", "appended report");
+				get_log().message( "ai_wai_t::step", "appended report (cost: %d, cash: %d)", cost, cash);
 			}
 			else {
 				factory_searcher->append_report( report );
 			}
 		}
 	}
+}
+
+bool ai_wai_t::is_cash_available(sint64 cost) 
+{
+	// calc_finance_history(); done in step()
+	sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
+	// future maintenance
+	sint64 maint = ((sint64)get_maintenance()<<((sint64)get_welt()->ticks_bits_per_tag-18l));
+	// Mit Polster von ca. 20.000 + 2* monatliche Betriebskosten
+	return( 10*cost + 20000000 + 20* maint < 9*cash );
 }
 
 void ai_wai_t::neuer_monat()

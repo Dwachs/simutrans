@@ -219,18 +219,19 @@ return_value_t *connector_road_t::step()
 					return new_return_value(RT_TOTAL_SUCCESS);
 				}
 
-				// TODO: kontostand checken!
-				//sint64 cost = bauigel.calc_costs();
-				//sp->calc_finance_history();
-				//sint64 cash = sp->get_finance_history_year(0, COST_NET_WEALTH);
-				//if (10*cost < 9*cash) {
-					bauigel.baue();
-					sp->get_log().message( "connector_road_t::step", "found a route %s => %s", fab1->get_name(), fab2->get_name() );
-				//}
-				//else {
-				//	ok = false;
-				//	sp->get_log().message( "connector_road_t::step", "not enough money (cost: %ld, cash: %ld)", cost, cash );
-				//}
+				// kontostand checken
+				sint64 cost = bauigel.calc_costs();
+				if ( !sp->is_cash_available(cost) ) {
+					sp->get_log().warning( "connector_road_t::step", "route %s => %s too expensive", fab1->get_name(), fab2->get_name() );
+					// TODO: geldbedarf merken, den connector schlafen lassen, bis es da ist
+					// tell the industrymanager, try later
+					industry_connection_t& ic = sp->get_industry_manager()->get_connection(fab1, fab2, prototyper->freight);
+					ic.unset<planned>();
+					return new_return_value(RT_TOTAL_FAIL);
+				}
+				// now build the route
+				bauigel.baue();
+				sp->get_log().message( "connector_road_t::step", "build route %s => %s", fab1->get_name(), fab2->get_name() );
 
 				// build immediately 1x1 stations
 				ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
