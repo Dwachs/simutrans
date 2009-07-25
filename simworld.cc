@@ -380,6 +380,7 @@ sint32 karte_t::perlin_hoehe( einstellungen_t *sets, koord k, koord size )
 	}
 //    double perlin_noise_2D(double x, double y, double persistence);
 //    return ((int)(perlin_noise_2D(x, y, 0.6)*160.0)) & 0xFFFFFFF0;
+	k = k + koord(sets->get_origin_x(), sets->get_origin_y());
 	return ((int)(perlin_noise_2D(k.x, k.y, sets->get_map_roughness())*(double)sets->get_max_mountain_height())) / 16;
 }
 
@@ -887,7 +888,7 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 			int current_citicens = (2500l * einstellungen->get_mittlere_einwohnerzahl()) /(simrand(20000)+100);
 			stadt_t* s = new stadt_t(spieler[1], (*pos)[i], current_citicens);
 DBG_DEBUG("karte_t::distribute_groundobjs_cities()","Erzeuge stadt %i with %ld inhabitants",i,(s->get_city_history_month())[HIST_CITICENS] );
-			stadt.append(s, current_citicens, 64);
+			stadt.append(s, s->get_einwohner(), 64);
 			if(is_display_init()) {
 				old_progress ++;
 				display_progress(old_progress, max_display_progress);
@@ -952,11 +953,12 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","Erzeuge stadt %i with %ld i
 			vector_tpl<uint8> city_flag; // city already connected to the graph? >0 nr of connection component
 			array2d_tpl<sint32> city_dist(einstellungen->get_anzahl_staedte(), einstellungen->get_anzahl_staedte());
 			for(  int i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
-				for(  int j = max(i + 1, old_anzahl_staedte);  j < einstellungen->get_anzahl_staedte();  j++  ) {
+				city_dist.at(i,i) = 0;
+				for(  int j = i + 1;  j < einstellungen->get_anzahl_staedte();  j++  ) {
 					city_dist.at(i,j) = koord_distance(k[i], k[j]);
 					city_dist.at(j,i) = city_dist.at(i,j);
-					// count unbuildable connections
-					if(  city_dist.at(i,j) >= umgebung_t::intercity_road_length  ) {
+					// count unbuildable connections to new cities
+					if(  j>=old_anzahl_staedte && city_dist.at(i,j) >= umgebung_t::intercity_road_length  ) {
 						count++;
 					}
 				}
@@ -1432,11 +1434,11 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 
 	// new recalc the images of the old map near the seam ...
 	for (sint16 x=0; x<old_x-20; x++) {
-		for (sint16 y=old_y-20; y<old_y; y++) {
+		for (sint16 y=max(old_y-20,0); y<old_y; y++) {
 			plan[x+y*cached_groesse_gitter_x].get_kartenboden()->calc_bild();
 		}
 	}
-	for (sint16 x=old_x-20; x<old_x; x++) {
+	for (sint16 x=max(old_x-20,0); x<old_x; x++) {
 		for (sint16 y=0; y<old_y; y++) {
 			plan[x+y*cached_groesse_gitter_x].get_kartenboden()->calc_bild();
 		}
@@ -1594,7 +1596,12 @@ bool karte_t::can_lower_plan_to(sint16 x, sint16 y, sint16 h) const
 	}
 
 	int hmax = plan->get_kartenboden()->get_hoehe();
-	// irgendwo ein Tunnel vergraben?
+	// tunnel slope below?
+	grund_t *gr = plan->get_boden_in_hoehe(h-Z_TILE_STEP);
+	if (gr && gr->get_grund_hang()!=hang_t::flach) {
+		return false;
+	}
+	// tunnel below?
 	while(h < hmax) {
 		if(plan->get_boden_in_hoehe(h)) {
 			return false;
@@ -3527,6 +3534,7 @@ void karte_t::laden(loadsave_t *file)
 
 	destroy();
 	fast_forward = false;
+	simloops = 60;
 
 	// powernets zum laden vorbereiten -> tabelle loeschen
 	powernet_t::neue_karte();
@@ -4191,8 +4199,9 @@ void karte_t::bewege_zeiger(const event_t *ev)
 		const grund_t *bd = NULL;
 		// starting (maximal height)
 		const sint8 hmax = grund_t::underground_mode==grund_t::ugm_level ? max(grundwasser, grund_t::underground_level) : 32;
+		const sint8 hmin = grund_t::underground_mode==grund_t::ugm_all ? grundwasser-10 : grundwasser;
 		// find matching and visible grund
-		for(hgt = hmax; hgt>=grundwasser; hgt-=Z_TILE_STEP) {
+		for(hgt = hmax; hgt>=hmin; hgt-=Z_TILE_STEP) {
 
 			const int base_i = (screen_x+screen_y + tile_raster_scale_y((hgt*TILE_HEIGHT_STEP)/Z_TILE_STEP,rw1) )/2;
 			const int base_j = (screen_y-screen_x + tile_raster_scale_y((hgt*TILE_HEIGHT_STEP)/Z_TILE_STEP,rw1))/2;

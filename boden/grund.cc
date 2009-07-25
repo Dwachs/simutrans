@@ -117,7 +117,7 @@ void grund_t::set_text(const char *text)
 {
 	const uint32 n = get_ground_text_key(pos);
 	if(text) {
-		char* new_text = strdup(text);
+		char *new_text = strdup(text);
 		free(ground_texts.remove(n));
 		ground_texts.put(n, new_text);
 		set_flag(has_text);
@@ -134,9 +134,9 @@ void grund_t::set_text(const char *text)
 
 
 
-const char* grund_t::get_text() const
+const char *grund_t::get_text() const
 {
-	const char * result = 0;
+	const char *result = 0;
 	if(flags&has_text) {
 		result = ground_texts.get( get_ground_text_key(pos) );
 		if(result==NULL) {
@@ -647,8 +647,8 @@ void grund_t::calc_back_bild(const sint8 hgt,const sint8 slope_this)
 				if(  corner1(slope_this)==corner4(slope_this)  ) {
 					// ok, we need a fence here, if there is not a vertical bridgehead
 					fence_west = (flags&has_way1)==0  ||
-								 ( (get_weg_nr(0)->get_ribi_unmasked()&ribi_t::west)==0 &&
-									( (flags&has_way2)==0  ||  get_weg_nr(1)->get_ribi_unmasked()&ribi_t::west==0) );
+								 ( ((static_cast<weg_t *>(obj_bei(0)))->get_ribi_unmasked()&ribi_t::west)==0 &&
+									( (flags&has_way2)==0  ||  ((static_cast<weg_t *>(obj_bei(1)))->get_ribi_unmasked()&ribi_t::west)==0) );
 				}
 			}
 			// no fences between water tiles or between invisible tiles
@@ -707,8 +707,8 @@ void grund_t::calc_back_bild(const sint8 hgt,const sint8 slope_this)
 				if(  corner3(slope_this)==corner4(slope_this)  ) {
 					// ok, we need a fence here, if there is not a vertical bridgehead
 					fence_north = (flags&has_way1)==0  ||
-								 ( (get_weg_nr(0)->get_ribi_unmasked()&ribi_t::nord)==0 &&
-									( (flags&has_way2)==0  ||  get_weg_nr(1)->get_ribi_unmasked()&ribi_t::nord==0) );
+								 ( ((static_cast<weg_t *>(obj_bei(0)))->get_ribi_unmasked()&ribi_t::nord)==0 &&
+									( (flags&has_way2)==0  ||  ((static_cast<weg_t *>(obj_bei(1)))->get_ribi_unmasked()&ribi_t::nord)==0) );
 				}
 			}
 			// no fences between water tiles or between invisible tiles
@@ -1247,7 +1247,15 @@ bool grund_t::remove_everything_from_way(spieler_t* sp, waytype_t wt, ribi_t::ri
 		// stopps
 		if(flags&is_halt_flag  &&  get_halt()->get_besitzer()==sp) {
 			const char *fail;
-			if(!haltestelle_t::remove(welt, sp, pos, fail)) {
+			bool remove_halt = true;
+			// do not remove bus halts on tram track
+			if(wt == track_wt && hat_weg(road_wt)) {
+				gebaeude_t * gb = find<gebaeude_t>();
+				if (gb && gb->get_tile()->get_besch()->get_extra()==road_wt ) {
+					remove_halt = false;
+				}
+			}
+			if(remove_halt && !haltestelle_t::remove(welt, sp, pos, fail)) {
 				return false;
 			}
 		}

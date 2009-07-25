@@ -771,7 +771,17 @@ BOOL APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	GetWindowRect(GetDesktopWindow(), &MaxSize);
 
+	// maybe set timer to 1ms intervall on Win2k upwards ...
+	{
+		OSVERSIONINFO osinfo;
+		osinfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		if (GetVersionEx(&osinfo)  &&  osinfo.dwPlatformId==VER_PLATFORM_WIN32_NT) {
+			timeBeginPeriod(1);
+		}
+	}
+
 	simu_main(argc, argv);
+	timeEndPeriod(1);
 
 #ifdef MULTI_THREAD
 	if(	hFlushThread ) {
