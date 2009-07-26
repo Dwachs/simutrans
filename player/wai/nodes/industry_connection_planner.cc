@@ -63,7 +63,7 @@ return_value_t *industry_connection_planner_t::step()
 	d->max_length = 1;
 	d->max_weight = 0xffffffff;
 	d->min_speed  = 1;
-	d->not_obsolete = false;
+	d->not_obsolete = true;
 	d->wt = wt;
 
 	d->update();

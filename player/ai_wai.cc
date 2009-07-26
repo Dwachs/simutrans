@@ -63,7 +63,7 @@ void ai_wai_t::step()
 				bt_root.append_child( report->action );
 				report->action = NULL;
 				delete report;
-				get_log().message( "ai_wai_t::step", "appended report (cost: %d, cash: %d)", cost, cash);
+				get_log().message( "ai_wai_t::step", "appended report (cost: %lld, cash: %lld)", cost, cash);
 			}
 			else {
 				factory_searcher->append_report( report );

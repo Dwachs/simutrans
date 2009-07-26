@@ -31,7 +31,7 @@ private:
 	const weg_besch_t *road_besch;
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
-	uint8 phase;
+	uint8 phase, force_through;
 	koord3d start, ziel, deppos, harbour_pos;
 	const way_obj_besch_t *e;
 

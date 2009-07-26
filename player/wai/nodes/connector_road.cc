@@ -29,6 +29,7 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name) :
 	prototyper = NULL;
 	nr_vehicles = 0;
 	phase = 0;
+	force_through = 0;
 	start = koord3d::invalid;
 	ziel = koord3d::invalid;
 	e = NULL;
@@ -45,6 +46,7 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 	prototyper = d;
 	nr_vehicles = nr_veh;
 	phase = 0;
+	force_through = 0;
 	start = koord3d::invalid;
 	ziel = koord3d::invalid;
 	e = e_;
@@ -71,6 +73,7 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_sequential_t::rdwr( file, version );
 	file->rdwr_byte(phase, "");
+	file->rdwr_byte(force_through, "");
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
 	ai_t::rdwr_weg_besch(file, road_besch);
@@ -139,14 +142,35 @@ return_value_t *connector_road_t::step()
 				ok = bauigel.max_n > 1;
 				if( !ok ) {
 					sp->get_log().warning( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
-					/* sp->get_log().message( "connector_road_t::step", "harbour pos = (%s)", harbour_pos.get_str() );
+					sp->get_log().message( "connector_road_t::step", "harbour pos = (%s)", harbour_pos.get_str() );
 
 					for(uint8 i=0; i<2; i++) {
 						for(uint32 j=0; j < tile_list[i].get_count(); j++) {
 							sp->get_log().message( "connector_road_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
 						}
-					} */
-					return new_return_value(RT_TOTAL_FAIL);
+					} 
+					// try to find route to through stations
+					if ( force_through + (harbour_pos != koord3d::invalid ? 1 :0) < 3) {
+						force_through += harbour_pos!=koord3d::invalid ? 2 : 1;
+						sp->get_log().message( "connector_road_t::step", "force(%d) to search routes to through halts", force_through );
+						for(uint8 i=0; i<2; i++) {
+							tile_list[i].clear();
+							through_tile_list[i].clear();
+						}
+						if( harbour_pos != koord3d::invalid ) {
+							const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
+							tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
+						}
+						else {
+							append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1, force_through&1 ));
+						}
+						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2, force_through&2 ));
+						sp->get_log().message( "connector_road_t::step", "did not complete phase %d", phase);
+						return new_return_value(RT_PARTIAL_SUCCESS);
+					}
+					else {
+						return new_return_value(RT_TOTAL_FAIL);
+					}
 				}
 				// find locations of stations (special search for through stations)
 				uint8 found = 3 ^ through;
@@ -259,7 +283,8 @@ return_value_t *connector_road_t::step()
 				vector_tpl<koord3d> dep_ziele;
 				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
 					const grund_t* gr = sp->get_welt()->lookup_kartenboden( tiles[j] );
-					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  ) {
+					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->get_leitung()  
+						&&  (!gr->hat_wege() || (gr->hat_weg(road_wt) && gr->get_weg(road_wt)->get_besitzer()==sp && gr->get_depot())) ){
 						dep_ziele.append_unique( gr->get_pos() );
 					}
 				}
@@ -280,11 +305,13 @@ return_value_t *connector_road_t::step()
 					ok = true;
 				}
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, road_wt, sp->get_welt()->get_timeline_year_month(), 0);
-				ok = ok && dep!=NULL;
+				ok = ok && (dep!=NULL || sp->get_welt()->lookup(deppos)->get_depot() );
 				if (ok) {
 					bauigel.baue();		
 					// built depot
-					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+					if ( sp->get_welt()->lookup(deppos)->get_depot()==NULL ) {
+						ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+					}
 				}
 				else {
 					sp->get_log().warning( "connector_road::step()","depot building failed");
