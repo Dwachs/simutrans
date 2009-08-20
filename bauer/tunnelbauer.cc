@@ -471,8 +471,12 @@ tunnelbauer_t::remove(karte_t *welt, spieler_t *sp, koord3d start, waytype_t weg
 	while (!part_list.empty()) {
 		pos = part_list.remove_first();
 		grund_t *gr = welt->lookup(pos);
+		// remove the second way first in the tunnel
+		if(gr->get_weg_nr(1)) {
+			gr->remove_everything_from_way(sp,gr->get_weg_nr(1)->get_waytype(),ribi_t::keine);
+		}
 		gr->remove_everything_from_way(sp,wegtyp,ribi_t::keine);	// removes stop and signals correctly
-		// we may have a second way here ...
+		// remove everything else
 		gr->obj_loesche_alle(sp);
 		welt->access(pos.get_2d())->boden_entfernen(gr);
 		welt->access(pos.get_2d())->get_kartenboden()->set_flag(grund_t::dirty);
@@ -485,15 +489,14 @@ tunnelbauer_t::remove(karte_t *welt, spieler_t *sp, koord3d start, waytype_t weg
 		pos = end_list.remove_first();
 
 		grund_t *gr = welt->lookup(pos);
-		ribi_t::ribi ribi = gr->get_weg_ribi_unmasked(wegtyp);
-		if(gr->get_grund_hang()!=hang_t::flach) {
-			ribi &= ~ribi_typ(gr->get_grund_hang());
-		}
-		else {
-			ribi &= ~ribi_typ(hang_t::gegenueber(gr->get_weg_hang()));
-		}
+		ribi_t::ribi mask = gr->get_grund_hang()!=hang_t::flach ? ~ribi_typ(gr->get_grund_hang()) : ~ribi_typ(hang_t::gegenueber(gr->get_weg_hang()));
 
+		// remove the second way first in the tunnel
+		if(gr->get_weg_nr(1)) {
+			gr->remove_everything_from_way(sp,gr->get_weg_nr(1)->get_waytype(),gr->get_weg_nr(1)->get_ribi_unmasked() & mask);
+		}
 		// removes single signals, bridge head, pedestrians, stops, changes catenary etc
+		ribi_t::ribi ribi = gr->get_weg_ribi_unmasked(wegtyp) & mask;
 		gr->remove_everything_from_way(sp,wegtyp,ribi);	// removes stop and signals correctly
 
 		// remove tunnel portals

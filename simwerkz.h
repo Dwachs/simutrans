@@ -185,7 +185,7 @@ private:
 	const weg_besch_t *besch;
 	const weg_besch_t *get_besch(karte_t *,bool) const;
 public:
-	virtual image_id get_icon(spieler_t *) const { return grund_t::underground_mode==grund_t::ugm_all ? IMG_LEER : icon; }
+	virtual image_id get_icon(spieler_t *) const;
 	virtual const char *get_tooltip(spieler_t *);
 	virtual bool is_selected( karte_t *welt ) const;
 	virtual bool init( karte_t *, spieler_t * );
@@ -609,7 +609,7 @@ class wkz_daynight_level_t : public werkzeug_t {
 
 /* change day/night view manually */
 class wkz_vehicle_tooltips_t : public werkzeug_t {
-	const char *get_tooltip(spieler_t *) { return "Toggle vehicle tooltips"; }
+	const char *get_tooltip(spieler_t *) { return translator::translate("Toggle vehicle tooltips"); }
 	bool init( karte_t *, spieler_t * ) {
 		umgebung_t::show_vehicle_states = (umgebung_t::show_vehicle_states+1)%3;
 		return false;
