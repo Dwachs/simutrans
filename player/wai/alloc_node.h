@@ -26,7 +26,8 @@ enum bt_types {
 	BT_WAYOBJ        = 303,
 	BT_CON_SHIP      = 304,
 	BT_VEH_BUILDER   = 305,
-	BT_FREE_TILE     = 306
+	BT_FREE_TILE     = 306,
+	BT_CON_IND       = 307
 };
 
 class bt_node_t;

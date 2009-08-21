@@ -5,6 +5,7 @@
 #include "builder_way_obj.h"
 
 #include "../bt.h"
+#include "../datablock.h"
 #include "../vehikel_prototype.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
@@ -78,6 +79,7 @@ void connector_ship_t::rotate90( const sint16 y_size)
 return_value_t *connector_ship_t::step()
 {
 	if( childs.empty() ) {
+		return_value_t *rv = new_return_value(RT_DONE_NOTHING);
 		switch(phase) {
 			case 0: {
 				// Our first step: Build a harbour.
@@ -167,11 +169,9 @@ return_value_t *connector_ship_t::step()
 				sprintf(buf, translator::translate("%s\nnow operates\n%i ships between\n%s at (%i,%i)\nand %s at (%i,%i)."), sp->get_name(), nr_vehicles, translator::translate(fab1->get_name()), start.x, start.y, translator::translate(fab2->get_name()), ziel.x, ziel.y);
 				sp->get_welt()->get_message()->add_message(buf, start.get_2d(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), prototyper->proto->besch[0]->get_basis_bild());
 
-				// tell the industrymanager
-				industry_connection_t& ic = sp->get_industry_manager()->get_connection(fab1, fab2, prototyper->freight);
-				ic.set<own>();
-				ic.unset<planned>();
-				ic.set_shipline(line);
+				// tell the industrymanager via the industry-connector
+				rv->data = new datablock_t();
+				rv->data->line = line;
 
 				// reset prototyper, will be deleted in vehikel_builder
 				prototyper = NULL;
@@ -180,7 +180,8 @@ return_value_t *connector_ship_t::step()
 		}
 		sp->get_log().message( "connector_ship_t::step", "completed phase %d", phase);
 		phase ++;
-		return new_return_value(phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS);
+		rv->code = phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
+		return rv;
 	}
 	else {
 		// Step the childs.

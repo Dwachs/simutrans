@@ -297,6 +297,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\connections_manager.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\nodes\connector_road.cc"
 				>
 			</File>
@@ -590,6 +594,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\industry_connection_planner.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_connector.cc"
 				>
 			</File>
 			<File
@@ -1161,6 +1169,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\connections_manager.h"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\nodes\connector_road.h"
 				>
 			</File>
@@ -1178,6 +1190,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\industry_connection_planner.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_connector.h"
 				>
 			</File>
 			<File

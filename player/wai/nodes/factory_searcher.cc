@@ -30,12 +30,12 @@ void factory_searcher_t::append_report(report_t *report)
 
 bool factory_searcher_t::is_forbidden( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const
 {
-	return sp->get_industry_manager()->is_connection<forbidden>(s,z,f);
+	return sp->get_industry_manager()->is_connection(forbidden, s, z, f);
 }
 
 bool factory_searcher_t::is_planable( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const
 {
-	return !sp->get_industry_manager()->is_connection<unplanable>(s,z,f);
+	return !sp->get_industry_manager()->is_connection(unplanable, s,z,f);
 }
 
 // Copied from ai_goods

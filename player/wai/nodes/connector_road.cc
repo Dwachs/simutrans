@@ -116,6 +116,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 return_value_t *connector_road_t::step()
 {
 	if( childs.empty() ) {
+		return_value_t *rv = new_return_value(RT_DONE_NOTHING);
 		sp->get_log().message("connector_road_t::step", "phase %d of build route %s => %s", phase, fab1->get_name(), fab2->get_name() );
 		switch(phase) {
 			case 0: {
@@ -248,9 +249,7 @@ return_value_t *connector_road_t::step()
 				if ( !sp->is_cash_available(cost) ) {
 					sp->get_log().warning( "connector_road_t::step", "route %s => %s too expensive", fab1->get_name(), fab2->get_name() );
 					// TODO: geldbedarf merken, den connector schlafen lassen, bis es da ist
-					// tell the industrymanager, try later
-					industry_connection_t& ic = sp->get_industry_manager()->get_connection(fab1, fab2, prototyper->freight);
-					ic.unset<planned>();
+					// TODO: try later
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// now build the route
@@ -341,10 +340,8 @@ return_value_t *connector_road_t::step()
 				sp->get_welt()->get_message()->add_message(buf, start.get_2d(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), prototyper->proto->besch[0]->get_basis_bild());
 
 				// tell the industrymanager
-				industry_connection_t& ic = sp->get_industry_manager()->get_connection(fab1, fab2, prototyper->freight);
-				ic.set<own>();
-				ic.unset<planned>();
-				ic.set_line(line);
+				rv->data = new datablock_t();
+				rv->data->line = line;
 
 				// reset prototyper, will be deleted in vehikel_builder
 				prototyper = NULL;
@@ -353,7 +350,8 @@ return_value_t *connector_road_t::step()
 		}
 		sp->get_log().message( "connector_road_t::step", "completed phase %d", phase);
 		phase ++;
-		return new_return_value(phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS);
+		rv->code = phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
+		return rv;
 	}
 	else {
 		// Step the childs.

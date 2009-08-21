@@ -1,6 +1,7 @@
 #ifndef _INDUSTRY_MANAGER_H_
 #define _INDUSTRY_MANAGER_H_
 
+#include "connections_manager.h"
 #include "../manager.h"
 #include "../../../linehandle_t.h"
 
@@ -20,32 +21,29 @@ enum connection_status {
 
 
 
-class industry_connection_t {
+class industry_link_t {
 public:
-	industry_connection_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0) : status(0), line(0), shipline(0), start(s), ziel(z), freight(f) {}
+	industry_link_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0);
+	~industry_link_t();
 
 	report_t* get_report(ai_wai_t *sp);
 
-	void set_line(linehandle_t l) { line = l; }
-	linehandle_t get_line() const { return line; }
+	void append_connection(connection_t* c) { connections->append_connection(c); }
 
-	// TODO: store more than these two lines for one connection
-	void set_shipline(linehandle_t l) { shipline = l; }
-	linehandle_t get_shipline() const { return shipline; }
+	bool is(connection_status cs) const { return (status & cs)!=0; }
+	void set(connection_status cs) { status |= cs; }
+	void unset(connection_status cs) { status &= ~cs; }
 
-	template<connection_status cs> bool is() const { return (status & cs)!=0; }
-	template<connection_status cs> void set() { status |= cs; }
-	template<connection_status cs> void unset() { status &= ~cs; }
-
-	bool operator != (const industry_connection_t & k) { return start != k.start || ziel != k.ziel || freight != k.freight; }
-	bool operator == (const industry_connection_t & k) { return start == k.start && ziel == k.ziel && freight == k.freight; }
+	bool operator != (const industry_link_t & k) { return start != k.start || ziel != k.ziel || freight != k.freight; }
+	bool operator == (const industry_link_t & k) { return start == k.start && ziel == k.ziel && freight == k.freight; }
+	bool is_equal(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) const { return start == s && ziel == z && freight == f; }
 
 	void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	void rotate90( const sint16 /*y_size*/ ) {}
 	void debug( log_t &file, cstring_t prefix );
 private:
 	sint64 status;
-	linehandle_t line, shipline;
+	parallel_connection_t *connections;
 
 	const fabrik_t *start;
 	const fabrik_t *ziel;
@@ -54,7 +52,7 @@ private:
 
 class industry_manager_t : public manager_t {
 public:
-	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_), next_cid(0) { type = BT_IND_MNGR; }
+	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_), next_cid(0), connections(100) { type = BT_IND_MNGR; }
 
 	// will check each line and generate reports
 	virtual return_value_t *work();
@@ -65,43 +63,26 @@ public:
 	 *  if there is none, create it
 	 */
 	uint32 get_connection_id(const fabrik_t *, const fabrik_t *, const ware_besch_t *);
-	industry_connection_t& get_connection(uint32 id);
-	industry_connection_t& get_connection(const fabrik_t *, const fabrik_t *, const ware_besch_t *);
+	industry_link_t* get_connection(uint32 id);
+	industry_link_t* get_connection(const fabrik_t *, const fabrik_t *, const ware_besch_t *);
 
 	/* returns false if the connection does not exist or if the corresponding bits are not set */
-	template<connection_status cs>
-	bool is_connection(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) const
-	{
-		industry_connection_t ic(s,z,f);
-		if (connections.is_contained(ic)) {
-			return connections[connections.index_of(ic)].is<cs>();
-		}
-		else {
-			return false;
-		}
-	}
+	bool is_connection(connection_status cs, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) const;
+
 	/* sets the status bit, creates connection if none exists */
-	template<connection_status cs>
-	void set_connection(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
-	{
-		industry_connection_t& ic = get_connection(s,z,f);
-		ic.set<cs>();
-	}
+	void set_connection(connection_status cs, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f);
+
 	/* unsets the status bit, creates no new connection */
-	template<connection_status cs>
-	void unset_connection(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
-	{
-		industry_connection_t ic(s,z,f);
-		if (connections.is_contained(ic)) {
-			get_connection(s,z,f).unset<cs>();
-		}
-	}
+	void unset_connection(connection_status cs, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ );
 	virtual void debug( log_t &file, cstring_t prefix );
 private:
-	vector_tpl<industry_connection_t> connections;
+	vector_tpl<industry_link_t *> connections;
+	// returns the index of the link, if get_index>=get_count then link is not in the list
+	uint32 get_index(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) const;
+	uint32 get_index(industry_link_t *) const;
 	uint32 next_cid;
 };
 
