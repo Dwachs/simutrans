@@ -6,6 +6,7 @@
 #include "../../bauer/vehikelbauer.h"
 #include "../../dataobj/loadsave.h"
 #include "../ai.h"
+#include "../ai_wai.h"
 #include "../../vehicle/simvehikel.h"
 #include "../../simconvoi.h"
 #include "../../simdebug.h"
@@ -347,6 +348,8 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 	file->rdwr_byte(max_length, ""); 
 	file->rdwr_long(max_weight, "");
 	ai_t::rdwr_ware_besch(file, freight);
+	file->rdwr_long(production, "");
+	file->rdwr_long(distance, "");
 	file->rdwr_bool(include_electric, "");
 	file->rdwr_bool(not_obsolete, "");
 
@@ -377,13 +380,20 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 	//const sint64 value = ((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4;
 
 	// net gain per transported unit (matching freight)
-	const sint64 value = (((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4 *1000) / capacity;
+	//const sint64 value = (((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4 *1000) / capacity;
 
-//	for(uint8 i=0;i<proto.besch.get_count(); i++)
-//		sp->log->message("ait_road_connectf_t::valuate", "[%d] %s",i,proto.besch[i]->get_name() );
-//	sp->log->message("ait_road_connectf_t::valuate", "cap=%d/%d maint=%d speed=%d freightprice=%d value=%ld ",
-//		capacity, proto.get_capacity(NULL), maintenance, proto.max_speed, freight_price, value);
+	// net gain of whole line
+	// for max number of vehicles
+	const sint32 max_vehicles = max(distance / 8, 3);
+	const sint64 value = ((capacity * freight_price +1500ll )/3000ll - maintenance*5/2) * (proto.max_speed) * min(max_vehicles, ((sint64)2*production*distance)/(proto.max_speed*capacity));
 
+	ai_wai_t* ai = dynamic_cast<ai_wai_t*>(sp);
+	if(ai) {
+		for(uint8 i=0;i<proto.besch.get_count(); i++)
+			ai->get_log().message("simple_prototype_designer_t::valuate", "[%d] %s",i,proto.besch[i]->get_name() );
+		ai->get_log().message("simple_prototype_designer_t::valuate", "cap=%d/%d maint=%d speed=%d freightprice=%d value=%ld ",
+			capacity, proto.get_capacity(NULL), maintenance, proto.max_speed, freight_price, value);
+	}
 	return value;
 }
 

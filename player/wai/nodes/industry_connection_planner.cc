@@ -60,12 +60,15 @@ return_value_t *industry_connection_planner_t::step()
 	// get a vehicle
 	simple_prototype_designer_t* d = new simple_prototype_designer_t(sp);
 	d->freight = freight;
+	d->production = prod;
 	d->include_electric = wt != road_wt;
 	d->max_length = 1;
 	d->max_weight = 0xffffffff;
 	d->min_speed  = 1;
 	d->not_obsolete = true;
 	d->wt = wt;
+	// first guess without ships
+	d->distance = koord_distance(start->get_pos(), ziel->get_pos());
 
 	d->update();
 
@@ -159,8 +162,11 @@ return_value_t *industry_connection_planner_t::step()
 			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
+		const uint32 dist = koord_distance(harbour_pos, ziel->get_pos());
 
 		d2->freight = freight;
+		d2->production = prod;
+		d2->distance = dist;
 		d2->include_electric = false;
 		d2->max_length = 1;
 		d2->max_weight = 0xffffffff;
@@ -175,7 +181,6 @@ return_value_t *industry_connection_planner_t::step()
 			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
-		const uint32 dist = koord_distance(harbour_pos, ziel->get_pos());
 
 		uint32 max_speed = d2->proto->max_speed;
 		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile

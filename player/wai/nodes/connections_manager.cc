@@ -197,7 +197,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	if (freight_available) {
 		if (stopped.get_count()> max(line->count_convoys()/2, 2) ) {
 			// TODO: traffic jam ..		
-			sp->get_log().message( "freight_connection_t::get_report()","line '%s' sell %d convois due to traffic jam", line->get_name(), 1);	
+			sp->get_log().message( "freight_connection_t::get_report()","line '%s' sells %d convois due to traffic jam", line->get_name(), 1);	
 			// sell one empty & stopped convois
 			for(uint32 i=0; i<stopped.get_count(); i++) {
 				if (stopped[i]->get_loading_level()==0) {
@@ -208,7 +208,8 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			}
 		}
 		else if (stopped.get_count()<=2) {
-			// add one vehicle
+			// add one vehicle	
+			sp->get_log().message( "freight_connection_t::get_report()","line '%s' buys %d convois", line->get_name(), 1);
 			simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv0, freight);
 			vehikel_builder_t *v = new vehikel_builder_t(sp, cnv0->get_name(), d, line, cnv0->get_home_depot(), 1);
 			report_t *report = new report_t();
@@ -221,7 +222,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	else {
 		// TODO: increase_productivity somewhere
 		if (empty.get_count() > 1) {
-			sp->get_log().message( "freight_connection_t::get_report()","line '%s' sell %d convois", line->get_name(), (empty.get_count()+1)/3);
+			sp->get_log().message( "freight_connection_t::get_report()","line '%s' sells %d convois", line->get_name(), (empty.get_count()+1)/3);
 			// sell one third of the empty convois, keep minmum one convoi
 			for(uint32 i=1; i<empty.get_count(); i+=3) {
 				empty[i]->self_destruct();

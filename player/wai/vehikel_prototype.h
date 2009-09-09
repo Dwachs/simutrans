@@ -105,6 +105,8 @@ public:
 	uint8 max_length; // in tiles
 	uint32 max_weight;
 	const ware_besch_t* freight;
+	sint32 production;
+	uint32 distance;
 	bool include_electric;
 	bool not_obsolete;
 
