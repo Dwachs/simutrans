@@ -72,6 +72,8 @@ public:
 	// calculates capacity for a certain good
 	uint32 get_capacity(const ware_besch_t*) const;
 	uint32 get_maintenance() const;
+	// calculates power, min_top_speed, max_speed, weight
+	void calc_data(const ware_besch_t *freight); 
 
 	bool is_empty() const { return besch.get_count()==0; }
 	bool is_electric() const;
@@ -98,6 +100,8 @@ public:
 // generates prototype for one given freight
 // saves the prototype parameters and the prototype itself
 // updates the prototype if called
+// if production >0 then max number of vehicles (depending on distance etc) is taken into account
+// if production==0 then net-gain per unit is used
 class simple_prototype_designer_t : public vehikel_evaluator_t {
 public:
 	waytype_t wt;
@@ -109,6 +113,7 @@ public:
 	uint32 distance;
 	bool include_electric;
 	bool not_obsolete;
+	uint32 min_trans; // minimum capacity*speed
 
 	spieler_t *sp;
 

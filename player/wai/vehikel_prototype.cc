@@ -56,6 +56,20 @@ waytype_t vehikel_prototype_t::get_waytype() const
 	}
 }
 
+void vehikel_prototype_t::calc_data(const ware_besch_t *freight)
+{				
+	power = 0;
+	min_top_speed = 0xffff;
+	weight = 0;
+	for(uint8 i=0; i<besch.get_count(); i++) {
+		power += besch[i]->get_leistung()*besch[i]->get_gear()/64;
+		uint32 w = (freight && besch[i]->get_ware()->is_interchangeable(freight)) ? freight->get_weight_per_unit() : 0;
+		weight += (w*besch[i]->get_zuladung() + 499)/1000 + besch[i]->get_gewicht();
+		min_top_speed = min( min_top_speed, kmh_to_speed(besch[i]->get_geschw()) );
+	}
+	max_speed = min(speed_to_kmh(min_top_speed), (uint32) sqrt((((double)power/weight)-1)*2500));
+}
+
 /* extended search for vehicles for KI *
  * checks also timeline and constraints
  *
@@ -352,6 +366,7 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 	file->rdwr_long(distance, "");
 	file->rdwr_bool(include_electric, "");
 	file->rdwr_bool(not_obsolete, "");
+	file->rdwr_long(min_trans, "");
 
 	if (file->is_loading()) {
 		proto = new vehikel_prototype_t();
@@ -368,24 +383,26 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 	const uint32 capacity = proto.get_capacity(freight);
 	const uint32 maintenance = proto.get_maintenance();
 
-	// simple net gain
-	//sint64 net_gain = ((sint64)( (capacity * (freight->get_preis()<<7)) / 3000ll - maintenance *3)) * (proto.max_speed*3) /4;
+	if (min_trans > 0 && capacity * proto.max_speed < min_trans) {
+		return 0x8000000000000000ll;
+	}
 
 	// speed bonus calculation see vehikel_t::calc_gewinn
 	const sint32 ref_speed = sp->get_welt()->get_average_speed( wt );
 	const sint32 speed_base = (100*speed_to_kmh(proto.min_top_speed))/ref_speed-100;
 	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
 
-	// net gain
-	//const sint64 value = ((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4;
-
-	// net gain per transported unit (matching freight)
-	//const sint64 value = (((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4 *1000) / capacity;
-
-	// net gain of whole line
-	// for max number of vehicles
-	const sint32 max_vehicles = max(distance / 8, 3);
-	const sint64 value = ((capacity * freight_price +1500ll )/3000ll - maintenance*5/2) * (proto.max_speed) * min(max_vehicles, ((sint64)2*production*distance)/(proto.max_speed*capacity));
+	sint64 value;
+	if (production > 0) {
+		// net gain of whole line
+		// for max number of vehicles
+		const sint32 max_vehicles = max(distance / 8, 3);
+		value = ((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed) * min(max_vehicles, ((sint64)2*production*distance)/(proto.max_speed*capacity));
+	}
+	else {
+		// net gain per transported unit (matching freight)
+		value = (((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed*3) /4 *1000) / capacity;
+	}
 
 	ai_wai_t* ai = dynamic_cast<ai_wai_t*>(sp);
 	if(ai) {
@@ -418,10 +435,11 @@ simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, con
 			proto->besch.append(besch);
 		}		
 	}
-	
+	// 	proto->calc_data(..) needs to be called to get all proto-data valid
+
 	min_speed = 1; // in km/h
 	max_length = cnv->get_length() / 16; // in tiles
-	max_weight = 0;
+	max_weight = 0xffffffff;
 	freight = f;
 	include_electric = cnv->needs_electrification();
 	not_obsolete = cnv->has_obsolete_vehicles();

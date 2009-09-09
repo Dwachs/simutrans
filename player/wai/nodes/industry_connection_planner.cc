@@ -67,6 +67,7 @@ return_value_t *industry_connection_planner_t::step()
 	d->min_speed  = 1;
 	d->not_obsolete = true;
 	d->wt = wt;
+	d->min_trans= 0;
 	// first guess without ships
 	d->distance = koord_distance(start->get_pos(), ziel->get_pos());
 
@@ -173,6 +174,7 @@ return_value_t *industry_connection_planner_t::step()
 		d2->min_speed  = 1;
 		d2->not_obsolete = false;
 		d2->wt = water_wt;
+		d2->min_trans = 0;
 
 		d2->update();
 

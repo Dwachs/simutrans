@@ -49,8 +49,14 @@ return_value_t *vehikel_builder_t::step()
 		}
 		// indicate the current status (for saving / loading)
 		cnv->set_name(start_name);
-		cnv->set_line(line);
 		nr_vehikel--;
+
+		// now withdraw the old line
+		if (withdraw_old) {
+			withdraw();
+			withdraw_old= false;
+		}
+		cnv->set_line(line);
 	}
 	// try to start the convoi
 	if (cnv.is_bound() && cnv->get_pos()==pos) {
@@ -79,11 +85,21 @@ return_value_t *vehikel_builder_t::step()
 	}
 }
 
+void vehikel_builder_t::withdraw() const
+{
+	linehandle_t wdline = sp->simlinemgmt.create_line(line->get_linetype(), sp, line->get_schedule());
+	while(line->count_convoys()>0) {
+		line->get_convoy(0)->set_line(wdline);
+	}
+	wdline->set_withdraw(true);
+}
+
 void vehikel_builder_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_node_t::rdwr(file,version);
 	pos.rdwr(file);
-	file->rdwr_byte(nr_vehikel,"");
+	file->rdwr_short(nr_vehikel,"");
+	file->rdwr_bool(withdraw_old,"");
 	if (file->is_loading()) {
 		prototyper = new simple_prototype_designer_t(sp);
 	}

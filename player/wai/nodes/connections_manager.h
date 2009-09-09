@@ -11,7 +11,8 @@ enum connection_types {
 	CONN_COMBINED	= 2,
 	CONN_SERIAL		= 3,
 	CONN_PARALLEL	= 4,
-	CONN_FREIGHT	= 5
+	CONN_FREIGHT	= 5,
+	CONN_WITHDRAWN	= 6
 };
 
 class connection_t {
@@ -72,7 +73,7 @@ public:
 class freight_connection_t : public connection_t {
 public:
 	freight_connection_t() : connection_t() { type=CONN_FREIGHT; }
-	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f) : connection_t(), ziel(z), freight(f) { type=CONN_FREIGHT; }
+	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f) : connection_t(), ziel(z), freight(f), status(0) { type=CONN_FREIGHT; }
 	virtual report_t* get_report(ai_wai_t *sp);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
@@ -80,6 +81,21 @@ public:
 private:
 	const fabrik_t *ziel;
 	const ware_besch_t *freight;
+	uint8 status; // 1: keine groesseren Fahrzeuge verfuegbar
+	bool bigger_convois_impossible() { return status&1; }
+};
+
+/*
+ * connection that goes out of order soon, 
+ * it waits until all vehicles are gone
+ * UNUSED
+ */
+class withdrawn_connection_t : public connection_t {
+public:
+	withdrawn_connection_t() : connection_t() { type=CONN_WITHDRAWN; }
+	virtual report_t* get_report(ai_wai_t *sp);
+
+	virtual void debug( log_t &file, cstring_t prefix );
 };
 
 
