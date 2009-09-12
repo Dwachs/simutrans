@@ -14,7 +14,6 @@ vehikel_builder_t::~vehikel_builder_t()
 
 return_value_t *vehikel_builder_t::step()
 {
-	sp->get_log().message("vehikel_builder::step","[%p] build %s for line %s", this, (const char*)name, line->get_name());
 	if (!line.is_bound()) {
 		sp->get_log().warning("vehikel_builder::step", "invalid linehandle");
 		return new_return_value(RT_TOTAL_FAIL);
@@ -76,11 +75,10 @@ return_value_t *vehikel_builder_t::step()
 	
 	if (nr_vehikel>0 || cnv.is_bound()) {
 		// TODO: add some delay until next vehicle is created
-		sp->get_log().message("vehikel_builder::step", "built a convoy.");
 		return new_return_value(RT_PARTIAL_SUCCESS);
 	}
 	else {
-		sp->get_log().warning("vehikel_builder::step", "error");
+		sp->get_log().warning("vehikel_builder::step", "ready");
 		return new_return_value(RT_TOTAL_SUCCESS);
 	}
 }
@@ -88,8 +86,12 @@ return_value_t *vehikel_builder_t::step()
 void vehikel_builder_t::withdraw() const
 {
 	linehandle_t wdline = sp->simlinemgmt.create_line(line->get_linetype(), sp, line->get_schedule());
+	sp->get_log().message("vehikel_builder::step","withdraw %d convois from line %s", line->count_convoys(), line->get_name());
 	while(line->count_convoys()>0) {
-		line->get_convoy(0)->set_line(wdline);
+		convoihandle_t cnv = line->get_convoy(0);
+		uint32 aktuell = cnv->get_schedule()->get_aktuell();
+		cnv->set_line(wdline);
+		cnv->get_schedule()->set_aktuell(aktuell);
 	}
 	wdline->set_withdraw(true);
 }

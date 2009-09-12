@@ -163,6 +163,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 
 	// count status of convois
 	vector_tpl<convoihandle_t> stopped, empty, loss;
+	// TODO: count new convois
 	sint64 mitt_gewinn = 0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
@@ -240,7 +241,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 		}
 		else if (stopped.get_count()<=2) {
 			// add one vehicle	
-			sp->get_log().message( "freight_connection_t::get_report()","line '%s' buys %d convois", line->get_name(), 1);
+			sp->get_log().message( "freight_connection_t::get_report()","line '%s' want to buy %d convois", line->get_name(), 1);
 			simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv0, freight);
 			vehikel_builder_t *v = new vehikel_builder_t(sp, cnv0->get_name(), d, line, cnv0->get_home_depot(), 1);
 			report_t *report = new report_t();
