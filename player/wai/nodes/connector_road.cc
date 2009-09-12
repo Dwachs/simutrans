@@ -258,13 +258,19 @@ return_value_t *connector_road_t::step()
 
 				// build immediately 1x1 stations
 				ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
-				ok = ok && sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
 				if (!ok) {
-					sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s) or (%s)", start.get_2d().get_str(), ziel.get_str() );
+					sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s)", start.get_str() );
+				}
+				if (ok) {
+					sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
+					if (!ok) {
+						sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s)", ziel.get_str() );
+					}
+				}
+				if (!ok) {
 					sp->get_log().warning( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.max_n-1].get_str() );
 					return new_return_value(RT_TOTAL_SUCCESS);
 				}
-
 				// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
 				/*
 				append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );

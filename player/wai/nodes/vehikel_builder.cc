@@ -78,7 +78,7 @@ return_value_t *vehikel_builder_t::step()
 		return new_return_value(RT_PARTIAL_SUCCESS);
 	}
 	else {
-		sp->get_log().warning("vehikel_builder::step", "ready");
+		sp->get_log().message("vehikel_builder::step", "ready");
 		return new_return_value(RT_TOTAL_SUCCESS);
 	}
 }
