@@ -162,13 +162,19 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 
 	// count status of convois
-	vector_tpl<convoihandle_t> stopped, empty, loss;
-	// TODO: count new convois
+	vector_tpl<convoihandle_t> stopped, empty, loss; uint32 newc=0;
 	sint64 mitt_gewinn = 0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
 		if (cnv->get_loading_level()==0) {
-			empty.append(cnv);
+			// nothing transported in last 2 months and not older than 1 month -> probably new
+			if ( (cnv->get_finance_history(0, CONVOI_TRANSPORTED_GOODS)+cnv->get_finance_history(1, CONVOI_TRANSPORTED_GOODS))<=0
+				&& welt->get_current_month()-cnv->get_vehikel(0)->get_insta_zeit()<=1) {
+					newc++;
+			}
+			else {
+				empty.append(cnv);
+			}
 		}
 
 		sint64 gewinn = 0;
@@ -195,10 +201,10 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 				break;
 		}
 	}
-	sp->get_log().message( "freight_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count());
+	sp->get_log().message( "freight_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d new=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count(), newc);
 	// now decide something
 	if (freight_available) {
-		if (stopped.get_count()> max(line->count_convoys()/2, 2) ) {
+		if (newc==0 && stopped.get_count()> max(line->count_convoys()/2, 2) ) {
 			// traffic jam ..		
 			if (!bigger_convois_impossible()) {
 				// try to find the bigger convois
@@ -239,7 +245,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 				}
 			}
 		}
-		else if (stopped.get_count()<=2) {
+		else if (newc==0 && stopped.get_count()<=2) {
 			// add one vehicle	
 			sp->get_log().message( "freight_connection_t::get_report()","line '%s' want to buy %d convois", line->get_name(), 1);
 			simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv0, freight);
