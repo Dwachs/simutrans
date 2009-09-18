@@ -230,7 +230,7 @@ return_value_t *connector_road_t::step()
 				ok = ok && found == 3;
 				if( !ok ) {
 					sp->get_log().warning( "connector_road_t::step", "could not find places for road stations" );
-					return new_return_value(RT_TOTAL_SUCCESS);
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// get a suitable station
 				const haus_besch_t* terminal_st = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::terminal_station );
@@ -241,7 +241,7 @@ return_value_t *connector_road_t::step()
 				ok = (through_st!=NULL) || (through==0);
 				if (!ok) {
 					sp->get_log().warning( "connector_road_t::step", "no suitable station found" );
-					return new_return_value(RT_TOTAL_SUCCESS);
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 
 				// kontostand checken
@@ -269,7 +269,7 @@ return_value_t *connector_road_t::step()
 				}
 				if (!ok) {
 					sp->get_log().warning( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.max_n-1].get_str() );
-					return new_return_value(RT_TOTAL_SUCCESS);
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
 				/*
@@ -320,6 +320,7 @@ return_value_t *connector_road_t::step()
 				}
 				else {
 					sp->get_log().warning( "connector_road::step()","depot building failed");
+					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
 			}

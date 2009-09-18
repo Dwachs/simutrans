@@ -531,8 +531,8 @@ void ai_t::rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab)
 void ai_t::rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight)
 {
 	const char *s = NULL;
-	if (file->is_saving()) { // save name
-		s =  freight->get_name();
+	if (file->is_saving() && freight) { // save name
+		s = freight->get_name();
 	}
 	file->rdwr_str( s );
 	if (file->is_loading())

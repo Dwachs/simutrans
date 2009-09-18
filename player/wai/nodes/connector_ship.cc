@@ -126,8 +126,11 @@ return_value_t *connector_ship_t::step()
 				// Test which tiles are the best:
 				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
 					const grund_t* gr = sp->get_welt()->lookup_kartenboden( tiles[j] );
-					if(  gr  &&  gr->ist_wasser()  &&  !gr->find< gebaeude_t >()  ) {
-						uint32 dist = koord_distance( tiles[j], start );
+					if(  gr  &&  gr->ist_wasser()  &&  !gr->find<gebaeude_t>()  &&  !gr->get_leitung())
+					{// look for own depots and prefer them
+						depot_t* d = gr->get_depot();
+						if (d && d->get_besitzer()!=sp) continue;
+						uint32 dist = (d ? 1 : 10)*koord_distance( tiles[j], start );
 						if( dist < best_dist ) {
 							best_dist = dist;
 							best_tile = gr->get_pos();
@@ -136,10 +139,12 @@ return_value_t *connector_ship_t::step()
 				}
 				deppos = best_tile;
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, sp->get_welt()->get_timeline_year_month(), 0);
-				bool ok = dep!=NULL;
-				ok &= sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+				bool ok = dep!=NULL && deppos!=koord3d::invalid;
+				if (ok && sp->get_welt()->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
+					ok &= sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+				}
 				if( !ok ) {
-					sp->get_log().warning( "connector_ship::step()","depot building failed");
+					sp->get_log().warning( "connector_ship::step()","depot building failed at (%s)", deppos.get_str());
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
@@ -162,7 +167,7 @@ return_value_t *connector_ship_t::step()
 				linehandle_t line=sp->simlinemgmt.create_line(simline_t::shipline, sp, fpl);
 				delete fpl;
 
-				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, nr_vehicles) );
+				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, min(nr_vehicles,3)) );
 				
 				// tell the player
 				char buf[256];
