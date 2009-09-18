@@ -157,7 +157,7 @@ return_value_t *connector_ship_t::step()
 				// full load? or do we have unused capacity?
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
-				fpl->append(sp->get_welt()->lookup(start), ladegrad, 15);
+				fpl->append(sp->get_welt()->lookup(start), ladegrad);
 				const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
 				koord3d ziel =  get_ship_target(); // harbour_pos - koord(gr->get_grund_hang());
 				fpl->append(sp->get_welt()->lookup(ziel), 0);

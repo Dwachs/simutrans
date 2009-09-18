@@ -228,7 +228,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 					report_t *report = new report_t();
 					report->action = v;
 					// TODO: better estimation of the gain
-					report->gain_per_v_m = max( 1000, mitt_gewinn/(12*line->count_convoys()) );
+					report->gain_per_v_m = min( 1000, mitt_gewinn/(12*line->count_convoys()) );
 					report->nr_vehicles = 3;
 					return report;
 				}
@@ -259,10 +259,11 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 	else {
 		// TODO: increase_productivity somewhere
-		if (empty.get_count() > 1) {
+		if (empty.get_count() > 0) {
 			sp->get_log().message( "freight_connection_t::get_report()","line '%s' sells %d convois", line->get_name(), (empty.get_count()+1)/3);
-			// sell one third of the empty convois, keep minmum one convoi
-			for(uint32 i=1; i<empty.get_count(); i+=3) {
+			// sell one third of the empty convois, keep minmum one convoi in the line
+			const uint32 i0 = empty.get_count() < line->count_convoys() ? 0 : 1;
+			for(uint32 i=i0; i<empty.get_count(); i+=3) {
 				empty[i]->self_destruct();
 				empty[i]->step();	// to really get rid of it
 			}

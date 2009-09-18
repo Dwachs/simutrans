@@ -116,7 +116,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 return_value_t *connector_road_t::step()
 {
 	if( childs.empty() ) {
-		return_value_t *rv = new_return_value(RT_DONE_NOTHING);
+		datablock_t *data = NULL;
 		sp->get_log().message("connector_road_t::step", "phase %d of build route %s => %s", phase, fab1->get_name(), fab2->get_name() );
 		switch(phase) {
 			case 0: {
@@ -285,11 +285,13 @@ return_value_t *connector_road_t::step()
 				vector_tpl<koord> tiles;
 				tiles.append(start.get_2d());
 				ai_t::add_neighbourhood( tiles, 5 );
-				vector_tpl<koord3d> dep_ziele;
+				vector_tpl<koord3d> dep_ziele, dep_exist;
 				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
 					const grund_t* gr = sp->get_welt()->lookup_kartenboden( tiles[j] );
-					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->get_leitung()  
-						&&  (!gr->hat_wege() || (gr->hat_weg(road_wt) && gr->get_weg(road_wt)->get_besitzer()==sp && gr->get_depot())) ){
+					if(  gr  &&  gr->hat_weg(road_wt) && gr->get_weg(road_wt)->get_besitzer()==sp && gr->get_depot()) {
+						dep_exist.append_unique( gr->get_pos() );
+					}
+					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->get_leitung()  &&  !gr->hat_wege()){
 						dep_ziele.append_unique( gr->get_pos() );
 					}
 				}
@@ -303,7 +305,7 @@ return_value_t *connector_road_t::step()
 				bauigel.set_keep_existing_faster_ways(true);
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
-				bauigel.calc_route(dep_start, dep_ziele);
+				bauigel.calc_route(dep_start, !dep_exist.empty() ? dep_exist : dep_ziele);
 				if(bauigel.max_n >= 1) {
 					// Sometimes reverse route is the best, so we have to change the koords.
 					deppos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.max_n] : bauigel.get_route()[0];	
@@ -331,7 +333,7 @@ return_value_t *connector_road_t::step()
 				// full load? or do we have unused capacity?
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
-				fpl->append(sp->get_welt()->lookup(start), ladegrad, 15);
+				fpl->append(sp->get_welt()->lookup(start), ladegrad);
 				fpl->append(sp->get_welt()->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -347,8 +349,8 @@ return_value_t *connector_road_t::step()
 				sp->get_welt()->get_message()->add_message(buf, start.get_2d(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), prototyper->proto->besch[0]->get_basis_bild());
 
 				// tell the industrymanager
-				rv->data = new datablock_t();
-				rv->data->line = line;
+				data = new datablock_t();
+				data->line = line;
 
 				// reset prototyper, will be deleted in vehikel_builder
 				prototyper = NULL;
@@ -356,8 +358,10 @@ return_value_t *connector_road_t::step()
 			}
 		}
 		sp->get_log().message( "connector_road_t::step", "completed phase %d", phase);
-		phase ++;
-		rv->code = phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
+		return_value_t *rv = new_return_value(phase>2 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS);
+		rv->data = data;
+
+		phase ++; 
 		return rv;
 	}
 	else {
