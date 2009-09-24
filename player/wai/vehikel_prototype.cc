@@ -97,7 +97,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 	const uint32 month_now = (world->use_timeline() ? world->get_current_month() : 0);
 
 	// something available?
-	if(vehikelbauer_t::get_info(wt)->empty()) {
+	if(vehikelbauer_t::get_info(wt)==NULL || vehikelbauer_t::get_info(wt)->empty()) {
 		return new vehikel_prototype_t(0);
 	}
 	// search valid vehicles

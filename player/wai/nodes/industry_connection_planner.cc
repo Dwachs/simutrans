@@ -103,7 +103,7 @@ return_value_t *industry_connection_planner_t::step()
 			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL);
 		}
-		sp->get_log().warning("industry_connection_planner_t::step", "start factory at water side spotted");
+		sp->get_log().message("industry_connection_planner_t::step", "start factory at water side spotted");
 		include_ships = true;
 
 		// check for ship depots, dock
