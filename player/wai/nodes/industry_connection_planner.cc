@@ -16,6 +16,23 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../dings/wayobj.h"
 
+// container class with designer and filled report
+class connection_plan_data_t {
+public:
+	connection_plan_data_t() : wb(0), d(0), report(0) {}
+	~connection_plan_data_t() 
+	{
+		if (d) { delete d; d=NULL; }
+		if (report) { delete report; report=NULL; }
+	}
+	const weg_besch_t *wb;
+	simple_prototype_designer_t* d;
+	report_t *report;
+	// TODO: wayobj
+
+	bool is_ok() { return (d!=NULL) && (report!=NULL) && (!d->proto->is_empty()); }
+};
+
 return_value_t *industry_connection_planner_t::step()
 {
 	if(sp->get_industry_manager()->is_connection(unplanable, start, ziel, freight)) {		
@@ -44,9 +61,6 @@ return_value_t *industry_connection_planner_t::step()
 		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
-	// cost for stations
-	sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
-	// TODO: maintenance of these buildings
 
 	// estimate production
 	sint32 prod = calc_production();
@@ -56,47 +70,9 @@ return_value_t *industry_connection_planner_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
-
-	// get a vehicle
-	simple_prototype_designer_t* d = new simple_prototype_designer_t(sp);
-	d->freight = freight;
-	d->production = prod;
-	d->include_electric = wt != road_wt;
-	d->max_length = 1;
-	d->max_weight = 0xffffffff;
-	d->min_speed  = 1;
-	d->not_obsolete = true;
-	d->wt = wt;
-	d->min_trans= 0;
-	// first guess without ships
-	d->distance = koord_distance(start->get_pos(), ziel->get_pos());
-
-	d->update();
-
-	if (d->proto->is_empty()) {
-		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
-		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-	}
-
-	// electrification available?
-	const way_obj_besch_t *e = NULL;
-	if (d->proto->is_electric()) {
-		e = wayobj_t::wayobj_search(wt,overheadlines_wt,sp->get_welt()->get_timeline_year_month());
-		if (!e) {
-			sp->get_log().warning("industry_connection_planner_t::step","no electrification found for waytype %d", wt);
-			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
-			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-		}
-	}
-	// update way
-	wb = wegbauer_t::weg_search(wt, d->proto->max_speed, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat );
-
 	bool include_ships = false;
 	koord3d harbour_pos = koord3d::invalid;
-	simple_prototype_designer_t* d2 = new simple_prototype_designer_t(sp);
-	uint16 nr_ships = 0;
-
+	// need ships too?
 	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 		if(start->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 			sp->get_log().warning("industry_connection_planner_t::step", "only oil rigs supported yet");
@@ -114,133 +90,126 @@ return_value_t *industry_connection_planner_t::step()
 			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
-		// cost for stations
-		cost_buildings += 2*calc_building_cost(st) + calc_building_cost(dep);
 
-		// find the harbour position
-		vector_tpl<koord> startplatz;
-		start->get_tile_list( startplatz );
-		ai_t::add_neighbourhood( startplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
-		vector_tpl<koord3d> startplatz2;
-		for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
-			startplatz2.append( sp->get_welt()->lookup_kartenboden(startplatz[i])->get_pos() );
-		}
-
-		vector_tpl<koord> zielplatz;
-		ziel->get_tile_list( zielplatz );
-		ai_t::add_neighbourhood( zielplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
-		vector_tpl<koord3d> zielplatz2;
-		for( uint32 i = 0; i < zielplatz.get_count(); i++ ) {
-			zielplatz2.append( sp->get_welt()->lookup_kartenboden(zielplatz[i])->get_pos() );
-		}
-
-		amphi_searcher_t bauigel(sp->get_welt(), sp );
-		const weg_besch_t *weg_besch = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
-		bauigel.route_fuer( (wegbauer_t::bautyp_t)wt, weg_besch, NULL, NULL );
-		// we won't destroy cities (and save the money)
-		bauigel.set_keep_existing_faster_ways(true);
-		bauigel.set_keep_city_roads(true);
-		bauigel.set_maximum(10000);
-		bauigel.calc_route(startplatz2, zielplatz2);
-
-		if( bauigel.max_n > 1 ) {
-			bool wasser = sp->get_welt()->lookup(bauigel.get_route()[0])->ist_wasser();
-			for( sint32 i = 1; i <= bauigel.max_n; i++ ) {
-				bool next_is_wasser = sp->get_welt()->lookup(bauigel.get_route()[i])->ist_wasser();
-				if( wasser != next_is_wasser ) {
-					if( next_is_wasser ) {
-						harbour_pos = bauigel.get_route()[i-1];
-					}
-					else {
-						harbour_pos = bauigel.get_route()[i];
-					}
-					break;
-				}
-			}
-		}
-		else {
+		harbour_pos = get_harbour_pos();
+		if (harbour_pos == koord3d::invalid) {
 			sp->get_log().warning("industry_connection_planner_t::step", "Keine Amphibienroute");
 			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
-		const uint32 dist = koord_distance(harbour_pos, ziel->get_pos());
-
-		d2->freight = freight;
-		d2->production = prod;
-		d2->distance = dist;
-		d2->include_electric = false;
-		d2->max_length = 1;
-		d2->max_weight = 0xffffffff;
-		d2->min_speed  = 1;
-		d2->not_obsolete = false;
-		d2->wt = water_wt;
-		d2->min_trans = 0;
-
-		d2->update();
-
-		if (d2->proto->is_empty()) {
-			sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", water_wt, freight->get_name());
-			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
-			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-		}
-
-		uint32 max_speed = d2->proto->max_speed;
-		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
-
-		// number of vehicles
-		nr_ships = min( min(254,dist), (2*prod*dist) / (d2->proto->get_capacity(freight)*tiles_per_month)+1 );
+	}
+	// wt planner
+	const uint32 dist1 = koord_distance(include_ships ? harbour_pos : start->get_pos(), ziel->get_pos());
+	connection_plan_data_t *cpd_road = plan_connection(wt, prod, dist1);
+	if (!cpd_road->is_ok()) {
+		delete cpd_road;
+		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
+	// ship planner
+	const uint32 dist2 = koord_distance(harbour_pos, start->get_pos());
+	connection_plan_data_t *cpd_ship = include_ships ? plan_connection(water_wt, prod, dist2) : NULL;
+	if (include_ships && !cpd_ship->is_ok()) {
+		delete cpd_road;
+		delete cpd_ship;
+		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
-	// calculate distance
-	const uint32 dist = koord_distance( include_ships ? harbour_pos : start->get_pos(), ziel->get_pos());
-
-	uint32 max_speed = min( d->proto->max_speed, wb->get_topspeed() );
-	if (e) max_speed = min( max_speed, e->get_topspeed());
-	const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
-
-	// speed bonus calculation see vehikel_t::calc_gewinn
-	const sint32 ref_speed = sp->get_welt()->get_average_speed(wt );
-	const sint32 speed_base = (100*speed_to_kmh(d->proto->min_top_speed))/ref_speed-100;
-	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
-
-	// net gain per tile (matching freight)
-	const sint64 gain_per_tile = ((sint64)d->proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*d->proto->get_maintenance();
-
-	// number of vehicles
-	const uint16 nr_vehicles = min( min(254,dist), (2*prod*dist) / (d->proto->get_capacity(freight)*tiles_per_month)+1 );
-
-	// create report
-	// TODO: maintenance for depots, stations
+	// merge the reports and create new report
 	// TODO: save the prototype-designer somewhere
-	report = new report_t();
-	report->cost_fix                 = dist*( wb->get_preis() + (e!=NULL ? e->get_preis() : 0) ) + cost_buildings;
-	report->cost_monthly             = dist*( wb->get_wartung() + (e!=NULL ? e->get_wartung() : 0) );
-	report->cost_monthly_per_vehicle = 0;
-	report->cost_per_vehicle         = 0;
-	report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
-	report->nr_vehicles              = nr_vehicles;
-	report->nr_ships                 = nr_ships;
+	report = cpd_road->report; 
+	cpd_road->report = NULL;
+	if (include_ships) {
+		report->merge_report(cpd_ship->report);
+	}
 
+	// create the action nodes
 	if( include_ships ) {
 		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road+ship", start, ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, d, nr_vehicles, NULL, harbour_pos) );
+		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, cpd_road->d, report->nr_vehicles, NULL, harbour_pos) );
 		// TODO: was passiert, wenn der road-connector seine Route nicht bauen kann?
-		action->append_child( new connector_ship_t(sp, "connector_ship_t", start, ziel, d2, nr_ships, harbour_pos) );
+		action->append_child( new connector_ship_t(sp, "connector_ship_t", start, ziel, cpd_ship->d, report->nr_ships, harbour_pos) );
 		report->action = action;
 	}
 	else {
 		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road", start, ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, d, nr_vehicles, NULL) );
+		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, cpd_road->d, report->nr_vehicles, NULL) );
 		report->action = action;
 	}
+	// free memory
+	cpd_road->d = NULL; delete cpd_road;
+	if (include_ships) {
+		cpd_ship->d = NULL; delete cpd_ship;
+	}
 
-	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /v /m = %d", report->gain_per_v_m);
+	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /m = %lld", report->gain_per_m/100);
 
 	sp->get_industry_manager()->set_connection(planned, start, ziel, freight);
 
 	return new_return_value(RT_TOTAL_SUCCESS);
 }
 
+connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t wt, sint32 prod, uint32 dist)
+{
+	connection_plan_data_t* cpd = new connection_plan_data_t();
+	// get a vehicle
+	cpd->d = new simple_prototype_designer_t(sp);
+	cpd->d->freight = freight;
+	cpd->d->production = prod;
+	cpd->d->include_electric = false; // wt != road_wt;
+	cpd->d->max_length = 1;
+	cpd->d->max_weight = 0xffffffff;
+	cpd->d->min_speed  = 1;
+	cpd->d->not_obsolete = true;
+	cpd->d->wt = wt;
+	cpd->d->min_trans= 0;
+	cpd->d->distance = dist;
+	cpd->d->update();
+	const vehikel_prototype_t *proto = cpd->d->proto;
+
+	if (proto->is_empty()) {
+		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
+		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		return cpd;
+	}
+	// get way
+	cpd->wb = wt!=water_wt ? wegbauer_t::weg_search(wt, proto->max_speed, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat ) : NULL;
+
+	// speed bonus calculation see vehikel_t::calc_gewinn
+	const sint32 ref_speed = sp->get_welt()->get_average_speed(wt );
+	const sint32 speed_base = (100*speed_to_kmh(proto->min_top_speed))/ref_speed-100;
+	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
+
+	uint32 max_speed = proto->max_speed;
+	if (cpd->wb && cpd->wb->get_topspeed()< max_speed) max_speed=cpd->wb->get_topspeed();
+
+	const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
+
+	// net gain per tile (matching freight)
+	const sint64 gain_per_tile = ((sint64)proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*proto->get_maintenance();
+
+	// number of vehicles
+	const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
+
+	// check for ship depots, dock
+	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
+	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
+
+	// cost for stations
+	const sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
+	const sint64 main_buildings = 2*calc_building_maint(st) + calc_building_maint(dep);
+	
+	cpd->report = new report_t();
+	cpd->report->cost_fix                 =  cost_buildings + (cpd->wb ? dist*cpd->wb->get_preis()  : 0);
+	cpd->report->cost_monthly             = (main_buildings + (cpd->wb ? dist*cpd->wb->get_wartung(): 0)) << (sp->get_welt()->ticks_bits_per_tag-18);
+	cpd->report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
+	cpd->report->nr_vehicles              = nr_vehicles;
+	cpd->report->nr_ships                 = 0;
+	cpd->report->gain_per_m               = cpd->report->gain_per_v_m * cpd->report->nr_vehicles - cpd->report->cost_monthly;
+
+	return cpd;
+}
 
 /* @from ai_goods */
 sint32 industry_connection_planner_t::calc_production()
@@ -269,6 +238,52 @@ sint32 industry_connection_planner_t::calc_production()
 	return prod;
 }
 
+koord3d industry_connection_planner_t::get_harbour_pos() 
+{
+	// find the harbour position
+	vector_tpl<koord> startplatz;
+	start->get_tile_list( startplatz );
+	ai_t::add_neighbourhood( startplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
+	vector_tpl<koord3d> startplatz2;
+	for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
+		startplatz2.append( sp->get_welt()->lookup_kartenboden(startplatz[i])->get_pos() );
+	}
+
+	vector_tpl<koord> zielplatz;
+	ziel->get_tile_list( zielplatz );
+	ai_t::add_neighbourhood( zielplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
+	vector_tpl<koord3d> zielplatz2;
+	for( uint32 i = 0; i < zielplatz.get_count(); i++ ) {
+		zielplatz2.append( sp->get_welt()->lookup_kartenboden(zielplatz[i])->get_pos() );
+	}
+
+	amphi_searcher_t bauigel(sp->get_welt(), sp );
+	const weg_besch_t *weg_besch = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
+	bauigel.route_fuer( (wegbauer_t::bautyp_t)wt, weg_besch, NULL, NULL );
+	// we won't destroy cities (and save the money)
+	bauigel.set_keep_existing_faster_ways(true);
+	bauigel.set_keep_city_roads(true);
+	bauigel.set_maximum(10000);
+	bauigel.calc_route(startplatz2, zielplatz2);
+
+	koord3d harbour_pos = koord3d::invalid;
+	if( bauigel.max_n > 1 ) {
+		bool wasser = sp->get_welt()->lookup(bauigel.get_route()[0])->ist_wasser();
+		for( sint32 i = 1; i <= bauigel.max_n; i++ ) {
+			bool next_is_wasser = sp->get_welt()->lookup(bauigel.get_route()[i])->ist_wasser();
+			if( wasser != next_is_wasser ) {
+				if( next_is_wasser ) {
+					harbour_pos = bauigel.get_route()[i-1];
+				}
+				else {
+					harbour_pos = bauigel.get_route()[i];
+				}
+				break;
+			}
+		}
+	}
+	return harbour_pos;
+}
 
 sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
 {
@@ -322,6 +337,11 @@ sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
 	}
 }
 
+
+sint64 industry_connection_planner_t::calc_building_maint(const haus_besch_t* besch)
+{
+	return sp->get_welt()->get_einstellungen()->maint_building*besch->get_level()*besch->get_groesse().x*besch->get_groesse().y;
+}
 
 void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version)
 {

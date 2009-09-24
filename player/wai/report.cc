@@ -5,13 +5,21 @@
 #include "../../utils/cstring_t.h"
 #include "../../utils/log.h"
 
+void report_t::merge_report(report_t* r)
+{
+	cost_fix     += r->cost_fix;
+	cost_monthly += r->cost_monthly;
+	gain_per_m   += r->gain_per_m;
+	nr_ships     += r->nr_vehicles;
+	gain_per_v_m += (r->gain_per_v_m * nr_ships) / nr_vehicles;
+}
+
 void report_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_)
 {
 	file->rdwr_longlong(cost_fix, "");
 	file->rdwr_longlong(cost_monthly, "");
 	file->rdwr_longlong(gain_per_v_m, "");
-	file->rdwr_longlong(cost_per_vehicle, "");
-	file->rdwr_longlong(cost_monthly_per_vehicle, "");
+	file->rdwr_longlong(gain_per_m, "");
 	file->rdwr_short(nr_vehicles, "");
 	file->rdwr_short(nr_ships, "");
 

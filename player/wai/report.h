@@ -28,14 +28,16 @@ public:
 	sint64 cost_monthly;
 
 	// revenue per vehicle and month
+	// (gain of ships included)
 	sint64 gain_per_v_m;
 
+	// expected gain per month
+	sint64 gain_per_m;
+
 	// vehicles
-	sint64 cost_per_vehicle;
-	sint64 cost_monthly_per_vehicle;
 	uint16 nr_vehicles, nr_ships;
 
-	report_t() : action(NULL), cost_fix(0), cost_monthly(0), gain_per_v_m(0), cost_per_vehicle(0), cost_monthly_per_vehicle(0), nr_vehicles(0), nr_ships(0) {}
+	report_t() : action(NULL), cost_fix(0), cost_monthly(0), gain_per_v_m(0), gain_per_m(0), nr_vehicles(0), nr_ships(0) {}
 
 	~report_t() {
 		if (action) delete action;
@@ -45,6 +47,15 @@ public:
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_);
 	virtual void rotate90( const sint16 y_size );
 	virtual void debug( log_t &file, cstring_t prefix );
+
+	/*
+	 * merges given report into (this)
+	 * does not copy action
+	 * only for serial connections
+	 * nr_vehicles of this is kept
+	 * nr_vehicles of r goes into nr_ships
+	 */
+	void merge_report(report_t* r);
 };
 
 #endif
