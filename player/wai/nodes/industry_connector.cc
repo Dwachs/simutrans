@@ -40,6 +40,7 @@ return_value_t *industry_connector_t::step()
 		// tell the industry manager
 		industry_link_t *ic = sp->get_industry_manager()->get_connection(start, ziel, freight);
 		ic->unset(planned);
+		ic->set(forbidden);
 		// kill me
 		rv->code = RT_TOTAL_FAIL;
 	}
@@ -87,6 +88,7 @@ void industry_connector_t::rdwr( loadsave_t *file, const uint16 version )
 	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
 	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
 	ai_t::rdwr_ware_besch(file, freight);
+	connection_t::rdwr_connection(file, version, sp, connections);
 }
 
 void industry_connector_t::rotate90( const sint16 y_size) 

@@ -40,7 +40,6 @@ public:
 	 * TODO: append_undo, append_successor etc
 	 */
 	virtual void append_report(report_t * /*report*/) {};
-	// TODO: kann weg?
 	virtual report_t* get_report() { return NULL; };
 
 	/*

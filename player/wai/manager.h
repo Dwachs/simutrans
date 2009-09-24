@@ -27,6 +27,7 @@ public:
 
 	// reports
 	virtual void append_report(report_t *report) { if (report) reports.append(report); }
+	// called by ai_wai_t::step
 	virtual report_t* get_report();
 private:
 	vector_tpl<report_t*> reports;

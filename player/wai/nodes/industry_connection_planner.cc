@@ -215,9 +215,6 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 sint32 industry_connection_planner_t::calc_production()
 {
 	karte_t *welt = sp->get_welt();
-	// calculate distance
-	koord zv = start->get_pos().get_2d() - ziel->get_pos().get_2d();
-	uint32 dist = koord_distance(zv, koord(0,0));
 
 	// properly calculate production & consumption
 	const vector_tpl<ware_production_t>& ausgang = start->get_ausgang();

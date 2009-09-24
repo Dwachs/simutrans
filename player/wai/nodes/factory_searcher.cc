@@ -60,10 +60,7 @@ return_value_t *factory_searcher_t::work()
 	}
 
 	if( root && get_factory_tree_lowest_missing( root ) ) {
-		///////////////////////
-		// TODO
 		// create verbindungsplaner von start -> ziel
-		///////////////////////
 		char buf[200];
 		sprintf(buf, "ind_conn_plan freight %s from %s to %s by %d", freight->get_name(), start->get_pos().get_str(), ziel->get_pos().get_2d().get_str(), road_wt);
 		append_child( new industry_connection_planner_t(sp, buf, start, ziel, freight, road_wt ));
