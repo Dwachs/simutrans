@@ -25,11 +25,21 @@ report_t* manager_t::get_report()
 		return NULL;
 	}
 	else {
-		// TODO: do something more reasonable here
-		uint32 index = simrand(reports.get_count());
-		report_t* rep = reports[index];
+		// find the report that maximizes
+		// gain-per-month / cost-fix
+		uint32 index = 0;
+		report_t *best = reports[index];
+		for(uint32 i=1; i<reports.get_count(); i++) {
+			report_t *r = reports[i];
+			if ( (best->gain_per_m * r->cost_fix < r->gain_per_m * best->cost_fix)
+				|| (best->cost_fix==0  &&  r->cost_fix==0  &&  best->gain_per_m<r->gain_per_m) ) {
+					best = r;
+					index = i;
+			}
+		}
 		reports.remove_at( index );
-		return rep;
+		// TODO: remove old reports
+		return best;
 	}
 }
 

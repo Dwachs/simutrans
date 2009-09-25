@@ -9,13 +9,13 @@ class fabrik_t;
 class ware_besch_t;
 
 enum connection_status {
-	none = 0,		// no connection
-	own = 1,		// own connection
+	none       = 0,	// no connection
+	own        = 1,	// own connection
 	competitor = 2,	// connection of other player
-	exists = 3,		// connection exists
-	planned = 4,	// connection planned
+	exists     = 3,	// connection exists
+	planned    = 4,	// connection planned
 
-	forbidden = 256,
+	forbidden  = 256,
 	unplanable = planned | exists | forbidden
 };
 
