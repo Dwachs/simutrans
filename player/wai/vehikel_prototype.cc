@@ -180,6 +180,19 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 					// dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
 					continue;
 				}
+				// avoid vehicles with wrong freight that do not allow new couplings
+				if (i>0 && test_besch->get_zuladung()>0 && !freights.is_contained(test_besch->get_ware())) {
+					if (test_besch->get_nachfolger_count()!=0) {
+						bool ignore = true;
+						for(uint16 j=0; ignore && j<test_besch->get_nachfolger_count(); j++) {
+							ignore = prev_besch->can_lead(test_besch->get_nachfolger(j));
+						}
+						if (ignore) continue;
+					}
+					else {
+						if (prev_besch->get_nachfolger_count()==0) continue;
+					}
+				}
 				// avoid loks in the middle of a convoi
 				if (i>0 && test_besch->get_leistung()>0 && test_besch->can_follow_any() && prev_besch->get_leistung()==0){					dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
 					// dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
