@@ -7,6 +7,7 @@ class fabrik_t;
 class ware_besch_t;
 
 enum connection_types {
+	CONN_NULL		= 0,
 	CONN_SIMPLE		= 1,
 	CONN_COMBINED	= 2,
 	CONN_SERIAL		= 3,

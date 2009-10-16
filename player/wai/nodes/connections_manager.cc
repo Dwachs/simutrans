@@ -9,7 +9,7 @@ void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wa
 {
 	uint8 t;
 	if (file->is_saving()) {
-		t = (uint8) c->get_type();
+		t = c ? (uint8) c->get_type() : CONN_NULL;
 	}
 	file->rdwr_byte(t,"");
 	if (file->is_loading()) {
@@ -23,6 +23,8 @@ void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wa
 connection_t* connection_t::alloc_connection(connection_types t)
 {
 	switch(t) {
+		case CONN_NULL:
+			return NULL;
 		case CONN_COMBINED:
 			return new combined_connection_t();
 		case CONN_SERIAL:

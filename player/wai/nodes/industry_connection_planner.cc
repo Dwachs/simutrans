@@ -208,6 +208,7 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 	cpd->report->nr_ships                 = 0;
 	cpd->report->gain_per_m               = cpd->report->gain_per_v_m * cpd->report->nr_vehicles - cpd->report->cost_monthly;
 
+	sp->get_log().message("industry_connection_planner_t::plan_connection","wt=%d  gain/vm=%lld  vehicles=%d  cost/m=%lld", wt, cpd->report->gain_per_v_m, cpd->report->nr_vehicles, cpd->report->cost_monthly);
 	return cpd;
 }
 
