@@ -2,8 +2,8 @@ CONFIG ?= config.default
 -include $(CONFIG)
 
 
-BACKENDS      = allegro gdi sdl mixer_sdl x11
-COLOUR_DEPTHS = 8 16
+BACKENDS      = allegro gdi sdl mixer_sdl x11 posix
+COLOUR_DEPTHS = 0 8 16
 OSTYPES       = beos cygwin freebsd linux mingw mac
 
 ifeq ($(findstring $(BACKEND), $(BACKENDS)),)
@@ -97,9 +97,8 @@ ifdef DEBUG
 endif
 
 ifneq ($(PROFILE),)
-  CFLAGS   += -pg
-  CXXFLAGS += -pg
-  LDFLAGS  += -pg
+  CFLAGS   += -pg -DPROFILE -fno-inline
+  CXXFLAGS += -pg -DPROFILE -fno-inline
 endif
 
 CFLAGS   += -Wall -W -Wcast-qual -Wpointer-arith -Wcast-align -Wstrict-prototypes $(OS_INC) $(OS_OPT) $(FLAGS)
@@ -264,6 +263,8 @@ SOURCES += gui/player_frame_t.cc
 SOURCES += gui/savegame_frame.cc
 SOURCES += gui/scenario_frame.cc
 SOURCES += gui/schedule_list.cc
+SOURCES += gui/settings_frame.cc
+SOURCES += gui/settings_stats.cc
 SOURCES += gui/sound_frame.cc
 SOURCES += gui/sprachen.cc
 SOURCES += gui/stadt_info.cc
@@ -424,6 +425,12 @@ ifeq ($(BACKEND),x11)
   CFLAGS   += -I/usr/X11R6/include
   CXXFLAGS += -I/usr/X11R6/include
   LIBS     += -L/usr/X11R6/lib/ -lX11 -lXext
+endif
+
+ifeq ($(BACKEND),posix)
+  SOURCES += simsys_posix.cc
+  SOURCES += music/no_midi.cc
+  SOURCES += sound/no_sound.cc
 endif
 
 

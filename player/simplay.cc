@@ -114,7 +114,6 @@ spieler_t::spieler_t(karte_t *wl, uint8 nr) :
 	}
 
 	haltcount = 0;
-	halt_iterator_start = 0;
 
 	maintenance = 0;
 
@@ -222,10 +221,18 @@ void spieler_t::age_messages(long /*delta_t*/)
 
 
 
-void spieler_t::add_message(koord k, int betrag)
+void spieler_t::add_message(koord k, sint32 betrag)
 {
-	income_message_t *m = new income_message_t(betrag,k);
-	messages.append( m );
+	if(  !messages.empty()  &&  messages.back()->pos==k  &&  messages.back()->alter==127  ) {
+		// last message exactly at same place, not aged
+		betrag += (sint32)(100.0*atof(messages.back()->str));
+		money_to_string(messages.back()->str, betrag/100.0);
+	}
+	else {
+		// otherwise new message
+		income_message_t *m = new income_message_t(betrag,k);
+		messages.append( m );
+	}
 }
 
 
@@ -240,36 +247,11 @@ void spieler_t::set_player_color(uint8 col1, uint8 col2)
 
 
 /**
- * Wird von welt in kurzen abständen aufgerufen
+ * Any action goes here (only need for AI at the moment)
  * @author Hj. Malthaner
  */
 void spieler_t::step()
 {
-	if(  halt_list.get_count()>0  ) {
-
-		uint32 it = halt_iterator_start;
-		slist_iterator_tpl <halthandle_t> iter( halt_list );
-		while(  it>0  &&  iter.next()  ) {
-			it--;
-		}
-		if(  it>0  ) {
-			halt_iterator_start = 0;
-		}
-		else {
-			uint32 units_handled = 0;
-			while(  units_handled<8192  ) {
-				if(  !iter.next()  ) {
-					halt_iterator_start = 0;
-					break;
-				}
-				halt_iterator_start ++;
-				// iterator until 8192 passengers were handled
-				units_handled += iter.get_current()->get_finance_history(0,HALT_WAITING);
-				iter.get_current()->step();
-			}
-			INT_CHECK("simplay 156");
-		}
-	}
 }
 
 
@@ -438,16 +420,17 @@ void spieler_t::buche(const sint64 betrag, const koord pos, enum player_cost typ
 		if(  koord_distance(welt->get_world_position(),pos)<2*(uint32)(display_get_width()/get_tile_raster_width())+3  ) {
 			// only display, if near the screen ...
 			add_message(pos, betrag);
-		}
 
-		if(  !(labs((sint32)betrag)<=10000)  &&  !welt->is_fast_forward()  ) {
-			struct sound_info info;
+			// and same for sound too ...
+			if(  betrag>=10000  &&  !welt->is_fast_forward()  ) {
+				struct sound_info info;
 
-			info.index = SFX_CASH;
-			info.volume = 255;
-			info.pri = 0;
+				info.index = SFX_CASH;
+				info.volume = 255;
+				info.pri = 0;
 
-			welt->play_sound_area_clipped(pos, info);
+				welt->play_sound_area_clipped(pos, info);
+			}
 		}
 	}
 }
@@ -489,7 +472,7 @@ void spieler_t::accounting( spieler_t *sp, const sint64 amount, koord k, enum pl
 
 bool spieler_t::check_owner( const spieler_t *owner, const spieler_t *test )
 {
-	return owner == test  ||  owner == NULL  ||  test == NULL  ||  test == welt->get_spieler(1);
+	return owner == test  ||  owner == NULL  ||  test == welt->get_spieler(1);
 }
 
 
@@ -528,7 +511,6 @@ spieler_t::halt_add(halthandle_t halt)
  */
 void spieler_t::halt_remove(halthandle_t halt)
 {
-	halt_iterator_start = 0;
 	halt_list.remove(halt);
 }
 

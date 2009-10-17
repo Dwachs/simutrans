@@ -106,7 +106,6 @@ protected:
 	 */
 	sint32 konto_ueberzogen;
 
-	uint32 halt_iterator_start;	// where did the last halt iteration started? (to equally distribute the load)
 	slist_tpl<halthandle_t> halt_list; ///< Liste der Haltestellen
 
 	class income_message_t {
@@ -128,7 +127,7 @@ protected:
 
 	int last_message_index;
 
-	void add_message(koord k, int summe);
+	void add_message(koord k, sint32 summe);
 
 	/**
 	 * Kennfarbe (Fahrzeuge, Gebäude) des Speielers

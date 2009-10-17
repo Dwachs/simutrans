@@ -269,7 +269,7 @@ static grund_t *wkz_intern_koord_to_weg_grund(spieler_t *sp, karte_t *welt, koor
 
 	if(  wt==powerline_wt  &&  gr->get_leitung()  ) {
 		// check for ownership
-		if(sp!=NULL  &&  !spieler_t::check_owner( sp, gr->get_leitung()->get_besitzer())){
+		if(sp!=NULL  &&  gr->get_leitung()->ist_entfernbar(sp)!=NULL) {
 			return NULL;
 		}
 		// ok
@@ -281,7 +281,7 @@ static grund_t *wkz_intern_koord_to_weg_grund(spieler_t *sp, karte_t *welt, koor
 	// tram
 	if(wt==tram_wt) {
 		weg_t *way = gr->get_weg(track_wt);
-		if (way && way->get_besch()->get_styp() == weg_t::type_tram && spieler_t::check_owner( sp, way->get_besitzer())) {
+		if (way && way->get_besch()->get_styp() == weg_t::type_tram &&  way->ist_entfernbar(sp)==NULL) {
 			return gr;
 		}
 		else {
@@ -295,7 +295,7 @@ static grund_t *wkz_intern_koord_to_weg_grund(spieler_t *sp, karte_t *welt, koor
 		return NULL;
 	}
 	// check for ownership
-	if(sp!=NULL  &&  !spieler_t::check_owner( sp, gr->get_weg(wt)->get_besitzer())){
+	if(sp!=NULL  &&  gr->get_weg(wt)->ist_entfernbar(sp)!=NULL){
 		return NULL;
 	}
 	// ok, now we have a valid ground
@@ -360,11 +360,13 @@ DBG_MESSAGE("wkz_remover_intern()","at (%s)", pos.get_str());
 
 	grund_t *gr = welt->lookup(pos);
 	if (!gr || !gr->is_visible()) {
+		msg = "";
 		return false;
 	}
 
 	// check if there is something to remove from here ...
 	if(gr->get_top()==0  ) {
+		msg = "";
 		return false;
 	}
 
@@ -395,7 +397,7 @@ DBG_MESSAGE("wkz_remover_intern()","at (%s)", pos.get_str());
 
 	// prissi: check powerline (can cross ground of another player)
 	leitung_t* lt = gr->get_leitung();
-	if(lt!=NULL  &&  spieler_t::check_owner(lt->get_besitzer(),sp)) {
+	if(lt!=NULL  &&  lt->ist_entfernbar(sp)==NULL) {
 		bool is_leitungsbruecke = false;
 		if(gr->ist_bruecke()  &&  gr->ist_karten_boden()) {
 			bruecke_t* br = gr->find<bruecke_t>();
@@ -477,7 +479,8 @@ DBG_MESSAGE("wkz_remover()",  "removing tunnel  from %d,%d,%d",gr->get_pos().x, 
 			delete f;
 			// fields have foundations ...
 			koord pos = gr->get_pos().get_2d();
-			welt->access(pos)->boden_ersetzen( gr, new boden_t(welt, gr->get_pos(), welt->calc_natural_slope(pos) ) );
+			sint8 dummy;
+			welt->access(pos)->boden_ersetzen( gr, new boden_t(welt, gr->get_pos(), welt->recalc_natural_slope(pos,dummy) ) );
 			welt->lookup_kartenboden(pos)->calc_bild();
 			welt->lookup_kartenboden(pos)->set_flag( grund_t::dirty );
 		}
@@ -536,14 +539,15 @@ DBG_MESSAGE("wkz_remover()",  "took out powerline");
 
 	// remove all other stuff (clouds ... )
 	bool return_ok = false;
-	if(gr->obj_count()>0) {
+	uint8 num_obj = gr->obj_count();
+	if(num_obj>0) {
 		msg = gr->kann_alle_obj_entfernen(sp);
 		return_ok = (msg==NULL  &&  !(gr->get_typ()==grund_t::brueckenboden  ||  gr->get_typ()==grund_t::tunnelboden)  &&  gr->obj_loesche_alle(sp));
-	DBG_MESSAGE("wkz_remover()",  "removing everything from %d,%d,%d",gr->get_pos().x, gr->get_pos().y, gr->get_pos().z);
+		DBG_MESSAGE("wkz_remover()",  "removing everything from %d,%d,%d",gr->get_pos().x, gr->get_pos().y, gr->get_pos().z);
 	}
 
 	if(lt) {
-DBG_MESSAGE("wkz_remover()",  "add again powerline");
+		DBG_MESSAGE("wkz_remover()",  "add again powerline");
 		gr->obj_add(lt);
 	}
 	if(cr) {
@@ -555,6 +559,8 @@ DBG_MESSAGE("wkz_remover()",  "add again powerline");
 		return false;
 	}
 	if(return_ok) {
+		// no sound
+		msg = "";
 		return true;
 	}
 
@@ -575,13 +581,13 @@ DBG_MESSAGE("wkz_remover()", "removing way");
 			// do not delete the middle of a bridge
 			return false;
 		}
-		if(w==NULL  ||  !spieler_t::check_owner( sp, w->get_besitzer())) {
+		if(w==NULL  ||  w->ist_entfernbar(sp)!=NULL) {
 			w = gr->get_weg_nr(0);
 			if(w==NULL) {
 				// no way at all ...
 				return true;
 			}
-			if(!spieler_t::check_owner( sp, w->get_besitzer())) {
+			if(w->ist_entfernbar(sp)!=NULL){
 				msg = w->ist_entfernbar(sp);
 				return false;
 			}
@@ -657,7 +663,8 @@ const char *wkz_raise_t::move( karte_t *welt, spieler_t *sp, uint16 buttonstate,
 	if(  buttonstate==1  ) {
 		char buf[16];
 		if(!is_dragging) {
-			drag_height = welt->lookup_hgt(pos.get_2d())+Z_TILE_STEP;
+			grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
+			drag_height = gr->get_hoehe() + corner4(gr->get_grund_hang()) +1;
 		}
 		is_dragging = true;
 		sprintf( buf, "%i", drag_height );
@@ -683,8 +690,9 @@ const char *wkz_raise_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 			return "Terraforming not possible\nhere in underground view";
 	}
 
-	if(welt->ist_in_gittergrenzen(pos)  &&  pos.x>0  &&  pos.y>0) {
-		const int hgt = welt->lookup_hgt(pos);
+	if(welt->ist_in_kartengrenzen(pos)  &&  pos.x>0  &&  pos.y>0) {
+		grund_t *gr = welt->lookup_kartenboden(pos);
+		const sint8 hgt = gr->get_hoehe() + corner4(gr->get_grund_hang());
 
 		if(hgt < 14*Z_TILE_STEP) {
 
@@ -704,7 +712,7 @@ const char *wkz_raise_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 					if(diff==0) break;
 					n += diff;
 				}
-				ok = true;
+				ok = height==welt->lookup_hgt(pos);
 			}
 			else {
 				if(  is_dragging  ) {
@@ -716,18 +724,8 @@ const char *wkz_raise_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 			}
 			if(n>0) {
 				spieler_t::accounting(sp, welt->get_einstellungen()->cst_alter_land*n, pos, COST_CONSTRUCTION);
-				// update image
-				for(int j=-n; j<=n; j++) {
-					for(int i=-n; i<=n; i++) {
-						const planquadrat_t* p = welt->lookup(pos + koord(i, j));
-						if (p)  {
-							grund_t* g = p->get_kartenboden();
-							if (g) g->calc_bild();
-						}
-					}
-				}
 			}
-			return !ok ? "Tile not empty." : NULL;
+			return !ok ? "Tile not empty." : (n ? NULL : "");
 		}
 		else {
 			// no mountains heigher than 14 ...
@@ -769,9 +767,9 @@ const char *wkz_lower_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 		(grund_t::underground_mode == grund_t::ugm_level && welt->lookup_kartenboden(pos)->get_hoehe()>grund_t::underground_level+1 )) {
 			return "Terraforming not possible\nhere in underground view";
 	}
-	if(welt->ist_in_gittergrenzen(pos)  &&  pos.x>0  &&  pos.y>0) {
-
-		const int hgt = welt->lookup_hgt(pos);
+	if(welt->ist_in_kartengrenzen(pos)  &&  pos.x>0  &&  pos.y>0) {
+		grund_t *gr = welt->lookup_kartenboden(pos);
+		const sint8 hgt = gr->get_hoehe() + corner4(gr->get_grund_hang());
 
 		if(hgt > welt->get_grundwasser()) {
 
@@ -790,7 +788,7 @@ const char *wkz_lower_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 					if(diff==0) break;
 					n += diff;
 				}
-				ok = welt->lookup_hgt(pos);
+				ok = height==welt->lookup_hgt(pos);
 			}
 			else {
 				if(  is_dragging  ) {
@@ -802,18 +800,8 @@ const char *wkz_lower_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 			}
 			if(n>0) {
 				spieler_t::accounting(sp, welt->get_einstellungen()->cst_alter_land*n, pos, COST_CONSTRUCTION);
-				// update image
-				for(int j=-n; j<=n; j++) {
-					for(int i=-n; i<=n; i++) {
-						const planquadrat_t* p = welt->lookup(pos + koord(i, j));
-						if (p)  {
-							grund_t* g = p->get_kartenboden();
-							if (g) g->calc_bild();
-						}
-					}
-				}
 			}
-			return !ok ? "Tile not empty." : NULL;
+			return !ok ? "Tile not empty." : (n ? NULL : "");
 		}
 		else {
 			// below water level
@@ -834,7 +822,7 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 {
 	bool ok = false;
 
-	grund_t * gr1 = welt->lookup(pos);
+	grund_t *gr1 = welt->lookup(pos);
 	if(gr1) {
 
 		// check for underground mode
@@ -847,7 +835,7 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 			return "Maximum tile height difference reached.";
 		}
 
-		if(  new_slope==RESTORE_SLOPE  &&  gr1->get_typ()!=grund_t::boden  ) {
+		if(  new_slope==RESTORE_SLOPE  &&  !(gr1->get_typ()==grund_t::boden  ||  gr1->get_typ()==grund_t::wasser)  ) {
 			return "No suitable ground!";
 		}
 
@@ -857,12 +845,19 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 			return "Tile not empty.";
 		}
 
+		if(  !welt->ist_in_kartengrenzen(pos.get_2d()+koord(1,1))  ||  !welt->ist_in_kartengrenzen(pos.get_2d()+koord(-1,-1))) {
+			return "Zu nah am Kartenrand";
+		}
+
+		// slopes may affect the position and the total height!
+		koord3d new_pos = pos;
+
 		ribi_t::ribi ribis = new_slope<hang_t::erhoben ? ribi_t::rueckwaerts(ribi_typ(new_slope)) : ribi_t::alle;
 		if(  gr1->hat_wege()  ) {
 			// check the resulting slope
 			ribis = gr1->get_weg_nr(0)->get_ribi_unmasked();
 			if(  gr1->get_weg_nr(1)  ) {
-				ribi_t::ribi ribis = gr1->get_weg_nr(1)->get_ribi_unmasked();
+				ribis |= gr1->get_weg_nr(1)->get_ribi_unmasked();
 			}
 			if(  new_slope==RESTORE_SLOPE  ||  !ribi_t::ist_einfach(ribis)  ||  (new_slope<hang_t::erhoben  &&  ribi_t::rueckwaerts(ribi_typ(new_slope))!=ribis)  ) {
 				// has the wrong tilt
@@ -876,26 +871,21 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 				if(  gr1->get_weg_hang()==hang_t::flach  ) {
 					new_slope = hang_typ(ribis);
 				}
-				else if(  gr1->get_weg_hang()==hang_typ(ribi_t::rueckwaerts(ribis))  ) {
-					new_slope = hang_t::flach;
-					pos.z += Z_TILE_STEP;
-				}
-				else {
+				else if(  gr1->get_weg_hang()!=hang_typ(ribi_t::rueckwaerts(ribis))  ) {
 					return "Maximum tile height difference reached.";
 				}
 			}
 			else if(  new_slope==ALL_DOWN_SLOPE  ) {
 				if(  gr1->get_grund_hang()==hang_typ(ribis)  ) {
 					// do not lower tiles to sea
-					if (pos.z == welt->get_grundwasser()) {
+					if(  pos.z == welt->get_grundwasser()  &&  !gr1->ist_tunnel()  ) {
 						return "Tile not empty.";
 					}
-					new_slope = hang_t::flach;
 				}
 				else if(  gr1->get_grund_hang()==hang_t::flach  ) {
 					new_slope = hang_typ(ribi_t::rueckwaerts(ribis));
-					pos.z -= Z_TILE_STEP;
-					if(  welt->lookup(pos)  ) {
+					new_pos.z -= Z_TILE_STEP;
+					if(  welt->lookup(new_pos)  ) {
 						return "Tile not empty.";
 					}
 				}
@@ -905,81 +895,50 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 			}
 		}
 
-		if(  !welt->ist_in_kartengrenzen(pos.get_2d()+koord(1,1))  ||  !welt->ist_in_kartengrenzen(pos.get_2d()+koord(-1,-1))) {
-			return "Zu nah am Kartenrand";
-		}
-
-		// slopes may affect the position and the total height!
-		sint8 slope_this;
-		koord3d new_pos;
-		koord3d old_pos = gr1->get_pos();
 
 		if(new_slope == RESTORE_SLOPE) {
 			// prissi: special action: set to natural slope
-			new_pos = pos;
-			slope_this = welt->calc_natural_slope(pos.get_2d());
-			DBG_MESSAGE("natural_slope","%i",slope_this);
+			sint8 min_hgt;
+			new_slope = welt->recalc_natural_slope(pos.get_2d(),min_hgt);
+			new_pos = koord3d(pos.get_2d(), min_hgt);
+			DBG_MESSAGE("natural_slope","%i",new_slope);
 		}
-		else {
-			// now check offsets before changing the slope ...
-			sint8 change_to_slope=new_slope;
-			if(new_slope==ALL_DOWN_SLOPE) {
-				if (gr1->get_grund_hang()>0  ) {
-					// is more intiutive: if there is a slope, first downgrade it
-					change_to_slope = 0;
-				}
+		else if(new_slope == ALL_DOWN_SLOPE) {
+			new_slope = hang_t::flach;
+			// is more intiutive: if there is a slope, first downgrade it
+			if (gr1->get_grund_hang()==0  ) {
+				new_pos.z -= Z_TILE_STEP;
 			}
-			slope_this = (change_to_slope>=ALL_UP_SLOPE) ? 0 : change_to_slope;
-			new_pos = pos + koord3d(0,0,(change_to_slope==ALL_UP_SLOPE?Z_TILE_STEP:(change_to_slope==ALL_DOWN_SLOPE?-Z_TILE_STEP:0)));
-#ifdef DOUBLE_GROUNDS
-			// if already the same, double the slope
-			if(slope_this==gr1->get_grund_hang()) {
-				slope_this *= 2;
-			}
-#endif
+		}
+		else if(new_slope == ALL_UP_SLOPE) {
+			new_slope = hang_t::flach;
+			new_pos.z += Z_TILE_STEP;
 		}
 
-		// now check for grounds above
-		if(  pos==gr1->get_pos()  &&  slope_this!=hang_t::flach  ) {
-			grund_t *gr2 = welt->lookup(pos+koord3d(0,0,Z_TILE_STEP));
-			if(  gr2  &&  gr2->get_weg_hang()!=new_slope  ) {
+		// already some ground here (tunnel, bridge, monorail?)
+		if(new_pos.z!=pos.z  &&  welt->lookup(new_pos)!=NULL) {
+			return "Tile not empty.";
+		}
+		// check for grounds above / below
+		if (new_pos.z >= pos.z) {
+			grund_t *gr2 = welt->lookup(new_pos+koord3d(0,0,Z_TILE_STEP));
+			// only raise corners that are raised above
+			if(  gr2  &&  (new_slope & (~gr2->get_weg_hang())) ) {
 				return "Tile not empty.";
 			}
 		}
-		// and now for flat slopes
-		if(  pos.z>gr1->get_pos().z  ) {
-			grund_t *gr2 = welt->lookup(pos+koord3d(0,0,Z_TILE_STEP));
-			if(  gr2  &&  gr2->get_weg_hang()!=slope_this  ) {
+		if (new_pos.z <= pos.z) {
+			grund_t *gr2 = welt->lookup(new_pos+koord3d(0,0,-Z_TILE_STEP));
+			// only lower corners that are not raised below
+			if(  gr2  &&  (gr2->get_weg_hang() & (~new_slope)) ) {
 				return "Tile not empty.";
-			}
-		}
-		// now for downwards case
-		else if(  pos.z<gr1->get_pos().z  ) {
-			if(  welt->lookup(pos)  ) {
-				// here is already a ground
-				return "Maximum tile height difference reached.";
-			}
-			// the ground below must be either flat or have the same slope, else bad stuff may happen
-			grund_t *gr2 = welt->lookup(pos-koord3d(0,0,Z_TILE_STEP));
-			if(  gr2  &&  gr2->get_weg_hang()!=slope_this  &&  gr2->get_weg_hang()!=hang_t::flach  ) {
-				// could lead to crossconnected ways => forbidden
-				return "Maximum tile height difference reached.";
-			}
-		}
-		// just flatten this tile
-		else if(  slope_this==hang_t::flach  ) {
-			// the ground below must be either flat or have the same slope, else bad stuff may happen
-			grund_t *gr2 = welt->lookup(pos-koord3d(0,0,Z_TILE_STEP));
-			if(  gr2  &&  gr2->get_weg_hang()!=slope_this  &&  gr2->get_weg_hang()!=hang_t::flach  ) {
-				// could lead to crossconnected ways => forbidden
-				return "Maximum tile height difference reached.";
 			}
 		}
 
 		// check, if action is valid ...
 		const sint16 hgt=new_pos.z/Z_TILE_STEP;
 		// maximum difference
-		const sint8 test_hgt = hgt+(slope_this!=0);
+		const sint8 test_hgt = hgt+(new_slope!=0);
 
 		if(  gr1->get_typ()==grund_t::boden  ) {
 			// first left side
@@ -1022,8 +981,8 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 		}
 
 		// ok, now we set the slope ...
-		ok = (new_pos!=old_pos);
-		ok |= slope_this!=gr1->get_grund_hang();
+		ok = (new_pos!=pos);
+		ok |= new_slope!=gr1->get_grund_hang();
 
 		if(ok) {
 
@@ -1032,28 +991,23 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 				return "Tile not empty.";
 			}
 
-			// already some ground here (tunnel, bridge, monorail?)
-			if(new_pos!=gr1->get_pos()  &&  welt->lookup(new_pos)!=NULL) {
-				return "Tile not empty.";
-			}
-
 			// ok, was sucess
-			if(!gr1->ist_wasser()  &&  slope_this==0  &&  new_pos.z==welt->get_grundwasser()  &&  gr1->get_typ()!=grund_t::tunnelboden  ) {
+			if(!gr1->ist_wasser()  &&  new_slope==0  &&  new_pos.z==welt->get_grundwasser()  &&  gr1->get_typ()!=grund_t::tunnelboden  ) {
 				// now water
 				gr1->obj_loesche_alle(sp);
 				welt->access(pos.get_2d())->kartenboden_setzen( new wasser_t(welt,new_pos) );
 			}
-			else if(gr1->ist_wasser()  &&  (new_pos.z>welt->get_grundwasser()  ||  slope_this!=0)) {
+			else if(gr1->ist_wasser()  &&  (new_pos.z>welt->get_grundwasser()  ||  new_slope!=0)) {
 				gr1->obj_loesche_alle(sp);
-				welt->access(pos.get_2d())->kartenboden_setzen( new boden_t(welt,new_pos,slope_this) );
+				welt->access(pos.get_2d())->kartenboden_setzen( new boden_t(welt,new_pos,new_slope) );
 			}
 			else {
-				gr1->set_grund_hang(slope_this);
+				gr1->set_grund_hang(new_slope);
 				gr1->set_pos(new_pos);
 				gr1->clear_flag(grund_t::marked);
 				gr1->set_flag(grund_t::dirty);
 				// eventually update new positions
-				if(  new_pos!=old_pos  ) {
+				if(  new_pos!=pos  ) {
 					for(  int i=0;  i<gr1->get_top();  i++  ) {
 						gr1->obj_bei(i)->set_pos( new_pos );
 					}
@@ -1065,7 +1019,7 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 
 			if(  gr1->ist_karten_boden()  ) {
 				// no lakes on slopes ...
-				if(  slope_this!=hang_t::flach  ) {
+				if(  new_slope!=hang_t::flach  ) {
 					groundobj_t *d = gr1->find<groundobj_t>();
 					if(  d  &&  d->get_besch()->get_phases()!=16  ) {
 						d->entferne(sp);
@@ -1079,6 +1033,7 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 						gr->calc_bild();
 					}
 				}
+				welt->set_grid_hgt(pos.get_2d(), gr1->get_hoehe() + corner4(gr1->get_grund_hang()));
 			}
 			spieler_t::accounting(sp, new_slope==RESTORE_SLOPE?welt->get_einstellungen()->cst_alter_land:welt->get_einstellungen()->cst_set_slope, pos.get_2d(), COST_CONSTRUCTION);
 		}
@@ -1096,9 +1051,10 @@ const char *wkz_marker_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 		grund_t *gr = welt->lookup(pos.get_2d())->get_kartenboden();
 		if (gr) {
 			// check for underground mode
-			if (grund_t::underground_mode == grund_t::ugm_all ||
-				(grund_t::underground_mode == grund_t::ugm_level && gr->get_hoehe()>grund_t::underground_level)) {
-					return "";
+			if(  grund_t::underground_mode == grund_t::ugm_all  ||
+				(grund_t::underground_mode == grund_t::ugm_level  &&  gr->get_hoehe()>grund_t::underground_level)
+			) {
+				return "";
 			}
 			if(!gr->get_text()) {
 				const ding_t* thing = gr->obj_bei(0);
@@ -1178,7 +1134,7 @@ const char *wkz_transformer_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 {
 DBG_MESSAGE("wkz_senke()","called on %d,%d", k.x, k.y);
 	grund_t *gr=welt->lookup_kartenboden(k.get_2d());
-	if(gr  && gr->is_visible() && gr->get_grund_hang()==0  &&  !gr->ist_wasser()  &&  !gr->hat_wege()  &&  gr->kann_alle_obj_entfernen(sp)==NULL  &&  gr->find<gebaeude_t>()==NULL) {
+	if(gr  && gr->is_visible() &&  gr->get_grund_hang()==0  &&  !gr->ist_wasser()  &&  !gr->hat_wege()  &&  gr->kann_alle_obj_entfernen(sp)==NULL  &&  gr->find<gebaeude_t>()==NULL) {
 		fabrik_t *fab=leitung_t::suche_fab_4(k.get_2d());
 		if(fab==NULL) {
 			return "Transformer only next to factory!";
@@ -1200,8 +1156,9 @@ DBG_MESSAGE("wkz_senke()","called on %d,%d", k.x, k.y);
 			gr->obj_add(s);
 			s->laden_abschliessen();
 		}
+		return NULL;	// ok
 	}
-	return NULL;
+	return "Transformer only next to factory!";
 }
 
 
@@ -1283,7 +1240,7 @@ const char *wkz_buy_house_t::work( karte_t *welt, spieler_t *sp, koord3d pos)
 			if(gr) {
 				gebaeude_t *gb_part = gr->find<gebaeude_t>();
 				// there may be buildings with holes
-				if(gb_part  &&  gb_part->get_tile()->get_besch()==hb && spieler_t::check_owner(welt->get_spieler(1),gb->get_besitzer())) {
+				if(  gb_part  &&  gb_part->get_tile()->get_besch()==hb  &&  spieler_t::check_owner(gb_part->get_besitzer(),sp)  ) {
 					spieler_t::add_maintenance( old_owner, -welt->get_einstellungen()->maint_building*hb->get_level() );
 					spieler_t::add_maintenance( sp, +welt->get_einstellungen()->maint_building*hb->get_level() );
 					gb->set_besitzer(sp);
@@ -1458,31 +1415,24 @@ bool wkz_wegebau_t::init( karte_t *welt, spieler_t *sp )
 uint8 wkz_wegebau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error )
 {
 	grund_t *gr=welt->lookup(pos);
-	if (gr && gr->is_visible()) {
+	if(gr  &&  gr->is_visible()  &&  hang_t::ist_wegbar(gr->get_weg_hang())) {
 		// ignore tunnel tiles (except road tunnel for tram track building ..)
 		if(  gr->get_typ() == grund_t::tunnelboden  &&  !gr->ist_karten_boden()  && !(besch->get_wtyp()==track_wt  &&  besch->get_styp()==7  && gr->hat_weg(road_wt)) ) {
-			error = "";
 			return 0;
 		}
 		// ignore water
 		if( besch->get_wtyp() != water_wt  &&  gr->get_typ() == grund_t::wasser ) {
-			error = "";
 			return 0;
 		}
 		// check for ownership
-		/* if(sp!=NULL  &&  (gr->obj_count()==0  ||  !spieler_t::check_owner( sp, gr->obj_bei(0)->get_besitzer()))){
-			return "Das Feld gehoert\neinem anderen Spieler\n";
-		} */
 		if(sp!=NULL  && gr->kann_alle_obj_entfernen(sp)!=NULL  &&  gr->get_weg((waytype_t)besch->get_wtyp())==NULL) {
 			error =  "Das Feld gehoert\neinem anderen Spieler\n";
 			return 0;
 		}
 	}
 	else {
-		error = "";
 		return 0;
 	}
-	error = NULL;
 	return 2;
 }
 
@@ -1508,26 +1458,28 @@ void wkz_wegebau_t::calc_route( wegbauer_t &bauigel, const koord3d &start, const
 		bauigel.set_keep_existing_faster_ways(true);
 		bauigel.calc_route(start,end);
 	}
-	DBG_MESSAGE("wkz_wegebau()", "builder found route with %d sqaures length.", bauigel.max_n);
+	DBG_MESSAGE("wkz_wegebau()", "builder found route with %d sqaures length.", bauigel.get_count());
 }
 
 const char *wkz_wegebau_t::do_work( karte_t *welt, spieler_t *sp, const koord3d &start, const koord3d &end )
 {
 	wegbauer_t bauigel(welt, sp);
 	calc_route( bauigel, start, end );
+	if(  bauigel.get_route().get_count()>1  ) {
+		long cost = bauigel.calc_costs();
+		welt->mute_sound(true);
+		bauigel.baue();
+		welt->mute_sound(false);
 
-	long cost = bauigel.calc_costs();
-	welt->mute_sound(true);
-	bauigel.baue();
-	welt->mute_sound(false);
-	if(cost>10000) {
 		struct sound_info info;
 		info.index = SFX_CASH;
 		info.volume = 255;
 		info.pri = 0;
 		sound_play(info);
+
+		return NULL;
 	}
-	return NULL;
+	return "";
 }
 
 void wkz_wegebau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &start, const koord3d &end )
@@ -1536,12 +1488,12 @@ void wkz_wegebau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &sta
 	calc_route( bauigel, start, end );
 
 	uint8 offset = (besch->get_styp()==1  &&  besch->get_wtyp()!=air_wt) ? 1 : 0;
-	if(bauigel.max_n>0) {
+	if(  bauigel.get_count()>1  ) {
 		// Set tooltip first (no dummygrounds, if bauigel.calc_casts() is called).
 		win_set_static_tooltip( tooltip_with_price("Building costs estimates", -bauigel.calc_costs() ) );
 
 		// make dummy route from bauigel
-		for( int j=0;  j<=bauigel.max_n;  j++  ) {
+		for(  uint32 j=0;  j<bauigel.get_count();  j++   ) {
 			koord3d pos = bauigel.get_route()[j] + koord3d(0,0,offset);
 			grund_t *gr = welt->lookup( pos );
 			if( !gr ) {
@@ -1645,14 +1597,15 @@ const char *wkz_tunnelbau_t::do_work( karte_t *welt, spieler_t *sp, const koord3
 		welt->mute_sound(true);
 		bauigel.baue();
 		welt->mute_sound(false);
+		welt->lookup_kartenboden(end.get_2d())->clear_flag(grund_t::marked);
 		return NULL;
 	}
 }
 
 uint8 wkz_tunnelbau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error )
 {
-	error = NULL;
-	if( !is_first_click() ) {
+	if(  !is_first_click()  ) {
+		error = NULL;
 		// All pos are valid for the second click!
 		return 2;
 	}
@@ -1702,12 +1655,12 @@ void wkz_tunnelbau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &s
 
 	welt->lookup_kartenboden(end.get_2d())->clear_flag(grund_t::marked);
 
-	if(bauigel.max_n>0) {
+	if(  bauigel.get_count()>1  ) {
 		// Set tooltip first (no dummygrounds, if bauigel.calc_casts() is called).
 		win_set_static_tooltip( tooltip_with_price("Building costs estimates", -bauigel.calc_costs() ) );
 
 		// make dummy route from bauigel
-		for( int j=0;  j<=bauigel.max_n;  j++  ) {
+		for(  uint32 j=0;  j<bauigel.get_count();  j++  ) {
 			koord3d pos = bauigel.get_route()[j];
 			grund_t *gr = welt->lookup(pos);
 			if( !gr ) {
@@ -1765,7 +1718,7 @@ void wkz_wayremover_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &
 	route_t verbindung;
 	bool can_built = calc_route( verbindung, sp, start, end );
 	if( can_built ) {
-		for( uint32 j = 0; j <= verbindung.get_max_n(); j++ ) {
+		for( uint32 j = 0; j < verbindung.get_count(); j++ ) {
 			koord3d pos = verbindung.position_bei(j);
 			zeiger_t *marker = new zeiger_t( welt, pos, sp );
 			marker->set_bild( cursor );
@@ -1784,7 +1737,6 @@ uint8 wkz_wayremover_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3
 	if(gr==NULL) {
 		DBG_MESSAGE("wkz_wayremover()", "no ground on %i,%i",pos.x, pos.y);
 		// wrong ground or not this way here => exit
-		error = "";
 		return 0;
 	}
 	// do not remove ground from depot
@@ -1792,21 +1744,26 @@ uint8 wkz_wayremover_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3
 		error = "No suitable ground!";
 		return 0;
 	}
-	error = NULL;
 	return 2;
 }
 
 
 bool wkz_wayremover_t::calc_route( route_t &verbindung, spieler_t *sp, const koord3d &start, const koord3d &end )
 {
-	bool can_delete;
+	waytype_t wt = (waytype_t)atoi(default_param);
+	if (wt == tram_wt) {
+		wt = track_wt;
+	}
+	karte_t *welt = sp->get_welt();
+
 	if(  start == end  ) {
 		verbindung.clear();
-		verbindung.append( start );
-		can_delete = true;
+		grund_t *gr=welt->lookup(start);
+		if(  gr  &&  gr->get_weg(wt)  ) {
+			verbindung.append( start );
+		}
 	}
 	else {
-		waytype_t wt = (waytype_t)atoi(default_param);
 		// get a default vehikel
 		fahrer_t* test_driver;
 		if(  wt!=powerline_wt  ) {
@@ -1816,11 +1773,49 @@ bool wkz_wayremover_t::calc_route( route_t &verbindung, spieler_t *sp, const koo
 		else {
 			test_driver = (fahrer_t * )new electron_t();
 		}
-		can_delete = verbindung.calc_route(sp->get_welt(), start, end, test_driver, 0);
+		verbindung.calc_route(sp->get_welt(), start, end, test_driver, 0);
 		delete test_driver;
 	}
+	DBG_MESSAGE("wkz_wayremover()","route with %d tile found",verbindung.get_count());
+
+	bool can_delete = verbindung.get_count()>0;
+	if(  can_delete  ) {
+		// found a route => check if I can delete anything on it
+		for(  uint32 i=0;  can_delete  &&  i<verbindung.get_count();  i++  ) {
+			grund_t *gr=welt->lookup(verbindung.position_bei(i));
+			if(  wt!=powerline_wt  ) {
+				if(  gr==NULL  ||  gr->get_weg(wt)==NULL  ||  (gr->is_halt()  &&  !spieler_t::check_owner( gr->get_halt()->get_besitzer(), sp ) )  ) {
+					can_delete = false;
+					break;
+				}
+				if(  gr->kann_alle_obj_entfernen(sp)!=NULL  ) {
+					// we have to do a fine check
+					for( uint i=0;  i<gr->get_top();  i++  ) {
+						ding_t *d = gr->obj_bei(i);
+						uint8 type = d->get_typ();
+						if(type>=ding_t::automobil  &&  type!=ding_t::aircraft) {
+							can_delete = false;
+							break;
+						}
+						// something else that is not mine ...
+						if(  d->ist_entfernbar(sp)!=NULL  &&  gr->get_leitung()!=d  ) {
+							can_delete = false;
+							break;
+						}
+					}
+				}
+			}
+			else {
+				// for powerline: only a ground and a powerline to remove
+				if(  gr==NULL  ||  gr->get_leitung()==NULL  ||  gr->get_leitung()->ist_entfernbar(sp)!=NULL  ) {
+					can_delete = false;
+					break;
+				}
+			}
+		}
+	}
 	DBG_MESSAGE("wkz_wayremover()", "route search returned %d", can_delete);
-	DBG_MESSAGE("wkz_wayremover()","route with %d tile found",verbindung.get_max_n());
+
 	return can_delete;
 }
 
@@ -1832,46 +1827,10 @@ const char *wkz_wayremover_t::do_work( karte_t *welt, spieler_t *sp, const koord
 		DBG_MESSAGE("wkz_wayremover()","no route found");
 		return "Ways not connected";
 	}
-	bool can_delete = true;
-
-	if (wt == tram_wt) {
-		wt = track_wt;
-	}
-
-	// found a route => check if I can delete anything on it
-	for(  uint32 i=0;  can_delete  &&  i<=verbindung.get_max_n();  i++  ) {
-		grund_t *gr=welt->lookup(verbindung.position_bei(i));
-		if(gr) {
-			if(  wt!=powerline_wt  ) {
-				if(gr->get_weg(wt)==NULL  ||  !spieler_t::check_owner( sp, gr->get_weg(wt)->get_besitzer())) {
-					can_delete = false;
-				}
-				else {
-					if(gr->kann_alle_obj_entfernen(sp)!=NULL) {
-						// we have to do a fine check
-						for( uint i=1;  i<gr->get_top();  i++  ) {
-							uint8 type = gr->obj_bei(i)->get_typ();
-							if(type>=ding_t::automobil  &&  type!=ding_t::aircraft) {
-								can_delete = false;
-								break;
-							}
-						}
-					}
-				}
-			}
-			else {
-				leitung_t *lt = gr->get_leitung();
-				can_delete = lt  &&  spieler_t::check_owner( sp, lt->get_besitzer() );
-			}
-		}
-		else {
-			can_delete = false;
-		}
-
-	}
+	bool can_delete = true;	// assume success
 
 	// if successful => delete everything
-	for( uint32 i=0;  can_delete  &&  i<=verbindung.get_max_n();  i++  ) {
+	for( uint32 i=0;  i<verbindung.get_count();  i++  ) {
 
 		grund_t *gr=welt->lookup(verbindung.position_bei(i));
 
@@ -1899,7 +1858,7 @@ const char *wkz_wayremover_t::do_work( karte_t *welt, spieler_t *sp, const koord
 			// calculated removing directions
 			ribi_t::ribi rem = ~( verbindung.get_route().get_ribi(i) );
 			// if start=end tile then delete every direction
-			if( verbindung.get_max_n() == 1 ) {
+			if(  verbindung.get_count() <= 2  ) {
 				rem = 0;
 			}
 
@@ -2031,13 +1990,9 @@ uint8 wkz_wayobj_t::is_valid_pos( karte_t * welt, spieler_t * sp, const koord3d&
 	if(  gr == NULL  ) {
 		DBG_MESSAGE("wkz_wayobj_t::is_valid_pos()", "no ground on %s",pos.get_str());
 		// wrong ground or not this way here => exit
-		error = "";
 		return 0;
 	}
-	else {
-		error = NULL;
-		return 2;
-	}
+	return 2;
 }
 
 void wkz_wayobj_t::mark_tiles( karte_t * welt, spieler_t * sp, const koord3d &start, const koord3d &end )
@@ -2047,7 +2002,7 @@ void wkz_wayobj_t::mark_tiles( karte_t * welt, spieler_t * sp, const koord3d &st
 	if( can_built ) {
 		sint32 cost_estimate = 0;
 
-		for( uint32 j = 0; j <= verbindung.get_max_n(); j++ ) {
+		for( uint32 j = 0; j < verbindung.get_count(); j++ ) {
 			koord3d pos = verbindung.position_bei(j);
 			grund_t *gr = welt->lookup(pos);
 
@@ -2111,7 +2066,7 @@ const char *wkz_wayobj_t::do_work( karte_t * welt, spieler_t * sp, const koord3d
 	}
 
 	// built wayobj ...
-	for(uint32 i=0;  i<=verbindung.get_max_n();  i++  ) {
+	for(uint32 i=0;  i<verbindung.get_count();  i++  ) {
 		if( build ) {
 			wayobj_t::extend_wayobj_t( welt, verbindung.get_route()[i], sp, verbindung.get_route().get_ribi(i), besch );
 		}
@@ -2978,6 +2933,13 @@ const char *wkz_depot_t::wkz_depot_aux(karte_t *welt, spieler_t *sp, koord3d pos
 			if(sp == welt->get_active_player()) {
 				welt->set_werkzeug( general_tool[WKZ_ABFRAGE] );
 			}
+
+			struct sound_info info;
+			info.index = ok_sound;
+			info.volume = 255;
+			info.pri = 0;
+			sound_play(info);
+
 			return NULL;
 		}
 		return "Cannot built depot here!";
@@ -3489,6 +3451,12 @@ DBG_MESSAGE("wkz_headquarter()", "building headquarter at (%d,%d)", pos.x, pos.y
 		return "";
 	}
 
+	koord size = besch->get_groesse();
+	const sint64 cost = welt->get_einstellungen()->cst_multiply_headquarter * besch->get_level() * size.x * size.y;
+	if(  -cost > sp->get_finance_history_month(0,COST_CASH)  ) {
+		return "Not enough money!";
+	}
+
 	if(welt->ist_in_kartengrenzen(pos.get_2d())) {
 		// check for underground ..
 		grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
@@ -3504,7 +3472,6 @@ DBG_MESSAGE("wkz_headquarter()", "building headquarter at (%d,%d)", pos.x, pos.y
 			hausbauer_t::remove( welt, sp, prev_hq );
 		}
 
-		koord size = besch->get_groesse();
 		int rotate = 0;
 
 		if(welt->ist_platz_frei(pos.get_2d(), size.x, size.y, NULL, besch->get_allowed_climate_bits())) {
@@ -3523,7 +3490,7 @@ DBG_MESSAGE("wkz_headquarter()", "building headquarter at (%d,%d)", pos.x, pos.y
 				city->add_gebaeude_to_stadt( hq );
 			}
 			sp->add_headquarter( besch->get_extra()+1, pos.get_2d() );
-			sp->buche(welt->get_einstellungen()->cst_multiply_headquarter * besch->get_level() * size.x * size.y, pos.get_2d(), COST_CONSTRUCTION);
+			sp->buche( cost, pos.get_2d(), COST_CONSTRUCTION);
 			if(sp == welt->get_active_player()) {
 				welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
 			}
@@ -3556,13 +3523,7 @@ const char *wkz_add_citycar_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 
 uint8 wkz_forest_t::is_valid_pos( karte_t *welt, spieler_t *, const koord3d &pos, const char *&error )
 {
-	// on map?
-	const planquadrat_t *plan = welt->lookup(pos.get_2d());
-	if(plan == NULL || !plan->get_kartenboden()->is_visible()) {
-		error = "";
-		return 0;
-	}
-	error = NULL;
+	// do really nothing ...
 	return 2;
 }
 
@@ -3982,8 +3943,13 @@ bool wkz_show_underground_t::init( karte_t *welt, spieler_t * )
 		//  switch between full underground or normal/sliced view
 		case 'U':
 			if (grund_t::underground_mode==grund_t::ugm_all) {
-				// switch back to normal or sliced view
-				grund_t::set_underground_mode( save_underground_level==127 ? grund_t::ugm_none : grund_t::ugm_level, save_underground_level);
+				// check if the old level is valid then switch back to sliced view
+				if (-128<save_underground_level && save_underground_level<127) {
+					grund_t::set_underground_mode(grund_t::ugm_level, save_underground_level);
+				}
+				else {
+					grund_t::set_underground_mode(grund_t::ugm_none, 0);
+				}
 			}
 			else {
 				grund_t::set_underground_mode( grund_t::ugm_all, 0);

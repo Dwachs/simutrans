@@ -25,6 +25,8 @@
 #include "tpl/vector_tpl.h"
 
 
+#define RESCHEDULING (1)
+#define REROUTING (2)
 
 #define MAX_HALT_COST   7 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
@@ -102,7 +104,25 @@ private:
 	uint8 overcrowded[8];	// bit set, when overcrowded
 	void recalc_status();
 
+	static uint8 status_step;	// NONE or SCHEDULING or REROUTING
+
+	/**
+	 * Markers used in suche_route() to avoid processing the same halt more than once
+	 * Originally they are instance variables of haltestelle_t
+	 * Now consolidated into a static array to speed up suche_route()
+	 * @author Knightly
+	 */
+	static uint8 markers[65536];
+	static uint8 current_mark;
+
 public:
+	/**
+	 * Handles changes of schedules and the resulting rerouting
+	 */
+	static void step_all();
+
+	static uint8 get_rerouting_status() { return status_step; }
+
 	/**
 	 * Tries to generate some pedestrians on the sqaure and the
 	 * adjacent sqaures. Return actual number of generated
@@ -188,7 +208,19 @@ private:
 	// List with all reachable destinations
 	vector_tpl<halthandle_t>* warenziele;
 
-	// loest warte_menge ab
+	/**
+	 * For each schedule/line, that adds halts to a warenziel array,
+	 * this counter is incremented. Each ware category needs a separate
+	 * counter. If this counter is more than 1, this halt is a transfer
+	 * halt, i.e. contains non_identical_schedules with overlapping
+	 * destinations.
+	 * Non-transfer stops do not need to be searched for connections
+	 * => large speedup possible.
+	 * @author Knightly
+	 */
+	uint8 *non_identical_schedules;
+
+	// Array with different categries that contains all waiting goods at this stop
 	vector_tpl<ware_t> **waren;
 
 	/**
@@ -208,6 +240,9 @@ private:
 
 	uint8 rebuilt_destination_counter;	// new schedule, first rebuilt destinations asynchroniously
 	uint8 reroute_counter;						// the reroute goods
+	// since we do partial routing, we remeber the last offset
+	uint8 last_catg_index;
+	uint32 last_ware_index;
 
 	/* station flags (most what enabled) */
 	uint8 enables;
@@ -233,13 +268,6 @@ private:
 	 * @author Hj. Malthaner
 	 */
 	uint32 pax_unhappy;
-
-	/**
-	 * Haltestellen werden beim warenrouting markiert. Jeder durchgang
-	 * hat eine eindeutige marke
-	 * @author Hj. Malthaner
-	 */
-	uint32 marke;
 
 #ifdef USE_QUOTE
 	// for station rating
@@ -282,11 +310,12 @@ private:
 
 public:
 	/**
-	* Called every 255 steps
+	* Called after schedule calculation of all stations is finished
 	* will distribute the goods to changed routes (if there are any)
+	* returns true upon completion
 	* @author Hj. Malthaner
 	*/
-	void reroute_goods();
+	bool reroute_goods(sint16 &units_remaining);
 
 	/**
 	 * getter/setter for sortby
@@ -317,10 +346,10 @@ public:
 
 	/**
 	 * Rebuilds the list of reachable destinations
-	 *
+	 * returns the search number of connections
 	 * @author Hj. Malthaner
 	 */
-	void rebuild_destinations();
+	sint32 rebuild_destinations();
 
 	uint8 get_rebuild_destination_counter() const  { return rebuilt_destination_counter; }
 
@@ -342,10 +371,10 @@ public:
 	const slist_tpl<fabrik_t*>& get_fab_list() const { return fab_list; }
 
 	/**
-	 * Haltestellen messen regelmaessig die Fahrplaene pruefen
+	 * called regularily to update status and reroute stuff
 	 * @author Hj. Malthaner
 	 */
-	void step();
+	bool step(sint16 &units_remaining);
 
 	/**
 	 * Called every month/every 24 game hours
@@ -368,7 +397,7 @@ public:
 	 *
 	 * @author prissi
 	 */
-	int suche_route( ware_t &ware, koord *next_to_ziel, bool avoid_overcrowding );
+	int suche_route( ware_t &ware, koord *next_to_ziel, const bool no_routing_over_overcrowding );
 
 	int get_pax_enabled()  const { return enables & PAX;  }
 	int get_post_enabled() const { return enables & POST; }
@@ -603,5 +632,12 @@ public:
 	* deletes factory references so map rotation won't segfault
 	*/
 	void release_factory_links();
+
+	/**
+	 * Initialise the markers to zero
+	 * @author Knightly
+	 */
+	static void init_markers();
+
 };
 #endif

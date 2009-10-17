@@ -140,7 +140,7 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	chart.set_visible(false);
 	chart.set_background(MN_GREY1);
 	for (int cost = 0; cost<MAX_CONVOI_COST; cost++) {
-		chart.add_curve(cost_type_color[cost], cnv->get_finance_history(), MAX_CONVOI_COST, cost, MAX_MONTHS, cost<MAX_CONVOI_NON_MONEY_TYPES ? 0 : 1, false, true );
+		chart.add_curve(cost_type_color[cost], cnv->get_finance_history(), MAX_CONVOI_COST, cost, MAX_MONTHS, cost<MAX_CONVOI_NON_MONEY_TYPES ? 0 : 1, false, true, cost<MAX_CONVOI_NON_MONEY_TYPES ? 0 : 2 );
 		filterButtons[cost].init(button_t::box_state, cost_type[cost], koord(BUTTON1_X+(BUTTON_WIDTH+BUTTON_SPACER)*(cost%4), 230+(BUTTON_HEIGHT+2)*(cost/4)), koord(BUTTON_WIDTH, BUTTON_HEIGHT));
 		filterButtons[cost].add_listener(this);
 		filterButtons[cost].background = cost_type_color[cost];
@@ -250,7 +250,7 @@ enable_home:
 		cnv->get_freight_info(freight_info);
 		text.set_text(freight_info);
 
-		route_bar.set_base(cnv->get_route()->get_max_n());
+		route_bar.set_base(cnv->get_route()->get_count()-1);
 		cnv_route_index = cnv->get_vehikel(0)->get_route_index()-1;
 
 		// all gui stuff set => display it
@@ -272,17 +272,19 @@ enable_home:
 		int len = display_proportional(pos.x + 11, pos.y + 16 + 20 + 1 * LINESPACE, translator::translate("Gewinn"), ALIGN_LEFT, COL_BLACK, true ) + 5;
 		money_to_string( tmp, cnv->get_jahresgewinn()/100.0 );
 		len += display_proportional( pos.x+11+len, pos.y+16+20+1*LINESPACE, tmp, ALIGN_LEFT, cnv->get_jahresgewinn()>0?MONEY_PLUS:MONEY_MINUS, true )+5;
-		sprintf(tmp," (%1.2f$/km)", cnv->get_running_cost()/100.0 );
+		money_to_string( tmp+1, cnv->get_running_cost()/100.0 );
+		strcat( tmp, "/km)" );
+		tmp[0] = '(';
 		display_proportional( pos.x+11+len, pos.y+16+20+1*LINESPACE, tmp, ALIGN_LEFT, COL_BLACK, true );
 
 		// the weight entry
 		info_buf.clear();
 		info_buf.append( translator::translate("Gewicht") );
 		info_buf.append( ": " );
-		info_buf.append( cnv->get_sum_gesamtgewicht() );
-		info_buf.append( " (" );
-		info_buf.append( cnv->get_sum_gesamtgewicht()-cnv->get_sum_gewicht() );
-		info_buf.append( ") t" );
+		info_buf.append( cnv->get_sum_gesamtgewicht(), 0 );
+		info_buf.append( "t (" );
+		info_buf.append( cnv->get_sum_gesamtgewicht()-cnv->get_sum_gewicht(), 0 );
+		info_buf.append( "t)" );
 		display_proportional( pos.x+11, pos.y+16+20+2*LINESPACE, info_buf, ALIGN_LEFT, COL_BLACK, true );
 
 		// next stop
@@ -384,20 +386,20 @@ DBG_MESSAGE("convoi_info_t::action_triggered()","convoi state %i => cannot chang
 					continue;
 				}
 				koord3d pos = depot->get_pos();
-				if(!shortest_route->empty()    &&    koord_distance(pos.get_2d(),cnv->get_pos().get_2d())>=shortest_route->get_max_n()) {
+				if(!shortest_route->empty()    &&    koord_distance(pos.get_2d(),cnv->get_pos().get_2d())>=shortest_route->get_count()-1) {
 					// the current route is already shorter, no need to search further
 					continue;
 				}
 				bool found = cnv->get_vehikel(0)->calc_route(cnv->get_pos(), pos,    50, route); // do not care about speed
 				if (found) {
-					if(  route->get_max_n() < shortest_route->get_max_n()    ||    shortest_route->empty()  ) {
+					if(  route->get_count() < shortest_route->get_count()    ||    shortest_route->empty()  ) {
 						shortest_route->kopiere(route);
 						home = pos;
 					}
 				}
 			}
 			delete route;
-			DBG_MESSAGE("shortest route has ", "%i hops", shortest_route->get_max_n());
+			DBG_MESSAGE("shortest route has ", "%i hops", shortest_route->get_count()-1);
 
 			// if route to a depot has been found, update the convoi's schedule
 			bool b_depot_found = false;

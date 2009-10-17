@@ -13,6 +13,7 @@
 #include "../besch/spezial_obj_tpl.h"
 
 #include "../boden/boden.h"
+#include "../boden/wasser.h"
 #include "../boden/fundament.h"
 
 #include "../dataobj/translator.h"
@@ -195,7 +196,7 @@ static stringhashtable_tpl<wkz_station_t *> station_tool;
 static stringhashtable_tpl<wkz_depot_t *> depot_tool;
 
 // all these menus will need a waytype ...
-void hausbauer_t::fill_menu(werkzeug_waehler_t* wzw, haus_besch_t::utyp utyp, waytype_t wt, const karte_t* welt)
+void hausbauer_t::fill_menu(werkzeug_waehler_t* wzw, haus_besch_t::utyp utyp, waytype_t wt, sint16 sound_ok, const karte_t* welt)
 {
 	const uint16 time = welt->get_timeline_year_month();
 DBG_DEBUG("hausbauer_t::fill_menu()","maximum %i",station_building.get_count());
@@ -213,6 +214,7 @@ DBG_DEBUG("hausbauer_t::fill_menu()","maximum %i",station_building.get_count());
 						wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
 						wkz->cursor = besch->get_cursor()->get_bild_nr(0);
 						wkz->default_param = besch->get_name();
+						wkz->ok_sound = sound_ok;
 						depot_tool.put(besch->get_name(),wkz);
 					}
 					wzw->add_werkzeug( (werkzeug_t*)wkz );
@@ -225,6 +227,7 @@ DBG_DEBUG("hausbauer_t::fill_menu()","maximum %i",station_building.get_count());
 						wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
 						wkz->cursor = besch->get_cursor()->get_bild_nr(0),
 						wkz->default_param = besch->get_name();
+						wkz->ok_sound = sound_ok;
 						station_tool.put(besch->get_name(),wkz);
 					}
 					wzw->add_werkzeug( (werkzeug_t*)wkz );
@@ -342,20 +345,32 @@ void hausbauer_t::remove( karte_t *welt, spieler_t *sp, gebaeude_t *gb )
 					// and maybe restore land below
 					if(gr->get_typ()==grund_t::fundament) {
 						const koord newk = k+pos.get_2d();
-						const uint8 new_slope = gr->get_hoehe()==welt->min_hgt(newk) ? 0 : welt->calc_natural_slope(newk);
-						if(welt->lookup(koord3d(newk,welt->min_hgt(newk)))!=gr) {
-							// there is another ground below => do not change hight, keep foundation
+						sint8 new_hgt;
+						const uint8 new_slope = welt->recalc_natural_slope(newk,new_hgt);
+						const grund_t *gr2 = welt->lookup(koord3d(newk,new_hgt));
+						bool ground_recalc = true;
+						if(gr2  &&  gr2!=gr) {
+							// there is another ground below => do not change height, keep foundation
 							welt->access(newk)->kartenboden_setzen( new boden_t(welt, gr->get_pos(), hang_t::flach ) );
+							ground_recalc = false;
+						}
+						else if(  new_hgt<=welt->get_grundwasser()  &&  new_slope==hang_t::flach  ) {
+							welt->access(newk)->kartenboden_setzen(new wasser_t(welt, koord3d(newk,new_hgt) ) );
 						}
 						else {
-							welt->access(newk)->kartenboden_setzen(new boden_t(welt, koord3d(newk,welt->min_hgt(newk) ), new_slope) );
+							if(  (gr2==NULL  ||  gr2==gr)  &&  gr->get_grund_hang()==new_slope  ) {
+								ground_recalc = false;
+							}
+							welt->access(newk)->kartenboden_setzen(new boden_t(welt, koord3d(newk,new_hgt), new_slope) );
 						}
 						// there might be walls from foundations left => thus some tiles may needs to be redraw
-						if(new_slope!=0) {
-							if(pos.x<welt->get_groesse_x()-1)
+						if(ground_recalc) {
+							if(pos.x<welt->get_groesse_x()-1) {
 								welt->lookup_kartenboden(newk+koord::ost)->calc_bild();
-							if(pos.y<welt->get_groesse_y()-1)
+							}
+							if(pos.y<welt->get_groesse_y()-1) {
 								welt->lookup_kartenboden(newk+koord::sued)->calc_bild();
+							}
 						}
 					}
 				}

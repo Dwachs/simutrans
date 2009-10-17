@@ -20,9 +20,7 @@ class spieler_t;
 class cbuffer_t;
 class cstring_t;
 
-// part of passengers going to factories or toursit attractions (100% mx)
-#define FACTORY_PAX (33)	// workers
-#define TOURIST_PAX (16)		// tourists
+class rule_t;
 
 
 #define MAX_CITY_HISTORY_YEARS  (12) // number of years to keep history
@@ -85,6 +83,11 @@ public:
 	 */
 	static bool cityrules_init(cstring_t objpathname);
 
+	static uint32 get_industry_increase();
+	static void set_industry_increase(uint32 ind_increase);
+	static uint32 get_minimum_city_distance();
+	static void set_minimum_city_distance(uint32 s);
+
 private:
 	static karte_t *welt;
 	spieler_t *besitzer_p;
@@ -101,6 +104,8 @@ private:
 	koord pos;			// Gruendungsplanquadrat der Stadt
 	koord lo, ur;		// max size of housing area
 	bool  has_low_density;	// in this case extend borders by two
+
+	bool allow_citygrowth;	// town can be static and will grow (true by default)
 
 	// this counter indicate which building will be processed next
 	uint32 step_count;
@@ -261,16 +266,21 @@ private:
 	 * @return true on match, false otherwise
 	 * @author Hj. Malthaner
 	 */
-	bool bewerte_loc(koord pos, const char *regel, int rotation);
+	bool bewerte_loc(koord pos, rule_t &regel, int rotation);
+
+	/*
+	 * evaluates the location, tests again all rules, and caches the result
+	 */
+	uint16 bewerte_loc_cache(const koord pos, bool force=false);
 
 	/**
 	 * Check rule in all transformations at given position
 	 * @author Hj. Malthaner
 	 */
-	sint32 bewerte_pos(koord pos, const char *regel);
+	sint32 bewerte_pos(koord pos, rule_t &regel);
 
-	void bewerte_strasse(koord pos, sint32 rd, const char* regel);
-	void bewerte_haus(koord pos, sint32 rd, const char* regel);
+	void bewerte_strasse(koord pos, sint32 rd, rule_t &regel);
+	void bewerte_haus(koord pos, sint32 rd, rule_t &regel);
 
 	void pruefe_grenzen(koord pos);
 
@@ -400,6 +410,10 @@ public:
 	/* change size of city
 	* @author prissi */
 	void change_size( long delta_citicens );
+
+	// when ng is false, no town growth any more
+	void set_citygrowth_yesno( bool ng ) { allow_citygrowth = ng; }
+	bool get_citygrowth() const { return allow_citygrowth; }
 
 	void step(long delta_t);
 

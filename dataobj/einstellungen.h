@@ -33,6 +33,22 @@ private:
 	sint32 anzahl_staedte;
 	sint32 mittlere_einwohnerzahl;
 
+	// town growth factors
+	sint32 passenger_multiplier;
+	sint32 mail_multiplier;
+	sint32 goods_multiplier;
+	sint32 electricity_multiplier;
+
+	// Also there are size dependen factors (0=no growth)
+	sint32 growthfactor_small;
+	sint32 growthfactor_medium;
+	sint32 growthfactor_large;
+
+	// percentage of routing
+	sint16 factory_worker_percentage;
+	sint16 tourist_percentage;
+	sint16 factory_worker_radius;
+
 	uint16 station_coverage_size;
 
 	/**
@@ -170,9 +186,6 @@ public:
 	sint64 cst_depot_road;
 	sint64 cst_depot_ship;
 	sint64 cst_depot_air;
-	sint64 cst_signal;
-	sint64 cst_tunnel;
-	sint64 cst_third_rail;
 
 	// alter landscape
 	sint64 cst_buy_land;
@@ -216,7 +229,7 @@ public:
 	void rdwr(loadsave_t *file);
 
 	// init form this file ...
-	void parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, sint16 &disp_height, sint16 &fullscreen, cstring_t &objfilename, bool omit_umgebung );
+	void parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, sint16 &disp_height, sint16 &fullscreen, cstring_t &objfilename );
 
 	void set_groesse_x(sint32 g) {groesse_x=g;}
 	void set_groesse_y(sint32 g) {groesse_y=g;}
@@ -269,6 +282,7 @@ public:
 	void set_starting_year(short n) {starting_year=n;}	// prissi, Oct-2005
 	short get_starting_year() const {return starting_year;}
 
+	void set_starting_month(short n) {starting_month=n;}
 	short get_starting_month() const {return starting_month;}
 
 	void set_bits_per_month(short n) {bits_per_month=n;}	// prissi, Oct-2005
@@ -301,25 +315,33 @@ public:
 	void set_freeplay( bool f ) { freeplay = f; }
 
 	sint32 get_max_route_steps() const { return max_route_steps; }
+	void set_max_route_steps(sint32 m) { max_route_steps=m; }
 	sint32 get_max_hops() const { return max_hops; }
+	void set_max_hops(sint32 m) { max_hops=m; }
 	sint32 get_max_transfers() const { return max_transfers; }
+	void set_max_transfers(sint32 m) { max_transfers=m; }
 
 	sint64 get_starting_money() const { return starting_money; }
+	void set_starting_money(sint64 s) { starting_money = s; }
 
 	bool get_random_pedestrians() const { return fussgaenger; }
-	void set_random_pedestrians( bool f ) { fussgaenger = f; }	// NETWORK!
+	void set_random_pedestrians( bool f ) { fussgaenger = f; }
 
 	sint16 get_factory_spacing() const { return factory_spacing; }
+	void set_factory_spacing(sint16 s) { factory_spacing = s; }
 	sint16 get_crossconnect_factor() const { return crossconnect_factor; }
+	void set_crossconnect_factor(sint16 s) { crossconnect_factor = s; }
 	bool is_crossconnect_factories() const { return crossconnect_factories; }
+	void set_crossconnect_factories( bool f ) { crossconnect_factories = f; }
 
-	sint32 get_passenger_factor() const { return passenger_factor; }
-
-	sint32 get_numbered_stations() const { return numbered_stations; }
+	bool get_numbered_stations() const { return numbered_stations; }
+	void set_numbered_stations(bool b) { numbered_stations = b; }
 
 	sint32 get_stadtauto_duration() const { return stadtauto_duration; }
+	void set_stadtauto_duration(sint32 d) { stadtauto_duration = d; }
 
 	sint32 get_beginner_price_factor() const { return beginner_price_factor; }
+	void set_beginner_price_factor(sint32 s) { beginner_price_factor = s; }
 
 	const char *get_city_road_type() const { return city_road_type; }
 
@@ -342,15 +364,17 @@ public:
 	void set_seperate_halt_capacities( bool b ) { seperate_halt_capacities = b; }
 
 	// allowed modes are 0,1,2
-	enum { TO_PREVIOUS, TO_TRANSFER, TO_DESTINATION };
+	enum { TO_PREVIOUS=0, TO_TRANSFER, TO_DESTINATION };
 	uint8 get_pay_for_total_distance_mode() const { return pay_for_total_distance ; }
 	void set_pay_for_total_distance_mode( uint8 b ) { pay_for_total_distance = b < 2 ? b : 0; }
 
 	// do not take people to overcrowded destinations
 	bool is_avoid_overcrowding() const { return avoid_overcrowding; }
+	void set_avoid_overcrowding( bool b ) { avoid_overcrowding = b; }
 
 	// do not allow routes over overcrowded destinations
 	bool is_no_routing_over_overcrowding() const { return no_routing_over_overcrowding; }
+	void set_no_routing_over_overcrowding( bool b ) { no_routing_over_overcrowding = b; }
 
 	sint16 get_river_number() const { return river_number; }
 	void set_river_number( sint16 n ) { river_number=n; }
@@ -362,6 +386,37 @@ public:
 	// true, if this pak should be used with extensions (default)
 	bool get_with_private_paks() const { return with_private_paks; }
 	void set_with_private_paks(bool b) { with_private_paks = b; }
+
+	sint32 get_passenger_factor() const { return passenger_factor; }
+	void set_passenger_factor(sint32 n) { passenger_factor = n; }
+
+	// town growth stuff
+	sint32 get_passenger_multiplier() const { return passenger_multiplier; }
+	void set_passenger_multiplier(sint32 n) { passenger_multiplier = n; }
+	sint32 get_mail_multiplier() const { return mail_multiplier; }
+	void set_mail_multiplier(sint32 n) { mail_multiplier = n; }
+	sint32 get_goods_multiplier() const { return goods_multiplier; }
+	void set_goods_multiplier(sint32 n) { goods_multiplier = n; }
+	sint32 get_electricity_multiplier() const { return electricity_multiplier; }
+	void set_electricity_multiplier(sint32 n) { electricity_multiplier = n; }
+
+	// Also there are size dependen factors (0=no growth)
+	sint32 get_growthfactor_small() const { return growthfactor_small; }
+	void set_growthfactor_small(sint32 n) { growthfactor_small = n; }
+	sint32 get_growthfactor_medium() const { return growthfactor_medium; }
+	void set_growthfactor_medium(sint32 n) { growthfactor_medium = n; }
+	sint32 get_growthfactor_large() const { return growthfactor_large; }
+	void set_growthfactor_large(sint32 n) { growthfactor_large = n; }
+
+	// amount of different destinations
+	sint32 get_factory_worker_percentage() const { return factory_worker_percentage; }
+	void set_factory_worker_percentage(sint32 n) { factory_worker_percentage = n; }
+	sint32 get_tourist_percentage() const { return tourist_percentage; }
+	void set_tourist_percentage(sint32 n) { tourist_percentage = n; }
+
+	// radius within factories belog to towns (usually set to 77 but 1/8 of map size may be meaningful too)
+	sint32 get_factory_worker_radius() const { return factory_worker_radius; }
+	void set_factory_worker_radius(sint32 n) { factory_worker_radius = n; }
 };
 
 #endif
