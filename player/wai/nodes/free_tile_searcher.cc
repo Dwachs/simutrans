@@ -91,9 +91,9 @@ return_value_t *free_tile_searcher_t::step()
 			// TODO: reicht diese Abfrage aus?? Es muss noch getestet werden, ob einem die Strasse gehört.
 			// Und was ist, wenn der Wegbauer aus dem geraden Stück eine T-Kreuzung macht?
 			if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(road_wt) &&  !gr->ist_uebergang() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
-				const weg_t *w = gr->get_weg(road_wt);
+				weg_t *w = gr->get_weg(road_wt);
 				const ribi_t::ribi ribi = w->get_ribi_unmasked();
-				if (spieler_t::check_owner(sp, w->get_besitzer()) && ribi_t::ist_gerade(ribi)) {
+				if (w->ist_entfernbar(sp)==NULL && ribi_t::ist_gerade(ribi)) {
 					grund_t *to; 
 					bool found = false;
 					if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {

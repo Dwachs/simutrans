@@ -140,7 +140,7 @@ return_value_t *connector_road_t::step()
 				bool ok = true;
 
 				bauigel.calc_route(tile_list[0], tile_list[1]);
-				ok = bauigel.max_n > 1;
+				ok = bauigel.get_count() > 2;
 				if( !ok ) {
 					sp->get_log().warning( "connector_road_t::step", "didn't found a route %s => %s", fab1->get_name(), fab2->get_name() );
 					sp->get_log().message( "connector_road_t::step", "harbour pos = (%s)", harbour_pos.get_str() );
@@ -179,7 +179,7 @@ return_value_t *connector_road_t::step()
 					for(uint8 i=0;  i<2; i++) {
 						for(uint8 j=0; j<2; j++) {
 							// Sometimes reverse route is the best - try both ends of the routes
-							uint32 n = j==0 ? 0 : bauigel.max_n;
+							uint32 n = j==0 ? 0 : bauigel.get_count()-1;
 							if( tile_list[i].is_contained( bauigel.get_route()[n]) ) { 
 								// through station
 								if (through & (i+1) ) {
@@ -268,7 +268,7 @@ return_value_t *connector_road_t::step()
 					}
 				}
 				if (!ok) {
-					sp->get_log().warning( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.max_n-1].get_str() );
+					sp->get_log().warning( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.get_count()-2].get_str() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
@@ -306,9 +306,9 @@ return_value_t *connector_road_t::step()
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
 				bauigel.calc_route(dep_start, !dep_exist.empty() ? dep_exist : dep_ziele);
-				if(bauigel.max_n >= 1) {
+				if(bauigel.get_count() >= 2) {
 					// Sometimes reverse route is the best, so we have to change the koords.
-					deppos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.max_n] : bauigel.get_route()[0];	
+					deppos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.get_count()-1] : bauigel.get_route()[0];	
 					ok = true;
 				}
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, road_wt, sp->get_welt()->get_timeline_year_month(), 0);

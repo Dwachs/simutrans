@@ -265,9 +265,9 @@ koord3d industry_connection_planner_t::get_harbour_pos()
 	bauigel.calc_route(startplatz2, zielplatz2);
 
 	koord3d harbour_pos = koord3d::invalid;
-	if( bauigel.max_n > 1 ) {
+	if( bauigel.get_count() > 2 ) {
 		bool wasser = sp->get_welt()->lookup(bauigel.get_route()[0])->ist_wasser();
-		for( sint32 i = 1; i <= bauigel.max_n; i++ ) {
+		for( sint32 i = 1; i < bauigel.get_count(); i++ ) {
 			bool next_is_wasser = sp->get_welt()->lookup(bauigel.get_route()[i])->ist_wasser();
 			if( wasser != next_is_wasser ) {
 				if( next_is_wasser ) {
