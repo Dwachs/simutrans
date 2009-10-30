@@ -50,6 +50,8 @@ public:
 
 	static const weg_besch_t *get_earliest_way(const waytype_t wtyp);
 
+	static vector_tpl<const weg_besch_t *>* get_way_list( const waytype_t wtyp, const karte_t *welt );
+
 	/**
 	 * Fill menu with icons of given waytype
 	 * @author Hj. Malthaner

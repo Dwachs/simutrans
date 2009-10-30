@@ -173,25 +173,6 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
 		return cpd;
 	}
-	// get way
-	cpd->wb = wt!=water_wt ? wegbauer_t::weg_search(wt, proto->max_speed, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat ) : NULL;
-
-	// speed bonus calculation see vehikel_t::calc_gewinn
-	const sint32 ref_speed = sp->get_welt()->get_average_speed(wt );
-	const sint32 speed_base = (100*speed_to_kmh(proto->min_top_speed))/ref_speed-100;
-	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
-
-	uint32 max_speed = proto->max_speed;
-	if (cpd->wb && cpd->wb->get_topspeed()< max_speed) max_speed=cpd->wb->get_topspeed();
-
-	const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
-
-	// net gain per tile (matching freight)
-	const sint64 gain_per_tile = ((sint64)proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*proto->get_maintenance();
-
-	// number of vehicles
-	const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
-
 	// check for ship depots, dock
 	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
 	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
@@ -200,13 +181,55 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 	const sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
 	const sint64 main_buildings = 2*calc_building_maint(st) + calc_building_maint(dep);
 	
+	// init report
 	cpd->report = new report_t();
-	cpd->report->cost_fix                 =  cost_buildings + (cpd->wb ? dist*cpd->wb->get_preis()  : 0);
-	cpd->report->cost_monthly             = (main_buildings + (cpd->wb ? dist*cpd->wb->get_wartung(): 0)) << (sp->get_welt()->ticks_bits_per_tag-18);
-	cpd->report->gain_per_v_m             = gain_per_tile * tiles_per_month ;
-	cpd->report->nr_vehicles              = nr_vehicles;
-	cpd->report->nr_ships                 = 0;
-	cpd->report->gain_per_m               = cpd->report->gain_per_v_m * cpd->report->nr_vehicles - cpd->report->cost_monthly;
+	cpd->report->gain_per_m = 0x8000000000000000;
+
+	// speed bonus calculation see vehikel_t::calc_gewinn
+	const sint32 ref_speed = sp->get_welt()->get_average_speed(wt );
+	const sint32 speed_base = (100*speed_to_kmh(proto->min_top_speed))/ref_speed-100;
+	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
+
+	// net gain per tile (matching freight)
+	const sint64 gain_per_tile = ((sint64)proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*proto->get_maintenance();
+
+	// find the best way
+	vector_tpl<const weg_besch_t *> *ways;
+	if (wt!=water_wt) {
+		ways = wegbauer_t::get_way_list(wt, sp->get_welt());
+	}
+	else {
+		ways = new vector_tpl<const weg_besch_t *>(1);
+		ways->append(NULL);
+	}
+	// loop over all ways and find the best
+	for(uint32 i=0; i<ways->get_count(); i++) {
+		const weg_besch_t *wb = ways->operator [](i);
+
+		uint32 max_speed = proto->max_speed;
+		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
+
+		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
+
+		// number of vehicles
+		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
+
+		// now check
+		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_bits_per_tag-18);
+		const sint64 gain_per_v_m = gain_per_tile * tiles_per_month;
+		const sint64 gain_per_m   = gain_per_v_m * nr_vehicles - cost_monthly;
+		if (gain_per_m > cpd->report->gain_per_m) {
+			cpd->report->cost_fix                 = cost_buildings + (wb ? dist*wb->get_preis()  : 0);
+			cpd->report->cost_monthly             = cost_monthly;
+			cpd->report->gain_per_v_m             = gain_per_v_m;
+			cpd->report->nr_vehicles              = nr_vehicles;
+			cpd->report->nr_ships                 = 0;
+			cpd->report->gain_per_m               = gain_per_m;
+			cpd->wb                               = wb;
+		}
+	}
+	delete ways;
+
 
 	sp->get_log().message("industry_connection_planner_t::plan_connection","wt=%d  gain/vm=%lld  vehicles=%d  cost/m=%lld", wt, cpd->report->gain_per_v_m, cpd->report->nr_vehicles, cpd->report->cost_monthly);
 	return cpd;
@@ -267,7 +290,7 @@ koord3d industry_connection_planner_t::get_harbour_pos()
 	koord3d harbour_pos = koord3d::invalid;
 	if( bauigel.get_count() > 2 ) {
 		bool wasser = sp->get_welt()->lookup(bauigel.get_route()[0])->ist_wasser();
-		for( sint32 i = 1; i < bauigel.get_count(); i++ ) {
+		for( uint32 i = 1; i < bauigel.get_count(); i++ ) {
 			bool next_is_wasser = sp->get_welt()->lookup(bauigel.get_route()[i])->ist_wasser();
 			if( wasser != next_is_wasser ) {
 				if( next_is_wasser ) {
