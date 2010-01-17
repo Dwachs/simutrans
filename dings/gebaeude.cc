@@ -633,13 +633,18 @@ void gebaeude_t::info(cbuffer_t & buf) const
 					src ++;
 					dest ++;
 				}
+				// remove double line breaks at the end
 				*dest = 0;
+				while( dest>text  &&  *--dest=='\n'  ) {
+					*dest = 0;
+				}
+
 				trans_desc = text;
 				buf.append(trans_desc);
 				delete [] text;
 			}
-			buf.append("\n\n");
 		}
+		buf.append( "\n\n" );
 
 		// belongs to which city?
 		if (!is_factory && ptr.stadt != NULL) {
@@ -686,8 +691,7 @@ void gebaeude_t::info(cbuffer_t & buf) const
 
 
 
-void
-gebaeude_t::rdwr(loadsave_t *file)
+void gebaeude_t::rdwr(loadsave_t *file)
 {
 	// do not save factory buildings => factory will reconstruct them
 	assert(!is_factory);
@@ -828,7 +832,7 @@ gebaeude_t::rdwr(loadsave_t *file)
 			city_index = welt->get_staedte().index_of( ptr.stadt );
 		}
 		file->rdwr_long( city_index, "c" );
-		if(  file->is_loading()  &&  city_index!=-1  ) {
+		if(  file->is_loading()  &&  city_index!=-1  &&  (tile==NULL  ||  tile->get_besch()==NULL  ||  tile->get_besch()->is_connected_with_town())  ) {
 			ptr.stadt = welt->get_staedte()[city_index];
 		}
 	}
@@ -853,18 +857,22 @@ gebaeude_t::rdwr(loadsave_t *file)
  *
  * @author Hj. Malthaner
  */
-void
-gebaeude_t::laden_abschliessen()
+void gebaeude_t::laden_abschliessen()
 {
 	calc_bild();
 
 	spieler_t::add_maintenance(get_besitzer(), welt->get_einstellungen()->maint_building*tile->get_besch()->get_level() );
 
 	// citybuilding, but no town?
-	if(tile->get_offset()==koord(0,0)  &&  tile->get_besch()->is_connected_with_town()) {
-		stadt_t *city = (ptr.stadt==NULL) ? welt->suche_naechste_stadt( get_pos().get_2d() ) : ptr.stadt;
-		if(city) {
-			city->add_gebaeude_to_stadt(this);
+	if(  tile->get_offset()==koord(0,0)  ) {
+		if(  tile->get_besch()->is_connected_with_town()  ) {
+			stadt_t *city = (ptr.stadt==NULL) ? welt->suche_naechste_stadt( get_pos().get_2d() ) : ptr.stadt;
+			if(city) {
+				city->add_gebaeude_to_stadt(this);
+			}
+		}
+		else if(  !is_factory  ) {
+			ptr.stadt = NULL;
 		}
 	}
 }

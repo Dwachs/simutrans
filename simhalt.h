@@ -102,7 +102,6 @@ private:
 	uint8 status_color;
 	uint32 capacity[3]; // passenger, post, goods
 	uint8 overcrowded[8];	// bit set, when overcrowded
-	void recalc_status();
 
 	static uint8 status_step;	// NONE or SCHEDULING or REROUTING
 
@@ -116,6 +115,9 @@ private:
 	static uint8 current_mark;
 
 public:
+	/* recalculates the station bar */
+	void recalc_status();
+
 	/**
 	 * Handles changes of schedules and the resulting rerouting
 	 */
@@ -415,6 +417,18 @@ public:
 		return enables&WARE;
 	}
 
+	// a separate version for checking with goods category index
+	int is_enabled( const uint8 ctg )
+	{
+		if (ctg==0) {
+			return enables&PAX;
+		}
+		else if(ctg==1) {
+			return enables&POST;
+		}
+		return enables&WARE;
+	}
+
 	/**
 	 * Found route and station uncrowded
 	 * @author Hj. Malthaner
@@ -506,14 +520,6 @@ public:
 	 */
 	uint32 liefere_an(ware_t ware);
 	uint32 starte_mit_route(ware_t ware);
-
-	/**
-	 * wird von Fahrzeug aufgerufen, wenn dieses an der Haltestelle
-	 * gehalten hat.
-	 * @param typ der beförderte warentyp
-	 * @author Hj. Malthaner
-	 */
-	void hat_gehalten( const ware_besch_t *warentyp, const schedule_t *fpl, const spieler_t *sp );
 
 	const grund_t *find_matching_position(waytype_t wt) const;
 

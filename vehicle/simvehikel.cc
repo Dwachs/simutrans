@@ -477,9 +477,9 @@ vehikel_basis_t::calc_richtung(koord start, koord ende) const
 
 // this routine calculates the new height
 // beware of bridges, tunnels, slopes, ...
-sint16 vehikel_basis_t::calc_height()
+sint8 vehikel_basis_t::calc_height()
 {
-	sint16 hoff = 0;
+	sint8 hoff = 0;
 	use_calc_height = false;	// assume, we are only needed after next hop
 
 	grund_t *gr = welt->lookup(get_pos());
@@ -630,7 +630,7 @@ void vehikel_t::set_convoi(convoi_t *c)
 		// just correct freight deistinations
 		slist_iterator_tpl <ware_t> iter (fracht);
 		while(iter.next()) {
-			iter.access_current().laden_abschliessen(welt);
+			iter.access_current().laden_abschliessen(welt,get_besitzer());
 		}
 	}
 }
@@ -994,8 +994,7 @@ vehikel_t::verlasse_feld()
 /* this routine add a vehicle to a tile and will insert it in the correct sort order to prevent overlaps
  * @author prissi
  */
-void
-vehikel_t::betrete_feld()
+void vehikel_t::betrete_feld()
 {
 	vehikel_basis_t::betrete_feld();
 	if(ist_erstes  &&  reliefkarte_t::is_visible  ) {
@@ -1004,11 +1003,11 @@ vehikel_t::betrete_feld()
 }
 
 
-void
-vehikel_t::hop()
+void vehikel_t::hop()
 {
-	// Fahrtkosten
-	cnv->add_running_cost(-besch->get_betriebskosten());
+	if(  ist_erstes  ) {
+		cnv->add_running_cost();
+	}
 
 	verlasse_feld();
 
@@ -1315,15 +1314,13 @@ void vehikel_t::get_fracht_info(cbuffer_t & buf)
 }
 
 
-void
-vehikel_t::loesche_fracht()
+void vehikel_t::loesche_fracht()
 {
 	fracht.clear();
 }
 
 
-bool
-vehikel_t::beladen(koord , halthandle_t halt)
+bool vehikel_t::beladen(koord , halthandle_t halt)
 {
 	bool ok = true;
 	if(halt.is_bound()) {
@@ -2317,8 +2314,7 @@ waggon_t::ist_befahrbar(const grund_t *bd) const
 
 // how expensive to go here (for way search)
 // author prissi
-int
-waggon_t::get_kosten(const grund_t *gr,const uint32 max_speed) const
+int waggon_t::get_kosten(const grund_t *gr,const uint32 max_speed) const
 {
 	// first favor faster ways
 	const weg_t *w=gr->get_weg(get_waytype());
@@ -2338,8 +2334,7 @@ waggon_t::get_kosten(const grund_t *gr,const uint32 max_speed) const
 
 
 
-signal_t *
-waggon_t::ist_blockwechsel(koord3d k2) const
+signal_t *waggon_t::ist_blockwechsel(koord3d k2) const
 {
 	const schiene_t * sch1 = (const schiene_t *) welt->lookup( k2 )->get_weg(get_waytype());
 	if(sch1  &&  sch1->has_signal()) {
@@ -2352,8 +2347,7 @@ waggon_t::ist_blockwechsel(koord3d k2) const
 
 
 // this routine is called by find_route, to determined if we reached a destination
-bool
-waggon_t::ist_ziel(const grund_t *gr,const grund_t *prev_gr) const
+bool waggon_t::ist_ziel(const grund_t *gr,const grund_t *prev_gr) const
 {
 	const schiene_t * sch1 = (const schiene_t *) gr->get_weg(get_waytype());
 	// first check blocks, if we can go there
@@ -2383,8 +2377,7 @@ waggon_t::ist_ziel(const grund_t *gr,const grund_t *prev_gr) const
 }
 
 
-bool
-waggon_t::ist_weg_frei(int & restart_speed)
+bool waggon_t::ist_weg_frei(int & restart_speed)
 {
 	if(ist_erstes  &&  (cnv->get_state()==convoi_t::CAN_START  ||  cnv->get_state()==convoi_t::CAN_START_ONE_MONTH  ||  cnv->get_state()==convoi_t::CAN_START_TWO_MONTHS)) {
 		// reserve first block at the start until the next signal
@@ -2445,7 +2438,7 @@ waggon_t::ist_weg_frei(int & restart_speed)
 				}
 
 				bool exit_loop = false;
-				short fahrplan_index = cnv->get_schedule()->get_aktuell();
+				uint8 fahrplan_index = cnv->get_schedule()->get_aktuell();
 				int count = 0;
 				route_t target_rt;
 				koord3d cur_pos = rt->position_bei(next_block+1);

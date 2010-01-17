@@ -118,6 +118,14 @@ private:
 
 	sint64 starting_money;
 
+	typedef struct {
+		sint16 year;
+		sint64 money;
+		bool interpol;
+	} yearmoney;
+
+	yearmoney startingmoneyperyear[10];
+
 	/**
 	 * Use numbering for stations?
 	 *
@@ -171,6 +179,10 @@ private:
 
 	// true, if this pak should be used with extensions (default)
 	bool with_private_paks;
+
+	uint32 random_counter;
+	uint32 frames_per_second;	// only used in network mode ...
+	uint32 frames_per_step;
 
 public:
 	/* the big cost section */
@@ -271,22 +283,22 @@ public:
 	double get_map_roughness() const {return map_roughness;}
 
 	void set_station_coverage(unsigned short n) {station_coverage_size=n;}	// prissi, May-2005
-	unsigned short get_station_coverage() const {return station_coverage_size;}
+	uint16 get_station_coverage() const {return station_coverage_size;}
 
 	void set_allow_player_change(char n) {allow_player_change=n;}	// prissi, Oct-2005
-	unsigned char get_allow_player_change() const {return allow_player_change;}
+	uint8 get_allow_player_change() const {return allow_player_change;}
 
 	void set_use_timeline(char n) {use_timeline=n;}	// prissi, Oct-2005
-	unsigned char get_use_timeline() const {return use_timeline;}
+	uint8 get_use_timeline() const {return use_timeline;}
 
 	void set_starting_year(short n) {starting_year=n;}	// prissi, Oct-2005
-	short get_starting_year() const {return starting_year;}
+	sint16 get_starting_year() const {return starting_year;}
 
 	void set_starting_month(short n) {starting_month=n;}
-	short get_starting_month() const {return starting_month;}
+	sint16 get_starting_month() const {return starting_month;}
 
 	void set_bits_per_month(short n) {bits_per_month=n;}	// prissi, Oct-2005
-	short get_bits_per_month() const {return bits_per_month;}
+	sint16 get_bits_per_month() const {return bits_per_month;}
 
 	void set_filename(const char *n) {filename=n;}	// prissi, Jun-06
 	const char* get_filename() const { return filename; }
@@ -321,7 +333,7 @@ public:
 	sint32 get_max_transfers() const { return max_transfers; }
 	void set_max_transfers(sint32 m) { max_transfers=m; }
 
-	sint64 get_starting_money() const { return starting_money; }
+	sint64 get_starting_money(sint16 year) const;
 	void set_starting_money(sint64 s) { starting_money = s; }
 
 	bool get_random_pedestrians() const { return fussgaenger; }
@@ -417,6 +429,11 @@ public:
 	// radius within factories belog to towns (usually set to 77 but 1/8 of map size may be meaningful too)
 	sint32 get_factory_worker_radius() const { return factory_worker_radius; }
 	void set_factory_worker_radius(sint32 n) { factory_worker_radius = n; }
+
+	// usually only used in network mode => no need to set them!
+	uint32 get_random_counter() const { return random_counter; }
+	uint32 get_frames_per_second() const { return frames_per_second; }
+	uint32 get_frames_per_step() const { return frames_per_step; }
 };
 
 #endif

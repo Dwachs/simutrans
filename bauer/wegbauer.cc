@@ -103,22 +103,38 @@ bool wegbauer_t::alle_wege_geladen()
 	maglev_t::default_maglev = wegbauer_t::weg_search(maglev_wt,1,0,weg_t::type_flat);
 	narrowgauge_t::default_narrowgauge = wegbauer_t::weg_search(narrowgauge_wt,1,0,weg_t::type_flat);
 	kanal_t::default_kanal = wegbauer_t::weg_search(water_wt,1,0,weg_t::type_flat);
+	if(  kanal_t::default_kanal==0  ) {
+		// find also hidden rivers ...
+		kanal_t::default_kanal = wegbauer_t::weg_search(water_wt,0,0,weg_t::type_all);
+	}
 	runway_t::default_runway = wegbauer_t::weg_search(air_wt,1,0,weg_t::type_flat);
 	wegbauer_t::leitung_besch = wegbauer_t::weg_search(powerline_wt,1,0,weg_t::type_flat);
 	return true;
 }
 
 
-bool wegbauer_t::register_besch(const weg_besch_t *besch)
+bool wegbauer_t::register_besch(weg_besch_t *besch)
 {
-#ifdef DEBUG
 	DBG_DEBUG("wegbauer_t::register_besch()", besch->get_name());
-	if(  besch->has_switch_bild()  ) {
-		DBG_DEBUG("wegbauer_t::register_besch()", "with switches" );
-	}
-#endif
-	if(  alle_wegtypen.remove(besch->get_name())  ) {
+	const weg_besch_t *old_besch = alle_wegtypen.get(besch->get_name());
+	if(  old_besch  ) {
+		alle_wegtypen.remove(besch->get_name());
 		dbg->warning( "wegbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+		delete old_besch->get_builder();
+		delete old_besch;
+	}
+
+	if(  besch->get_cursor()->get_bild_nr(1)!=IMG_LEER  ) {
+		// add the tool
+		wkz_wegebau_t *wkz = new wkz_wegebau_t();
+		wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
+		wkz->cursor = besch->get_cursor()->get_bild_nr(0);
+		wkz->set_default_param(besch->get_name());
+		werkzeug_t::general_tool.append( wkz );
+		besch->set_builder( wkz );
+	}
+	else {
+		besch->set_builder( NULL );
 	}
 	alle_wegtypen.put(besch->get_name(), besch);
 	return true;
@@ -173,7 +189,6 @@ vector_tpl<const weg_besch_t *>* wegbauer_t::get_way_list( const waytype_t wtyp,
 
 const weg_besch_t *wegbauer_t::get_earliest_way(const waytype_t wtyp)
 {
-	uint32 start_year_month = 0x7FFFFFFFul;
 	const weg_besch_t *besch = NULL;
 	for(  stringhashtable_iterator_tpl<const weg_besch_t*> iter(alle_wegtypen); iter.next();  ) {
 		const weg_besch_t* const test = iter.get_current_value();
@@ -248,9 +263,8 @@ static bool compare_ways(const weg_besch_t* a, const weg_besch_t* b)
  * Fill menu with icons of given waytype, return number of added entries
  * @author Hj. Malthaner/prissi/dariok
  */
-void wegbauer_t::fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const weg_t::system_type styp, sint16 ok_sound, karte_t *welt)
+void wegbauer_t::fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const weg_t::system_type styp, sint16 /*ok_sound*/, karte_t *welt)
 {
-	static stringhashtable_tpl<wkz_wegebau_t *> way_tool;
 	const uint16 time = welt->get_timeline_year_month();
 
 	// list of matching types (sorted by speed)
@@ -261,7 +275,7 @@ void wegbauer_t::fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const 
 		const weg_besch_t* besch = iter.get_current_value();
 		if (besch->get_styp() == styp &&
 				besch->get_wtyp() == wtyp &&
-				besch->get_cursor()->get_bild_nr(1) != IMG_LEER && (
+				besch->get_builder() && (
 					time == 0 ||
 					(besch->get_intro_year_month() <= time && time < besch->get_retire_year_month())
 				)) {
@@ -272,18 +286,7 @@ void wegbauer_t::fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const 
 
 	// now add sorted ways ...
 	for (vector_tpl<const weg_besch_t*>::const_iterator i = matching.begin(), end = matching.end(); i != end; ++i) {
-		const weg_besch_t* besch = *i;
-		wkz_wegebau_t *wkz = way_tool.get(besch->get_name());
-		if(wkz==NULL) {
-			// not yet in hashtable
-			wkz = new wkz_wegebau_t();
-			wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
-			wkz->cursor = besch->get_cursor()->get_bild_nr(0);
-			wkz->default_param = besch->get_name();
-			wkz->ok_sound = ok_sound;
-			way_tool.put(besch->get_name(),wkz);
-		}
-		wzw->add_werkzeug( (werkzeug_t*)wkz );
+		wzw->add_werkzeug( (*i)->get_builder() );
 	}
 }
 
@@ -293,8 +296,7 @@ void wegbauer_t::fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const 
 /* allow for railroad crossing
  * @author prissi
  */
-bool
-wegbauer_t::check_crossing(const koord zv, const grund_t *bd, waytype_t wtyp0, const spieler_t *sp) const
+bool wegbauer_t::check_crossing(const koord zv, const grund_t *bd, waytype_t wtyp0, const spieler_t *sp) const
 {
 	const waytype_t wtyp = wtyp0==tram_wt ? track_wt : wtyp0;
 	// nothing to cross here
@@ -1366,7 +1368,7 @@ wegbauer_t::intern_calc_straight_route(const koord3d start, const koord3d ziel)
 		return;
 	}
 	// we have to reach target height if no tunnel building or sliced mode or target ground exists.
-	const bool target_3d = (bautyp&tunnel_flag)==0  || grund_t::underground_mode==grund_t::ugm_level  ||  test_bd!=NULL;
+	const bool target_3d = (bautyp&tunnel_flag)==0  ||  grund_t::underground_mode==grund_t::ugm_level  ||  test_bd!=NULL;
 
 	koord3d pos=start;
 
@@ -1923,7 +1925,7 @@ void wegbauer_t::baue_strasse()
 			weg_t * weg = gr->get_weg(road_wt);
 
 			// keep faster ways or if it is the same way ... (@author prissi)
-			if(weg->get_besch()==besch  ||  keep_existing_ways  ||  (keep_existing_city_roads  &&  weg->hat_gehweg())  ||  (keep_existing_faster_ways  &&  weg->get_besch()->get_topspeed()>besch->get_topspeed())  ||  (sp!=NULL  &&  !spieler_t::check_owner( sp, weg->get_besitzer())) || (gr->get_typ()==grund_t::monorailboden && (bautyp&elevated_flag)==0)) {
+			if(weg->get_besch()==besch  ||  keep_existing_ways  ||  (keep_existing_city_roads  &&  weg->hat_gehweg())  ||  (keep_existing_faster_ways  &&  weg->get_besch()->get_topspeed()>besch->get_topspeed())  ||  (sp!=NULL  &&  weg->ist_entfernbar(sp)!=NULL) || (gr->get_typ()==grund_t::monorailboden && (bautyp&elevated_flag)==0)) {
 				//nothing to be done
 //DBG_MESSAGE("wegbauer_t::baue_strasse()","nothing to do at (%i,%i)",k.x,k.y);
 			}
@@ -1931,10 +1933,11 @@ void wegbauer_t::baue_strasse()
 				// we take ownership => we take care to maintain the roads completely ...
 				spieler_t *s = weg->get_besitzer();
 				spieler_t::add_maintenance(s, -weg->get_besch()->get_wartung());
+				// cost is the more expensive one, so downgrading is between removing and new buidling
+				cost -= max( weg->get_besch()->get_preis(), besch->get_preis() );
 				weg->set_besch(besch);
 				spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung());
 				weg->set_besitzer(sp);
-				cost -= besch->get_preis();
 			}
 		}
 		else {
@@ -1995,10 +1998,11 @@ void wegbauer_t::baue_schiene()
 					// we take ownership => we take care to maintain the roads completely ...
 					spieler_t *s = weg->get_besitzer();
 					spieler_t::add_maintenance( s, -weg->get_besch()->get_wartung());
+					// cost is the more expensive one, so downgrading is between removing and new buidling
+					cost -= max( weg->get_besch()->get_preis(), besch->get_preis() );
 					weg->set_besch(besch);
 					spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung());
 					weg->set_besitzer(sp);
-					cost -= besch->get_preis();
 				}
 			}
 			else {
@@ -2026,8 +2030,7 @@ void wegbauer_t::baue_schiene()
 
 
 
-void
-wegbauer_t::baue_leitung()
+void wegbauer_t::baue_leitung()
 {
 	if(  get_count() < 1  ) {
 		return;
@@ -2056,7 +2059,7 @@ wegbauer_t::baue_leitung()
 		else {
 			spieler_t::add_maintenance( lt->get_besitzer(),  -wegbauer_t::leitung_besch->get_wartung() );
 		}
-		lt->laden_abschliessen();
+		lt->leitung_t::laden_abschliessen();
 
 		if((i&3)==0) {
 			INT_CHECK( "wegbauer 1584" );
@@ -2078,8 +2081,7 @@ class fluss_fahrer_t : fahrer_t
 
 
 // make a river
-void
-wegbauer_t::baue_fluss()
+void wegbauer_t::baue_fluss()
 {
 	/* since the contraits of the wayfinder ensures that a river flows always downwards
 	 * we can assume that the first tiles are the ocean.
@@ -2169,8 +2171,7 @@ wegbauer_t::baue_fluss()
 
 
 
-void
-wegbauer_t::baue()
+void wegbauer_t::baue()
 {
 	if(get_count()<2  ||  get_count() > maximum) {
 DBG_MESSAGE("wegbauer_t::baue()","called, but no valid route.");
@@ -2228,6 +2229,8 @@ INT_CHECK("simbau 1072");
 DBG_MESSAGE("wegbauer_t::baue", "took %i ms",dr_time()-ms);
 #endif
 }
+
+
 
 /*
  * This function calculates the distance of pos to the cuboid

@@ -164,8 +164,8 @@ vehikel_t* vehikelbauer_t::baue(koord3d k, spieler_t* sp, convoi_t* cnv, const v
 			dbg->fatal("vehikelbauer_t::baue()", "cannot built a vehicle with waytype %i", vb->get_waytype());
 	}
 
-	sp->buche(-(sint32)vb->get_preis(), k.get_2d(), COST_NEW_VEHICLE );
-	sp->buche( (sint32)vb->get_preis(), COST_ASSETS );
+	sp->buche(-(sint64)vb->get_preis(), k.get_2d(), COST_NEW_VEHICLE );
+	sp->buche( (sint64)vb->get_preis(), COST_ASSETS );
 
 	return v;
 }
@@ -293,7 +293,9 @@ bool vehikelbauer_t::alles_geladen()
 	while (typ_iter.next()) {
 		slist_tpl<const vehikel_besch_t*>& typ_liste = typ_iter.access_current_value();
 		uint count = typ_liste.get_count();
-		if (count == 0) continue;
+		if (count == 0) {
+			continue;
+		}
 		const vehikel_besch_t** const tmp     = new const vehikel_besch_t*[count];
 		const vehikel_besch_t** const tmp_end = tmp + count;
 		for (const vehikel_besch_t** i = tmp; i != tmp_end; i++) {
@@ -446,7 +448,7 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
  * if prev_besch==NULL, then the convoi must be able to lead a convoi
  * @author prissi
  */
-const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const uint16 month_now, const uint32 target_weight, const uint32 target_power, const uint32 target_speed, const ware_besch_t * target_freight, bool include_electric, bool not_obsolete, const vehikel_besch_t *prev_veh, bool is_last )
+const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const uint16 month_now, const uint32 target_weight, const uint32 target_power, const uint32 target_speed, const ware_besch_t * target_freight, bool /*include_electric*/, bool not_obsolete, const vehikel_besch_t *prev_veh, bool is_last )
 {
 	const vehikel_besch_t *besch = NULL;
 	long besch_index=-100000;

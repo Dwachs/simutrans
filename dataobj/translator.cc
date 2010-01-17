@@ -42,7 +42,7 @@ static char *fgets_line(char *buffer, int max_len, FILE *file)
 }
 
 
-const char* translator::lang_info::translate(const char* text) const
+const char *translator::lang_info::translate(const char* text) const
 {
 	if (text    == NULL) {
 		return "(null)";
@@ -76,7 +76,7 @@ const translator::lang_info* translator::get_langs()
 }
 
 
-#ifdef DEBUG
+#ifdef need_dump_hashtable
 // diagnosis
 static void dump_hashtable(stringhashtable_tpl<const char*>* tbl)
 {
@@ -250,11 +250,13 @@ static void init_city_names(bool is_utf_language)
 		// ok, could open file
 		char buf[256];
 		bool file_is_utf = is_unicode_file(file);
-		while (!feof(file)) {
-			if (fgets_line(buf, 128, file)) {
+		while(  !feof(file)  ) {
+			if(  fgets_line(buf, 128, file)  ) {
 				rtrim(buf);
-				char* c = recode(buf, file_is_utf, is_utf_language);
-				namen_liste.append(c);
+				char *c = recode(buf, file_is_utf, is_utf_language);
+				if(  *c!=0  &&  *c!='#'  ) {
+					namen_liste.append(c);
+				}
 			}
 		}
 		fclose(file);
@@ -354,6 +356,7 @@ static translator::lang_info* get_lang_by_iso(const char* iso)
 
 bool translator::load(const cstring_t& scenario_path)
 {
+	chdir( umgebung_t::program_dir );
 	tstrncpy(szenario_path, scenario_path, lengthof(szenario_path));
 
 	//initialize these values to 0(ie. nothing loaded)
@@ -416,6 +419,35 @@ bool translator::load(const cstring_t& scenario_path)
 		}
 	}
 
+	if(  umgebung_t::program_dir!=umgebung_t::user_dir  &&  umgebung_t::default_einstellungen.get_with_private_paks()  ) {
+		chdir( umgebung_t::user_dir );
+		// now read the scenario specific text
+		// there can be more than one file per language, provided it is name like iso_xyz.tab
+		cstring_t folderName(scenario_path + "text/");
+		folder.search(folderName, "tab");
+		//read now the basic language infos
+		for (searchfolder_t::const_iterator i = folder.begin(), end = folder.end(); i != end; ++i) {
+			cstring_t fileName(*i);
+			cstring_t iso = fileName.substr(fileName.find_back('/') + 1, fileName.len() - 4);
+
+			lang_info* lang = get_lang_by_iso(iso);
+			if (lang != NULL) {
+				DBG_MESSAGE("translator::load()", "loading pak addon translations from %s for language %s", (const char*)fileName, lang->iso_base);
+				FILE* file = fopen(fileName, "rb");
+				if (file != NULL) {
+					bool file_is_utf = is_unicode_file(file);
+					load_language_file_body(file, &lang->texts, lang->utf_encoded, file_is_utf);
+					fclose(file);
+				} else {
+					dbg->warning("translator::load()", "cannot open '%s'", (const char*)fileName);
+				}
+			} else {
+				dbg->warning("translator::load()", "no addon texts for language '%s'", (const char*)iso);
+			}
+		}
+		chdir( umgebung_t::program_dir );
+	}
+
 	//if NO languages were loaded then game cannot continue
 	if (single_instance.lang_count < 1) {
 		return false;
@@ -427,10 +459,24 @@ bool translator::load(const cstring_t& scenario_path)
 		load_language_file_body(file, &compatibility, false, false);
 		DBG_MESSAGE("translator::load()", "scenario compatibilty texts loaded.");
 		fclose(file);
-//		dump_hashtable(&compatibility);
-	} else {
-		DBG_MESSAGE("translator::load()", "no scenario compatibilty texts");
 	}
+	else {
+		DBG_MESSAGE("translator::load()", "no scenario compatibility texts");
+	}
+
+	// also addon compatibility ...
+	if(  umgebung_t::program_dir!=umgebung_t::user_dir  &&  umgebung_t::default_einstellungen.get_with_private_paks()  ) {
+		chdir( umgebung_t::user_dir );
+		FILE* file = fopen(scenario_path + "compat.tab", "rb");
+		if (file != NULL) {
+			load_language_file_body(file, &compatibility, false, false);
+			DBG_MESSAGE("translator::load()", "scenario addon compatibility texts loaded.");
+			fclose(file);
+		}
+		chdir( umgebung_t::program_dir );
+	}
+
+//	dump_hashtable(&compatibility);
 
 	// use english if available
 	current_langinfo = get_lang_by_iso("en");

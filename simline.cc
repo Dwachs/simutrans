@@ -11,7 +11,9 @@
 #include "simlinemgmt.h"
 
 
-uint8 simline_t::convoi_to_line_catgory[MAX_CONVOI_COST]={LINE_CAPACITY, LINE_TRANSPORTED_GOODS, LINE_REVENUE, LINE_OPERATIONS, LINE_PROFIT };
+uint8 simline_t::convoi_to_line_catgory[MAX_CONVOI_COST] = {
+	LINE_CAPACITY, LINE_TRANSPORTED_GOODS, LINE_REVENUE, LINE_OPERATIONS, LINE_PROFIT, LINE_DISTANCE
+};
 
 karte_t *simline_t::welt=NULL;
 
@@ -43,22 +45,13 @@ void simline_t::set_line_id(uint32 id)
 
 simline_t::~simline_t()
 {
-	sint32 count = count_convoys() - 1;
-	for(  sint32 i = count;  i>=0;  i--  ) 	{
-		DBG_DEBUG("simline_t::~simline_t()", "convoi '%d' removed", i);
-		DBG_DEBUG("simline_t::~simline_t()", "convoi '%d'->fpl=%p", i, get_convoy(i)->get_schedule());
-
-		// Hajo: take care - this call will do "remove_convoi()"
-		// on our list!
-		get_convoy(i)->unset_line();
-	}
-	unregister_stops();
-
 	DBG_DEBUG("simline_t::~simline_t()", "deleting fpl=%p and old_fpl=%p", fpl, old_fpl);
+
+	assert(count_convoys()==0);
+	unregister_stops();
 
 	delete fpl;
 	delete old_fpl;
-
 	self.detach();
 
 	DBG_MESSAGE("simline_t::~simline_t()", "line %d (%p) destroyed", id, this);
@@ -94,17 +87,11 @@ void simline_t::add_convoy(convoihandle_t cnv)
 	// what goods can this line transport?
 	bool update_schedules = false;
 	if(  cnv->get_state()!=convoi_t::INITIAL  ) {
-		// already on the road => need to add them
-		for(uint i=0;  i<cnv->get_vehikel_anzahl();  i++  ) {
-			// Only consider vehicles that really transport something
-			// this helps against routing errors through passenger
-			// trains pulling only freight wagons
-			if (cnv->get_vehikel(i)->get_fracht_max() == 0) {
-				continue;
-			}
-			const ware_besch_t *ware=cnv->get_vehikel(i)->get_fracht_typ();
-			if(ware!=warenbauer_t::nichts  &&  !goods_catg_index.is_contained(ware->get_catg_index())) {
-				goods_catg_index.append( ware->get_catg_index(), 1 );
+		const minivec_tpl<uint8> &convoys_goods = cnv->get_goods_catg_index();
+		for(  uint8 i = 0;  i < convoys_goods.get_count();  i++  ) {
+			const uint8 catg_index = convoys_goods[i];
+			if(  !goods_catg_index.is_contained( catg_index )  ) {
+				goods_catg_index.append( catg_index, 1 );
 				update_schedules = true;
 			}
 		}
@@ -155,9 +142,21 @@ void simline_t::rdwr(loadsave_t *file)
 	fpl->rdwr(file);
 
 	//financial history
-	for (int j = 0; j<MAX_LINE_COST; j++) {
+	if(  file->get_version()<103000  ) {
+		for (int j = 0; j<6; j++) {
+			for (int k = MAX_MONTHS-1; k>=0; k--) {
+				file->rdwr_longlong(financial_history[k][j], " ");
+			}
+		}
 		for (int k = MAX_MONTHS-1; k>=0; k--) {
-			file->rdwr_longlong(financial_history[k][j], " ");
+			financial_history[k][LINE_DISTANCE] = 0;
+		}
+	}
+	else {
+		for (int j = 0; j<MAX_LINE_COST; j++) {
+			for (int k = MAX_MONTHS-1; k>=0; k--) {
+				file->rdwr_longlong(financial_history[k][j], " ");
+			}
 		}
 	}
 
@@ -307,20 +306,14 @@ void simline_t::recalc_catg_index()
 	// then recreate current
 	for(unsigned i=0;  i<line_managed_convoys.get_count();  i++ ) {
 		// what goods can this line transport?
-//		const convoihandle_t cnv = line_managed_convoys[i];
+		// const convoihandle_t cnv = line_managed_convoys[i];
 		const convoi_t *cnv = line_managed_convoys[i].get_rep();
 		withdraw &= cnv->get_withdraw();
-		for(uint i=0;  i<cnv->get_vehikel_anzahl();  i++  ) {
-			// Only consider vehicles that really transport something
-			// this helps against routing errors through passenger
-			// trains pulling only freight wagons
-			if (cnv->get_vehikel(i)->get_fracht_max() == 0) {
-				continue;
-			}
-			const ware_besch_t *ware=cnv->get_vehikel(i)->get_fracht_typ();
-			if(ware!=warenbauer_t::nichts  ) {
-				goods_catg_index.append_unique( ware->get_catg_index(), 1 );
-			}
+
+		const minivec_tpl<uint8> &convoys_goods = cnv->get_goods_catg_index();
+		for(  uint8 i = 0;  i < convoys_goods.get_count();  i++  ) {
+			const uint8 catg_index = convoys_goods[i];
+			goods_catg_index.append_unique( catg_index, 1 );
 		}
 	}
 	// if different => schedule need recalculation
@@ -345,9 +338,9 @@ void simline_t::recalc_catg_index()
 void simline_t::set_withdraw( bool yes_no )
 {
 	withdraw = yes_no  &&  (line_managed_convoys.get_count()>0);
-	// then recreate current
-	for(unsigned i=0;  i<line_managed_convoys.get_count();  i++ ) {
+	// convois in depots will be immeadiately destroyed, thus we go backwards
+	for( sint32 i=line_managed_convoys.get_count()-1;  i>=0;  i--  ) {
+		line_managed_convoys[i]->set_no_load(yes_no);	// must be first, since set withdraw might destroy convoi if in depot!
 		line_managed_convoys[i]->set_withdraw(yes_no);
-		line_managed_convoys[i]->set_no_load(yes_no);
 	}
 }

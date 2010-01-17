@@ -37,12 +37,14 @@ void loadsave_frame_t::action(const char *filename)
 	else {
 		welt->speichern(filename,false);
 		welt->set_dirty();
+		welt->reset_timer();
 	}
 }
 
-void loadsave_frame_t::del_action(const char *filename)
+bool loadsave_frame_t::del_action(const char *filename)
 {
 	remove(filename);
+	return false;
 }
 
 

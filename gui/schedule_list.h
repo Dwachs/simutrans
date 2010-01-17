@@ -37,12 +37,11 @@ private:
 	button_t filterButtons[MAX_LINE_COST];
 	gui_tab_panel_t tabs;
 
-	static const char cost_type[MAX_LINE_COST][64];
-	static const int cost_type_color[MAX_LINE_COST];
-	static uint8 statistic[MAX_LINE_COST];
-	static uint8 statistic_type[MAX_LINE_COST];
-
 	sint32 selection, capacity, load, loadfactor;
+
+	sint32 old_line_count;
+	sint32 last_schedule_count;
+	sint32 last_vehicle_count;
 
 	void display(koord pos);
 

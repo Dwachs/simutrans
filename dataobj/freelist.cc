@@ -31,11 +31,11 @@ static nodelist_node_t *chunk_list = NULL;
  * to be more efficient, all nodes with sizes smaller than 16 will be used at size 16 (one cacheline)
  */
 static nodelist_node_t *message_nodes = NULL;
-#define message_node_size (sizeof(struct message_t::node)+sizeof(void *))
+#define message_node_size ((((sizeof(struct message_t::node)+sizeof(void *))+3)>>2)<<2)
 
-static nodelist_node_t *node1220 = NULL;
-static nodelist_node_t *node1624 = NULL;
-static nodelist_node_t *node2440 = NULL;
+// if additional fixed sizes are required, add them here
+// (the few request for larger ones are satisfied with xmalloc otherwise)
+
 
 // for 64 bit, set this to 128
 #define MAX_LIST_INDEX (128)
@@ -80,17 +80,8 @@ void *freelist_t::gimme_node(size_t size)
 			case message_node_size:
 				list = &message_nodes;
 				break;
-			case 1220:
-				list = &node1220;
-				break;
-			case 1624:
-				list = &node1624;
-				break;
-			case 2440:
-				list = &node2440;
-				break;
 			default:
-				dbg->fatal("freelist_t::gimme_node()","No list with size %i! (only up to %i and %i, 1220, 1624, 2440)", size, MAX_LIST_INDEX, message_node_size );
+				return xmalloc( size );
 		}
 	}
 	else {
@@ -156,27 +147,20 @@ void freelist_t::putback_node( size_t size, void *p )
 	// all sizes should be dividable by 4
 	size = max( min_size, size );
 	size = ((size+3)>>2);
+	size <<= 2;
 
 	if(size>MAX_LIST_INDEX) {
 		switch(size) {
 			case message_node_size:
 				list = &message_nodes;
 				break;
-			case 1220/4:
-				list = &node1220;
-				break;
-			case 1624/4:
-				list = &node1624;
-				break;
-			case 2440/4:
-				list = &node2440;
-				break;
 			default:
-				dbg->fatal("freelist_t::gimme_node()","No list with size %i! (only up to %i and %i, 1220, 1624, 2440)", size*4, MAX_LIST_INDEX, message_node_size );
+				free( p );
+				return;
 		}
 	}
 	else {
-		list = &(all_lists[size]);
+		list = &(all_lists[size/4]);
 	}
 #ifdef DEBUG_MEM
 	putback_check_node(list,(nodelist_node_t *)p);
@@ -190,8 +174,7 @@ void freelist_t::putback_node( size_t size, void *p )
 
 
 // clears all list memories
-void
-freelist_t::free_all_nodes()
+void freelist_t::free_all_nodes()
 {
 	printf("freelist_t::free_all_nodes(): frees all list memory\n" );
 	while(chunk_list) {
@@ -206,7 +189,4 @@ freelist_t::free_all_nodes()
 	}
 	printf("freelist_t::free_all_nodes(): ok\n");
 	message_nodes = NULL;
-	node1220 = NULL;
-	node1624 = NULL;
-	node2440 = NULL;
 }

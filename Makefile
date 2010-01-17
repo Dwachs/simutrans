@@ -4,7 +4,7 @@ CONFIG ?= config.default
 
 BACKENDS      = allegro gdi sdl mixer_sdl x11 posix
 COLOUR_DEPTHS = 0 8 16
-OSTYPES       = beos cygwin freebsd linux mingw mac
+OSTYPES       = beos cygwin freebsd haiku linux mingw mac
 
 ifeq ($(findstring $(BACKEND), $(BACKENDS)),)
   $(error Unkown BACKEND "$(BACKEND)", must be one of "$(BACKENDS)")
@@ -25,39 +25,43 @@ endif
 
 
 ifeq ($(OSTYPE),beos)
-  STD_LIBS ?= -lz
+  STD_LIBS ?= -lz -lnet -lbz2
+endif
+
+ifeq ($(OSTYPE),haiku)
+  STD_LIBS ?= -lz -lnetwork -lbz2
 endif
 
 ifeq ($(OSTYPE),freebsd)
-  STD_LIBS ?= -lz
+  STD_LIBS ?= -lz -lbz2
 endif
 
 ifeq ($(OSTYPE),mac)
   CFLAGS   += -DUSE_HW -DUSE_C  -Os -fast
   CXXFLAGS   += -DUSE_HW -DUSE_C
-  STD_LIBS ?= -lz
+  STD_LIBS ?= -lz -lbz2
 endif
 
 ifeq ($(OSTYPE),linux)
-  STD_LIBS ?= -lz
+  STD_LIBS ?= -lz -lbz2
 endif
 
 
 ifeq ($(OSTYPE),cygwin)
   OS_INC   ?= -I/usr/include/mingw
   OS_OPT   ?= -mwin32
-  STD_LIBS ?= -lgdi32 -lwinmm -lz
+  STD_LIBS ?= -lgdi32 -lwinmm -lz -lbz2
 endif
 
 ifeq ($(OSTYPE),mingw)
   CC ?= gcc
   SOURCES += simsys_w32_png.cc
   OS_OPT   ?= -mno-cygwin -DPNG_STATIC -DZLIB_STATIC -march=pentium
-  STD_LIBS ?= -lz
+  STD_LIBS ?= -lz -lbz2
   ifeq ($(BACKEND),gdi)
     STD_LIBS +=  -lunicows
   endif
-  STD_LIBS += -lmingw32 -lgdi32 -lwinmm
+  STD_LIBS += -lmingw32 -lgdi32 -lwinmm -lwsock32
 endif
 
 ALLEGRO_CONFIG ?= allegro-config
@@ -99,6 +103,7 @@ endif
 ifneq ($(PROFILE),)
   CFLAGS   += -pg -DPROFILE -fno-inline
   CXXFLAGS += -pg -DPROFILE -fno-inline
+  LDFLAGS += -pg
 endif
 
 CFLAGS   += -Wall -W -Wcast-qual -Wpointer-arith -Wcast-align -Wstrict-prototypes $(OS_INC) $(OS_OPT) $(FLAGS)
@@ -168,6 +173,9 @@ SOURCES += dataobj/koord.cc
 SOURCES += dataobj/koord3d.cc
 SOURCES += dataobj/loadsave.cc
 SOURCES += dataobj/marker.cc
+SOURCES += dataobj/network.cc
+SOURCES += dataobj/network_cmd.cc
+SOURCES += dataobj/network_packet.cc
 SOURCES += dataobj/powernet.cc
 SOURCES += dataobj/ribi.cc
 SOURCES += dataobj/route.cc
@@ -269,6 +277,7 @@ SOURCES += gui/sound_frame.cc
 SOURCES += gui/sprachen.cc
 SOURCES += gui/stadt_info.cc
 SOURCES += gui/station_building_select.cc
+SOURCES += gui/trafficlight_info.cc
 SOURCES += gui/thing_info.cc
 SOURCES += gui/welt.cc
 SOURCES += gui/werkzeug_waehler.cc
@@ -329,6 +338,7 @@ SOURCES += unicode.cc
 SOURCES += utils/cbuffer_t.cc
 SOURCES += utils/cstring_t.cc
 SOURCES += utils/log.cc
+SOURCES += utils/memory_rw.cc
 SOURCES += utils/searchfolder.cc
 SOURCES += utils/simstring.cc
 SOURCES += vehicle/movingobj.cc
@@ -433,6 +443,10 @@ ifeq ($(BACKEND),posix)
   SOURCES += sound/no_sound.cc
 endif
 
+ifeq ($(COLOUR_DEPTH),0)
+  CFLAGS   += -DNO_GRAPHIC
+  CXXFLAGS += -DNO_GRAPHIC
+endif
 
 ifneq ($(findstring $(OSTYPE), cygwin mingw),)
   SOURCES += simres.rc

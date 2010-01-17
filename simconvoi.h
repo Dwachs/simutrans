@@ -14,11 +14,12 @@
 #include "dataobj/route.h"
 #include "vehicle/overtaker.h"
 #include "tpl/array_tpl.h"
+#include "tpl/minivec_tpl.h"
 
 #include "convoihandle_t.h"
 #include "halthandle_t.h"
 
-#define MAX_CONVOI_COST   5 // Total number of cost items
+#define MAX_CONVOI_COST   6 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
 #define MAX_CONVOI_NON_MONEY_TYPES 2 // number of non money types in convoi's financial statistic
 #define CONVOI_CAPACITY   0 // the amount of ware that could be transported, theoretically
@@ -26,6 +27,7 @@
 #define CONVOI_REVENUE		2 // the income this CONVOI generated
 #define CONVOI_OPERATIONS         3 // the cost of operations this CONVOI generated
 #define CONVOI_PROFIT             4 // total profit of this convoi
+#define CONVOI_DISTANCE           5 // total distance traveld this month
 
 class depot_t;
 class karte_t;
@@ -135,6 +137,11 @@ private:
 	* @author Hj. Malthaner
 	*/
 	array_tpl<vehikel_t*> fahr;
+
+	/*
+	 * a list of all catg_index, which can be transported by this convoy.
+	 */
+	minivec_tpl<uint8> goods_catg_index;
 
 	/**
 	* Convoi owner
@@ -246,6 +253,9 @@ private:
 	*/
 	sint64 jahresgewinn;
 
+	/* the odometer */
+	sint64 total_distance_traveled;
+
 	/**
 	* Set, when there was a income calculation (avoids some cheats)
 	* Since 99.15 it will stored directly in the vehikel_t
@@ -343,6 +353,14 @@ private:
 	*/
 	koord3d home_depot;
 
+	/**
+	* unset line -> remove cnv from line
+	* @author hsiegeln
+	*/
+	void unset_line();
+
+	void check_pending_updates();
+
 public:
 	route_t* get_route() { return &route; }
 
@@ -350,7 +368,7 @@ public:
 	* Checks if this convoi has a driveable route
 	* @author Hanjsörg Malthaner
 	*/
-	bool hat_keine_route() const;
+	bool hat_keine_route() const { return (state==NO_ROUTE); }
 
 	/**
 	* get line
@@ -374,11 +392,10 @@ public:
 	*/
 	void register_with_line(uint16 line_id);
 
-	/**
-	* unset line -> remove cnv from line
-	* @author hsiegeln
-	*/
-	void unset_line();
+	/* changes the state of a convoi via werkzeug_t; mandatory for networkmode! *
+	 * for list of commands and parameter see werkzeug_t::wkz_change_convoi_t
+	 */
+	void call_convoi_tool( const char function, const char *extra ) const;
 
 	/**
 	* get state
@@ -406,15 +423,17 @@ public:
 	convoihandle_t self;
 
 	/**
-	* Der Gewinn in diesem Jahr
-	* @author Hanjsörg Malthaner
-	*/
+	 * Der Gewinn in diesem Jahr
+	 * @author Hanjsörg Malthaner
+	 */
 	const sint64 & get_jahresgewinn() const {return jahresgewinn;}
 
+	const sint64 & get_total_distance_traveled() const { return total_distance_traveled; }
+
 	/**
-	* returns the total running cost for all vehicles in convoi
-	* @author hsiegeln
-	*/
+	 * returns the total running cost for all vehicles in convoi
+	 * @author hsiegeln
+	 */
 	sint32 get_running_cost() const;
 
 	/**
@@ -509,11 +528,10 @@ public:
 	uint32 get_length() const;
 
 	/**
-	 * Vehicles of the convoi add their running cost by using this
-	 * method
+	 * Add the costs for traveling one tile
 	 * @author Hj. Malthaner
 	 */
-	void add_running_cost(sint32 cost);
+	void add_running_cost();
 
 	/**
 	 * moving the veicles of a convoi and acceleration/deacceleration
@@ -579,6 +597,11 @@ public:
 	*/
 	vehikel_t * remove_vehikel_bei(unsigned short i);
 
+	const minivec_tpl<uint8> &get_goods_catg_index() const { return goods_catg_index; }
+
+	// recalculates the good transported by this convoy and (in case of changes) will start schedule recalculation
+	void recalc_catg_index();
+
 	/**
 	* Sets a schedule
 	* @author Hj. Malthaner
@@ -602,7 +625,7 @@ public:
 	* @return Owner of this convoi
 	* @author Hj. Malthaner
 	*/
-	spieler_t * get_besitzer() { return besitzer_p; }
+	spieler_t * get_besitzer() const { return besitzer_p; }
 
 	/**
 	* Opens an information window
@@ -633,7 +656,7 @@ public:
 	* @author Hj. Malthaner
 	* @see simwin
 	*/
-	void open_schedule_window();
+	void open_schedule_window( bool show );
 
 	static bool pruefe_vorgaenger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter);
 	static bool pruefe_nachfolger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter);
@@ -710,12 +733,6 @@ public:
 	void dump() const;
 
 	/**
-	* prepares the convoi to receive a new schedule
-	* @author hsiegeln
-	*/
-	void prepare_for_new_schedule(schedule_t *);
-
-	/**
 	* book a certain amount into the convois financial history
 	* is called from vehicle during un/load
 	* @author hsiegeln
@@ -747,8 +764,6 @@ public:
 	void neues_jahr();
 
 	void set_update_line(linehandle_t l) { line_update_pending = l; }
-
-	void check_pending_updates();
 
 	void set_home_depot(koord3d hd) { home_depot = hd; }
 

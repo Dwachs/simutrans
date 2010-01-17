@@ -759,10 +759,10 @@ char *haltestelle_t::create_name(const koord k, const char *typ)
 	 */
 
 	// strings for intown / outside of town
-	const char *base_name = inside ? translator::translate("%s city %d %s") : translator::translate("%s land %d %s");
+	const char *base_name = translator::translate( inside ? "%s city %d %s" : "%s land %d %s" );
 
-	// finally: is there a stop with this name alrady?
-	for(  int i=1;  i<32767;  i++  ) {
+	// finally: is there a stop with this name already?
+	for(  uint32 i=1;  i<65536;  i++  ) {
 		sprintf(buf, base_name, city_name, i, stop );
 		if(  !all_names.get(buf).is_bound()  ) {
 			return strdup(buf);
@@ -790,14 +790,13 @@ bool haltestelle_t::step(sint16 &units_remaining)
 		if(  !reroute_goods(units_remaining)  ) {
 			return false;
 		}
+		recalc_status();
 	}
 	else {
 		// nothing needs to be done
 		status_step = 0;
 		units_remaining = 0;
 	}
-
-	recalc_status();
 	return true;
 }
 
@@ -854,7 +853,7 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 				vector_tpl<ware_t> * warray = waren[last_catg_index];
 				vector_tpl<ware_t> * new_warray = new vector_tpl<ware_t>(warray->get_count());
 
-				for(int j=warray->get_count()-1;  j>=0;  j--  ) {
+				for(  int j=warray->get_count()-1;  j>=0;  j--  ) {
 					ware_t & ware = (*warray)[j];
 
 					if(ware.menge==0) {
@@ -862,7 +861,7 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 					}
 
 					// since also the factory halt list is added to the ground, we can use just this ...
-					if(welt->lookup(ware.get_zielpos())->is_connected(self)) {
+					if(  welt->lookup(ware.get_zielpos())->is_connected(self)  ) {
 						// we are already there!
 						if(ware.is_freight()) {
 							liefere_an_fabrik(ware);
@@ -875,7 +874,7 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 				}
 
 				// delete, if nothing connects here
-				if (new_warray->empty()) {
+				if(  new_warray->empty()  ) {
 					if(  warenziele[last_catg_index].empty()  ) {
 						// no connections from here => delete
 						delete new_warray;
@@ -958,44 +957,35 @@ void haltestelle_t::verbinde_fabriken()
 /*
  * removes factory to a halt
  */
-void
-haltestelle_t::remove_fabriken(fabrik_t *fab)
+void haltestelle_t::remove_fabriken(fabrik_t *fab)
 {
 	fab_list.remove(fab);
 }
 
 
 
-void haltestelle_t::hat_gehalten(const ware_besch_t *type, const schedule_t *fpl, const spieler_t *sp )
-{
-	if(type != warenbauer_t::nichts) {
-		for(int i=0; i<fpl->get_count(); i++) {
+// only needed for rebuild_destinations(), but mingw hickup on local classes
+class warenzielsorter_t {
+public:
+	halthandle_t halt;
+	uint8 stops;
+	uint8 catg_index;
 
-			// Hajo: Haltestelle selbst wird nicht in Zielliste aufgenommen
-			halthandle_t halt = get_halt(welt, fpl->eintrag[i].pos, sp);
-			// not existing, or own, or not enabled => ignore
-			if(!halt.is_bound()  ||  halt==self  ||  !halt->is_enabled(type)) {
-				continue;
-			}
-
-			// we need to do this here; otherwise the position of the stop (if in water) may not directly be a halt!
-			vector_tpl<halthandle_t> &wz_list = warenziele[ type->get_catg_index() ];
-			if(  !wz_list.is_contained(halt)  ) {
-				wz_list.append( halt );
-				if(  waren[type->get_catg_index()] == NULL  ) {
-					// indicates that this can route those goods
-					waren[type->get_catg_index()] = new vector_tpl<ware_t>(0);
-				}
-			}
-		}
+	warenzielsorter_t( halthandle_t h, uint8 s, uint8 ci ) :
+		halt(h),
+		stops(s),
+		catg_index(ci)
+		{}
+	warenzielsorter_t() { stops=0; catg_index=0; }
+	inline bool operator == (const warenzielsorter_t &k) const {
+		return halt==k.halt  &&  stops<=k.stops  &&  catg_index==k.catg_index;
 	}
-}
-
-
+};
 
 /**
  * Rebuilds the list of reachable destinations
- *
+ * returns the number of stops considered for this
+ * The warenziele are sorted by nubmer of intermediate stops; next are first
  * @author Hj. Malthaner
  */
 sint32 haltestelle_t::rebuild_destinations()
@@ -1007,88 +997,177 @@ sint32 haltestelle_t::rebuild_destinations()
 	}
 	rebuilt_destination_counter = welt->get_schedule_counter();
 	resort_freight_info = true;	// might result in error in routing
+
 	last_catg_index = 255;	// must reroute everything
+	sint32 connections_searched = 0;
 
 	const bool i_am_public = (get_besitzer()==welt->get_spieler(1));
 
+	vector_tpl<warenzielsorter_t> warenziele_by_stops;
+
 // DBG_MESSAGE("haltestelle_t::rebuild_destinations()", "Adding new table entries");
 
-	// first all single convois without lines
-	vector_tpl<uint8> add_catg_index(4);
-	sint32 connections_searched = 0;
-	for (vector_tpl<convoihandle_t>::const_iterator i = welt->convois_begin(), end = welt->convois_end(); i != end; ++i) {
-		convoihandle_t cnv = *i;
-		if(cnv->get_line().is_bound()) {
+	// since per schedule the non_identical_schedules counter must be incremented only once to identify transfer stops (which have >1):
+	uint8 non_identical_schedules_flag[256];
+	memset( non_identical_schedules_flag, 0, warenbauer_t::get_max_catg_index() );
+
+	const spieler_t *owner;
+	schedule_t *fpl;
+	const minivec_tpl<uint8> *goods_catg_index;
+
+	minivec_tpl<uint8> supported_catg_index(32);
+
+	vector_tpl<convoihandle_t>::const_iterator index_for_convoys = welt->convois_begin();
+
+	/*
+	 * In the first loops:
+	 * lines==true => search for lines
+	 * After this:
+	 * lines==false => search for single convoys without lines
+	 */
+	bool lines = true;
+	uint32 index_for_lines = 0;
+	while(  lines  ||  index_for_convoys < welt->convois_end()  ) {
+
+		// Gives the first occurence of "self" in "fpl".
+		uint8 first_self_index = 0;
+
+		// Now, collect the "fpl", "owner" and "add_catg_index" from line resp. convoy.
+		if( lines ) {
+			if(  index_for_lines >= registered_lines.get_count()  ) {
+				// We have looped over all lines.
+				lines = false;
+				continue;
+			}
+
+			const linehandle_t line = registered_lines[ index_for_lines ];
+			index_for_lines++;
+
+			if(  line->count_convoys()==0  ){
+				continue;
+			}
+
+			owner = line->get_besitzer();
+			fpl = line->get_schedule();
+			goods_catg_index = &line->get_goods_catg_index();
+		}
+		else {
+			convoihandle_t cnv = *index_for_convoys;
+			++index_for_convoys;
+			if(  cnv->get_line().is_bound()  ) {
+				continue;
+			}
+
+			owner = cnv->get_besitzer();
+			fpl = cnv->get_schedule();
+			goods_catg_index = &cnv->get_goods_catg_index();
+		}
+
+		if(  !i_am_public  &&  owner!=get_besitzer()  ) {
 			continue;
 		}
 
-		// DBG_MESSAGE("haltestelle_t::rebuild_destinations()", "convoi %d %p", cnv.get_id(), cnv.get_rep());
-		if(i_am_public  ||  cnv->get_besitzer()==get_besitzer()) {
+		if(  fpl==NULL  ) {
+			// may happen for cnv in depots
+			continue;
+		}
 
-			INT_CHECK("simhalt.cc 612");
+		// find first own index
+		for(  first_self_index=0;  first_self_index < fpl->get_count()  &&  get_halt( welt, fpl->eintrag[first_self_index].pos, owner ) != self;  ) {
+			first_self_index++;
+		}
 
-			schedule_t *fpl = cnv->get_schedule();
-			const spieler_t *cnv_owner = cnv->get_besitzer();
-			if(fpl) {
-				for(int i=0; i<fpl->get_count(); i++) {
+		if(  first_self_index == fpl->get_count()  ) {
+			// this convoi does not stop here (the usual case for convoys)
+			continue;
+		}
 
-					// Hajo: Hält dieser convoi hier?
-					if (get_halt(welt, fpl->eintrag[i].pos,cnv_owner) == self) {
-
-						// what goods can this line transport?
-						add_catg_index.clear();
-						for(uint i=0;  i<cnv->get_vehikel_anzahl();  i++  ) {
-							// Only consider vehicles that really transport something
-							// this helps against routing errors through passenger
-							// trains pulling only freight wagons
-							if (cnv->get_vehikel(i)->get_fracht_max() == 0) {
-								continue;
-							}
-							const ware_besch_t *ware=cnv->get_vehikel(i)->get_fracht_typ();
-							if(ware!=warenbauer_t::nichts  &&  is_enabled(ware)  &&  !add_catg_index.is_contained(ware->get_catg_index())) {
-								// now add the freights
-								uint32 old_warenzielcount = warenziele[ ware->get_catg_index() ].get_count();
-								hat_gehalten( ware, fpl, cnv_owner );
-								if(  old_warenzielcount != warenziele[ ware->get_catg_index() ].get_count()  &&  non_identical_schedules[ ware->get_catg_index() ] < 255  ) {
-									// added additional stops => might be transfer stop
-									non_identical_schedules[ ware->get_catg_index() ]++;
-								}
-								add_catg_index.append_unique(ware->get_catg_index());
-							}
-						}
-						break;	// since we found it already ...
-					}
-				}
-				connections_searched += fpl->get_count();
+		// determine goods category indices supported by this halt
+		supported_catg_index.clear();
+		for(  uint8 ctg=0;  ctg<goods_catg_index->get_count();  ++ctg  ) {
+			const uint8 catg_index = (*goods_catg_index)[ctg];
+			if(  is_enabled(catg_index)  ) {
+				supported_catg_index.append(catg_index);
 			}
 		}
-	}
 
-	// now for the lines
-	for(uint i=0; i<registered_lines.get_count(); i++) {
-		const linehandle_t line = registered_lines[i];
-		schedule_t *fpl = line->get_schedule();
-		const spieler_t *line_owner = line->get_besitzer();
-		assert(fpl);
-		// ok, now add line to the connections
-		if(line->count_convoys()>0  &&  (i_am_public  ||  line_owner==get_besitzer())) {
-			for( uint j=0; j<line->get_goods_catg_index().get_count();  j++  ) {
-				const ware_besch_t *ware=warenbauer_t::get_info_catg_index(line->get_goods_catg_index()[j]);
-				if(is_enabled(ware)) {
-					uint32 old_warenzielcount = warenziele[ ware->get_catg_index() ].get_count();
-					hat_gehalten( ware, fpl, line_owner );
-					if(  old_warenzielcount != warenziele[ ware->get_catg_index() ].get_count()  &&  non_identical_schedules[ ware->get_catg_index() ] < 255  ) {
-						// added additional stops => might be transfer stop
-						non_identical_schedules[ ware->get_catg_index() ]++;
+		if (  supported_catg_index.get_count()==0  ) {
+			// this halt does not support the goods categories handled by the line/lineless convoy
+			continue;
+		}
+
+		INT_CHECK("simhalt.cc 612");
+
+		// now we add the schedule to the connection array
+		uint8 stop_count = 0; // Measures the distance to "self".
+		for(  uint8 j=1;  j<fpl->get_count();  j++  ) {
+
+			halthandle_t halt = get_halt(welt, fpl->eintrag[(first_self_index+j)%fpl->get_count()].pos,owner);
+			if(  !halt.is_bound()  ) {
+				continue;
+			}
+			if(  halt==self  ) {
+				stop_count = 0;
+				continue;
+			}
+
+			++stop_count;
+
+			for(  uint8 ctg=0;  ctg<supported_catg_index.get_count();  ctg ++  ) {
+				const uint8 catg_index = supported_catg_index[ctg];
+				if(  halt->is_enabled(catg_index)  ) {
+					warenzielsorter_t wzs( halt, stop_count, catg_index );
+					// might be a new halt to add
+					if(  !warenziele_by_stops.is_contained(wzs)  ) {
+						warenziele_by_stops.append(wzs);
+						non_identical_schedules_flag[catg_index] = true;
 					}
 				}
 			}
-			connections_searched += fpl->get_count();
 		}
+
+		for(  uint8 ctg=0;  ctg<supported_catg_index.get_count();  ctg ++  ) {
+			const uint8 catg_index = supported_catg_index[ctg];
+			if(  non_identical_schedules_flag[catg_index]  ) {
+				non_identical_schedules_flag[catg_index] = false;
+				if(  non_identical_schedules[catg_index] < 255  ) {
+					// added additional stops => might be transfer stop
+					non_identical_schedules[catg_index]++;
+				}
+			}
+		}
+		connections_searched += fpl->get_count();
 	}
 
+	// now add them to warenziele ...
+	uint32 processed_entries = 0;
+	uint8 stops = 1;
+	while(  processed_entries<warenziele_by_stops.get_count() ) {
+		for(  uint32 i=processed_entries;  i<warenziele_by_stops.get_count();  i++  ) {
+
+			if(  warenziele_by_stops[i].stops==stops  ) {
+				vector_tpl<halthandle_t> &wz_list = warenziele[ warenziele_by_stops[i].catg_index ];
+				// this test is needed, since the same halt may be added earlier, since it came first in another schedule
+				if(  !wz_list.is_contained( warenziele_by_stops[i].halt )  ) {
+					wz_list.append( warenziele_by_stops[i].halt );
+					if(  waren[ warenziele_by_stops[i].catg_index ] == NULL  ) {
+						// indicates that this can route those goods
+						waren[ warenziele_by_stops[i].catg_index ] = new vector_tpl<ware_t>(0);
+					}
+				}
+				// after processing, current entry becomes useless
+				//		--> overwrite it with an unprocessed entry where necessary
+				if ( i != processed_entries ) {
+					warenziele_by_stops[i] = warenziele_by_stops[processed_entries];
+				}
+				++processed_entries;
+			}
+		}
+		++stops;
+	}
 	return connections_searched;
 }
+
 
 
 /* HNode is used for route search */
@@ -1294,20 +1373,8 @@ void haltestelle_t::add_pax_happy(int n)
 {
 	pax_happy += n;
 	book(n, HALT_HAPPY);
+	recalc_status();
 }
-
-
-
-/**
- * Found no route
- * @author Hj. Malthaner
- */
-void haltestelle_t::add_pax_no_route(int n)
-{
-	pax_no_route += n;
-	book(n, HALT_NOROUTE);
-}
-
 
 
 /**
@@ -1318,6 +1385,18 @@ void haltestelle_t::add_pax_unhappy(int n)
 {
 	pax_unhappy += n;
 	book(n, HALT_UNHAPPY);
+	recalc_status();
+}
+
+
+/**
+ * Found no route
+ * @author Hj. Malthaner
+ */
+void haltestelle_t::add_pax_no_route(int n)
+{
+	pax_no_route += n;
+	book(n, HALT_NOROUTE);
 }
 
 
@@ -1809,6 +1888,7 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 				total_costs += costs;
 				spieler_t::add_maintenance( gb_sp, -costs );
 				gb->set_besitzer(public_owner);
+				gb->set_flag(ding_t::dirty);
 				spieler_t::add_maintenance(public_owner, costs );
 			}
 			// ok, valid start, now we can join them
@@ -1848,6 +1928,7 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 					spieler_t::add_maintenance( gb_sp, -costs );
 					spieler_t::accounting(gb_sp, -((costs*60)<<(welt->ticks_bits_per_tag-18)), gr->get_pos().get_2d(), COST_CONSTRUCTION);
 					gb->set_besitzer(public_owner);
+					gb->set_flag(ding_t::dirty);
 					spieler_t::add_maintenance(public_owner, costs );
 				}
 			}
@@ -2005,6 +2086,7 @@ void haltestelle_t::recalc_station_type()
 		}
 	}
 	station_type = (haltestelle_t::stationtyp)new_station_type;
+	recalc_status();
 
 //DBG_DEBUG("haltestelle_t::recalc_station_type()","result=%x, capacity[0]=%i, capacity[1], capacity[2]",new_station_type,capacity[0],capacity[1],capacity[2]);
 }
@@ -2157,7 +2239,7 @@ void haltestelle_t::laden_abschliessen()
 		if(waren[i]) {
 			vector_tpl<ware_t> * warray = waren[i];
 			for(unsigned j=0; j<warray->get_count(); j++) {
-				(*warray)[j].laden_abschliessen(welt);
+				(*warray)[j].laden_abschliessen(welt,besitzer_p);
 			}
 			// merge identical entries (should only happen with old games)
 			for(unsigned j=0; j<warray->get_count(); j++) {
@@ -2208,7 +2290,6 @@ void haltestelle_t::book(sint64 amount, int cost_type)
 {
 	assert(cost_type <= MAX_HALT_COST);
 	financial_history[0][cost_type] += amount;
-	recalc_status();
 }
 
 

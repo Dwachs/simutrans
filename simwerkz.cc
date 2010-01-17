@@ -50,9 +50,12 @@
 #include "vehicle/simverkehr.h"
 #include "vehicle/simpeople.h"
 
+#include "gui/line_management_gui.h"
 #include "gui/werkzeug_waehler.h"
 #include "gui/station_building_select.h"
 #include "gui/karte.h"	// to update map after construction of new industry
+#include "gui/depot_frame.h"
+#include "gui/fahrplan_gui.h"
 
 #include "dings/zeiger.h"
 #include "dings/bruecke.h"
@@ -328,28 +331,64 @@ const char *wkz_abfrage_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 	if(gr) {
 		DBG_MESSAGE("wkz_abfrage()","checking map square %s", pos.get_str());
 
-		int old_count = win_get_open_count();
-		for(int n=0; n<gr->get_top(); n++) {
-			ding_t *dt = gr->obj_bei(n);
-			if(dt  &&  (dt->get_typ()!=ding_t::wayobj  ||  dt->get_typ()!=ding_t::pillar)) {
-				DBG_MESSAGE("wkz_abfrage()", "index %d", n);
-				dt->zeige_info();
-				// did some new window open?
-				if(umgebung_t::single_info  &&  old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+		if(  umgebung_t::single_info  ) {
+
+			int old_count = win_get_open_count();
+
+			// show halt and labels first ...
+			if(  gr->get_halt().is_bound()  ) {
+				gr->get_halt()->zeige_info();
+				if(  old_count!=win_get_open_count()  ) {
 					return NULL;
+				}
+			}
+			if(  gr->get_flag(grund_t::marked)  ) {
+				label_t *lb = gr->find<label_t>();
+				if(  lb  ) {
+					lb->zeige_info();
+					if(  old_count!=win_get_open_count()  ) {
+						return NULL;
+					}
+				}
+			}
+
+			for(int n=gr->get_top()-1;  n>=0;  n--  ) {
+				ding_t *dt = gr->obj_bei(n);
+				if(dt  &&  dt->get_typ()!=ding_t::wayobj  &&  dt->get_typ()!=ding_t::pillar  &&  dt->get_typ()!=ding_t::label) {
+					DBG_MESSAGE("wkz_abfrage()", "index %d", n);
+					dt->zeige_info();
+					// did some new window open?
+					if(old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+						return NULL;
+					}
+				}
+			}
+			// no window zet opened> trz ground info
+			gr->zeige_info();
+		}
+		else {
+			// lowest (less interesting) first
+			gr->zeige_info();
+			for(int n=0; n<gr->get_top();  n++  ) {
+				ding_t *dt = gr->obj_bei(n);
+				if(dt  &&  dt->get_typ()!=ding_t::wayobj  &&  dt->get_typ()!=ding_t::pillar) {
+					dt->zeige_info();
 				}
 			}
 		}
 
 		if(gr->get_depot()  &&  gr->get_depot()->get_besitzer()==sp) {
+			int old_count = win_get_open_count();
 			gr->get_depot()->zeige_info();
-			return NULL;
+			// did some new window open?
+			if(umgebung_t::single_info  &&  old_count!=win_get_open_count()) {
+				return NULL;
+			}
 		}
-
-		gr->zeige_info();
 	}
 	return NULL;
 }
+
 
 /* delete things from a tile
  * citycars and pedestrian first and then go up to queue to more important objects
@@ -407,7 +446,7 @@ DBG_MESSAGE("wkz_remover_intern()","at (%s)", pos.get_str());
 			msg = brueckenbauer_t::remove(welt, sp, gr->get_pos(), powerline_wt );
 			return msg == NULL;
 		}
-		else {
+		else if(  !gr->ist_bruecke()  ) {
 			lt->entferne(sp);
 			delete lt;
 			return true;
@@ -424,8 +463,12 @@ DBG_MESSAGE("wkz_remover_intern()","at (%s)", pos.get_str());
 		}
 DBG_MESSAGE("wkz_remover()",  "removing roadsign at (%s)", pos.get_str());
 		weg_t *weg = gr->get_weg(rs->get_besch()->get_wtyp());
+		if(  weg==NULL  &&  rs->get_besch()->get_wtyp()==tram_wt  ) {
+			weg = gr->get_weg(track_wt);
+		}
 		rs->entferne(sp);
 		delete rs;
+		assert( weg );
 		weg->count_sign();
 		return true;
 	}
@@ -450,6 +493,10 @@ DBG_MESSAGE("wkz_remover()", "bound=%i",halt.is_bound());
 		}
 		wo->entferne(sp);
 		delete wo;
+		depot_t *dep = gr->get_depot();
+		if( dep ) {
+			dep->update_win();
+		}
 		return true;
 	}
 
@@ -697,7 +744,7 @@ const char *wkz_raise_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 		if(hgt < 14*Z_TILE_STEP) {
 
 			int n = 0;	// tiles changed
-			if(default_param) {
+			if(default_param  &&  strlen(default_param)>0) {
 				ok = true;
 				// called by dragging or by AI
 				sint16 height = atoi(default_param);
@@ -774,7 +821,7 @@ const char *wkz_lower_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 		if(hgt > welt->get_grundwasser()) {
 
 			int n = 0;	// tiles changed
-			if(default_param) {
+			if(default_param  &&  strlen(default_param)>0) {
 				// called by dragging or by AI
 				sint16 height = atoi(default_param);
 				// dragging may be goind up or down!
@@ -852,7 +899,7 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 		// slopes may affect the position and the total height!
 		koord3d new_pos = pos;
 
-		ribi_t::ribi ribis = new_slope<hang_t::erhoben ? ribi_t::rueckwaerts(ribi_typ(new_slope)) : ribi_t::alle;
+		ribi_t::ribi ribis = new_slope<hang_t::erhoben ? ribi_t::rueckwaerts(ribi_typ(new_slope)) : (ribi_t::ribi)ribi_t::alle;
 		if(  gr1->hat_wege()  ) {
 			// check the resulting slope
 			ribis = gr1->get_weg_nr(0)->get_ribi_unmasked();
@@ -996,10 +1043,12 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 				// now water
 				gr1->obj_loesche_alle(sp);
 				welt->access(pos.get_2d())->kartenboden_setzen( new wasser_t(welt,new_pos) );
+				gr1 = welt->lookup_kartenboden(new_pos.get_2d());
 			}
 			else if(gr1->ist_wasser()  &&  (new_pos.z>welt->get_grundwasser()  ||  new_slope!=0)) {
 				gr1->obj_loesche_alle(sp);
 				welt->access(pos.get_2d())->kartenboden_setzen( new boden_t(welt,new_pos,new_slope) );
+				gr1 = welt->lookup_kartenboden(new_pos.get_2d());
 			}
 			else {
 				gr1->set_grund_hang(new_slope);
@@ -1033,7 +1082,15 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 						gr->calc_bild();
 					}
 				}
-				welt->set_grid_hgt(pos.get_2d(), gr1->get_hoehe() + corner4(gr1->get_grund_hang()));
+				// corect the grid height
+				if(  gr1->ist_wasser()  ) {
+					sint8 grid_hgt = min( welt->get_grundwasser(), welt->lookup_hgt(pos.get_2d()) );
+					welt->set_grid_hgt(pos.get_2d(), grid_hgt );
+				}
+				else {
+					welt->set_grid_hgt(pos.get_2d(), gr1->get_hoehe()+ corner4(gr1->get_grund_hang()) );
+				}
+				reliefkarte_t::get_karte()->calc_map_pixel(pos.get_2d());
 			}
 			spieler_t::accounting(sp, new_slope==RESTORE_SLOPE?welt->get_einstellungen()->cst_alter_land:welt->get_einstellungen()->cst_set_slope, pos.get_2d(), COST_CONSTRUCTION);
 		}
@@ -1275,10 +1332,12 @@ const char *wkz_change_city_size_t::work( karte_t *welt, spieler_t *, koord3d po
 
 const char *wkz_plant_tree_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 {
-	grund_t *gr = welt->lookup_kartenboden(pos.get_2d());	if(gr && gr->is_visible()) {		const baum_besch_t *besch = NULL;
+	grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
+	if(gr && gr->is_visible()) {
+		const baum_besch_t *besch = NULL;
 		bool check_climates = true;
 		bool random_age = false;
-		if(default_param==NULL) {
+		if(default_param==NULL  ||  strlen(default_param)==0) {
 			besch = baum_t::random_tree_for_climate( welt->get_climate(pos.z) );
 		}
 		else {
@@ -1311,16 +1370,25 @@ static const char *wkz_fahrplan_insert_aux(karte_t *welt, spieler_t *sp, koord3d
 	grund_t *bd = welt->lookup(pos);
 	if (bd && bd->is_visible()) {
 		// now just for error messages, we assuming a valid ground
-		// and check for ownership
-		if(!bd->is_halt()  &&  bd->obj_count()!=0  &&  !spieler_t::check_owner( sp, bd->obj_bei(0)->get_besitzer())) {
-			return "Das Feld gehoert\neinem anderen Spieler\n";
-		}
-		if(bd->is_halt()  &&  !spieler_t::check_owner( sp, bd->get_halt()->get_besitzer()) ) {
-			return "Das Feld gehoert\neinem anderen Spieler\n";
-		}
 		// check for right way type
 		if(!fpl->ist_halt_erlaubt(bd)) {
 			return fpl->fehlermeldung();
+		}
+		// and check for ownership
+		if(  !bd->is_halt()  ) {
+			weg_t *w = bd->get_weg( fpl->get_waytype() );
+			if(  w==NULL  &&  fpl->get_waytype()==tram_wt  ) {
+				w = bd->get_weg( track_wt );
+			}
+			if(  w!=NULL  &&  w->get_besitzer()!=welt->get_spieler(1)  &&  !spieler_t::check_owner(w->get_besitzer(),sp)  ) {
+				return "Das Feld gehoert\neinem anderen Spieler\n";
+			}
+			if(  bd->get_depot()  &&  !spieler_t::check_owner( bd->get_depot()->get_besitzer(), sp )  ) {
+				return "Das Feld gehoert\neinem anderen Spieler\n";
+			}
+		}
+		if(  bd->is_halt()  &&  !spieler_t::check_owner( sp, bd->get_halt()->get_besitzer()) ) {
+			return "Das Feld gehoert\neinem anderen Spieler\n";
 		}
 		// ok, now we have a valid ground
 		if(append) {
@@ -1348,16 +1416,16 @@ const char *wkz_fahrplan_ins_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 /* way construction */
 const weg_besch_t *wkz_wegebau_t::defaults[17] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-const weg_besch_t *wkz_wegebau_t::get_besch( karte_t *welt, bool remember ) const
+const weg_besch_t *wkz_wegebau_t::get_besch( uint16 timeline_year_month, bool remember ) const
 {
-	const weg_besch_t *besch = wegbauer_t::get_besch(default_param,0);
+	const weg_besch_t *besch = default_param ? wegbauer_t::get_besch(default_param,0) :NULL;
 	if(besch==NULL) {
 		waytype_t wt = (waytype_t)atoi(default_param);
 		besch = defaults[wt&63];
 		if(besch==NULL) {
 			if(wt<=air_wt) {
 				// search fastest way.
-				besch = wegbauer_t::weg_search(wt, 0xffffffff, welt->get_timeline_year_month(), weg_t::type_flat);
+				besch = wegbauer_t::weg_search(wt, 0xffffffff, timeline_year_month, weg_t::type_flat);
 			}
 			else {
 				besch = wegbauer_t::leitung_besch;
@@ -1385,7 +1453,7 @@ image_id wkz_wegebau_t::get_icon(spieler_t *) const
 
 const char *wkz_wegebau_t::get_tooltip(spieler_t *sp)
 {
-	const weg_besch_t *besch = get_besch(sp->get_welt(),false);
+	const weg_besch_t *besch = get_besch(sp->get_welt()->get_timeline_year_month(),false);
 	sprintf(toolstr, "%s, %ld$ (%.2lf$), %dkm/h",
 		translator::translate(besch->get_name()),
 		besch->get_preis()/100l,
@@ -1394,10 +1462,32 @@ const char *wkz_wegebau_t::get_tooltip(spieler_t *sp)
 	return toolstr;
 }
 
+// default ways are not intialized sychronous for different clients
+// return always name of a way, never the string containing the waytype
+const char* wkz_wegebau_t::get_default_param() const
+{
+	if (besch) {
+		return besch->get_name();
+	}
+	else {
+		if (default_param == NULL) {
+			// no chance to guess anything sensible
+			return NULL;
+		}
+		const weg_besch_t* test_besch = get_besch(0, false);
+		if (test_besch) {
+			return test_besch->get_name();
+		}
+		else {
+			return default_param;
+		}
+	}
+}
+
 bool wkz_wegebau_t::is_selected( karte_t *welt ) const
 {
-	const wkz_wegebau_t *selected = dynamic_cast<const wkz_wegebau_t *>(welt->get_werkzeug());
-	return (selected  &&  selected->get_besch(welt,false) == get_besch(welt,false));
+	const wkz_wegebau_t *selected = dynamic_cast<const wkz_wegebau_t *>(welt->get_werkzeug(welt->get_active_player_nr()));
+	return (selected  &&  selected->get_besch(welt->get_timeline_year_month(),false) == get_besch(welt->get_timeline_year_month(),false));
 }
 
 bool wkz_wegebau_t::init( karte_t *welt, spieler_t *sp )
@@ -1405,14 +1495,14 @@ bool wkz_wegebau_t::init( karte_t *welt, spieler_t *sp )
 	two_click_werkzeug_t::init( welt, sp );
 
 	// now get current besch
-	besch = get_besch(welt, true);
+	besch = get_besch(welt->get_timeline_year_month(), true);
 	if(besch  &&  besch->get_cursor()->get_bild_nr(0) != IMG_LEER) {
 		cursor = besch->get_cursor()->get_bild_nr(0);
 	}
 	return besch!=NULL;
 }
 
-uint8 wkz_wegebau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error )
+uint8 wkz_wegebau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error, const koord3d & )
 {
 	grund_t *gr=welt->lookup(pos);
 	if(gr  &&  gr->is_visible()  &&  hang_t::ist_wegbar(gr->get_weg_hang())) {
@@ -1466,7 +1556,6 @@ const char *wkz_wegebau_t::do_work( karte_t *welt, spieler_t *sp, const koord3d 
 	wegbauer_t bauigel(welt, sp);
 	calc_route( bauigel, start, end );
 	if(  bauigel.get_route().get_count()>1  ) {
-		long cost = bauigel.calc_costs();
 		welt->mute_sound(true);
 		bauigel.baue();
 		welt->mute_sound(false);
@@ -1503,7 +1592,7 @@ void wkz_wegebau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &sta
 			}
 			ribi_t::ribi zeige = gr->get_weg_ribi_unmasked(besch->get_wtyp()) | bauigel.get_route().get_ribi( j );
 
-			zeiger_t *way = new zeiger_t( welt, pos, sp );
+			zeiger_t *way = new zeiger_t( welt, pos, NULL );
 			if(gr->get_weg_hang()) {
 				way->set_bild( besch->get_hang_bild_nr(gr->get_weg_hang(),0) );
 			}
@@ -1514,7 +1603,7 @@ void wkz_wegebau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &sta
 				way->set_bild( besch->get_bild_nr(zeige,0) );
 			}
 			gr->obj_add( way );
-			marked.insert( way );
+			marked[sp->get_player_nr()].insert( way );
 			way->mark_image_dirty( way->get_bild(), 0 );
 		}
 	}
@@ -1539,18 +1628,197 @@ const char *wkz_brueckenbau_t::get_tooltip(spieler_t *sp)
 }
 
 
-
-/* just call the bruckenbauer */
-const char *wkz_brueckenbau_t::work(karte_t *welt, spieler_t *sp, koord3d pos )
+const char *wkz_brueckenbau_t::do_work( karte_t *welt, spieler_t *sp, const koord3d &start, const koord3d &end )
 {
-	if (welt->lookup_kartenboden(pos.get_2d())->get_hoehe() == pos.z) {
-		return brueckenbauer_t::baue( welt, sp, pos.get_2d(), brueckenbauer_t::get_besch(default_param) );
+	const bruecke_besch_t *besch = brueckenbauer_t::get_besch(default_param);
+	if (end==koord3d::invalid) {
+		return brueckenbauer_t::baue( welt, sp, start.get_2d(), besch );
 	}
 	else {
-		return "";
+		const koord zv(ribi_typ(end-start));
+		brueckenbauer_t::baue_bruecke( welt, sp, start, end, zv, besch, wegbauer_t::weg_search(besch->get_waytype(), besch->get_topspeed(), welt->get_timeline_year_month(), weg_t::type_flat));
+		return NULL; // all checks are performed before building.
 	}
 }
+void wkz_brueckenbau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &start, const koord3d &end )
+{
+	const ribi_t::ribi ribi_mark = ribi_typ(end-start);
+	const koord zv(ribi_mark);
+	const bruecke_besch_t *besch = brueckenbauer_t::get_besch(default_param);
+	sint64 costs = 0;
+	// start
+	grund_t *gr = welt->lookup(start);
+	zeiger_t *way = new zeiger_t( welt, start, sp );
+	const bruecke_besch_t::img_t img0 = gr->get_grund_hang()==0 ? besch->get_rampe(ribi_mark) : besch->get_start(ribi_mark);
+	gr->obj_add( way );
+	way->set_bild(besch->get_hintergrund(img0, 0));
+	way->set_after_bild(besch->get_vordergrund(img0, 0));
+	if (gr->get_grund_hang()!=0) {
+		way->set_yoff(-TILE_HEIGHT_STEP);
+	}
+	// eventually we have to remove trees on start tile
+	if (besch->get_waytype() != powerline_wt) {
+		for(  uint8 i=0;  i<gr->get_top();  i++  ) {
+			ding_t *dt = gr->obj_bei(i);
+			switch(dt->get_typ()) {
+				case ding_t::baum:
+					costs -= welt->get_einstellungen()->cst_remove_tree;
+					break;
+				case ding_t::groundobj:
+					costs += ((groundobj_t *)dt)->get_besch()->get_preis();
+					break;
+				default: break;
+			}
+		}
+	}
+	marked[sp->get_player_nr()].insert( way );
+	way->mark_image_dirty( way->get_bild(), 0 );
+	// loop
+	koord3d pos(start + zv + koord3d(0,0,1));
+	while (pos.get_2d()!=end.get_2d()) {
+		grund_t *gr = welt->lookup( pos );
+		if( !gr ) {
+			gr = new monorailboden_t(welt, pos, 0);
+			gr->set_grund_hang( 0 );
+			welt->access(pos.get_2d())->boden_hinzufuegen(gr);
+		}
+		zeiger_t *way = new zeiger_t( welt, pos, sp );
+		gr->obj_add( way );
+		way->set_bild(besch->get_hintergrund(besch->get_simple(ribi_mark),0));
+		way->set_after_bild(besch->get_vordergrund(besch->get_simple(ribi_mark), 0));
+		marked[sp->get_player_nr()].insert( way );
+		way->mark_image_dirty( way->get_bild(), 0 );
+		pos = pos + zv;
+	}
+	costs += besch->get_preis() * koord_distance(start, pos);
+	// end
+	gr = welt->lookup(end);
+	if (gr->ist_karten_boden() && end.z==start.z) {
+		zeiger_t *way = new zeiger_t( welt, end, sp );
+		const bruecke_besch_t::img_t img1 = gr->get_grund_hang()==0 ? besch->get_rampe(ribi_t::rueckwaerts(ribi_mark)) : besch->get_start(ribi_t::rueckwaerts(ribi_mark));
+		gr->obj_add( way );
+		way->set_bild(besch->get_hintergrund(img1, 0));
+		way->set_after_bild(besch->get_vordergrund(img1, 0));
+		if (gr->get_grund_hang()!=0) {
+			way->set_yoff(-TILE_HEIGHT_STEP);
+		}
+		marked[sp->get_player_nr()].insert( way );
+		way->mark_image_dirty( way->get_bild(), 0 );
+		costs += besch->get_preis();
+	}
+	else {
+		if (besch->get_waytype() == powerline_wt) {
+			if (!gr->find<leitung_t>()) {
+				costs += wegbauer_t::leitung_besch->get_preis();
+			}
+		}
+		else {
+			if (!gr->hat_weg(besch->get_waytype())) {
+				const weg_besch_t *weg_besch = wegbauer_t::weg_search(besch->get_waytype(), besch->get_topspeed(), welt->get_timeline_year_month(), weg_t::type_flat);
+				costs += weg_besch->get_preis();
+			}
+		}
+	}
+	// eventually we have to remove trees on end tile
+	if (besch->get_waytype() != powerline_wt) {
+		for(  uint8 i=0;  i<gr->get_top();  i++  ) {
+			ding_t *dt = gr->obj_bei(i);
+			switch(dt->get_typ()) {
+				case ding_t::baum:
+					costs -= welt->get_einstellungen()->cst_remove_tree;
+					break;
+				case ding_t::groundobj:
+					costs += ((groundobj_t *)dt)->get_besch()->get_preis();
+					break;
+				default: break;
+			}
+		}
+	}
+	win_set_static_tooltip( tooltip_with_price("Building costs estimates", costs ) );
+}
+uint8 wkz_brueckenbau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error, const koord3d &start )
+{
+	const bruecke_besch_t *besch = brueckenbauer_t::get_besch(default_param);
+	const waytype_t wt = besch->get_waytype();
 
+	error = NULL;
+	grund_t *gr = welt->lookup(pos);
+	if (gr==NULL  || !gr->is_visible() || !brueckenbauer_t::ist_ende_ok(sp,gr) || !hang_t::ist_wegbar(gr->get_grund_hang()) ) {
+		return 0;
+	}
+	if (welt->lookup(pos + koord3d(0,0,1))) {
+		return 0;
+	}
+	if (is_first_click(sp)) {
+		// first click
+		if (!gr->ist_karten_boden()) {
+			return 0;
+		}
+		ribi_t::ribi rw = ribi_t::keine;
+		if (wt==powerline_wt) {
+			if (gr->hat_wege()) {
+				return 0;
+			}
+			if (gr->find<leitung_t>()) {
+				rw |= gr->find<leitung_t>()->get_ribi();
+			}
+		}
+		else {
+			if (gr->find<leitung_t>()) {
+				return 0;
+			}
+			if(wt!=road_wt) {
+			// only road bridges can have other ways on it (ie trams)
+				if(gr->has_two_ways()  ||  (gr->hat_wege() && gr->get_weg_nr(0)->get_waytype()!=wt) ) {
+					return 0;
+				}
+				if(gr->hat_wege()){
+					rw |= gr->get_weg_nr(0)->get_ribi_unmasked();
+				}
+			}
+			else {
+				// If road and tram, we have to check both ribis.
+				for(int i=0;i<2;i++) {
+					const weg_t *w = gr->get_weg_nr(i);
+					if (w) {
+						if (w->get_waytype()!=road_wt  &&  (w->get_waytype()!=track_wt  ||  w->get_besch()->get_styp()!=tram_wt)) {
+							return 0;
+						}
+						rw |= w->get_ribi_unmasked();
+					}
+					else break;
+				}
+			}
+		}
+		// ribi from slope
+		rw |= ribi_typ(gr->get_grund_hang());
+		if (rw!=ribi_t::keine && !ribi_t::ist_einfach(rw)) {
+			return 0;
+		}
+		// determine possible directions
+		ribi = ribi_t::rueckwaerts(rw);
+		return (ribi!=ribi_t::keine ? 2 : 0) | (ribi_t::ist_einfach(ribi) ? 1 : 0);
+	}
+	else {
+		// second click
+		if (start.z > pos.z || start.z+1 < pos.z ) {
+			return 0;
+		}
+		// dragging in the right direction?
+		ribi_t::ribi test = ribi_typ(pos - start);
+		if (!ribi_t::ist_einfach(test)  ||  ((test & (~ribi))!=0) ) {
+			return 0;
+		}
+		// check whether we can build a bridge here
+		const char *error = NULL;
+		koord3d end = brueckenbauer_t::finde_ende(welt, start, koord(test), besch, error, false, koord_distance(start, pos));
+		if (end!=pos) {
+			koord3d end = brueckenbauer_t::finde_ende(welt, start, koord(test), besch, error, false, koord_distance(start, pos));
+			return 0;
+		}
+		return 2;
+	}
+}
 
 
 /* more difficult, since this builts also underground ways */
@@ -1575,7 +1843,8 @@ void wkz_tunnelbau_t::calc_route( wegbauer_t &bauigel, const koord3d &start, con
 	const weg_besch_t *wb = wegbauer_t::weg_search( besch->get_waytype(), besch->get_topspeed(), welt->get_timeline_year_month(), weg_t::type_flat );
 	bauigel.route_fuer((wegbauer_t::bautyp_t)bt, wb, besch);
 	bauigel.set_keep_existing_faster_ways( event_get_last_control_shift()!=2 );
-	bauigel.calc_straight_route(start,koord3d(end.get_2d(),start.z));
+	const koord3d end_with_corrected_z = grund_t::underground_mode==grund_t::ugm_level ? end : koord3d(end.get_2d(),start.z);
+	bauigel.calc_straight_route(start,end_with_corrected_z);
 }
 
 const char *wkz_tunnelbau_t::do_work( karte_t *welt, spieler_t *sp, const koord3d &start, const koord3d &end )
@@ -1602,9 +1871,9 @@ const char *wkz_tunnelbau_t::do_work( karte_t *welt, spieler_t *sp, const koord3
 	}
 }
 
-uint8 wkz_tunnelbau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error )
+uint8 wkz_tunnelbau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error, const koord3d & )
 {
-	if(  !is_first_click()  ) {
+	if(  !is_first_click(sp)  ) {
 		error = NULL;
 		// All pos are valid for the second click!
 		return 2;
@@ -1612,18 +1881,20 @@ uint8 wkz_tunnelbau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d
 	// search for ground
 	// start needs valid tile!
 	grund_t *gr = welt->lookup(pos);
-	if(gr  &&  gr->is_visible() &&  gr->hat_wege()) {
-		const tunnel_besch_t *besch = tunnelbauer_t::get_besch(default_param);
-		// use the check_owner routine of wegbauer_t (not spieler_t!), needs an instance
-		weg_t *w = gr->get_weg_nr(0);
-		if(  w==NULL  ||  w->get_besch()->get_wtyp()!=besch->get_waytype()  ) {
-			error = "No suitable ground!";
-			return 0;
-		}
-		wegbauer_t bauigel(welt, sp);
-		if(!bauigel.check_owner( w->get_besitzer(), sp )) {
-			error = "Das Feld gehoert\neinem anderen Spieler\n";
-			return 0;
+	if(  gr  &&  gr->is_visible()  ) {
+		if( gr->hat_wege() ) {
+			const tunnel_besch_t *besch = tunnelbauer_t::get_besch(default_param);
+			// use the check_owner routine of wegbauer_t (not spieler_t!), needs an instance
+			weg_t *w = gr->get_weg_nr(0);
+			if(  w==NULL  ||  w->get_besch()->get_wtyp()!=besch->get_waytype()  ) {
+				error = "No suitable ground!";
+				return 0;
+			}
+			wegbauer_t bauigel(welt, sp);
+			if(!bauigel.check_owner( w->get_besitzer(), sp )) {
+				error = "Das Feld gehoert\neinem anderen Spieler\n";
+				return 0;
+			}
 		}
 	}
 	else {
@@ -1681,7 +1952,7 @@ void wkz_tunnelbau_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &s
 				way->set_bild( wb->get_bild_nr(zeige,0) );
 			}
 			gr->obj_add( way );
-			marked.insert( way );
+			marked[sp->get_player_nr()].insert( way );
 			way->mark_image_dirty( way->get_bild(), 0 );
 		}
 		welt->lookup(end)->set_flag(grund_t::marked);
@@ -1720,16 +1991,16 @@ void wkz_wayremover_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &
 	if( can_built ) {
 		for( uint32 j = 0; j < verbindung.get_count(); j++ ) {
 			koord3d pos = verbindung.position_bei(j);
-			zeiger_t *marker = new zeiger_t( welt, pos, sp );
+			zeiger_t *marker = new zeiger_t( welt, pos, NULL );
 			marker->set_bild( cursor );
 			marker->mark_image_dirty( marker->get_bild(), 0 );
-			marked.insert( marker );
+			marked[sp->get_player_nr()].insert( marker );
 			welt->lookup(pos)->obj_add( marker );
 		}
 	}
 }
 
-uint8 wkz_wayremover_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error )
+uint8 wkz_wayremover_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &pos, const char *&error, const koord3d & )
 {
 	// search for starting ground
 	waytype_t wt = (waytype_t)atoi(default_param);
@@ -1759,7 +2030,7 @@ bool wkz_wayremover_t::calc_route( route_t &verbindung, spieler_t *sp, const koo
 	if(  start == end  ) {
 		verbindung.clear();
 		grund_t *gr=welt->lookup(start);
-		if(  gr  &&  gr->get_weg(wt)  ) {
+		if(  gr  &&  (wt!=powerline_wt ? gr->get_weg(wt)!=NULL : gr->get_leitung()!=NULL) ) {
 			verbindung.append( start );
 		}
 	}
@@ -1778,7 +2049,7 @@ bool wkz_wayremover_t::calc_route( route_t &verbindung, spieler_t *sp, const koo
 	}
 	DBG_MESSAGE("wkz_wayremover()","route with %d tile found",verbindung.get_count());
 
-	bool can_delete = verbindung.get_count()>0;
+	bool can_delete = start == end  ||  verbindung.get_count()>1;
 	if(  can_delete  ) {
 		// found a route => check if I can delete anything on it
 		for(  uint32 i=0;  can_delete  &&  i<verbindung.get_count();  i++  ) {
@@ -1855,10 +2126,10 @@ const char *wkz_wayremover_t::do_work( karte_t *welt, spieler_t *sp, const koord
 			}
 
 			// now the tricky part: delete just part of a way (or everything, if possible)
-			// calculated removing directions
-			ribi_t::ribi rem = ~( verbindung.get_route().get_ribi(i) );
+			// calculate remaining directions
+			ribi_t::ribi rem = 15 ^ ( verbindung.get_route().get_ribi(i) );
 			// if start=end tile then delete every direction
-			if(  verbindung.get_count() <= 2  ) {
+			if(  verbindung.get_count() <= 1  ) {
 				rem = 0;
 			}
 
@@ -1941,7 +2212,7 @@ const way_obj_besch_t *wkz_wayobj_t::get_besch( const karte_t* welt ) const
 
 bool wkz_wayobj_t::is_selected( karte_t *welt ) const
 {
-	const wkz_wayobj_t *selected = dynamic_cast<const wkz_wayobj_t *>(welt->get_werkzeug());
+	const wkz_wayobj_t *selected = dynamic_cast<const wkz_wayobj_t *>(welt->get_werkzeug(welt->get_active_player_nr()));
 	return (selected  &&  selected->get_besch(welt) == get_besch(welt));
 }
 
@@ -1983,7 +2254,7 @@ bool wkz_wayobj_t::calc_route( route_t &verbindung, spieler_t *sp, const koord3d
 	return can_built;
 }
 
-uint8 wkz_wayobj_t::is_valid_pos( karte_t * welt, spieler_t * sp, const koord3d& pos, const char *&error )
+uint8 wkz_wayobj_t::is_valid_pos( karte_t * welt, spieler_t * sp, const koord3d& pos, const char *&/*error*/, const koord3d & )
 {
 	// search for starting ground
 	grund_t *gr=wkz_intern_koord_to_weg_grund(sp, welt, pos, wt );
@@ -2025,7 +2296,7 @@ void wkz_wayobj_t::mark_tiles( karte_t * welt, spieler_t * sp, const koord3d &st
 
 			zeiger_t *way_obj = NULL;
 			if( build ) {
-				way_obj = new zeiger_t( welt, pos, sp );
+				way_obj = new zeiger_t( welt, pos, NULL );
 				if(  gr->get_weg_hang()  ) {
 					way_obj->set_after_bild( besch->get_front_slope_image_id(gr->get_weg_hang()) );
 					way_obj->set_bild( besch->get_back_slope_image_id(gr->get_weg_hang()) );
@@ -2041,14 +2312,14 @@ void wkz_wayobj_t::mark_tiles( karte_t * welt, spieler_t * sp, const koord3d &st
 			}
 			else {
 				if( gr->get_wayobj( wt ) ) {
-					way_obj = new zeiger_t( welt, pos, sp );
+					way_obj = new zeiger_t( welt, pos, NULL );
 					way_obj->set_bild( cursor ); //skinverwaltung_t::bauigelsymbol->get_bild_nr(0));
 				}
 			}
 			if( way_obj ) {
 				way_obj->mark_image_dirty( way_obj->get_bild(), 0 );
 				gr->obj_add( way_obj );
-				marked.insert( way_obj );
+				marked[sp->get_player_nr()].insert( way_obj );
 			}
 		}
 		win_set_static_tooltip( tooltip_with_price("Building costs estimates", -cost_estimate ) );
@@ -2081,6 +2352,16 @@ const char *wkz_wayobj_t::do_work( karte_t * welt, spieler_t * sp, const koord3d
 			}
 		}
 	}
+
+	// Update depots (new electric tab?). Depots can only be on first and last tile.
+	for(  uint8 j = 0;  j < 2;  j++  ) {
+		uint8 i = j==0 ? 0 : verbindung.get_count()-1;
+		depot_t *dep = welt->lookup( verbindung.position_bei(i) )->get_depot();
+		if( dep ) {
+			dep->update_win();
+		}
+	}
+
 	return NULL;
 }
 
@@ -2786,7 +3067,8 @@ const char *wkz_roadsign_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 	grund_t *gr=wkz_intern_koord_to_weg_grund(sp,welt,k,besch->get_wtyp());
 	if(gr) {
 		// get the sign dirction
-		weg_t *weg = gr->get_weg( besch->get_wtyp()!=tram_wt ? besch->get_wtyp() : track_wt);		signal_t *s = gr->find<signal_t>();
+		weg_t *weg = gr->get_weg( besch->get_wtyp()!=tram_wt ? besch->get_wtyp() : track_wt);
+		signal_t *s = gr->find<signal_t>();
 		if(s  &&  s->get_besch()!=besch) {
 			// only one sign per tile
 			return error;
@@ -2931,7 +3213,7 @@ const char *wkz_depot_t::wkz_depot_aux(karte_t *welt, spieler_t *sp, koord3d pos
 			hausbauer_t::neues_gebaeude( welt, sp, bd->get_pos(), layout, besch );
 			sp->buche(cost, pos.get_2d(), COST_CONSTRUCTION);
 			if(sp == welt->get_active_player()) {
-				welt->set_werkzeug( general_tool[WKZ_ABFRAGE] );
+				welt->set_werkzeug( general_tool[WKZ_ABFRAGE], sp );
 			}
 
 			struct sound_info info;
@@ -3027,7 +3309,7 @@ const char *wkz_depot_t::work( karte_t *welt, spieler_t *sp, koord3d k )
  */
 bool wkz_build_haus_t::init( karte_t *welt, spieler_t * )
 {
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		const haus_tile_besch_t *tile = hausbauer_t::find_tile(c,0);
 		if(tile!=NULL) {
@@ -3047,7 +3329,7 @@ const char *wkz_build_haus_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 
 	// Parsing parameter (if there)
 	const haus_besch_t *besch = NULL;
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		const haus_tile_besch_t *tile = hausbauer_t::find_tile(c,0);
 		if(tile) {
@@ -3098,7 +3380,7 @@ const char *wkz_build_haus_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 // show industry size in cursor (in known)
 bool wkz_build_industries_land_t::init( karte_t *welt, spieler_t * )
 {
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		const fabrik_besch_t *fab = fabrikbauer_t::get_fabesch(c);
@@ -3128,7 +3410,7 @@ const char *wkz_build_industries_land_t::work( karte_t *welt, spieler_t *sp, koo
 	}
 
 	const fabrik_besch_t *fab = NULL;
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		fab = fabrikbauer_t::get_fabesch(c);
@@ -3178,7 +3460,7 @@ const char *wkz_build_industries_land_t::work( karte_t *welt, spieler_t *sp, koo
 			spieler_t::accounting(sp, anzahl*welt->get_einstellungen()->cst_multiply_found_industry, k.get_2d(), COST_CONSTRUCTION );
 
 			// eventually adjust production
-			if(default_param) {
+			if(default_param  &&  strlen(default_param)>0) {
 				fabrik_t::get_fab(welt,k.get_2d())->set_base_production( atol(default_param+2)>>(welt->ticks_bits_per_tag-18) );
 			}
 
@@ -3200,7 +3482,7 @@ const char *wkz_build_industries_land_t::work( karte_t *welt, spieler_t *sp, koo
 // show industry size in cursor (in known)
 bool wkz_build_industries_city_t::init( karte_t *welt, spieler_t * )
 {
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		const fabrik_besch_t *fab = fabrikbauer_t::get_fabesch(c);
@@ -3225,7 +3507,7 @@ const char *wkz_build_industries_city_t::work( karte_t *welt, spieler_t *sp, koo
 	}
 
 	const fabrik_besch_t *fab = NULL;
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		fab = fabrikbauer_t::get_fabesch(c);
@@ -3250,7 +3532,7 @@ const char *wkz_build_industries_city_t::work( karte_t *welt, spieler_t *sp, koo
 		welt->change_world_position( k.get_2d(), 0, 0 );
 
 		// eventually adjust production
-		if(default_param) {
+		if(default_param  &&  strlen(default_param)>0) {
 			fabrik_t::get_fab(welt,k.get_2d())->set_base_production( atol(default_param+2)>>(welt->ticks_bits_per_tag-18) );
 		}
 
@@ -3274,7 +3556,7 @@ const char *wkz_build_industries_city_t::work( karte_t *welt, spieler_t *sp, koo
 // show industry size in cursor (must be known!)
 bool wkz_build_factory_t::init( karte_t *welt, spieler_t * )
 {
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		const fabrik_besch_t *fab = fabrikbauer_t::get_fabesch(c);
@@ -3298,7 +3580,7 @@ const char *wkz_build_factory_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 	}
 
 	const fabrik_besch_t *fab = NULL;
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		fab = fabrikbauer_t::get_fabesch(c);
@@ -3346,7 +3628,7 @@ const char *wkz_build_factory_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 			spieler_t::accounting(sp, welt->get_einstellungen()->cst_multiply_found_industry, k.get_2d(), COST_CONSTRUCTION );
 
 			// eventually adjust production
-			if(default_param) {
+			if(default_param  &&  strlen(default_param)>0) {
 				f->set_base_production( atol(default_param+2)>>(welt->ticks_bits_per_tag-18) );
 			}
 
@@ -3387,7 +3669,7 @@ const char *wkz_link_factory_t::work( karte_t *welt, spieler_t *sp, koord3d pos 
 		if(last_fab==NULL) {
 			// first click
 			grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
-			wkz_linkzeiger = new zeiger_t(welt, gr->get_pos(), sp);
+			wkz_linkzeiger = new zeiger_t(welt, gr->get_pos(), NULL);
 			wkz_linkzeiger->set_bild( cursor );
 			gr->obj_add(wkz_linkzeiger);
 			last_fab = fab;
@@ -3492,7 +3774,7 @@ DBG_MESSAGE("wkz_headquarter()", "building headquarter at (%d,%d)", pos.x, pos.y
 			sp->add_headquarter( besch->get_extra()+1, pos.get_2d() );
 			sp->buche( cost, pos.get_2d(), COST_CONSTRUCTION);
 			if(sp == welt->get_active_player()) {
-				welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+				welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], sp );
 			}
 			return NULL;
 		}
@@ -3521,7 +3803,7 @@ const char *wkz_add_citycar_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 	return "";
 }
 
-uint8 wkz_forest_t::is_valid_pos( karte_t *welt, spieler_t *, const koord3d &pos, const char *&error )
+uint8 wkz_forest_t::is_valid_pos( karte_t *, spieler_t *, const koord3d &, const char *&, const koord3d & )
 {
 	// do really nothing ...
 	return 2;
@@ -3542,12 +3824,12 @@ void wkz_forest_t::mark_tiles( karte_t *welt, spieler_t *sp, const koord3d &star
 			uint8 hang = gr->get_grund_hang() | gr->get_weg_hang();
 			uint8 back_hang = (hang&1) + ((hang>>1)&6)+8;
 
-			zeiger_t *marker = new zeiger_t( welt, gr->get_pos(), sp );
+			zeiger_t *marker = new zeiger_t( welt, gr->get_pos(), NULL );
 			marker->set_after_bild( grund_besch_t::marker->get_bild( gr->get_grund_hang()&7 ) );
 			marker->set_bild( grund_besch_t::marker->get_bild( back_hang ) );
 			marker->mark_image_dirty( marker->get_bild(), 0 );
 			gr->obj_add( marker );
-			marked.insert( marker );
+			marked[sp->get_player_nr()].insert( marker );
 		}
 	}
 }
@@ -3626,7 +3908,7 @@ const char *wkz_stop_moving_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 	// ok, now we have old_stop
 	if(  h.is_bound()  &&  !(bd->is_halt()  ||  (h->get_station_type()&haltestelle_t::dock  &&  bd->ist_wasser())  )  ) {
 		// not this halt ...
-		return "No suitable ground! 1";
+		return "No suitable ground!";
 	}
 	// check waytypes
 	if(  waytype[0] == invalid_wt  &&  (bd->ist_wasser()  ||  bd->hat_wege())  ) {
@@ -3637,7 +3919,7 @@ const char *wkz_stop_moving_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 		// ok;
 		}
 		else
-			return "No suitable ground! 3";
+			return "No suitable ground!";
 	}
 
 
@@ -3654,7 +3936,7 @@ const char *wkz_stop_moving_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 				waytype[1] = bd->get_weg_nr(1)->get_waytype();
 			}
 		}
-		wkz_linkzeiger = new zeiger_t(welt, last_pos, sp);
+		wkz_linkzeiger = new zeiger_t(welt, last_pos, NULL);
 		wkz_linkzeiger->set_bild( cursor );
 		bd->obj_add(wkz_linkzeiger);
 	}
@@ -3780,7 +4062,7 @@ const char *wkz_stop_moving_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 
 
 const char *wkz_daynight_level_t::get_tooltip(spieler_t *) {
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		if(default_param[0]=='+'  ||  default_param[0]=='-') {
 			sprintf(toolstr, "%s %s",
 			translator::translate("1LIGHT_CHOOSE"),
@@ -3799,7 +4081,7 @@ const char *wkz_daynight_level_t::get_tooltip(spieler_t *) {
 bool wkz_daynight_level_t::init( karte_t *, spieler_t * ) {
 	if(grund_t::underground_mode==grund_t::ugm_all  ||  umgebung_t::night_shift) {		return false;
 	}
-	if(default_param) {
+	if(default_param  &&  strlen(default_param)>0) {
 		if(default_param[0]=='+'  &&  umgebung_t::daynight_level > 0) {
 			// '+': fade in one level
 			umgebung_t::daynight_level = umgebung_t::daynight_level-1;
@@ -3838,7 +4120,7 @@ const char *wkz_make_stop_public_t::move( karte_t *welt, spieler_t *sp, uint16, 
 	const planquadrat_t *pl = welt->lookup(p.get_2d());
 	if(pl!=NULL) {
 		halthandle_t halt = pl->get_halt();
-		if(  halt.is_bound()  &&  (spieler_t::check_owner(halt->get_besitzer(),sp)  ||  halt->get_besitzer()==welt->get_spieler(1))  ) {
+		if(  halt.is_bound()  &&  spieler_t::check_owner(halt->get_besitzer(),sp)  &&  halt->get_besitzer()!=welt->get_spieler(1) ) {
 			sint64 costs = halt->calc_maintenance();
 			// set only tooltip if it costs (us)
 			if(costs>0) {
@@ -3995,7 +4277,7 @@ const char *wkz_show_underground_t::work( karte_t *welt, spieler_t *sp, koord3d 
 	welt->update_map();
 
 	if(sp == welt->get_active_player()) {
-		welt->set_werkzeug( general_tool[WKZ_ABFRAGE] );
+		welt->set_werkzeug( general_tool[WKZ_ABFRAGE], sp );
 	}
 
 	return NULL;
@@ -4066,4 +4348,365 @@ void wkz_show_underground_t::draw_after( karte_t *welt, koord pos ) const
 			display_proportional( pos.x+4, pos.y+4, level_str, ALIGN_LEFT, COL_YELLOW, true );
 		}
 	}
+}
+
+
+
+/************************* internal tools, only need for networking ***************/
+
+/* Handles all action of convois in depots. Needs a default param:
+ * [function],[convoi_id],addition stuff
+ * following simple command exists:
+ * 'x' : self destruct
+ * 'f' : open the schedule window
+ * 'g' : apply a schedule
+ * 'n' : toggle 'no load'
+ * 'w' : toggle withdraw
+ * 'd' : dissassemble convoi and store vehicle in this depot
+ * 'l' : apply new line [number]
+ */
+bool wkz_change_convoi_t::init( karte_t *welt, spieler_t *sp )
+{
+	char tool=0;
+	uint16 convoi_id = 0;
+
+	// skip the rest of the command
+	const char *p = default_param;
+	while(  *p  &&  *p<=' '  ) {
+		p++;
+	}
+	sscanf( p, "%c,%hi", &tool, &convoi_id );
+
+	// skip to the commands ...
+	for(  int z = 2;  *p  &&  z>0;  p++  ) {
+		if(  *p==','  ) {
+			z--;
+		}
+	}
+
+	convoihandle_t cnv;
+	cnv.set_id( convoi_id );
+	assert(cnv.is_bound());
+
+	// first letter is now the actual command
+	switch(  tool  ) {
+		case 'x': // self destruction ...
+			cnv->self_destruct();
+			return false;
+
+		case 'f': // open schedule
+			{
+				if(  sp!=welt->get_active_player()  &&  !umgebung_t::networkmode  ) {
+					// pop up error message here!
+					return false;
+				}
+				void *t;
+				sscanf( p, "%p", &t );
+				// we open the window only where the convoi ptr is exactly at the same address
+				cnv->open_schedule_window( t==cnv.get_rep() );
+			}
+			break;
+
+		case 'g': // change schedule
+			{
+				schedule_t *fpl = cnv->create_schedule()->copy();
+				fpl->eingabe_abschliessen();
+				fpl->sscanf_schedule( p );
+				cnv->set_schedule( fpl );
+			}
+			break;
+
+		case 'l': // change line
+			{
+				linehandle_t l;
+				l.set_id( atoi(p) );
+				if(  l.is_bound()  ) {
+					cnv->set_line( l );
+					cnv->get_schedule()->eingabe_abschliessen();
+				}
+			}
+			break;
+
+		case 'n': // change no_load
+			if(  sp!=welt->get_active_player()  &&  !umgebung_t::networkmode  ) {
+				// pop up error message here!
+				return false;
+			}
+			cnv->set_no_load( !cnv->get_no_load() );
+			if(  !cnv->get_no_load()  ) {
+				cnv->set_withdraw( false );
+			}
+			break;
+
+		case 'w': // change withdraw
+			if(  sp!=welt->get_active_player()  &&  !umgebung_t::networkmode  ) {
+				// pop up error message here!
+				return false;
+			}
+			cnv->set_withdraw( !cnv->get_withdraw() );
+			cnv->set_no_load( cnv->get_withdraw() );
+			break;
+	}
+
+	return false;	// no related work tool ...
+}
+
+
+
+/* Handles all action of ^lines. Needs a default param:
+ * [function],[line_id],addition stuff
+ * following simple command exists:
+ * 'g' : apply new schedule to line [schedule follows]
+ */
+bool wkz_change_line_t::init( karte_t *, spieler_t *sp )
+{
+	uint16 line_id = 0;
+
+	// skip the rest of the command
+	const char *p = default_param;
+	while(  *p  &&  *p<=' '  ) {
+		p++;
+	}
+
+	char tool=*p++;
+	while(  *p  &&  *p++!=','  ) {
+	}
+	if(  *p==0  ) {
+		dbg->error( "wkz_change_line_t::init()", "too short command \"%s\"", default_param );
+	}
+
+	line_id = atoi(p);
+	while(  *p  &&  *p++!=','  ) {
+	}
+
+	linehandle_t line;
+	line.set_id( line_id );
+
+	// first letter is now the actual command
+	switch(  tool  ) {
+		case 'c': // create line, next paraemter line type and magic of schedule window (only right window gets updated)
+			{
+				line = sp->simlinemgmt.create_line( atoi(p), sp );
+				while(  *p  &&  *p++!=','  ) {
+				}
+				void *t;
+				sscanf( p, "%p", &t );
+				while(  *p  &&  *p++!=','  ) {
+				}
+				line->get_schedule()->sscanf_schedule( p );
+				fahrplan_gui_t *fg = dynamic_cast<fahrplan_gui_t *>(win_get_magic( (long)t ));
+				if(  fg  ) {
+					fg->init_line_selector();
+				}
+//				schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic( (long)&(sp->simlinemgmt) ));
+				schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic( (long)t ));
+				if(  sl  ) {
+					sl->show_lineinfo( line );
+					create_win( new line_management_gui_t(line, sp), w_info, (long)line.get_rep() );
+				}
+			}
+			break;
+
+		case 'd':	// delete line
+			{
+				// close a schedule window, if stil active
+				gui_fenster_t *w = win_get_magic( (long)line.get_rep() );
+				if(w) {
+					destroy_win( w );
+				}
+				sp->simlinemgmt.delete_line(line);
+			}
+			break;
+
+		case 'g': // change schedule
+			{
+				schedule_t *fpl = line->get_schedule()->copy();
+				fpl->sscanf_schedule( p );
+				line->set_schedule( fpl );
+				line->get_besitzer()->simlinemgmt.update_line(line);
+			}
+			break;
+
+		case 'w': // change widthdraw
+			{
+				line->set_withdraw( atoi(p) );
+			}
+			break;
+	}
+	return false;
+}
+
+
+
+/* Handles all action of convois in depots. Needs a default param:
+ * [function],[depot_pos_3d],[convoi_id],addition stuff
+ * following simple command exists:
+ * 'l' : creates a new line (convoi_id might be invalid)
+ * 'b' : starts the convoi
+ * 'c' : copy this convoi
+ */
+bool wkz_change_depot_t::init( karte_t *welt, spieler_t *sp )
+{
+	char tool=0;
+	koord3d pos = koord3d::invalid;
+	sint16	z;
+	uint16 convoi_id;
+
+	// skip the rest of the command
+	const char *p = default_param;
+	while(  *p  &&  *p<=' '  ) {
+		p++;
+	}
+	sscanf( p, "%c,%hi,%hi,%hi,%hi", &tool, &pos.x, &pos.y, &z, &convoi_id );
+	pos.z = (sint8)z;
+
+	// skip to the commands ...
+	z = 5;
+	while(  *p  &&  z>0  ) {
+		if(  *p==','  ) {
+			z--;
+		}
+		p++;
+	}
+
+	grund_t *gr = welt->lookup(pos);
+	assert(gr);
+	depot_t *depot = gr->get_depot();
+	assert(depot  &&  spieler_t::check_owner( depot->get_besitzer(), sp) );
+
+	convoihandle_t cnv;
+	cnv.set_id( convoi_id );
+
+	// ok now do our stuff
+	switch(  tool  ) {
+		case 'l':
+			// create line schedule window
+			{
+				linehandle_t selected_line = depot->get_besitzer()->simlinemgmt.create_line(depot->get_line_type(),depot->get_besitzer());
+				depot->set_selected_line(selected_line);
+				depot_frame_t *depot_frame = dynamic_cast<depot_frame_t *>(win_get_magic( (long)depot ));
+				if(  welt->get_active_player()==sp  &&  depot_frame  ) {
+					create_win(new line_management_gui_t(selected_line, depot->get_besitzer()), w_info, (long)selected_line.get_rep() );
+				}
+				DBG_MESSAGE("depot_frame_t::new_line()","id=%d",selected_line.get_id() );
+			}
+			break;
+
+		case 'b':
+			// start a convoi from the depot
+			if(  cnv.is_bound()  ) {
+				depot->start_convoi(cnv);
+			}
+			break;
+
+		case 'd':
+		case 'v':
+			// disassemble/sell convoi
+			depot->disassemble_convoi( cnv, tool=='v' );
+			break;
+
+		case 'c':
+			// copy this convoi
+			if(  cnv.is_bound()  ) {
+				depot->copy_convoi(cnv);
+			}
+			break;
+
+		case 'a':	// append a vehicle
+		case 'i':	// insert a vehicle in front
+		case 's':	// sells a vehikel
+		case 'r': 	// removes a vehicle (assumes a valid depot)
+			if(  tool=='r'  ) {
+				assert( cnv.is_bound() );
+
+				int start_nr = atoi(p);
+				int nr = start_nr;
+
+				// find end
+				while(nr<cnv->get_vehikel_anzahl()) {
+					const vehikel_besch_t *info = cnv->get_vehikel(nr)->get_besch();
+					nr ++;
+					if(info->get_nachfolger_count()!=1) {
+						break;
+					}
+				}
+				// now remove the vehicles
+				if(cnv->get_vehikel_anzahl()==nr-start_nr) {
+					depot->disassemble_convoi(cnv, false);
+				}
+				else {
+					for( int i=start_nr;  i<nr;  i++  ) {
+						depot->remove_vehicle(cnv, start_nr);
+					}
+				}
+			}
+			else {
+				// create and append it
+				const vehikel_besch_t *info = vehikelbauer_t::get_info( p );
+				// we have a valid vehicle there => now check for details
+				if(  info  ) {
+					// we buy/sell all vehicles together!
+					slist_tpl<const vehikel_besch_t *>new_vehicle_info;
+					const vehikel_besch_t *start_info = info;
+
+					if(tool!='a') {
+						// start of composition
+						while (info->get_vorgaenger_count() == 1 && info->get_vorgaenger(0) != NULL  &&  !new_vehicle_info.is_contained(info)) {
+							info = info->get_vorgaenger(0);
+							new_vehicle_info.insert(info);
+						}
+						info = start_info;
+					}
+					while(info) {
+						new_vehicle_info.append( info );
+						if(info->get_nachfolger_count()!=1  ||  (tool=='i'  &&  info==start_info)  ||  new_vehicle_info.is_contained(info->get_nachfolger(0))) {
+							break;
+						}
+						info = info->get_nachfolger(0);
+					}
+					// now we have a valid composition together
+					if(  tool=='s'  ) {
+						while(new_vehicle_info.get_count()) {
+							// We sell the newest vehicle - gives most money back.
+							vehikel_t* veh = depot->find_oldest_newest(new_vehicle_info.remove_first(), false);
+							if(veh != NULL) {
+								depot->sell_vehicle(veh);
+							}
+						}
+					}
+					else {
+						// append/insert into convoi; create one if needed
+						if(!cnv.is_bound()) {
+							if(  convoihandle_t::is_exhausted()  ) {
+								create_win( new news_img("Convoi handles exhausted!"), w_time_delete, magic_none);
+								return false;
+							}
+							// create a new convoi
+							cnv = depot->add_convoi();
+							cnv->set_name(new_vehicle_info.front()->get_name());
+						}
+
+						// now we have a valid cnv
+						if(cnv->get_vehikel_anzahl()+new_vehicle_info.get_count() <= depot->get_max_convoi_length()) {
+
+							for(  unsigned i=0;  i<new_vehicle_info.get_count();  i++  ) {
+								// insert/append needs reverse order
+								unsigned nr = (tool=='i') ? new_vehicle_info.get_count()-i-1 : i;
+								// We add the oldest vehicle - newer stay for selling
+								const vehikel_besch_t* vb = new_vehicle_info.at(nr);
+								vehikel_t* veh = depot->find_oldest_newest(vb, true);
+								if (veh == NULL) {
+									// nothing there => we buy it
+									veh = depot->buy_vehicle(vb);
+								}
+								depot->append_vehicle(cnv, veh, tool=='i');
+							}
+						}
+					}
+				}
+			}
+			depot->update_win();
+			break;
+	}
+	return false;
 }

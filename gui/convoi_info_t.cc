@@ -15,6 +15,7 @@
 #include "../simcolor.h"
 #include "../simgraph.h"
 #include "../simworld.h"
+#include "../simmenu.h"
 #include "../simwin.h"
 
 #include "../dataobj/fahrplan.h"
@@ -33,13 +34,19 @@
 
 #include "convoi_detail_t.h"
 
-const char cost_type[MAX_CONVOI_COST][64] =
+static const char cost_type[MAX_CONVOI_COST][64] =
 {
-	"Free Capacity",
-	"Transported",
-	"Revenue",
-	"Operation",
-	"Profit"
+	"Free Capacity", "Transported", "Revenue", "Operation", "Profit", "Distance"
+};
+
+static const int cost_type_color[MAX_CONVOI_COST] =
+{
+	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT, COL_DISTANCE
+};
+
+static const bool cost_type_money[MAX_CONVOI_COST] =
+{
+	false, false, true, true, true, false
 };
 
 bool convoi_info_t::route_search_in_progress=false;
@@ -59,10 +66,6 @@ const char *convoi_info_t::sort_text[SORT_MODES] = {
 	"Menge"
 };
 
-const int cost_type_color[MAX_CONVOI_COST] =
-{
-	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT
-};
 
 
 convoi_info_t::convoi_info_t(convoihandle_t cnv)
@@ -134,13 +137,13 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	set_fenstergroesse(koord(TOTAL_WIDTH, 278));
 
 	// chart
-	chart.set_pos(koord(44,76+BUTTON_HEIGHT+8));
-	chart.set_groesse(koord(TOTAL_WIDTH-44-4, 100));
+	chart.set_pos(koord(88,76+BUTTON_HEIGHT+8));
+	chart.set_groesse(koord(TOTAL_WIDTH-88-4, 100));
 	chart.set_dimension(12, 10000);
 	chart.set_visible(false);
 	chart.set_background(MN_GREY1);
 	for (int cost = 0; cost<MAX_CONVOI_COST; cost++) {
-		chart.add_curve(cost_type_color[cost], cnv->get_finance_history(), MAX_CONVOI_COST, cost, MAX_MONTHS, cost<MAX_CONVOI_NON_MONEY_TYPES ? 0 : 1, false, true, cost<MAX_CONVOI_NON_MONEY_TYPES ? 0 : 2 );
+		chart.add_curve( cost_type_color[cost], cnv->get_finance_history(), MAX_CONVOI_COST, cost, MAX_MONTHS, cost_type_money[cost], false, true, cost_type_money[cost]*2 );
 		filterButtons[cost].init(button_t::box_state, cost_type[cost], koord(BUTTON1_X+(BUTTON_WIDTH+BUTTON_SPACER)*(cost%4), 230+(BUTTON_HEIGHT+2)*(cost/4)), koord(BUTTON_WIDTH, BUTTON_HEIGHT));
 		filterButtons[cost].add_listener(this);
 		filterButtons[cost].background = cost_type_color[cost];
@@ -313,6 +316,7 @@ enable_home:
 }
 
 
+
 /**
  * This method is called if an action is triggered
  * @author Hj. Malthaner
@@ -354,15 +358,14 @@ bool convoi_info_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 	if(cnv->get_besitzer()==cnv->get_welt()->get_active_player()) {
 
 		if(komp == &button) {
-			cnv->open_schedule_window();
+			char ptr[32];
+			sprintf( ptr, "%p", cnv.get_rep() );
+			cnv->call_convoi_tool( 'f', ptr );
 			return true;
 		}
 
 		if(komp == &no_load_button    &&    !route_search_in_progress) {
-			cnv->set_no_load(!cnv->get_no_load());
-			if(!cnv->get_no_load()) {
-				cnv->set_withdraw(false);
-			}
+			cnv->call_convoi_tool( 'n', NULL );
 			return true;
 		}
 
@@ -402,24 +405,21 @@ DBG_MESSAGE("convoi_info_t::action_triggered()","convoi state %i => cannot chang
 			DBG_MESSAGE("shortest route has ", "%i hops", shortest_route->get_count()-1);
 
 			// if route to a depot has been found, update the convoi's schedule
-			bool b_depot_found = false;
+			const char *txt;
 			if(!shortest_route->empty()) {
-				schedule_t *fpl = cnv->get_schedule();
+				schedule_t *fpl = cnv->get_schedule()->copy();
 				fpl->insert(cnv->get_welt()->lookup(home));
 				fpl->set_aktuell( (fpl->get_aktuell()+fpl->get_count()-1)%fpl->get_count() );
-				b_depot_found = cnv->set_schedule(fpl);
-			}
-			delete shortest_route;
-			route_search_in_progress = false;
-
-			// show result
-			const char* txt;
-			if (b_depot_found) {
+				cbuffer_t buf(5500);
+				fpl->sprintf_schedule( buf );
+				cnv->call_convoi_tool( 'g', buf );
 				txt = "Convoi has been sent\nto the nearest depot\nof appropriate type.\n";
 			}
 			else {
 				txt = "Home depot not found!\nYou need to send the\nconvoi to the depot\nmanually.";
 			}
+			delete shortest_route;
+			route_search_in_progress = false;
 			create_win( new news_img(txt), w_time_delete, magic_none);
 		} // end go home button
 	}

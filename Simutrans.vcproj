@@ -66,8 +66,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib $(NOINHERIT)"
-				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\simutrans-wai.exe"
+				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\simutrans-wai.exe"				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib wsock32.lib libbz2.lib $(NOINHERIT)"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\win32\library&quot;;&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreAllDefaultLibraries="false"
@@ -145,7 +144,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib $(NOINHERIT)"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib wsock32.lib libbz2.lib $(NOINHERIT)"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreDefaultLibraryNames="libcmt.lib"
@@ -685,6 +684,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\utils\memory_rw.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\message_frame_t.cc"
 				>
 			</File>
@@ -718,6 +721,18 @@
 			</File>
 			<File
 				RelativePath=".\boden\wege\narrowgauge.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_cmd.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_packet.cc"
 				>
 			</File>
 			<File
@@ -1031,6 +1046,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\trafficlight_info.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\translator.cc"
 				>
 			</File>
@@ -1234,6 +1253,10 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+			<File
+				RelativePath=".\simres.rc"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

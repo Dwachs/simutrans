@@ -242,7 +242,8 @@ void weg_t::rdwr(loadsave_t *file)
  */
 void weg_t::info(cbuffer_t & buf) const
 {
-	buf.append("\n");
+	ding_t::info(buf);
+
 	buf.append(translator::translate("Max. speed:"));
 	buf.append(" ");
 	buf.append(max_speed);
@@ -299,11 +300,10 @@ void weg_t::rotate90()
 
 /**
  * counts signals on this tile;
- * It would be enough for the signals to register and unreigister themselves, but this is more secure ...
+ * It would be enough for the signals to register and unregister themselves, but this is more secure ...
  * @author prissi
  */
-void
-weg_t::count_sign()
+void weg_t::count_sign()
 {
 	// Either only sign or signal please ...
 	flags &= ~(HAS_SIGN|HAS_SIGNAL|HAS_CROSSING);
@@ -351,8 +351,8 @@ bool weg_t::check_season( const long )
 		return true;
 	}
 
-	if(  besch==NULL  ) {
-		// now way to calculate this
+	// no way to calculate this or no image set (not visible, in tunnel mouth, etc)
+	if(  besch==NULL  ||  bild==IMG_LEER  ) {
 		return true;
 	}
 
@@ -383,11 +383,14 @@ bool weg_t::check_season( const long )
 		}
 	}
 	else if(  ribi_t::is_threeway(ribi)  &&  besch->has_switch_bild()  ) {
-		if(  bild==besch->get_bild_nr( ribi, old_snow )  ) {
-			set_bild( besch->get_bild_nr( ribi, snow ) );
+		if(  bild==besch->get_bild_nr_switch(ribi, old_snow, false)  ) {
+			set_bild( besch->get_bild_nr_switch(ribi, snow, false) );
+		}
+		else if(  bild==besch->get_bild_nr_switch(ribi, old_snow, true)  ) {
+			set_bild( besch->get_bild_nr_switch(ribi, snow, true) );
 		}
 		else {
-			set_bild( besch->get_bild_nr( ribi+16, snow ) );
+			set_bild( besch->get_bild_nr( ribi, snow ) );
 		}
 	}
 	else {

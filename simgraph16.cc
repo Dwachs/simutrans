@@ -502,15 +502,15 @@ static const uint8 special_pal[224*3]=
 KOORD_VAL tile_raster_width = 16;	// zoomed
 KOORD_VAL base_tile_raster_width = 16;	// original
 
-#define MAX_ZOOM_FACTOR (7)
+#define MAX_ZOOM_FACTOR (9)
 
 /*
  * Hajo: Zoom factor
  */
-static uint32 zoom_factor = 2;
+static uint32 zoom_factor = 3;
 
-static sint32 zoom_num[MAX_ZOOM_FACTOR+1] = { 3, 4, 1, 3, 2, 1, 1, 1 };
-static sint32 zoom_den[MAX_ZOOM_FACTOR+1] = { 2, 3, 1, 4, 3, 2, 3, 4 };
+static sint32 zoom_num[MAX_ZOOM_FACTOR+1] = { 2, 3, 4, 1, 3, 5, 1, 3, 1, 1 };
+static sint32 zoom_den[MAX_ZOOM_FACTOR+1] = { 1, 2, 3, 1, 4, 8, 2, 8, 4, 8 };
 
 
 
@@ -708,7 +708,7 @@ static void recode_img_src_target(KOORD_VAL h, PIXVAL *src, PIXVAL *target)
 {
 	if (h > 0) {
 		do {
-			uint8 runlen = *target++ = *src++;
+			uint16 runlen = *target++ = *src++;
 
 			// eine Zeile dekodieren
 			do {
@@ -753,7 +753,7 @@ static void recode_img_src_target_color(KOORD_VAL h, PIXVAL *src, PIXVAL *target
 {
 	if (h > 0) {
 		do {
-			unsigned char runlen = *target++ = *src++;
+			uint16 runlen = *target++ = *src++;
 			// eine Zeile dekodieren
 
 			do {
@@ -871,17 +871,27 @@ static void rezoom_img(const unsigned int n)
 			PIXVAL *src = images[n].base_data;
 			PIXVAL *dest = NULL;
 			uint32 x, y;
+			// embed the baseimage in an image with margin ~ remainder
+			const sint8 x_rem = (images[n].base_x*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
+			const sint8 y_rem = (images[n].base_y*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
+			const sint8 xl_margin = max( x_rem, 0);
+			const sint8 xr_margin = max(-x_rem, 0);
+			const sint8 yl_margin = max( y_rem, 0);
+			const sint8 yr_margin = max(-y_rem, 0);
+			// baseimage top-left  corner is at (xl_margin, yl_margin)
+			// ...       low-right corner is at (xr_margin, yr_margin)
 
-			uint32 orgzoomwidth = ((images[n].base_w + zoom_den[zoom_factor] - 1 ) / zoom_den[zoom_factor]) * zoom_den[zoom_factor];
-			uint32 newzoomwidth = (orgzoomwidth*zoom_num[zoom_factor])/zoom_den[zoom_factor];
-			uint32 orgzoomheight = ((images[n].base_h + zoom_den[zoom_factor] - 1 ) / zoom_den[zoom_factor]) * zoom_den[zoom_factor];
-			uint32 newzoomheight = (orgzoomheight*zoom_num[zoom_factor])/zoom_den[zoom_factor];
+
+			sint32 orgzoomwidth = ((images[n].base_w + zoom_den[zoom_factor] - 1 ) / zoom_den[zoom_factor]) * zoom_den[zoom_factor];
+			sint32 newzoomwidth = (orgzoomwidth*zoom_num[zoom_factor])/zoom_den[zoom_factor];
+			sint32 orgzoomheight = ((images[n].base_h + zoom_den[zoom_factor] - 1 ) / zoom_den[zoom_factor]) * zoom_den[zoom_factor];
+			sint32 newzoomheight = (orgzoomheight*zoom_num[zoom_factor])/zoom_den[zoom_factor];
 
 			// we will upack, resample, pack it
 
 			// thus the unpack buffer must at least fit the window => find out maximum size
 			x = newzoomwidth*(newzoomheight+3)*sizeof(PIXVAL);
-			y = orgzoomwidth*orgzoomheight*4;
+			y = (xl_margin+orgzoomwidth+xr_margin)*(yl_margin+orgzoomheight+yr_margin)*4;
 			if(y>x) {
 				x = y;
 			}
@@ -890,14 +900,18 @@ static void rezoom_img(const unsigned int n)
 				free( baseimage2 );
 				size = x;
 				baseimage  = MALLOCN(uint8, size);
-				baseimage2 = (PIXVAL*)malloc(size); // XXX is this allocation correct? PIXVAL is 16bit
+				baseimage2 = (PIXVAL*)malloc(size);
 			}
 			memset( baseimage, 255, size ); // fill with invalid data to mark transparent regions
 
+			// index of top-left corner
+			uint32 baseoff = 4*(yl_margin*(xl_margin+orgzoomwidth+xr_margin)+xl_margin);
+			sint32 basewidth = xl_margin+orgzoomwidth+xr_margin;
+
 			// now: unpack the image
 			for(  y=0;  y<images[n].base_h;  y++  ) {
-				unsigned int runlen;
-				uint8 *p = baseimage + y*(orgzoomwidth*4);
+				uint16 runlen;
+				uint8 *p = baseimage + baseoff + y*(basewidth*4);
 
 				// decode line
 				runlen = *src++;
@@ -924,15 +938,54 @@ static void rezoom_img(const unsigned int n)
 			// now we have the image, we do a repack then
 			dest = baseimage2;
 			switch(zoom_den[zoom_factor]) {
+				case 1:
+					assert(zoom_num[zoom_factor]==2);
+					// we just filter (diagonal filter) together with the upscaling
+					for(  sint16 y=0;  y<orgzoomheight;  y++  ) {
+						uint8 *p1 = baseimage + baseoff + y*(basewidth*4);
+						uint8 *p2 = p1 + ((y+1<orgzoomheight) ? basewidth*4 : 0);
+						for(  sint16 x=0;  x<orgzoomwidth;  x++  ) {
+							uint8 *px1=p1+(x*4);
+							PIXVAL c1 = px1[0]==255 ? 0x73FE : (((px1[0]==1 ? 0x8000 : 0 ) | px1[1]) + (((uint16)px1[2])<<5) + (((uint16)px1[3])<<10));
+							// now set the pixel ...
+							dest[x*2] = c1;
+							dest[x*2+1] = c1;
+							dest[x*2+newzoomwidth] = c1;
+							dest[x*2+newzoomwidth+1] = c1;
+							if(  px1[0]<255  ) {
+								// diagonal filter only for non-transparent ones ...
+								if(  x>0  &&  *(uint32 *)(px1-4)==*(uint32 *)(p2+x*4)  ) {
+									// take this instead
+									px1=p1+(x*4)-4;
+									dest[x*2+newzoomwidth] = px1[0]==255 ? 0x73FE : (((px1[0]==1 ? 0x8000 : 0 ) | px1[1]) + (((uint16)px1[2])<<5) + (((uint16)px1[3])<<10));
+								}
+								else {
+									dest[x*2+newzoomwidth] = c1;
+								}
+								px1=p1+(x*4);
+								if(  x+1<orgzoomwidth  &&  *(uint32 *)(px1+4)==*(uint32 *)(p2+x*4)  ) {
+									// take this instead
+									px1=p1+(x*4)+4;
+									dest[x*2+newzoomwidth+1] = px1[0]==255 ? 0x73FE : (((px1[0]==1 ? 0x8000 : 0 ) | px1[1]) + (((uint16)px1[2])<<5) + (((uint16)px1[3])<<10));
+								}
+								else {
+									dest[x*2+newzoomwidth+1] = c1;
+								}
+							}
+						}
+						// skip one line
+						dest += 2*newzoomwidth;
+					}
+					break;
 				case 2:
-					for(  y=0;  y<newzoomheight;  y++  ) {
-						uint8 *p1 = baseimage + ((y*zoom_den[zoom_factor]+0)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						uint8 *p2 = baseimage + ((y*zoom_den[zoom_factor]+1)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						for(  x=0;  x<newzoomwidth;  x++  ) {
+					for(  sint16 y=0;  y<newzoomheight;  y++  ) {
+						uint8 *p1 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+0-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p2 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+1-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						for(  sint16 x=0;  x<newzoomwidth;  x++  ) {
 							uint8 valid=0;
 							uint8 r=0,g=0,b=0;
-							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0)/zoom_num[zoom_factor])*4;
-							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1)/zoom_num[zoom_factor])*4;
+							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1-x_rem)/zoom_num[zoom_factor])*4;
 							SumSubpixel(p1+xreal1);
 							SumSubpixel(p1+xreal2);
 							SumSubpixel(p2+xreal1);
@@ -950,16 +1003,16 @@ static void rezoom_img(const unsigned int n)
 					}
 					break;
 				case 3:
-					for(  y=0;  y<newzoomheight;  y++  ) {
-						uint8 *p1 = baseimage + ((y*zoom_den[zoom_factor]+0)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						uint8 *p2 = baseimage + ((y*zoom_den[zoom_factor]+1)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						uint8 *p3 = baseimage + ((y*zoom_den[zoom_factor]+2)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						for(  x=0;  x<newzoomwidth;  x++  ) {
+					for(  sint16 y=0;  y<newzoomheight;  y++  ) {
+						uint8 *p1 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+0-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p2 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+1-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p3 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+2-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						for(  sint16 x=0;  x<newzoomwidth;  x++  ) {
 							uint8 valid=0;
 							uint16 r=0,g=0,b=0;
-							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0)/zoom_num[zoom_factor])*4;
-							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1)/zoom_num[zoom_factor])*4;
-							sint16 xreal3 = ((x*zoom_den[zoom_factor]+2)/zoom_num[zoom_factor])*4;
+							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal3 = ((x*zoom_den[zoom_factor]+2-x_rem)/zoom_num[zoom_factor])*4;
 							SumSubpixel(p1+xreal1);
 							SumSubpixel(p1+xreal2);
 							SumSubpixel(p1+xreal3);
@@ -982,18 +1035,18 @@ static void rezoom_img(const unsigned int n)
 					}
 					break;
 				case 4:
-					for(  y=0;  y<newzoomheight;  y++  ) {
-						uint8 *p1 = baseimage + ((y*zoom_den[zoom_factor]+0)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						uint8 *p2 = baseimage + ((y*zoom_den[zoom_factor]+1)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						uint8 *p3 = baseimage + ((y*zoom_den[zoom_factor]+2)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						uint8 *p4 = baseimage + ((y*zoom_den[zoom_factor]+3)/zoom_num[zoom_factor])*((uint32)orgzoomwidth*4);
-						for(  x=0;  x<newzoomwidth;  x++  ) {
+					for(  sint16 y=0;  y<newzoomheight;  y++  ) {
+						uint8 *p1 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+0-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p2 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+1-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p3 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+2-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p4 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+3-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						for(  sint16 x=0;  x<newzoomwidth;  x++  ) {
 							uint8 valid=0;
 							uint16 r=0,g=0,b=0;
-							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0)/zoom_num[zoom_factor])*4;
-							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1)/zoom_num[zoom_factor])*4;
-							sint16 xreal3 = ((x*zoom_den[zoom_factor]+2)/zoom_num[zoom_factor])*4;
-							sint16 xreal4 = ((x*zoom_den[zoom_factor]+3)/zoom_num[zoom_factor])*4;
+							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal3 = ((x*zoom_den[zoom_factor]+2-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal4 = ((x*zoom_den[zoom_factor]+3-x_rem)/zoom_num[zoom_factor])*4;
 							SumSubpixel(p1+xreal1);
 							SumSubpixel(p1+xreal2);
 							SumSubpixel(p1+xreal3);
@@ -1022,15 +1075,112 @@ static void rezoom_img(const unsigned int n)
 						}
 					}
 					break;
+				case 8:
+					for(  sint16 y=0;  y<newzoomheight;  y++  ) {
+						uint8 *p1 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+0-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p2 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+1-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p3 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+2-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p4 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+3-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p5 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+4-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p6 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+5-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p7 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+6-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						uint8 *p8 = baseimage + baseoff + ((y*zoom_den[zoom_factor]+7-y_rem)/zoom_num[zoom_factor])*(basewidth*4);
+						for(  sint16 x=0;  x<newzoomwidth;  x++  ) {
+							uint8 valid=0;
+							uint16 r=0,g=0,b=0;
+							sint16 xreal1 = ((x*zoom_den[zoom_factor]+0-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal2 = ((x*zoom_den[zoom_factor]+1-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal3 = ((x*zoom_den[zoom_factor]+2-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal4 = ((x*zoom_den[zoom_factor]+3-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal5 = ((x*zoom_den[zoom_factor]+4-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal6 = ((x*zoom_den[zoom_factor]+5-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal7 = ((x*zoom_den[zoom_factor]+6-x_rem)/zoom_num[zoom_factor])*4;
+							sint16 xreal8 = ((x*zoom_den[zoom_factor]+7-x_rem)/zoom_num[zoom_factor])*4;
+							SumSubpixel(p1+xreal1);
+							SumSubpixel(p1+xreal2);
+							SumSubpixel(p1+xreal3);
+							SumSubpixel(p1+xreal4);
+							SumSubpixel(p1+xreal5);
+							SumSubpixel(p1+xreal6);
+							SumSubpixel(p1+xreal7);
+							SumSubpixel(p1+xreal8);
+							SumSubpixel(p2+xreal1);
+							SumSubpixel(p2+xreal2);
+							SumSubpixel(p2+xreal3);
+							SumSubpixel(p2+xreal4);
+							SumSubpixel(p2+xreal5);
+							SumSubpixel(p2+xreal6);
+							SumSubpixel(p2+xreal7);
+							SumSubpixel(p2+xreal8);
+							SumSubpixel(p3+xreal1);
+							SumSubpixel(p3+xreal2);
+							SumSubpixel(p3+xreal3);
+							SumSubpixel(p3+xreal4);
+							SumSubpixel(p3+xreal5);
+							SumSubpixel(p3+xreal6);
+							SumSubpixel(p3+xreal7);
+							SumSubpixel(p3+xreal8);
+							SumSubpixel(p4+xreal1);
+							SumSubpixel(p4+xreal2);
+							SumSubpixel(p4+xreal3);
+							SumSubpixel(p4+xreal4);
+							SumSubpixel(p4+xreal5);
+							SumSubpixel(p4+xreal6);
+							SumSubpixel(p4+xreal7);
+							SumSubpixel(p4+xreal8);
+							SumSubpixel(p5+xreal1);
+							SumSubpixel(p5+xreal2);
+							SumSubpixel(p5+xreal3);
+							SumSubpixel(p5+xreal4);
+							SumSubpixel(p5+xreal5);
+							SumSubpixel(p5+xreal6);
+							SumSubpixel(p5+xreal7);
+							SumSubpixel(p5+xreal8);
+							SumSubpixel(p6+xreal1);
+							SumSubpixel(p6+xreal2);
+							SumSubpixel(p6+xreal3);
+							SumSubpixel(p6+xreal4);
+							SumSubpixel(p6+xreal5);
+							SumSubpixel(p6+xreal6);
+							SumSubpixel(p6+xreal7);
+							SumSubpixel(p6+xreal8);
+							SumSubpixel(p7+xreal1);
+							SumSubpixel(p7+xreal2);
+							SumSubpixel(p7+xreal3);
+							SumSubpixel(p7+xreal4);
+							SumSubpixel(p7+xreal5);
+							SumSubpixel(p7+xreal6);
+							SumSubpixel(p7+xreal7);
+							SumSubpixel(p7+xreal8);
+							SumSubpixel(p8+xreal1);
+							SumSubpixel(p8+xreal2);
+							SumSubpixel(p8+xreal3);
+							SumSubpixel(p8+xreal4);
+							SumSubpixel(p8+xreal5);
+							SumSubpixel(p8+xreal6);
+							SumSubpixel(p8+xreal7);
+							SumSubpixel(p8+xreal8);
+							if(valid==0) {
+								*dest++ = 0x73FE;
+							}
+							else if(valid==255) {
+								*dest++ = (0x8000 | r) + (((uint16)g)<<5) + (((uint16)b)<<10);
+							}
+							else {
+								*dest++ = (r/valid) | (((uint16)(g/valid))<<5) | (((uint16)(b/valid))<<10);
+							}
+						}
+					}
+					break;
 				default: assert(0);
 			}
 
 			// now encode the image again
 			dest = (PIXVAL*)baseimage;
-			for(  y=0;  y<newzoomheight;  y++  ) {
+			for(  sint16 y=0;  y<newzoomheight;  y++  ) {
 				PIXVAL *line = ((PIXVAL *)baseimage2) + (y*newzoomwidth);
 				PIXVAL i;
-				x = 0;
+				sint16 x = 0;
 
 				do {
 					// check length of transparent pixels
@@ -1307,7 +1457,7 @@ void register_image(struct bild_t* bild)
 		do {
 			src++; // offset of first start
 			do {
-				PIXVAL runlen;
+				uint16 runlen;
 
 				for (runlen = *src++; runlen != 0; runlen--) {
 					PIXVAL pix = *src++;
@@ -1550,7 +1700,7 @@ static void display_img_wc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 			int xpos = xp;
 
 			// bild darstellen
-			int runlen = *sp++;
+			uint16 runlen = *sp++;
 
 			do {
 				// wir starten mit einem clear run
@@ -1586,7 +1736,12 @@ static void display_img_nc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 		PIXVAL *tp = textur + xp + yp * disp_width;
 
 		do { // zeilen dekodieren
+#ifdef USE_C
+			uint16 runlen = *sp++;
+#else
+			// assembler needs this size
 			uint32 runlen = *sp++;
+#endif
 			PIXVAL *p = tp;
 
 			// eine Zeile dekodieren
@@ -1596,7 +1751,7 @@ static void display_img_nc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 
 				// jetzt kommen farbige pixel
 				runlen = *sp++;
-#if USE_C
+#ifdef USE_C
 #if 1
 				{
 					// "classic" C code (why is it faster!?!)
@@ -1909,7 +2064,7 @@ static void display_color_img_aux(const PIXVAL *sp, KOORD_VAL x, KOORD_VAL y, KO
 
 			// bild darstellen
 
-			int runlen = *sp++;
+			uint16 runlen = *sp++;
 
 			do {
 				// wir starten mit einem clear run
@@ -2167,8 +2322,7 @@ static void pix_outline25_16(PIXVAL *dest, const PIXVAL *, const PIXVAL colour, 
 static blend_proc blend[3];
 static blend_proc outline[3];
 
-static void display_img_blend_wc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, const PIXVAL *sp, int colour,
-	blend_proc p )
+static void display_img_blend_wc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, const PIXVAL *sp, int colour, blend_proc p )
 {
 	if (h > 0) {
 		PIXVAL *tp = textur + yp * disp_width;
@@ -2177,7 +2331,7 @@ static void display_img_blend_wc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VA
 			int xpos = xp;
 
 			// bild darstellen
-			int runlen = *sp++;
+			uint16 runlen = *sp++;
 
 			do {
 				// wir starten mit einem clear run
@@ -2232,7 +2386,9 @@ void display_img_blend(const unsigned n, KOORD_VAL xp, KOORD_VAL yp, const PLAYE
 
 		// must the height be reduced?
 		reduce_h = yp + h - clip_rect.yy;
-		if (reduce_h > 0) h -= reduce_h;
+		if (reduce_h > 0) {
+			h -= reduce_h;
+		}
 		// still something to draw
 		if (h <= 0) return;
 
@@ -2269,12 +2425,16 @@ void display_img_blend(const unsigned n, KOORD_VAL xp, KOORD_VAL yp, const PLAYE
 			// use horzontal clipping or skip it?
 			if (xp >= clip_rect.x && xp + w  <= clip_rect.xx) {
 				// marking change?
-				if (dirty) mark_rect_dirty_nc(xp, yp, xp + w - 1, yp + h - 1);
+				if (dirty) {
+					mark_rect_dirty_nc(xp, yp, xp + w - 1, yp + h - 1);
+				}
 				display_img_blend_wc( h, xp, yp, sp, color, pix_blend );
 			} else if (xp < clip_rect.xx && xp + w > clip_rect.x) {
 				display_img_blend_wc( h, xp, yp, sp, color, pix_blend );
 				// since height may be reduced, start marking here
-				if (dirty) mark_rect_dirty_wc(xp, yp, xp + w - 1, yp + h - 1);
+				if (dirty) {
+					mark_rect_dirty_wc(xp, yp, xp + w - 1, yp + h - 1);
+				}
 			}
 		}
 	}

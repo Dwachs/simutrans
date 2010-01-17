@@ -5,7 +5,6 @@
  * (see licence.txt)
  */
 
-#include <algorithm>
 #include <string.h>
 
 #include "../besch/haus_besch.h"
@@ -105,13 +104,13 @@ bool hausbauer_t::alles_geladen()
 
 		switch(besch->get_typ()) {
 			case gebaeude_t::wohnung:
-				wohnhaeuser.append(besch);
+				wohnhaeuser.insert_ordered(besch,compare_haus_besch);
 				break;
 			case gebaeude_t::industrie:
-				industriehaeuser.append(besch);
+				industriehaeuser.insert_ordered(besch,compare_haus_besch);
 				break;
 			case gebaeude_t::gewerbe:
-				gewerbehaeuser.append(besch);
+				gewerbehaeuser.insert_ordered(besch,compare_haus_besch);
 				break;
 
 			case gebaeude_t::unbekannt:
@@ -123,7 +122,7 @@ bool hausbauer_t::alles_geladen()
 					sehenswuerdigkeiten_land.append(besch);
 					break;
 				case haus_besch_t::firmensitz:
-					headquarter.append(besch);
+					headquarter.insert_ordered(besch,compare_haus_besch);
 					break;
 				case haus_besch_t::rathaus:
 					rathaeuser.append(besch);
@@ -140,7 +139,7 @@ bool hausbauer_t::alles_geladen()
 				case haus_besch_t::depot:
 				case haus_besch_t::generic_stop:
 				case haus_besch_t::generic_extension:
-					station_building.append(besch);
+					station_building.insert_ordered(besch,compare_station_besch);
 					break;
 
 				case haus_besch_t::weitere:
@@ -157,23 +156,44 @@ bool hausbauer_t::alles_geladen()
 	}
 
 	// now sort them according level
-	std::sort(wohnhaeuser.begin(),      wohnhaeuser.end(),      compare_haus_besch);
-	std::sort(gewerbehaeuser.begin(),   gewerbehaeuser.end(),   compare_haus_besch);
-	std::sort(industriehaeuser.begin(), industriehaeuser.end(), compare_haus_besch);
-	std::sort(station_building.begin(), station_building.end(), compare_station_besch);
-	std::sort(headquarter.begin(),      headquarter.end(),      compare_haus_besch);
 	warne_ungeladene(spezial_objekte, 1);
 	return true;
 }
 
 
-bool hausbauer_t::register_besch(const haus_besch_t *besch)
+bool hausbauer_t::register_besch(haus_besch_t *besch)
 {
 	::register_besch(spezial_objekte, besch);
 
 	// avoid duplicates with same name
-	if(besch_names.remove(besch->get_name())) {
+	const haus_besch_t *old_besch = besch_names.get(besch->get_name());
+	if(old_besch) {
 		dbg->warning( "hausbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+		besch_names.remove(besch->get_name());
+		delete old_besch->get_builder();
+		delete old_besch;
+	}
+	// probably need a tools, if it has a cursor
+	const skin_besch_t *sb = besch->get_cursor();
+	if(  sb  &&  sb->get_bild_nr(1)!=IMG_LEER) {
+		werkzeug_t *wkz;
+		if(  besch->get_utyp()==haus_besch_t::depot  ) {
+			wkz = new wkz_depot_t();
+		}
+		else if(  besch->get_utyp()==haus_besch_t::firmensitz  ) {
+			wkz = new wkz_headquarter_t();
+		}
+		else {
+			wkz = new wkz_station_t();
+		}
+		wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
+		wkz->cursor = besch->get_cursor()->get_bild_nr(0),
+		wkz->set_default_param(besch->get_name());
+		werkzeug_t::general_tool.append( wkz );
+		besch->set_builder( wkz );
+	}
+	else {
+		besch->set_builder( NULL );
 	}
 	besch_names.put(besch->get_name(), besch);
 
@@ -196,42 +216,16 @@ static stringhashtable_tpl<wkz_station_t *> station_tool;
 static stringhashtable_tpl<wkz_depot_t *> depot_tool;
 
 // all these menus will need a waytype ...
-void hausbauer_t::fill_menu(werkzeug_waehler_t* wzw, haus_besch_t::utyp utyp, waytype_t wt, sint16 sound_ok, const karte_t* welt)
+void hausbauer_t::fill_menu(werkzeug_waehler_t* wzw, haus_besch_t::utyp utyp, waytype_t wt, sint16 /*sound_ok*/, const karte_t* welt)
 {
 	const uint16 time = welt->get_timeline_year_month();
 DBG_DEBUG("hausbauer_t::fill_menu()","maximum %i",station_building.get_count());
 	for(  vector_tpl<const haus_besch_t *>::const_iterator iter = station_building.begin(), end = station_building.end();  iter != end;  ++iter  ) {
 		const haus_besch_t* besch = (*iter);
 //		DBG_DEBUG("hausbauer_t::fill_menu()", "try to add %s (%p)", besch->get_name(), besch);
-		if(  besch->get_utyp()==utyp  &&  besch->get_cursor()->get_bild_nr(1) != IMG_LEER  &&  besch->get_extra()==(uint16)wt  ) {
+		if(  besch->get_utyp()==utyp  &&  besch->get_builder()  &&  (utyp==haus_besch_t::firmensitz  ||  besch->get_extra()==(uint16)wt)  ) {
 			if(time==0  ||  (besch->get_intro_year_month()<=time  &&  besch->get_retire_year_month()>time)) {
-
-				if(utyp==haus_besch_t::depot) {
-					wkz_depot_t *wkz = depot_tool.get(besch->get_name());
-					if(wkz==NULL) {
-						// not yet in hashtable
-						wkz = new wkz_depot_t();
-						wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
-						wkz->cursor = besch->get_cursor()->get_bild_nr(0);
-						wkz->default_param = besch->get_name();
-						wkz->ok_sound = sound_ok;
-						depot_tool.put(besch->get_name(),wkz);
-					}
-					wzw->add_werkzeug( (werkzeug_t*)wkz );
-				}
-				else {
-					wkz_station_t *wkz = station_tool.get(besch->get_name());
-					if(wkz==NULL) {
-						// not yet in hashtable
-						wkz = new wkz_station_t();
-						wkz->set_icon( besch->get_cursor()->get_bild_nr(1) );
-						wkz->cursor = besch->get_cursor()->get_bild_nr(0),
-						wkz->default_param = besch->get_name();
-						wkz->ok_sound = sound_ok;
-						station_tool.put(besch->get_name(),wkz);
-					}
-					wzw->add_werkzeug( (werkzeug_t*)wkz );
-				}
+				wzw->add_werkzeug( besch->get_builder() );
 			}
 		}
 	}
