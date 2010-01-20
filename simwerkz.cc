@@ -583,6 +583,11 @@ DBG_MESSAGE("wkz_remover()",  "took out powerline");
 	if(cr) {
 		gr->obj_remove(cr);
 	}
+	// do not delete pointers - they may come from players on other clients
+	zeiger_t *zeiger = gr->find<zeiger_t>();
+	if(zeiger) {
+		gr->obj_remove(zeiger);
+	}
 
 	// remove all other stuff (clouds ... )
 	bool return_ok = false;
@@ -599,6 +604,9 @@ DBG_MESSAGE("wkz_remover()",  "took out powerline");
 	}
 	if(cr) {
 		gr->obj_add(cr);
+	}
+	if(zeiger) {
+		gr->obj_add(zeiger);
 	}
 
 	// could not delete everything
@@ -1283,6 +1291,11 @@ const char *wkz_buy_house_t::work( karte_t *welt, spieler_t *sp, koord3d pos)
 	gebaeude_t* gb = gr->find<gebaeude_t>();
 	if(  gb== NULL  ||  gb->get_haustyp()==gebaeude_t::unbekannt  ||  !spieler_t::check_owner(gb->get_besitzer(),sp)  ) {
 		return "Das Feld gehoert\neinem anderen Spieler\n";
+	}
+
+	if(  gb->get_besitzer()==sp  ) {
+		// this I bought already ...
+		return "";
 	}
 
 	spieler_t *old_owner = gb->get_besitzer();
@@ -3124,7 +3137,7 @@ const char *wkz_roadsign_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 						return "Das Feld gehoert\neinem anderen Spieler\n";
 					}
 					// reverse only if single way sign
-					if (besch->is_single_way() || besch->is_free_route()) {
+					if (besch->is_single_way() || besch->is_choose_sign()) {
 						dir = ~rs->get_dir() & weg->get_ribi_unmasked();
 						rs->set_dir(dir);
 						DBG_MESSAGE("wkz_roadsign()", "reverse ribi %i", dir);
@@ -3133,7 +3146,7 @@ const char *wkz_roadsign_t::work( karte_t *welt, spieler_t *sp, koord3d k )
 				else {
 					// add a new roadsign at position zero!
 					// if single way, we need to reduce the allowed ribi to one
-					if (besch->is_single_way() || besch->is_free_route()) {
+					if (besch->is_single_way() || besch->is_choose_sign()) {
 						for(  int i=0;  i<4;  i++  ) {
 							if ((dir & ribi_t::nsow[i]) != 0) {
 								dir = ribi_t::nsow[i];
