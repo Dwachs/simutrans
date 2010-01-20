@@ -8,7 +8,7 @@ return_value_t *builder_wayobj_t::step()
 	karte_t *welt = sp->get_welt();
 
 	wkz_wayobj_t wkz;
-	wkz.default_param = e->get_name();
+	wkz.set_default_param(e->get_name());
 	wkz.init( welt, sp );
 	error = wkz.work( welt, sp, welt->lookup(start)->get_pos() );
 	if( !error ) {
