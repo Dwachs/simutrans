@@ -6,7 +6,9 @@
 #include "wai/bt.h"
 #include "wai/nodes/industry_manager.h"
 #include "wai/nodes/factory_searcher.h"
+#include "wai/utils/wrapper.h"
 
+#include "../tpl/vector_tpl.h"
 #include "../utils/log.h"
 
 #define WAI_VERSION (1)
@@ -29,12 +31,26 @@ public:
 	industry_manager_t* get_industry_manager() { return industry_manager; }
 	void set_industry_manager(industry_manager_t *im) { industry_manager = im; }
 	void set_factory_searcher(factory_searcher_t *fs) { factory_searcher = fs; }
+
+	void notify_factory(notification_factory_t flag, const fabrik_t*);
+
+	void register_wrapper(wrapper_t *, const void *);
+	void unregister_wrapper(wrapper_t *);
+	void notify_wrapper(const void *);
+
 private:
 	log_t log;
 	bt_sequential_t bt_root;
 
 	industry_manager_t* industry_manager;
 	factory_searcher_t* factory_searcher;
+
+	struct wrapper_nodes_t {
+		wrapper_nodes_t(wrapper_t *w=0, const void *p=0) : wrap(w), ptr(p) {}
+		wrapper_t *wrap;
+		const void *ptr;
+	};
+	vector_tpl<wrapper_nodes_t> wraplist;
 public:
 	log_t& get_log() { return log; };
 };

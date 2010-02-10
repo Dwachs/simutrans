@@ -2,6 +2,7 @@
 #define _CONNECTION_MANAGER_H_
 
 #include "../manager.h"
+#include "../utils/wrapper.h"
 #include "../../../linehandle_t.h"
 class fabrik_t;
 class ware_besch_t;
@@ -34,7 +35,7 @@ public:
 
 	connection_types get_type() { return type; }
 protected:
-	linehandle_t line;	
+	linehandle_t line;
 	connection_types type;
 };
 
@@ -68,7 +69,7 @@ public:
 };
 
 /*
- * connection for a certain freight to a certain factory 
+ * connection for a certain freight to a certain factory
  * TODO: allow multiple freights / targets
  */
 class freight_connection_t : public connection_t {
@@ -80,14 +81,14 @@ public:
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	virtual void debug( log_t &file, cstring_t prefix );
 private:
-	const fabrik_t *ziel;
+	wfabrik_t ziel;
 	const ware_besch_t *freight;
 	uint8 status; // 1: keine groesseren Fahrzeuge verfuegbar
 	bool bigger_convois_impossible() { return status&1; }
 };
 
 /*
- * connection that goes out of order soon, 
+ * connection that goes out of order soon,
  * it waits until all vehicles are gone
  * UNUSED
  */

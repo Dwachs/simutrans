@@ -9,7 +9,7 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../vehicle/simvehikel.h"
 
-industry_link_t::industry_link_t(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) 
+industry_link_t::industry_link_t(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
 : status(0), start(s), ziel(z), freight(f)
 {
 	connections = new parallel_connection_t();
@@ -35,17 +35,19 @@ void industry_link_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
 {
 	file->rdwr_longlong(status, "");
 	connections->rdwr(file, version, sp);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
+	start.rdwr(file, version, sp);
+	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
 }
 
 void industry_link_t::debug( log_t &file, cstring_t prefix )
 {
-	file.message("indc", "%s from    %s(%s)", (const char*)prefix, start->get_name(), start->get_pos().get_str() );
-	file.message("indc", "%s to      %s(%s)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str() );
+	if (start.is_bound()) file.message("indc", "%s from    %s(%s)", (const char*)prefix, start->get_name(), start->get_pos().get_str() );
+	else                  file.message("indc", "%s from    %s(%s)", (const char*)prefix, "NULL", koord3d::invalid.get_str() );
+	if (ziel.is_bound())  file.message("indc", "%s to      %s(%s)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str() );
+	else                  file.message("indc", "%s from    %s(%s)", (const char*)prefix, "NULL", koord3d::invalid.get_str() );
 	file.message("indc", "%s freight %s", (const char*)prefix, freight->get_name() );
-	connections->debug(file, prefix + "   "); 
+	connections->debug(file, prefix + "   ");
 	file.message("indc", "%s status=%d", (const char*)prefix, status);
 }
 
@@ -134,7 +136,7 @@ void industry_manager_t::unset_connection(connection_status cs, const fabrik_t *
 }
 
 void industry_manager_t::append_report(report_t *report)
-{ 
+{
 	// TODO: do something more smarter here
 	if(report) {
 		if (report->gain_per_v_m > 0) {

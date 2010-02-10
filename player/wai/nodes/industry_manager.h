@@ -3,6 +3,7 @@
 
 #include "connections_manager.h"
 #include "../manager.h"
+#include "../utils/wrapper.h"
 #include "../../../linehandle_t.h"
 
 class fabrik_t;
@@ -45,8 +46,8 @@ private:
 	sint64 status;
 	parallel_connection_t *connections;
 
-	const fabrik_t *start;
-	const fabrik_t *ziel;
+	wfabrik_t start;
+	wfabrik_t ziel;
 	const ware_besch_t *freight;
 };
 

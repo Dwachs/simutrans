@@ -35,7 +35,7 @@ connection_t* connection_t::alloc_connection(connection_types t)
 			return new freight_connection_t();
 		case CONN_WITHDRAWN:
 			return new withdrawn_connection_t();
-		case CONN_SIMPLE: 
+		case CONN_SIMPLE:
 		default:
 			assert(0);
 			return NULL;
@@ -64,7 +64,7 @@ void connection_t::debug( log_t &file, cstring_t prefix )
 }
 
 
-combined_connection_t::~combined_connection_t() 
+combined_connection_t::~combined_connection_t()
 {
 	for(uint32 i=0; i<connections.get_count(); i++) {
 		delete connections[i];
@@ -119,7 +119,7 @@ report_t* parallel_connection_t::get_report(ai_wai_t *sp)
 
 report_t* freight_connection_t::get_report(ai_wai_t *sp)
 {
-	if (!line.is_bound() || line->count_convoys()==0) {
+	if (!line.is_bound()  ||  line->count_convoys()==0  ||  !ziel.is_bound()) {
 		// TODO: remove the line, wird die vielleicht gebraucht??
 		return NULL;
 	}
@@ -188,7 +188,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			loss.append(cnv);
 		}
 		switch (cnv->get_state()){
-			case convoi_t::INITIAL: 
+			case convoi_t::INITIAL:
 			case convoi_t::NO_ROUTE:
 			case convoi_t::LOADING:
 			case convoi_t::WAITING_FOR_CLEARANCE:
@@ -207,23 +207,23 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	// now decide something
 	if (freight_available) {
 		if (newc==0 && stopped.get_count()> max(line->count_convoys()/2, 2) ) {
-			// traffic jam ..		
+			// traffic jam ..
 			if (!bigger_convois_impossible()) {
 				// try to find the bigger convois
 				simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv0, freight);
 				d->proto->calc_data(freight);
-				d->max_length = 1; 
+				d->max_length = 1;
 				d->production = 0;
 				d->min_trans  = d->proto->max_speed * d->proto->get_capacity(freight)+1;
 				d->update();
 
 				if (d->proto->is_empty()) {
-					sp->get_log().message( "freight_connection_t::get_report()","no bigger vehicles available for line '%s'", line->get_name());	
+					sp->get_log().message( "freight_connection_t::get_report()","no bigger vehicles available for line '%s'", line->get_name());
 					status |= 1;
 					// TODO: clear this bit eventually
 				}
 				else {
-					sp->get_log().message( "freight_connection_t::get_report()","line '%s' get %d new and bigger vehicles", line->get_name(), 3);	
+					sp->get_log().message( "freight_connection_t::get_report()","line '%s' get %d new and bigger vehicles", line->get_name(), 3);
 					// build three new vehicles
 					vehikel_builder_t *v = new vehikel_builder_t(sp, d->proto->besch[0]->get_name(), d, line, cnv0->get_home_depot(), 3);
 					v->set_withdraw(true);
@@ -236,7 +236,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 				}
 			}
 			if (bigger_convois_impossible()) {
-				sp->get_log().message( "freight_connection_t::get_report()","line '%s' sells %d convois due to traffic jam", line->get_name(), 1);	
+				sp->get_log().message( "freight_connection_t::get_report()","line '%s' sells %d convois due to traffic jam", line->get_name(), 1);
 				// sell one empty & stopped convois
 				for(uint32 i=0; i<stopped.get_count(); i++) {
 					if (stopped[i]->get_loading_level()==0) {
@@ -248,7 +248,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			}
 		}
 		else if (newc==0 && stopped.get_count()<=2) {
-			// add one vehicle	
+			// add one vehicle
 			sp->get_log().message( "freight_connection_t::get_report()","line '%s' want to buy %d convois", line->get_name(), 1);
 			simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv0, freight);
 			vehikel_builder_t *v = new vehikel_builder_t(sp, cnv0->get_name(), d, line, cnv0->get_home_depot(), 1);
@@ -279,7 +279,7 @@ void freight_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t
 {
 	connection_t::rdwr(file, version, sp);
 
-	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
+	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
 	file->rdwr_byte(status, "");
 }
@@ -287,7 +287,12 @@ void freight_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t
 void freight_connection_t::debug( log_t &file, cstring_t prefix )
 {
 	connection_t::debug(file, prefix);
-	file.message("frec", "%s to      %s(%s) - status(%d)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str(), status );
+	if (ziel.is_bound()) {
+		file.message("frec", "%s to      %s(%s) - status(%d)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str(), status );
+	}
+	else {
+		file.message("frec", "%s to      %s(%s) - status(%d)", (const char*)prefix, "NULL", koord3d::invalid.get_str(), status );
+	}
 	file.message("frec", "%s freight %s", (const char*)prefix, freight->get_name() );
 }
 

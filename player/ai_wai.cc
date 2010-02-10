@@ -72,7 +72,7 @@ void ai_wai_t::step()
 	}
 }
 
-bool ai_wai_t::is_cash_available(sint64 cost) 
+bool ai_wai_t::is_cash_available(sint64 cost)
 {
 	// calc_finance_history(); done in step()
 	sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
@@ -133,4 +133,43 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	log.message("ai_wai_t","log started.");
 	industry_manager = NULL;
 	factory_searcher = NULL;
+}
+
+void ai_wai_t::register_wrapper(wrapper_t *wrap, const void *ptr)
+{
+	for(uint32 i=0; i<wraplist.get_count(); i++) {
+		if (wraplist[i].wrap == wrap) {
+			wraplist[i].ptr = ptr;
+			return;
+		}
+	}
+	wrapper_nodes_t node(wrap, const_cast<void*>(ptr));
+	wraplist.append(node);
+}
+// remove all pointers to wrap class
+void ai_wai_t::unregister_wrapper(wrapper_t *wrap)
+{
+	for(sint32 i=wraplist.get_count()-1; i>=0; i--) {
+		if (wraplist[i].wrap == wrap) {
+			wraplist.remove_at(i);
+		}
+	}
+}
+
+void ai_wai_t::notify_wrapper(const void *p)
+{
+	for(sint32 i=wraplist.get_count()-1; i>=0; i--) {
+		if (wraplist[i].ptr == p) {
+			wraplist[i].wrap->notify();
+			wraplist.remove_at(i);
+		}
+	}
+}
+
+
+void ai_wai_t::notify_factory(notification_factory_t flag, const fabrik_t*p)
+{
+	if (flag==notify_delete) {
+		notify_wrapper(p);
+	}
 }

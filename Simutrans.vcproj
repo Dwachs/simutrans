@@ -66,8 +66,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\simutrans-wai.exe"
 				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib wsock32.lib libbz2.lib $(NOINHERIT)"
+				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans-prog\simutrans-wai.exe"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\win32\library&quot;;&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreAllDefaultLibraries="false"
@@ -1159,6 +1159,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\utils\wrapper.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\xref_reader.cc"
 				>
 			</File>
@@ -1246,6 +1250,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\vehikel_prototype.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\wrapper.h"
 				>
 			</File>
 		</Filter>
