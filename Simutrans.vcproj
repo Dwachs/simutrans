@@ -497,6 +497,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\components\gui_fixedwidth_textarea.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\components\gui_flowtext.cc"
 				>
 			</File>
@@ -753,6 +757,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\password_frame.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\pedestrian_reader.cc"
 				>
 			</File>
@@ -838,6 +846,10 @@
 			</File>
 			<File
 				RelativePath=".\gui\settings_stats.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\sha1.cc"
 				>
 			</File>
 			<File

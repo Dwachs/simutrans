@@ -475,11 +475,9 @@ void depot_frame_t::layout(koord *gr)
 	bt_veh_action.set_groesse(koord(ABUTTON_WIDTH, ABUTTON_HEIGHT));
 
 	bt_show_all.set_pos(koord(TOTAL_WIDTH-(ABUTTON_WIDTH*5)/2, PANEL_VSTART + PANEL_HEIGHT + 4 ));
-	bt_show_all.set_groesse(koord(ABUTTON_WIDTH, ABUTTON_HEIGHT));
 	bt_show_all.pressed = show_all;
 
 	bt_obsolete.set_pos(koord(TOTAL_WIDTH-(ABUTTON_WIDTH*5)/2, PANEL_VSTART + PANEL_HEIGHT + 16));
-	bt_obsolete.set_groesse(koord(ABUTTON_WIDTH, ABUTTON_HEIGHT));
 	bt_obsolete.pressed = show_retired_vehicles;
 
 	const uint8 margin = 4;
@@ -1154,7 +1152,7 @@ void depot_frame_t::fahrplaneingabe()
 		assert(fpl!=NULL);
 		gui_fenster_t *fplwin = win_get_magic((long)fpl);
 		if(   fplwin==NULL  ) {
-			cnv->open_schedule_window( true );
+			cnv->open_schedule_window( get_welt()->get_active_player()==cnv->get_besitzer() );
 		}
 		else {
 			top_win( fplwin );

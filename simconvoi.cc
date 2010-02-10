@@ -769,7 +769,7 @@ void convoi_t::step()
 					// this station? then complete loading task else drive on
 					halthandle_t h = haltestelle_t::get_halt( welt, get_pos(), get_besitzer() );
 					if(  h.is_bound()  &&  h==haltestelle_t::get_halt( welt, fpl->get_current_eintrag().pos, get_besitzer() )  ) {
-						if(  h==haltestelle_t::get_halt( welt, route.position_bei(route.get_count()-1), get_besitzer() )  ){
+						if(  route.get_count()>0  &&  h==haltestelle_t::get_halt( welt, route.position_bei(route.get_count()-1), get_besitzer() )  ){
 							state = get_pos()==route.position_bei(route.get_count()-1) ? LOADING : DRIVING;
 							break;
 						}
@@ -1915,7 +1915,7 @@ convoi_t::rdwr(loadsave_t *file)
 			financial_history[k][CONVOI_DISTANCE] = 0;
 		}
 	}
-	else if(  file->get_version()<103000  ){
+	else if(  file->get_version()<=102002  ){
 		// load statistics
 		for (int j = 0; j<5; j++) {
 			for (int k = MAX_MONTHS-1; k>=0; k--) {
@@ -1936,7 +1936,7 @@ convoi_t::rdwr(loadsave_t *file)
 	}
 
 	// the convoi odometer
-	if(  file->get_version()>=103000  ){
+	if(  file->get_version()>102002  ){
 		file->rdwr_longlong( total_distance_traveled, "" );
 	}
 
@@ -2176,9 +2176,10 @@ void convoi_t::open_schedule_window( bool show )
 	wait_lock = 25000;
 	alte_richtung = fahr[0]->get_fahrtrichtung();
 
-	if(  welt->get_active_player()==get_besitzer()  &&  show  ) {
+	if(  show  ) {
 		// Fahrplandialog oeffnen
 		create_win( new fahrplan_gui_t(fpl,get_besitzer(),self), w_info, (long)fpl );
+		// TODO: what happens if no client opens the window??
 	}
 	fpl->eingabe_beginnen();
 }

@@ -136,6 +136,7 @@ werkzeug_t *create_simple_tool(int toolnr)
 		case WKZ_CONVOI_TOOL:       tool = new wkz_change_convoi_t(); break;
 		case WKZ_LINE_TOOL:         tool = new wkz_change_line_t(); break;
 		case WKZ_DEPOT_TOOL:        tool = new wkz_change_depot_t(); break;
+		case WKZ_PWDHASH_TOOL:		tool = new wkz_change_password_hash_t(); break;
 		default:                    dbg->error("create_simple_tool()","cannot satisfy request for simple_tool[%i]!",toolnr);
 		                            return NULL;
 	}
@@ -699,6 +700,18 @@ void werkzeug_t::draw_after( karte_t *welt, koord pos ) const
 bool werkzeug_t::is_selected(karte_t *welt) const
 {
 	return welt->get_werkzeug(welt->get_active_player_nr())==this;
+}
+
+const char *werkzeug_t::check( karte_t *welt, spieler_t *, koord3d pos)
+{
+	grund_t *gr = welt->lookup(pos);
+	return (gr  &&  !gr->is_visible()) ? "" : NULL;
+}
+
+const char *kartenboden_werkzeug_t::check( karte_t *welt, spieler_t *, koord3d pos)
+{
+	grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
+	return (gr  &&  !gr->is_visible()) ? "" : NULL;
 }
 
 // seperator in toolbars

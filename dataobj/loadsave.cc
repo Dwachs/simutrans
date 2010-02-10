@@ -205,7 +205,7 @@ bool loadsave_t::wr_open(const char *filename, mode_t m, const char *pak_extensi
 	if(  !is_xml()  ) {
 		char str[4096];
 		size_t len;
-		if(  version<103000  ) {
+		if(  version<=102002  ) {
 			len = sprintf( str, "%s%s%s\n", SAVEGAME_VERSION, "zip", this->pak_extension );
 		}
 		else {
@@ -543,7 +543,7 @@ void loadsave_t::rdwr_xml_number(sint64 &s, const char *typ)
 {
 	if(saving) {
 		static char nr[256];
-		size_t len = sprintf( nr, "%*s<%s>%.0lf</%s>\n", ident, "", typ, (double)s, typ );
+		size_t len = sprintf( nr, "%*s<%s>%.0f</%s>\n", ident, "", typ, (double)s, typ );
 		write( nr, len );
 	}
 	else {
@@ -942,7 +942,7 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 		version_text++;
 	}
 
-	if(  version<103000  ) {
+	if(  version<=102002  ) {
 		/* the compression and the mode we determined already ourselves (otherwise we cannot read this
 		 * => leave the mode alone but for unknown modes!
 		 */

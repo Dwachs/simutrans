@@ -14,6 +14,10 @@
 #endif
 
 
+#ifdef DO_NOT_SEND HASHES
+static vector_tpl<uint16>hashes_ok;	// bit set, if this player on that client is not protected
+#endif
+
 network_command_t* network_command_t::read_from_socket(SOCKET s)
 {
 	// receive packet
@@ -108,6 +112,7 @@ bool network_command_t::is_local_cmd()
 	return (our_client_id == (uint32)network_get_client_id());
 }
 
+
 void nwc_join_t::rdwr()
 {
 	network_command_t::rdwr();
@@ -168,6 +173,7 @@ network_world_command_t::network_world_command_t(uint16 id, uint32 sync_step)
 {
 	this->sync_step = sync_step;
 }
+
 void network_world_command_t::rdwr()
 {
 	network_command_t::rdwr();
@@ -205,10 +211,37 @@ void nwc_sync_t::do_command(karte_t *welt)
 		char fn[256];
 		sprintf( fn, "client%i-network.sve", network_get_client_id() );
 		filename = fn;
+		welt->speichern(filename, false );
+
+		long old_sync_steps = welt->get_sync_steps();
+		welt->laden(filename );
+
+		// pause clients, restore steps
+		welt->network_game_set_pause(true, old_sync_steps);
+
+		// tell server we are ready
+		network_command_t *nwc = new nwc_ready_t(old_sync_steps);
+		network_send_server(nwc);
 	}
-	welt->speichern(filename, false );
-	// server sends game; clients have to wait for nwc_ready_t
-	if( umgebung_t::server ) {
+	else {
+#ifdef DO_NOT_SEND HASHES
+		// remove passwords before transfer on the server and set default client mask
+		uint8 player_hashes[PLAYER_UNOWNED][20];
+		uint16 default_hashes = 0;
+		for(  int i=0;  i<PLAYER_UNOWNED; i++  ) {
+			spieler_t *sp = welt->get_spieler(i);
+			if(  sp==NULL  ||  !sp->set_unlock(NULL)  ) {
+				memset( player_hashes[i], 0, 20 );
+				default_hashes |= (1<<i);
+			}
+			else {
+				memcpy( player_hashes[i], sp->get_password_hash_ptr(), 20 );
+				memset( sp->get_password_hash_ptr(), 0, 20 );
+			}
+		}
+#endif
+		welt->speichern(filename, false );
+
 		// ok, now sending game
 		// this sends nwc_game_t
 		const char *err = network_send_file( client_id, "server-network.sve" );
@@ -216,24 +249,27 @@ void nwc_sync_t::do_command(karte_t *welt)
 			dbg->warning("nwc_sync_t::do_command","send game failed with: %s", err);
 		}
 		// TODO: send command queue to client
-	}
-	long old_sync_steps = welt->get_sync_steps();
-	welt->laden(filename );
 
-	if( umgebung_t::server ) {
+		long old_sync_steps = welt->get_sync_steps();
+		welt->laden(filename );
+
+#ifdef DO_NOT_SEND HASHES
+		// restore password info
+		for(  int i=0;  i<PLAYER_UNOWNED; i++  ) {
+			spieler_t *sp = welt->get_spieler(i);
+			if(  sp  ) {
+				memcpy( sp->get_password_hash_ptr(), player_hashes[i], 20 );
+			}
+		}
+		hashes_ok.insert_at(client_id,default_hashes);
+#endif
 		// restore steps
 		welt->network_game_set_pause(false, old_sync_steps);
+
 		// unpause the client that received the game
 		// we do not want to wait for him (maybe loading failed due to pakset-errors)
 		nwc_ready_t nwc(old_sync_steps);
 		nwc.send(network_get_socket(client_id));
-	}
-	else {
-		// pause clients, restore steps
-		welt->network_game_set_pause(true, old_sync_steps);
-		// tell server we are ready
-		network_command_t *nwc = new nwc_ready_t(old_sync_steps);
-		network_send_server(nwc);
 	}
 }
 
@@ -261,6 +297,7 @@ nwc_tool_t::nwc_tool_t(spieler_t *sp, werkzeug_t *wkz, koord3d pos_, uint32 sync
 	exec = false;
 	init = init_;
 	tool_client_id = 0;
+	flags = wkz->flags;
 }
 
 
@@ -273,6 +310,7 @@ nwc_tool_t::nwc_tool_t(const nwc_tool_t &nwt)
 	default_param = strdup(nwt.default_param);
 	init = nwt.init;
 	tool_client_id = nwt.our_client_id;
+	flags = nwt.flags;
 }
 
 
@@ -294,8 +332,9 @@ void nwc_tool_t::rdwr()
 	packet->rdwr_bool(init);
 	packet->rdwr_bool(exec);
 	packet->rdwr_long(tool_client_id);
+	packet->rdwr_byte(flags);
 	//if (packet->is_loading()) {
-		dbg->warning("nwc_tool_t::rdwr", "rdwr id=%d client=%d plnr=%d pos=%s wkzid=%d defpar=%s init=%d exec=%d", id, tool_client_id, player_nr, pos.get_str(), wkz_id, default_param, init, exec);
+		dbg->warning("nwc_tool_t::rdwr", "rdwr id=%d client=%d plnr=%d pos=%s wkzid=%d defpar=%s init=%d exec=%d flags=%d", id, tool_client_id, player_nr, pos.get_str(), wkz_id, default_param, init, exec, flags);
 	//}
 }
 
@@ -412,7 +451,8 @@ void nwc_tool_t::do_command(karte_t *welt)
 		if(  wkz  ) {
 			const char* old_default_param = wkz->get_default_param();
 			wkz->set_default_param(default_param);
-			dbg->warning("command","%d:%d:%s",wkz_id&0xFFF,init,wkz->get_tooltip(sp));
+			wkz->flags = flags | (local ? werkzeug_t::WFL_LOCAL : 0);
+			dbg->warning("command","%d:%d:%s:%d",wkz_id&0xFFF,init,wkz->get_tooltip(sp),wkz->flags);
 			if(  init  ) {
 				if(local) {
 					welt->local_set_werkzeug(wkz, sp);
@@ -429,6 +469,7 @@ void nwc_tool_t::do_command(karte_t *welt)
 				}
 			}
 			wkz->set_default_param(old_default_param);
+			wkz->flags = 0;
 		}
 
 	}

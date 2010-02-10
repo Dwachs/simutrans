@@ -223,7 +223,18 @@ void factory_edit_frame_t::change_item_info(sint32 entry)
 		if(new_fab_besch!=fab_besch) {
 
 			fab_besch = new_fab_besch;
-			production = (fab_besch->get_produktivitaet()+sim_async_rand(fab_besch->get_bereich()) )<<(welt->ticks_bits_per_tag-18);
+			production = fab_besch->get_produktivitaet() + sim_async_rand( fab_besch->get_bereich() );
+			// Knightly : should also consider the effects of the minimum number of fields
+			const field_besch_t *const field_besch = fab_besch->get_field();
+			if(  field_besch  &&  field_besch->get_field_class_count()>0  ) {
+				const weighted_vector_tpl<uint16> &field_class_indices = field_besch->get_field_class_indices();
+				sint32 min_fields = field_besch->get_min_fields();
+				while(  min_fields-- > 0  ) {
+					const uint16 field_class_index = field_class_indices.at_weight( sim_async_rand( field_class_indices.get_sum_weight() ) );
+					production += field_besch->get_field_class(field_class_index)->get_field_production();
+				}
+			}
+			production <<= (welt->ticks_bits_per_tag-18);
 			inp_production.set_value( production);
 			// show produced goods
 			buf.clear();
@@ -231,6 +242,7 @@ void factory_edit_frame_t::change_item_info(sint32 entry)
 				buf.append( translator::translate("Produktion") );
 				buf.append("\n");
 				for (uint i = 0; i < fab_besch->get_produkte(); i++) {
+					buf.append(" - ");
 					buf.append( translator::translate(fab_besch->get_produkt(i)->get_ware()->get_name()) );
 					buf.append( " (" );
 					buf.append( translator::translate(fab_besch->get_produkt(i)->get_ware()->get_catg_name()) );
@@ -244,6 +256,7 @@ void factory_edit_frame_t::change_item_info(sint32 entry)
 				buf.append( translator::translate("Verbrauch") );
 				buf.append("\n");
 				for(  int i=0;  i<fab_besch->get_lieferanten();  i++  ) {
+					buf.append(" - ");
 					buf.append( translator::translate(fab_besch->get_lieferant(i)->get_ware()->get_name()) );
 					buf.append( " (" );
 					buf.append( translator::translate(fab_besch->get_lieferant(i)->get_ware()->get_catg_name()) );
@@ -269,6 +282,7 @@ void factory_edit_frame_t::change_item_info(sint32 entry)
 			else {
 				for(uint16 i=0;  i<=arctic_climate;  i++  ) {
 					if(cl &  (1<<i)) {
+						buf.append(" - ");
 						buf.append( translator::translate( grund_besch_t::get_climate_name_from_bit( (enum climate)i ) ) );
 						buf.append("\n");
 					}
@@ -300,7 +314,7 @@ void factory_edit_frame_t::change_item_info(sint32 entry)
 			}
 			buf.append("\n");
 			info_text.recalc_size();
-			cont.set_groesse( info_text.get_groesse() );
+			cont.set_groesse( info_text.get_groesse() + koord(0, 20) );
 
 			// orientation (255=random)
 			if(besch->get_all_layouts()>1) {

@@ -315,7 +315,7 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 		// update line schedule via tool!
 		werkzeug_t *w = create_tool( WKZ_LINE_TOOL | SIMPLE_TOOL );
 		cbuffer_t buf(128);
-		buf.printf( "c,0,%i,%p,0|,", (int)tabs_to_lineindex[tabs.get_active_tab_index()], &(sp->simlinemgmt) );
+		buf.printf( "c,0,%i,%ld,0|,", (int)tabs_to_lineindex[tabs.get_active_tab_index()], (long)&(sp->simlinemgmt) );
 		w->set_default_param(buf);
 		sp->get_welt()->set_werkzeug( w, sp );
 		// since init always returns false, it is save to delete immediately
@@ -355,10 +355,13 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 		}
 	}
 	else if (komp == &scl) {
-		if(  (sint32)(v.i)<scl.get_count()  ) {
+		if(  (uint32)(v.i)<scl.get_count()  ) {
 			// get selected line
 			linehandle_t new_line = ((line_scrollitem_t *)scl.get_element(v.i))->get_line();
-			update_lineinfo(new_line);
+			update_lineinfo( new_line );
+		}
+		else {
+			update_lineinfo(linehandle_t());
 		}
 		// brute force: just recalculate whole list on each click to keep it current
 		build_line_list(tabs.get_active_tab_index());

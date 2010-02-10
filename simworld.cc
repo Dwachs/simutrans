@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2001 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2001 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -68,6 +68,7 @@
 #include "dings/groundobj.h"
 #include "dings/gebaeude.h"
 
+#include "gui/password_frame.h"
 #include "gui/messagebox.h"
 #include "gui/help_frame.h"
 #include "gui/karte.h"
@@ -490,7 +491,7 @@ DBG_MESSAGE("karte_t::destroy()", "label clear");
 		zeiger = NULL;
 	}
 
-	// alle convois aufräumen
+	// alle convois aufraeumen
 	while (!convoi_array.empty()) {
 		convoihandle_t cnv = convoi_array.back();
 		cnv->destroy();
@@ -498,7 +499,7 @@ DBG_MESSAGE("karte_t::destroy()", "label clear");
 	convoi_array.clear();
 DBG_MESSAGE("karte_t::destroy()", "convois destroyed");
 
-	// alle haltestellen aufräumen
+	// alle haltestellen aufraeumen
 	haltestelle_t::destroy_all(this);
 DBG_MESSAGE("karte_t::destroy()", "stops destroyed");
 
@@ -519,7 +520,7 @@ DBG_MESSAGE("karte_t::destroy()", "towns destroyed");
 	sync_list.clear();
 DBG_MESSAGE("karte_t::destroy()", "sync list cleared");
 
-// dinge aufräumen
+// dinge aufraeumen
 	cached_groesse_gitter_x = cached_groesse_gitter_y = 1;
 	cached_groesse_karte_x = cached_groesse_karte_y = 0;
 	if(plan) {
@@ -528,17 +529,17 @@ DBG_MESSAGE("karte_t::destroy()", "sync list cleared");
 	}
 	DBG_MESSAGE("karte_t::destroy()", "planquadrat destroyed");
 
-	// gitter aufräumen
+	// gitter aufraeumen
 	if(grid_hgts) {
 		delete [] grid_hgts;
 		grid_hgts = NULL;
 	}
 
-	// marker aufräumen
+	// marker aufraeumen
 	marker.init(0,0);
 DBG_MESSAGE("karte_t::destroy()", "marker destroyed");
 
-	// spieler aufräumen
+	// spieler aufraeumen
 	for(int i=0; i<MAX_PLAYER_COUNT; i++) {
 		if(spieler[i]) {
 			delete spieler[i];
@@ -551,7 +552,7 @@ DBG_MESSAGE("karte_t::destroy()", "player destroyed");
 	simlinemgmt_t::init_line_ids();
 DBG_MESSAGE("karte_t::destroy()", "lines destroyed");
 
-	// alle fabriken aufräumen
+	// alle fabriken aufraeumn
 	slist_iterator_tpl<fabrik_t*> fab_iter(fab_list);
 	while(fab_iter.next()) {
 		delete fab_iter.get_current();
@@ -559,7 +560,7 @@ DBG_MESSAGE("karte_t::destroy()", "lines destroyed");
 	fab_list.clear();
 DBG_MESSAGE("karte_t::destroy()", "factories destroyed");
 
-	// hier nur entfernen, aber nicht löschen
+	// hier nur entfernen, aber nicht loeschen
 	ausflugsziele.clear();
 DBG_MESSAGE("karte_t::destroy()", "attraction list destroyed");
 
@@ -592,7 +593,7 @@ void karte_t::rem_convoi(convoihandle_t& cnv)
 }
 
 /**
- * Zugriff auf das Städte Array.
+ * Zugriff auf das Staedte Array.
  * @author Hj. Malthaner
  */
 const stadt_t *karte_t::get_random_stadt() const
@@ -895,14 +896,34 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","took %lu ms for all towns",
 			// find townhall of city i and road in front of it
 			vector_tpl<koord3d> k;
 			for(  int i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
-				koord k1 = stadt[i]->get_pos();
-				const gebaeude_t* gb = dynamic_cast<gebaeude_t*>(lookup_kartenboden(k1)->first_obj());
-				if(  gb  &&  gb->ist_rathaus()  ) {
-					k1.y += gb->get_tile()->get_besch()->get_h(gb->get_tile()->get_layout());
-					k.append( lookup_kartenboden(k1)->get_pos() );
+				koord k1(stadt[i]->get_townhall_road());
+				if (lookup_kartenboden(k1)  &&  lookup_kartenboden(k1)->hat_weg(road_wt)) {
+					k.append(lookup_kartenboden(k1)->get_pos());
 				}
 				else {
-					k.append( koord3d::invalid );
+					// look for a road near the townhall
+					const gebaeude_t* gb = dynamic_cast<gebaeude_t*>(lookup_kartenboden(stadt[i]->get_pos())->first_obj());
+					bool ok = false;
+					if(  gb  &&  gb->ist_rathaus()  ) {
+						koord pos = stadt[i]->get_pos() + koord(-1,-1);
+						const koord size = gb->get_tile()->get_besch()->get_groesse(gb->get_tile()->get_layout());
+						koord inc(1,0);
+						// scan all adjacent tiles, take the first that has a road
+						for(uint32 i=0; i<2*size.x+2*size.y+4  &&  !ok; i++) {
+							grund_t *gr = lookup_kartenboden(pos);
+							if (gr  &&  gr->hat_weg(road_wt)) {
+								k.append(gr->get_pos());
+								ok = true;
+							}
+							pos = pos + inc;
+							if (i==size.x+1) inc = koord(0,1);
+							else if (i==size.x+size.y+2) inc = koord(-1,0);
+							else if (i==2*size.x+size.y+3) inc = koord(0,-1);
+						}
+					}
+					if (!ok) {
+						k.append( koord3d::invalid );
+					}
 				}
 			}
 			// compute all distances
@@ -1531,6 +1552,7 @@ karte_t::karte_t() : convoi_array(0), ausflugsziele(16), stadt(0), marker(0,0)
 
 	for(int i=0; i<MAX_PLAYER_COUNT ; i++) {
 		spieler[i] = NULL;
+		memset( player_password_hash[i], 0, 20 );
 	}
 
 	// no distance to show at first ...
@@ -1596,7 +1618,7 @@ bool karte_t::can_raise_plan_to(sint16 x, sint16 y, sint8 h) const
 		return false;
 	}
 
-	// irgendwo eine Brücke im Weg?
+	// irgendwo eine Bruecke im Weg?
 	int hmin = plan->get_kartenboden()->get_hoehe();
 	while(h > hmin) {
 		if(plan->get_boden_in_hoehe(h)) {
@@ -2122,10 +2144,21 @@ bool karte_t::ebne_planquadrat(spieler_t *sp, koord pos, sint8 hgt)
 }
 
 
+void karte_t::set_player_password_hash( uint8 player_nr, uint8 *hash )
+{
+	memcpy( player_password_hash[player_nr], hash, 20 );
+}
+
 
 // new tool definition
 void karte_t::set_werkzeug( werkzeug_t *w, spieler_t *sp )
 {
+	if(  (!w->is_init_network_save()  ||  !w->is_work_network_save())  &&  sp  &&  sp->set_unlock(player_password_hash[sp->get_player_nr()])  ) {
+		// player is currently password protected => request unlock first
+		create_win( -1, -1, new password_frame_t(sp), w_info, (long)(player_password_hash[sp->get_player_nr()]) );
+		return;
+	}
+	w->flags = event_get_last_control_shift();
 	if(!umgebung_t::networkmode  ||  w->is_init_network_save()  ) {
 		local_set_werkzeug(w, sp);
 	}
@@ -2140,6 +2173,7 @@ void karte_t::set_werkzeug( werkzeug_t *w, spieler_t *sp )
 // set a new tool on our client, calls init
 void karte_t::local_set_werkzeug( werkzeug_t *w, spieler_t * sp )
 {
+	w->flags |= werkzeug_t::WFL_LOCAL;
 	if(w->init(this,sp)) {
 
 		set_dirty();
@@ -2169,7 +2203,9 @@ void karte_t::local_set_werkzeug( werkzeug_t *w, spieler_t * sp )
 		}
 		werkzeug[sp->get_player_nr()] = w;
 	}
+	w->flags = 0;
 }
+
 
 sint8 karte_t::min_hgt(const koord pos) const
 {
@@ -2387,21 +2423,20 @@ karte_t::get_random_fab() const
 /*----------------------------------------------------------------------------------------------------------------------*/
 /* same procedure for tourist attractions */
 
-void
-karte_t::add_ausflugsziel(gebaeude_t *gb)
+
+void karte_t::add_ausflugsziel(gebaeude_t *gb)
 {
 	assert(gb != NULL);
 	ausflugsziele.append( gb, gb->get_tile()->get_besch()->get_level(), 16 );
 //DBG_MESSAGE("karte_t::add_ausflugsziel()","appended ausflugsziel at %i",ausflugsziele.get_count() );
 }
 
-void
-karte_t::remove_ausflugsziel(gebaeude_t *gb)
+
+void karte_t::remove_ausflugsziel(gebaeude_t *gb)
 {
 	assert(gb != NULL);
 	ausflugsziele.remove( gb );
 }
-
 
 
 /* select a random target for a tourist; targets are weighted by their importance */
@@ -2454,6 +2489,7 @@ bool karte_t::sync_add(sync_steppable *obj)
 	}
 	return true;
 }
+
 
 bool karte_t::sync_remove(sync_steppable *obj)	// entfernt alle dinge == obj aus der Liste
 {
@@ -2543,7 +2579,7 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 				const sint16 rw = get_tile_raster_width();
 				int new_xoff = 0;
 				int new_yoff = 0;
-				follow_convoi->get_vehikel(0)->get_screen_offset( new_xoff, new_yoff );
+				follow_convoi->get_vehikel(0)->get_screen_offset( new_xoff, new_yoff, get_tile_raster_width() );
 				new_xoff -= tile_raster_scale_x(-follow_convoi->get_vehikel(0)->get_xoff(),rw);
 				new_yoff -= tile_raster_scale_y(-follow_convoi->get_vehikel(0)->get_yoff(),rw) + tile_raster_scale_y(new_pos.z*TILE_HEIGHT_STEP/Z_TILE_STEP,rw);
 				change_world_position( new_pos.get_2d(), -new_xoff, -new_yoff );
@@ -3590,8 +3626,8 @@ DBG_DEBUG("karte_t::finde_plaetze()","for size (%i,%i) in map (%i,%i)",w,h,get_g
 				list->insert(start);
 			}
 			else {
-				// Optimiert für größere Felder, hehe!
-				// Die Idee: wenn bei 2x2 die untere Reihe nicht geht, können
+				// Optimiert fuer groessere Felder, hehe!
+				// Die Idee: wenn bei 2x2 die untere Reihe nicht geht, koennen
 				// wir gleich 2 tiefer weitermachen! V. Meyer
 				start.y = last_y;
 			}
@@ -4236,7 +4272,7 @@ DBG_MESSAGE("karte_t::laden()", "%d factories loaded", fab_list.get_count());
 	}
 DBG_MESSAGE("karte_t::laden()", "%d convois/trains loaded", convoi_array.get_count());
 
-	// jetzt können die spieler geladen werden
+	// jetzt koennen die spieler geladen werden
 	display_progress(get_groesse_y()+24+stadt.get_count(), get_groesse_y()+256+stadt.get_count());
 	for(int i=0; i<MAX_PLAYER_COUNT; i++) {
 		if(  spieler[i]  ) {
@@ -4245,13 +4281,12 @@ DBG_MESSAGE("karte_t::laden()", "%d convois/trains loaded", convoi_array.get_cou
 		}
 		else {
 			einstellungen->automaten[i] = false;
-			einstellungen->password[i][0] = 0;
 		}
 		display_progress(get_groesse_y()+24+stadt.get_count()+(i*3), get_groesse_y()+256+stadt.get_count());
 	}
 DBG_MESSAGE("karte_t::laden()", "players loaded");
 
-	// nachdem die welt jetzt geladen ist können die Blockstrecken neu
+	// nachdem die welt jetzt geladen ist koennen die Blockstrecken neu
 	// angelegt werden
 	old_blockmanager_t::laden_abschliessen(this);
 	DBG_MESSAGE("karte_t::laden()", "blocks loaded");
@@ -4445,7 +4480,7 @@ uint8 karte_t::sp2num(spieler_t *sp)
 /**
  * Creates a map from a heightfield
  * @param sets game settings
- * @author Hansjörg Malthaner
+ * @author Hj. Malthaner
  */
 void karte_t::load_heightfield(einstellungen_t *sets)
 {
@@ -4614,7 +4649,7 @@ void karte_t::do_freeze()
 	display_ddd_box(display_get_width()/2-92, display_get_height()/2-42, 200-16,100-16, MN_GREY0, MN_GREY4);
 	display_proportional(display_get_width()/2, display_get_height()/2-5, translator::translate("GAME PAUSED"), ALIGN_MIDDLE, COL_BLACK, false);
 
-	// Pause: warten auf die nächste Taste
+	// Pause: warten auf die naechste Taste
 	event_t ev;
 	dr_flush();
 	warte_auf_mausklick_oder_taste(&ev);
@@ -4758,7 +4793,7 @@ void karte_t::bewege_zeiger(const event_t *ev)
 		// mit den mauskoordinaten zu vergleichen
 		int neu_x = ((mi-i_off) - (mj-j_off))*rw2 + display_get_width()/2 + rw2;
 
-		// prüfe richtung d.h. welches nachbarfeld ist am naechsten
+		// pruefe richtung d.h. welches nachbarfeld ist am naechsten
 		if(ev->mx-x_off < neu_x) {
 			zeiger->set_richtung(ribi_t::west);
 		}
@@ -4773,20 +4808,22 @@ void karte_t::bewege_zeiger(const event_t *ev)
 			mb_alt = ev->button_state;
 
 			zeiger->change_pos(pos);
-			if(  !umgebung_t::networkmode  ||  werkzeug[get_active_player_nr()]->is_move_network_save(get_active_player())) {
-				if(  ev->button_state == 0  ) {
-					is_dragging = false;
-					if(  ist_in_kartengrenzen(pos.get_2d())  ) {
-						werkzeug[get_active_player_nr()]->move( this, get_active_player(), 0, pos );
+			werkzeug_t *wkz = werkzeug[get_active_player_nr()];
+			if(  !umgebung_t::networkmode  ||  wkz->is_move_network_save(get_active_player())) {
+				wkz->flags = event_get_last_control_shift() | werkzeug_t::WFL_LOCAL;
+				if(wkz->check( this, get_active_player(), zeiger->get_pos() )==NULL) {
+					if(  ev->button_state == 0  ) {
+						is_dragging = false;
 					}
-				}
-				else if(ev->ev_class==EVENT_DRAG  &&  ist_in_kartengrenzen(pos.get_2d())) {
-					if(!is_dragging  &&  ist_in_kartengrenzen(prev_pos.get_2d())) {
-						werkzeug[get_active_player_nr()]->move( this, get_active_player(), 1, prev_pos );
+					else if(ev->ev_class==EVENT_DRAG) {
+						if(!is_dragging  &&  wkz->check( this, get_active_player(), prev_pos )==NULL) {
+							wkz->move( this, get_active_player(), 1, prev_pos );
+							is_dragging = true;
+						}
 					}
-					is_dragging = true;
-					werkzeug[get_active_player_nr()]->move( this, get_active_player(), 1, pos );
+					wkz->move( this, get_active_player(), is_dragging, pos );
 				}
+				wkz->flags = 0;
 			}
 
 			if(  (ev->button_state&7)==0  ) {
@@ -4966,17 +5003,31 @@ karte_t::interactive_event(event_t &ev)
 	if(IS_LEFTRELEASE(&ev)) {
 DBG_MESSAGE("karte_t::interactive_event(event_t &ev)", "calling a tool");
 
-		const char *err = NULL;
-		if(ist_in_kartengrenzen(zeiger->get_pos().get_2d())  &&  (!umgebung_t::networkmode  ||  werkzeug[get_active_player_nr()]->is_work_network_save())  ) {
-			// do the work
-			err = werkzeug[get_active_player_nr()]->work( this, get_active_player(), zeiger->get_pos() );
-			// play sound / error message
-			get_active_player()->tell_tool_result(werkzeug[get_active_player_nr()], zeiger->get_pos(), err, true);
-		}
-		else {
-			// queue tool for network
-			nwc_tool_t *nwc = new nwc_tool_t(get_active_player(), werkzeug[get_active_player_nr()], zeiger->get_pos(), steps, false);
-			network_send_server(nwc);
+		if(ist_in_kartengrenzen(zeiger->get_pos().get_2d())) {
+			const char *err = NULL;
+			bool result = true;
+			werkzeug_t *wkz = werkzeug[get_active_player_nr()];
+			// first check for visibility etc
+			err = wkz->check( this, get_active_player(), zeiger->get_pos() );
+			if (err==NULL) {
+				wkz->flags = event_get_last_control_shift();
+				if (!umgebung_t::networkmode  ||  wkz->is_work_network_save()) {
+					// do the work
+					wkz->flags |= werkzeug_t::WFL_LOCAL;
+					err = wkz->work( this, get_active_player(), zeiger->get_pos() );
+				}
+				else {
+					// queue tool for network
+					nwc_tool_t *nwc = new nwc_tool_t(get_active_player(), wkz, zeiger->get_pos(), steps, false);
+					network_send_server(nwc);
+					result = false;
+				}
+			}
+			if (result) {
+				// play sound / error message
+				get_active_player()->tell_tool_result(wkz, zeiger->get_pos(), err, true);
+			}
+			wkz->flags = 0;
 		}
 	}
 
@@ -5063,6 +5114,7 @@ bool karte_t::interactive(uint32 quit_month)
 
 	uint32 last_randoms[16];
 	network_frame_count = 0;
+	vector_tpl<uint16>hashes_ok;	// bit set: this client can do something with this player
 
 	// only needed for network
 	uint32 next_command_step=-1;
@@ -5219,7 +5271,7 @@ bool karte_t::interactive(uint32 quit_month)
 			if (nwc) {
 				// want to execute something in the past?
 				if (nwc->get_sync_step() < sync_steps) {
-					dbg->warning("karte_t::interactive", "wanted to do_command in the past");
+					dbg->warning("karte_t::interactive", "wanted to do_command(%d) in the past", nwc->get_id());
 					network_disconnect();
 				}
 				// check random counter?
@@ -5228,7 +5280,7 @@ bool karte_t::interactive(uint32 quit_month)
 					// this was the random number at the previous sync step on the server
 					uint32 server_random = nwcheck->server_random_seed;
 					uint32 server_syncst = nwcheck->server_sync_step;
-					dbg->warning("karte_t::interactive", "client: sync=%d  rand=%d, server: rand=%d", server_syncst, last_randoms[server_syncst&15], server_random);
+					dbg->warning("karte_t::interactive", "client: sync=%d  rand=%d, server: sync=%d  rand=%d", sync_steps, last_randoms[server_syncst&15], server_syncst, server_random);
 					if (last_randoms[server_syncst&15]!=server_random) {
 						network_disconnect();
 					}
