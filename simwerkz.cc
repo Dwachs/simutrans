@@ -2232,11 +2232,14 @@ const char *wkz_wayobj_t::get_tooltip(spieler_t *sp)
 	if(  build  ) {
 		const way_obj_besch_t *besch = get_besch(sp->get_welt());
 		if(besch) {
-			sprintf(toolstr, "%s, %ld$ (%ld$), %dkm/h",
+			int n = sprintf(toolstr, "%s, %ld$ (%ld$)",
 					translator::translate(besch->get_name()),
 					besch->get_preis()/100l,
-					(besch->get_wartung()<<(sp->get_welt()->ticks_bits_per_tag-18l))/100l,
-					besch->get_topspeed());
+					(besch->get_wartung()<<(sp->get_welt()->ticks_bits_per_tag-18l))/100l);
+			if (besch->get_own_wtyp()==overheadlines_wt) {
+				// only overheadlines impose topspeed
+				sprintf(toolstr+n, ", %dkm/h", besch->get_topspeed());
+			}
 			return toolstr;
 		}
 		return NULL;
@@ -4505,7 +4508,7 @@ bool wkz_change_convoi_t::init( karte_t *welt, spieler_t *sp )
 
 
 
-/* Handles all action of ^lines. Needs a default param:
+/* Handles all action of lines. Needs a default param:
  * [function],[line_id],addition stuff
  * following simple command exists:
  * 'g' : apply new schedule to line [schedule follows]
@@ -4551,9 +4554,12 @@ bool wkz_change_line_t::init( karte_t *, spieler_t *sp )
 					if(  fg  ) {
 						fg->init_line_selector();
 					}
-					schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic(t));
+					schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>((long)&(sp->simlinemgmt));
 					if(  sl  ) {
 						sl->show_lineinfo( line );
+					}
+					// no schedule window open => then open one
+					if(  fg==NULL  ) {
 						create_win( new line_management_gui_t(line, sp), w_info, (long)line.get_rep() );
 					}
 				}
