@@ -168,6 +168,9 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	sint64 mitt_gewinn = 0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
+		if (cnv->get_state()==convoi_t::SELF_DESTRUCT) {
+			continue;
+		}
 		if (cnv->get_loading_level()==0) {
 			// nothing transported in last 2 months and not older than 1 month -> probably new
 			if ( (cnv->get_finance_history(0, CONVOI_TRANSPORTED_GOODS)+cnv->get_finance_history(1, CONVOI_TRANSPORTED_GOODS))<=0
@@ -241,7 +244,6 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 				for(uint32 i=0; i<stopped.get_count(); i++) {
 					if (stopped[i]->get_loading_level()==0) {
 						stopped[i]->self_destruct();
-						stopped[i]->step();	// to really get rid of it
 						break;
 					}
 				}
@@ -267,7 +269,6 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			const uint32 i0 = empty.get_count() < line->count_convoys() ? 0 : 1;
 			for(uint32 i=i0; i<empty.get_count(); i+=3) {
 				empty[i]->self_destruct();
-				empty[i]->step();	// to really get rid of it
 			}
 		}
 	}
