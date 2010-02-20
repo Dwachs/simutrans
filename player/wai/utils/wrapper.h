@@ -1,11 +1,12 @@
 #ifndef _WRAPPER_H_
 #define _WRAPPER_H_
 
+#include "../../../simdebug.h"
 #include "../../../simtypes.h"
+#include "../../../dataobj/loadsave.h"
 
 class ai_wai_t;
 class fabrik_t;
-class loadsave_t;
 
 /*
  * abstract class to contain the notify routine
@@ -30,18 +31,13 @@ template<class T> void rdwr_tpl(const T* &p, loadsave_t *file, const uint16, ai_
  */
 template <class T> class wrap_tpl : public wrapper_t {
 public:
-	wrap_tpl(const T* p=NULL, ai_wai_t* s=NULL): ptr(p), sp(s)
+	wrap_tpl(const T* p, ai_wai_t* s): ptr(p), sp(s)
 	{
-		if(sp  &&  ptr) {
-			sp->register_wrapper(this, ptr);
-		}
+		registerw();
 	}
-
 	~wrap_tpl()
 	{
-		if(sp  &&  ptr) {
-			sp->unregister_wrapper(this);
-		}
+		unregisterw();
 	}
 	void notify()
 	{
@@ -52,17 +48,42 @@ public:
 	{
 		rdwr_tpl<T>(ptr, file, version, sp);
 		if (file->is_loading()) {
+			unregisterw();
 			this->sp = sp;
-			if (ptr) {
-				sp->register_wrapper(this, ptr);
-			}
+			registerw();
 		}
 	}
 	bool is_bound() const { return ptr!=NULL; }
+
 	const T* operator->() const { return ptr; }
+	const T* operator*() const { return ptr; }
 
 	bool operator != (const wrap_tpl<T> & k) const { return ptr!=k.ptr; }
 	bool operator == (const wrap_tpl<T> & k) const { return ptr==k.ptr; }
+	bool operator == (const T* p) const { return ptr==p; }
+
+	void set(const T* p) 
+	{
+		unregisterw();
+		ptr=p;
+		registerw();
+	}
+
+	void registerw() 
+	{
+		assert(sp);
+		if(sp  &&  ptr) {
+			sp->register_wrapper(this, ptr);
+		}
+	}
+	void unregisterw()
+	{
+		assert(sp);
+		if(sp) {
+			sp->unregister_wrapper(this);
+		}
+	}
+
 private:
 	const T *ptr;
 	ai_wai_t *sp;

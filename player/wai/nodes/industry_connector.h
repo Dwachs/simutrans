@@ -2,6 +2,7 @@
 #define _IND_CONNECTOR_H_
 
 #include "../bt.h"
+#include "../utils/wrapper.h"
 class connection_t;
 class fabrik_t;
 class ware_besch_t;
@@ -22,7 +23,7 @@ public:
 	virtual void rotate90( const sint16);
 	virtual void debug( log_t &file, cstring_t prefix );
 private:
-	const fabrik_t *start, *ziel;
+	wfabrik_t start, ziel;
 	const ware_besch_t *freight;
 	connection_t *connections;
 };

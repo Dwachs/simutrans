@@ -9,8 +9,8 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../vehicle/simvehikel.h"
 
-industry_link_t::industry_link_t(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
-: status(0), start(s), ziel(z), freight(f)
+industry_link_t::industry_link_t(ai_wai_t *sp, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f)
+: status(0), start(s,sp), ziel(z,sp), freight(f)
 {
 	connections = new parallel_connection_t();
 }
@@ -85,7 +85,7 @@ uint32 industry_manager_t::get_connection_id(const fabrik_t *s, const fabrik_t *
 		return i;
 	}
 	else {
-		connections.append(new industry_link_t(s,z,f));
+		connections.append(new industry_link_t(sp,s,z,f));
 		return connections.get_count()-1;
 	}
 }
@@ -101,7 +101,7 @@ industry_link_t* industry_manager_t::get_connection(const fabrik_t *s, const fab
 		return connections[i];
 	}
 	else {
-		industry_link_t *ic = new industry_link_t(s,z,f);
+		industry_link_t *ic = new industry_link_t(sp,s,z,f);
 		connections.append(ic);
 		return ic;
 	}
@@ -184,7 +184,7 @@ void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)
 	file->rdwr_long(count,"");
 	for(uint32 i=0; i<count; i++) {
 		if (file->is_loading()) {
-			connections.append(new industry_link_t());
+			connections.append(new industry_link_t(sp,NULL,NULL,NULL));
 		}
 		connections[i]->rdwr(file,version,sp);
 	}

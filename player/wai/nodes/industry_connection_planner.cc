@@ -35,7 +35,11 @@ public:
 
 return_value_t *industry_connection_planner_t::step()
 {
-	if(sp->get_industry_manager()->is_connection(unplanable, start, ziel, freight)) {		
+	if(!start.is_bound()  ||  !ziel.is_bound()) {	
+		sp->get_log().warning("industry_connection_planner_t::step", "%s %s disappeared", start.is_bound() ? "" : "start", ziel.is_bound() ? "" : "ziel");
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
+	if(sp->get_industry_manager()->is_connection(unplanable, *start, *ziel, freight)) {		
 		sp->get_log().warning("industry_connection_planner_t::step", "connection already planned/built/forbidden");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -49,7 +53,7 @@ return_value_t *industry_connection_planner_t::step()
 	const weg_besch_t *wb = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
 	if (!wb) {
 		sp->get_log().warning("industry_connection_planner_t::step","no way found for waytype %d", wt);
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
@@ -58,7 +62,7 @@ return_value_t *industry_connection_planner_t::step()
 	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
 	if (st==NULL || dep ==NULL) {
 		sp->get_log().warning("industry_connection_planner_t::step", "no %s%s available for waytype=%d", (st==NULL?"station ":""), (dep==NULL?"depot":""), wt);
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
@@ -66,7 +70,7 @@ return_value_t *industry_connection_planner_t::step()
 	sint32 prod = calc_production();
 	if (prod<0) {
 		sp->get_log().warning("industry_connection_planner_t::step","production = %d", prod);
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
@@ -76,7 +80,7 @@ return_value_t *industry_connection_planner_t::step()
 	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 		if(start->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 			sp->get_log().warning("industry_connection_planner_t::step", "only oil rigs supported yet");
-			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL);
 		}
 		sp->get_log().message("industry_connection_planner_t::step", "start factory at water side spotted");
@@ -87,14 +91,14 @@ return_value_t *industry_connection_planner_t::step()
 		const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, sp->get_welt()->get_timeline_year_month(), 0);
 		if (st==NULL || dep ==NULL) {
 			sp->get_log().warning("industry_connection_planner_t::step", "no %s%s available for waytype=%d", (st==NULL?"station ":""), (dep==NULL?"depot":""), water_wt);
-			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
 
 		harbour_pos = get_harbour_pos();
 		if (harbour_pos == koord3d::invalid) {
 			sp->get_log().warning("industry_connection_planner_t::step", "Keine Amphibienroute");
-			sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
 	}
@@ -103,7 +107,7 @@ return_value_t *industry_connection_planner_t::step()
 	connection_plan_data_t *cpd_road = plan_connection(wt, prod, dist1);
 	if (!cpd_road->is_ok()) {
 		delete cpd_road;
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 	// ship planner
@@ -112,7 +116,7 @@ return_value_t *industry_connection_planner_t::step()
 	if (include_ships && !cpd_ship->is_ok()) {
 		delete cpd_road;
 		delete cpd_ship;
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
@@ -126,15 +130,15 @@ return_value_t *industry_connection_planner_t::step()
 
 	// create the action nodes
 	if( include_ships ) {
-		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road+ship", start, ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, cpd_road->d, report->nr_vehicles, NULL, harbour_pos) );
+		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road+ship", *start, *ziel, freight );
+		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, report->nr_vehicles, NULL, harbour_pos) );
 		// TODO: was passiert, wenn der road-connector seine Route nicht bauen kann?
-		action->append_child( new connector_ship_t(sp, "connector_ship_t", start, ziel, cpd_ship->d, report->nr_ships, harbour_pos) );
+		action->append_child( new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd_ship->d, report->nr_ships, harbour_pos) );
 		report->action = action;
 	}
 	else {
-		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road", start, ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", start, ziel, wb, cpd_road->d, report->nr_vehicles, NULL) );
+		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road", *start, *ziel, freight );
+		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, report->nr_vehicles, NULL) );
 		report->action = action;
 	}
 	// free memory
@@ -145,7 +149,7 @@ return_value_t *industry_connection_planner_t::step()
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /m = %lld", report->gain_per_m/100);
 
-	sp->get_industry_manager()->set_connection(planned, start, ziel, freight);
+	sp->get_industry_manager()->set_connection(planned, *start, *ziel, freight);
 
 	return new_return_value(RT_TOTAL_SUCCESS);
 }
@@ -170,7 +174,7 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 
 	if (proto->is_empty()) {
 		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
-		sp->get_industry_manager()->set_connection(forbidden, start, ziel, freight);
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return cpd;
 	}
 	// check for ship depots, dock
@@ -367,8 +371,8 @@ sint64 industry_connection_planner_t::calc_building_maint(const haus_besch_t* be
 void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version)
 {
 	planner_t::rdwr(file, version);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
+	start.rdwr(file, version, sp);
+	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
 
 	sint16 iwt = wt;

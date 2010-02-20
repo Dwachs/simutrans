@@ -8,6 +8,7 @@
  */
 
 #include "../bt.h"
+#include "../utils/wrapper.h"
 #include "../../../dataobj/koord3d.h"
 
 class fabrik_t;
@@ -27,7 +28,7 @@ public:
 	virtual void rotate90( const sint16);
 	virtual void debug( log_t &file, cstring_t prefix );
 private:
-	const fabrik_t *fab1, *fab2;
+	wfabrik_t fab1, fab2;
 	const weg_besch_t *road_besch;
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;

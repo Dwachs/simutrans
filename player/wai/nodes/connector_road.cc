@@ -20,11 +20,9 @@
 #include "../../../dataobj/loadsave.h"
 
 connector_road_t::connector_road_t( ai_wai_t *sp, const char *name) :
-	bt_sequential_t( sp, name)
+	bt_sequential_t( sp, name), fab1(NULL, sp), fab2(NULL, sp)
 {
 	type = BT_CON_ROAD;
-	fab1 = NULL;
-	fab2 = NULL;
 	road_besch = NULL;
 	prototyper = NULL;
 	nr_vehicles = 0;
@@ -37,11 +35,9 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name) :
 }
 
 connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t *road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const way_obj_besch_t *e_, const koord3d harbour_pos_ ) :
-	bt_sequential_t( sp, name )
+	bt_sequential_t( sp, name ), fab1(fab1_, sp), fab2(fab2_, sp)
 {
 	type = BT_CON_ROAD;
-	fab1 = fab1_;
-	fab2 = fab2_;
 	road_besch = road_besch_;
 	prototyper = d;
 	nr_vehicles = nr_veh;
@@ -58,9 +54,9 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 		tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
 	}
 	else {
-		append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1 ));
+		append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab1 ));
 	}
-	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2 ));
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab2 ));
 }
 
 connector_road_t::~connector_road_t()
@@ -74,8 +70,8 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	bt_sequential_t::rdwr( file, version );
 	file->rdwr_byte(phase, "");
 	file->rdwr_byte(force_through, "");
-	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
+	fab1.rdwr(file, version, sp);
+	fab2.rdwr(file, version, sp);
 	ai_t::rdwr_weg_besch(file, road_besch);
 	file->rdwr_short(nr_vehicles, "");
 	if (phase<=2) {
@@ -115,6 +111,10 @@ void connector_road_t::rotate90( const sint16 y_size)
 
 return_value_t *connector_road_t::step()
 {
+	if(!fab1.is_bound()  ||  !fab2.is_bound()) {	
+		sp->get_log().warning("connector_road_t::step", "%s %s disappeared", fab1.is_bound() ? "" : "start", fab2.is_bound() ? "" : "ziel");
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
 	if( childs.empty() ) {
 		datablock_t *data = NULL;
 		sp->get_log().message("connector_road_t::step", "phase %d of build route %s => %s", phase, fab1->get_name(), fab2->get_name() );
@@ -163,9 +163,9 @@ return_value_t *connector_road_t::step()
 							tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
 						}
 						else {
-							append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1, force_through&1 ));
+							append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab1, force_through&1 ));
 						}
-						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2, force_through&2 ));
+						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab2, force_through&2 ));
 						sp->get_log().message( "connector_road_t::step", "did not complete phase %d", phase);
 						return new_return_value(RT_PARTIAL_SUCCESS);
 					}

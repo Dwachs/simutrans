@@ -13,14 +13,14 @@ void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wa
 	}
 	file->rdwr_byte(t,"");
 	if (file->is_loading()) {
-		c = alloc_connection((connection_types)t);
+		c = alloc_connection((connection_types)t, sp);
 	}
 	if (c) {
 		c->rdwr(file,version,sp);
 	}
 }
 
-connection_t* connection_t::alloc_connection(connection_types t)
+connection_t* connection_t::alloc_connection(connection_types t, ai_wai_t *sp)
 {
 	switch(t) {
 		case CONN_NULL:
@@ -32,7 +32,7 @@ connection_t* connection_t::alloc_connection(connection_types t)
 		case CONN_PARALLEL:
 			return new parallel_connection_t();
 		case CONN_FREIGHT:
-			return new freight_connection_t();
+			return new freight_connection_t(sp);
 		case CONN_WITHDRAWN:
 			return new withdrawn_connection_t();
 		case CONN_SIMPLE:

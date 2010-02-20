@@ -2,6 +2,7 @@
 #define FACTORY_SEARCHER_H
 
 #include "../manager.h"
+#include "../utils/wrapper.h"
 
 /*
  * The factory searcher searches new factory
@@ -14,7 +15,7 @@ class ware_besch_t;
 
 class factory_searcher_t : public manager_t {
 public:
-	factory_searcher_t( ai_wai_t *sp_, const char* name_ ) : manager_t(sp_, name_), start(0), ziel(0), freight(0) { type = BT_FACT_SRCH;};
+	factory_searcher_t( ai_wai_t *sp_, const char* name_ ) : manager_t(sp_, name_), start(0,sp_), ziel(0,sp_), freight(0) { type = BT_FACT_SRCH;};
 
 	virtual return_value_t *work();
 	virtual void rotate90( const sint16 ) {};
@@ -29,8 +30,8 @@ private:
 	bool is_forbidden( const fabrik_t * /*start*/, const fabrik_t * /*end*/, const ware_besch_t * /*w*/ ) const;
 	bool is_planable( const fabrik_t * s, const fabrik_t * z, const ware_besch_t * f) const;
 
-	const fabrik_t *start;
-	const fabrik_t *ziel;
+	wfabrik_t start;
+	wfabrik_t ziel;
 	const ware_besch_t *freight;
 };
 

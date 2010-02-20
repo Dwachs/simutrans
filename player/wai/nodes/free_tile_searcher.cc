@@ -8,28 +8,30 @@
 #include "../../../dataobj/loadsave.h"
 
 free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name ) :
-	bt_node_t( sp, name )
+	bt_node_t( sp, name ), fab(0, sp)
 {
-	fab = NULL;
 	type = BT_FREE_TILE;
 }
 
-free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, const fabrik_t *fab, bool through ) :
-	bt_node_t( sp, name )
+free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, const fabrik_t *fab_, bool through ) :
+	bt_node_t( sp, name ), fab(fab_, sp)
 {
-	this->fab = fab;
 	this->through = through;
 	type = BT_FREE_TILE;
 }
 
-void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 /*version*/ )
+void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 version )
 {
-	ai_t::rdwr_fabrik( file, sp->get_welt(), fab );
+	fab.rdwr(file, version, sp);
 	file->rdwr_bool(through,"");
 }
 
 return_value_t *free_tile_searcher_t::step() 
 {
+	if(!fab.is_bound()) {	
+		sp->get_log().warning("free_tile_searcher_t::step", "factory disappeared");
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
 	datablock_t *data = new datablock_t();
 
 	const uint8 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
@@ -46,7 +48,7 @@ return_value_t *free_tile_searcher_t::step()
 		for( uint32 j = 0; j < one_more.get_count(); j++ ) {
 			halthandle_t halt = haltestelle_t::get_halt( sp->get_welt(), one_more[j], sp );
 			if( halt.is_bound() && !( other_halts.is_contained(halt->get_basis_pos()) || connected_halts.is_contained(halt->get_basis_pos()) ) ) {
-				bool halt_connected = halt->get_fab_list().is_contained( (fabrik_t*)fab );
+				bool halt_connected = halt->get_fab_list().is_contained( (fabrik_t*)*fab );
 				for( slist_tpl< haltestelle_t::tile_t >::const_iterator iter = halt->get_tiles().begin(); iter != halt->get_tiles().end(); ++iter ) {
 					koord pos = iter->grund->get_pos().get_2d();
 					if( halt_connected ) {

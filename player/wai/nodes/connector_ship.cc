@@ -17,11 +17,9 @@
 #include "../../../dataobj/loadsave.h"
 
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
-	bt_sequential_t( sp, name )
+	bt_sequential_t( sp, name ), fab1(NULL, sp), fab2(NULL, sp)
 {
 	type = BT_CON_SHIP;
-	fab1 = NULL;
-	fab2 = NULL;
 	prototyper = NULL;
 	nr_vehicles = 0;
 	phase = 0;
@@ -29,11 +27,9 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	harbour_pos = koord3d::invalid;;
 }
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos_ ) :
-	bt_sequential_t( sp, name )
+	bt_sequential_t( sp, name ), fab1(fab1_, sp), fab2(fab2_, sp)
 {
 	type = BT_CON_SHIP;
-	fab1 = fab1_;
-	fab2 = fab2_;
 	prototyper = d;
 	nr_vehicles = nr_veh;
 	phase = 0;
@@ -51,8 +47,8 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_sequential_t::rdwr( file, version );
 	file->rdwr_byte(phase, "");
-	ai_t::rdwr_fabrik(file, sp->get_welt(), fab1);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), fab2);
+	fab1.rdwr(file, version, sp);
+	fab2.rdwr(file, version, sp);
 	file->rdwr_short(nr_vehicles, "");
 	if (phase<=2) {
 		if (file->is_loading()) {
@@ -78,6 +74,10 @@ void connector_ship_t::rotate90( const sint16 y_size)
 
 return_value_t *connector_ship_t::step()
 {
+	if(!fab1.is_bound()  ||  !fab2.is_bound()) {	
+		sp->get_log().warning("connector_ship_t::step", "%s %s disappeared", fab1.is_bound() ? "" : "start", fab2.is_bound() ? "" : "ziel");
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
 	if( childs.empty() ) {
 		return_value_t *rv = new_return_value(RT_DONE_NOTHING);
 		switch(phase) {

@@ -30,7 +30,7 @@ public:
 	virtual void rotate90( const sint16 /*y_size*/ ) {}
 	virtual void debug( log_t &file, cstring_t prefix );
 
-	static connection_t* alloc_connection(connection_types t);
+	static connection_t* alloc_connection(connection_types t, ai_wai_t *sp);
 	static void rdwr_connection(loadsave_t* file, const uint16 version, ai_wai_t *sp, connection_t* &c);
 
 	connection_types get_type() { return type; }
@@ -74,8 +74,8 @@ public:
  */
 class freight_connection_t : public connection_t {
 public:
-	freight_connection_t() : connection_t() { type=CONN_FREIGHT; }
-	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f) : connection_t(), ziel(z), freight(f), status(0) { type=CONN_FREIGHT; }
+	freight_connection_t(ai_wai_t *sp) : connection_t(), ziel(NULL,sp) { type=CONN_FREIGHT; }
+	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f, ai_wai_t *sp) : connection_t(), ziel(z,sp), freight(f), status(0) { type=CONN_FREIGHT; }
 	virtual report_t* get_report(ai_wai_t *sp);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);

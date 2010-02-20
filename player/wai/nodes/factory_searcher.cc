@@ -63,7 +63,7 @@ return_value_t *factory_searcher_t::work()
 		// create verbindungsplaner von start -> ziel
 		char buf[200];
 		sprintf(buf, "ind_conn_plan freight %s from %s to %s by %d", freight->get_name(), start->get_pos().get_str(), ziel->get_pos().get_2d().get_str(), road_wt);
-		append_child( new industry_connection_planner_t(sp, buf, start, ziel, freight, road_wt ));
+		append_child( new industry_connection_planner_t(sp, buf, *start, *ziel, freight, road_wt ));
 
 		sp->get_log().message( "factory_searcher_t::work()","found route %s -> %s", start->get_name(), ziel->get_name() );
 		return new_return_value(RT_PARTIAL_SUCCESS);
@@ -118,8 +118,8 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 					// ok, there is no connection and it is not banned, so we if there is enough for us
 					if(  ((ausgang[ware_nr].menge*4)/3) > ausgang[ware_nr].max  ) {
 						// bingo: soure
-						start = qfab;
-						ziel = fab;
+						start.set(qfab);
+						ziel.set(fab);
 						freight = ware;
 						return true;
 					}
@@ -188,8 +188,8 @@ void factory_searcher_t::rdwr( loadsave_t* file, const uint16 version)
 {
 	manager_t::rdwr(file, version);
 
-	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
+	start.rdwr(file, version, sp);
+	ziel.rdwr(file, version, sp);
 
 	ai_t::rdwr_ware_besch(file, freight);
 }

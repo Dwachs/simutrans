@@ -7,20 +7,17 @@
 
 
 industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name) : 
-bt_sequential_t(sp, name)
+bt_sequential_t(sp, name), start(0, sp), ziel(0, sp)
 {
 	connections = NULL;
-	start = ziel = NULL;
 	freight = NULL;
 	type = BT_CON_IND;
 }
 
 industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) : 
-bt_sequential_t(sp, name)
+bt_sequential_t(sp, name), start(s, sp), ziel(z, sp)
 {
 	connections = NULL;
-	start = s;
-	ziel = z;
 	freight = f;
 	type = BT_CON_IND;
 }
@@ -35,10 +32,14 @@ industry_connector_t::~industry_connector_t()
 
 return_value_t *industry_connector_t::step()
 {
+	if(!start.is_bound()  ||  !ziel.is_bound()) {	
+		sp->get_log().warning("industry_connector_t::step", "%s %s disappeared", start.is_bound() ? "" : "start", ziel.is_bound() ? "" : "ziel");
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
 	return_value_t *rv = bt_sequential_t::step();
 	if (rv->is_failed()) {
 		// tell the industry manager
-		industry_link_t *ic = sp->get_industry_manager()->get_connection(start, ziel, freight);
+		industry_link_t *ic = sp->get_industry_manager()->get_connection(*start, *ziel, freight);
 		ic->unset(planned);
 		ic->set(forbidden);
 		// kill me
@@ -47,7 +48,7 @@ return_value_t *industry_connector_t::step()
 	else if (rv->code & (RT_SUCCESS | RT_PARTIAL_SUCCESS)) {
 		if (rv->data) {
 			if (rv->data->line.is_bound()) {
-				connection_t *c = new freight_connection_t(ziel, freight);
+				connection_t *c = new freight_connection_t(*ziel, freight, sp);
 				c->set_line(rv->data->line);
 				rv->data->line = linehandle_t();
 				if (connections == NULL) {
@@ -67,7 +68,7 @@ return_value_t *industry_connector_t::step()
 	}
 	if (rv->code & (RT_SUCCESS | RT_TOTAL_SUCCESS)) {
 		// tell the industry manager
-		industry_link_t *ic = sp->get_industry_manager()->get_connection(start, ziel, freight);
+		industry_link_t *ic = sp->get_industry_manager()->get_connection(*start, *ziel, freight);
 		ic->unset(planned);
 		if (connections) {
 			ic->set(own);
@@ -75,7 +76,7 @@ return_value_t *industry_connector_t::step()
 			connections = NULL;
 		}
 		else {
-			sp->get_log().warning( "industry_connector_t::step", "no lines created for connection %d", sp->get_industry_manager()->get_connection_id(start, ziel, freight));
+			sp->get_log().warning( "industry_connector_t::step", "no lines created for connection %d", sp->get_industry_manager()->get_connection_id(*start, *ziel, freight));
 		}
 		// kill me
 		rv->code = RT_TOTAL_SUCCESS;
@@ -85,8 +86,8 @@ return_value_t *industry_connector_t::step()
 
 void industry_connector_t::rdwr( loadsave_t *file, const uint16 version )
 {
-	ai_t::rdwr_fabrik(file, sp->get_welt(), start);
-	ai_t::rdwr_fabrik(file, sp->get_welt(), ziel);
+	start.rdwr(file, version, sp);
+	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
 	connection_t::rdwr_connection(file, version, sp, connections);
 }

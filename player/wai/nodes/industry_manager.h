@@ -24,7 +24,7 @@ enum connection_status {
 
 class industry_link_t {
 public:
-	industry_link_t(const fabrik_t *s=0, const fabrik_t *z=0, const ware_besch_t *f=0);
+	industry_link_t(ai_wai_t *sp, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f);
 	~industry_link_t();
 
 	report_t* get_report(ai_wai_t *sp);
