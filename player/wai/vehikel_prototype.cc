@@ -147,7 +147,8 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 		convoi_tpl[i].besch.resize(i);
 	}
 	// dummy values
-	convoi_tpl[0].set_data(0, 0, 0, 0xffff, 0, 0xff >> (8-freights.get_count()));
+	// .. start with correct initial length
+	convoi_tpl[0].set_data(0, 0, 127, 0xffff, 0, 0xff >> (8-freights.get_count()));
 
 	// the best so far- empty
 	vehikel_prototype_t* best = new vehikel_prototype_t();
@@ -200,8 +201,9 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				}
 				// test for valid convoi
 				// .. max_len
-				if (convoi_tpl[i].length+test_besch->get_length() > TILE_STEPS*max_length) {
-					// dbg->message("VBAI", "[%2d] vehicle %20s too long", i, test_besch->get_name());
+				if (i>0  &&  convoi_tpl[i].length + 16*convoi_tpl[i].besch[i-1]->get_length() > 256*max_length) {
+					// last vehicle does not count
+					//dbg->message("VBAI", "[%2d] vehicle %20s too long (%d+%d>%d)", i, test_besch->get_name(), convoi_tpl[i].length , 16*convoi_tpl[i].besch[i-1]->get_length(), 256*max_length);
 					continue;
 				}
 				// .. max_weight and freights
@@ -237,11 +239,13 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 										(uint32) sqrt((((double)convoi_tpl[i+1].power/convoi_tpl[i+1].weight)-1)*2500));
 
 
-				convoi_tpl[i+1].length = convoi_tpl[i].length+test_besch->get_length();
+				// last vehicle does not count
+				convoi_tpl[i+1].length = convoi_tpl[i].length + (i>0 ? 16*convoi_tpl[i].besch[i-1]->get_length() : 0);
+				
 				convoi_tpl[i+1].besch.store_at(i, test_besch);
 
-				dbg->message("VBAI", "[%2d] test vehicle %20s, Fr=%d, W=%d, L=%d, P=%d, Vmin=%d, Vmax=%d", i, test_besch->get_name(), convoi_tpl[i+1].missing_freights,
-					convoi_tpl[i+1].weight, convoi_tpl[i+1].length, convoi_tpl[i+1].power, speed_to_kmh(convoi_tpl[i+1].min_top_speed), convoi_tpl[i+1].max_speed );
+				dbg->message("VBAI", "[%2d] test vehicle %20s, Fr=%d, W=%d, L=%d(%d), P=%d, Vmin=%d, Vmax=%d", i, test_besch->get_name(), convoi_tpl[i+1].missing_freights,
+					convoi_tpl[i+1].weight, convoi_tpl[i+1].length, (convoi_tpl[i+1].length+255)/256, convoi_tpl[i+1].power, speed_to_kmh(convoi_tpl[i+1].min_top_speed), convoi_tpl[i+1].max_speed );
 
 				if (convoi_tpl[i+1].missing_freights==0 && convoi_tpl[i+1].max_speed >= min_speed ) {
 					// evaluate

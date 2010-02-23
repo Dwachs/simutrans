@@ -82,6 +82,7 @@ public:
 	uint32 weight;
 	uint32 power;
 	uint16 min_top_speed;
+	// length in tiles*256
 	uint16 length;
 	uint32 max_speed;
 	uint8 missing_freights;
