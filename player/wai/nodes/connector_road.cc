@@ -262,7 +262,7 @@ return_value_t *connector_road_t::step()
 					sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s)", start.get_str() );
 				}
 				if (ok) {
-					sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
+					ok = sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
 					if (!ok) {
 						sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s)", ziel.get_str() );
 					}
