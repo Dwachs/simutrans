@@ -255,19 +255,33 @@ return_value_t *connector_road_t::step()
 				// now build the route
 				bauigel.baue();
 				sp->get_log().message( "connector_road_t::step", "build route %s => %s", fab1->get_name(), fab2->get_name() );
+				uint8 completed = 0;
 
 				// build immediately 1x1 stations
 				ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
 				if (!ok) {
 					sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s)", start.get_str() );
 				}
-				if (ok) {
+				else {
+					completed = 1;
 					ok = sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
 					if (!ok) {
 						sp->get_log().warning( "connector_road_t::step", "failed to built road station at (%s)", ziel.get_str() );
 					}
 				}
 				if (!ok) {
+					// try undo
+					switch (completed) {
+						case 1:
+							// remove start station
+							sp->call_general_tool(WKZ_REMOVER, start.get_2d(), "");
+							// fall-through
+						case 0:
+						default:
+							if ( sp->is_cash_available(cost) ) {
+								sp->undo();
+							}
+					}
 					sp->get_log().warning( "connector_road_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.get_count()-2].get_str() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}

@@ -44,6 +44,7 @@ return_value_t *industry_connector_t::step()
 		ic->set(forbidden);
 		// kill me
 		rv->code = RT_TOTAL_FAIL;
+		// TODO: remove already established connections
 	}
 	else if (rv->code & (RT_SUCCESS | RT_PARTIAL_SUCCESS)) {
 		if (rv->data) {
