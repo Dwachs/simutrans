@@ -35,9 +35,9 @@ public:
 	sint64 gain_per_m;
 
 	// vehicles
-	uint16 nr_vehicles, nr_ships;
+	uint16 nr_vehicles;
 
-	report_t() : action(NULL), cost_fix(0), cost_monthly(0), gain_per_v_m(0), gain_per_m(0), nr_vehicles(0), nr_ships(0) {}
+	report_t() : action(NULL), cost_fix(0), cost_monthly(0), gain_per_v_m(0), gain_per_m(0), nr_vehicles(0) {}
 
 	~report_t() {
 		if (action) delete action;
@@ -52,8 +52,6 @@ public:
 	 * merges given report into (this)
 	 * does not copy action
 	 * only for serial connections
-	 * nr_vehicles of this is kept
-	 * nr_vehicles of r goes into nr_ships
 	 */
 	void merge_report(report_t* r);
 };

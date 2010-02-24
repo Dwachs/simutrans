@@ -123,7 +123,6 @@ return_value_t *industry_connection_planner_t::step()
 	// merge the reports and create new report
 	// TODO: save the prototype-designer somewhere
 	report = cpd_road->report; 
-	cpd_road->report = NULL;
 	if (include_ships) {
 		report->merge_report(cpd_ship->report);
 	}
@@ -131,17 +130,18 @@ return_value_t *industry_connection_planner_t::step()
 	// create the action nodes
 	if( include_ships ) {
 		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road+ship", *start, *ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, report->nr_vehicles, NULL, harbour_pos) );
+		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL, harbour_pos) );
 		// TODO: was passiert, wenn der road-connector seine Route nicht bauen kann?
-		action->append_child( new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd_ship->d, report->nr_ships, harbour_pos) );
+		action->append_child( new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd_ship->d, cpd_ship->report->nr_vehicles, harbour_pos) );
 		report->action = action;
 	}
 	else {
 		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road", *start, *ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, report->nr_vehicles, NULL) );
+		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL) );
 		report->action = action;
 	}
 	// free memory
+	cpd_road->report = NULL;
 	cpd_road->d = NULL; delete cpd_road;
 	if (include_ships) {
 		cpd_ship->d = NULL; delete cpd_ship;
@@ -227,7 +227,6 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 			cpd->report->cost_monthly             = cost_monthly;
 			cpd->report->gain_per_v_m             = gain_per_v_m;
 			cpd->report->nr_vehicles              = nr_vehicles;
-			cpd->report->nr_ships                 = 0;
 			cpd->report->gain_per_m               = gain_per_m;
 			cpd->wb                               = wb;
 		}

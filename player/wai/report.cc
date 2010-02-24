@@ -10,8 +10,8 @@ void report_t::merge_report(report_t* r)
 	cost_fix     += r->cost_fix;
 	cost_monthly += r->cost_monthly;
 	gain_per_m   += r->gain_per_m;
-	nr_ships     += r->nr_vehicles;
-	gain_per_v_m += (r->gain_per_v_m * nr_ships) / nr_vehicles;
+	gain_per_v_m = (gain_per_v_m * nr_vehicles + r->gain_per_v_m * r->nr_vehicles) / (nr_vehicles + r->nr_vehicles);
+	nr_vehicles  += r->nr_vehicles;
 }
 
 void report_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_)
@@ -21,7 +21,6 @@ void report_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_)
 	file->rdwr_longlong(gain_per_v_m, "");
 	file->rdwr_longlong(gain_per_m, "");
 	file->rdwr_short(nr_vehicles, "");
-	file->rdwr_short(nr_ships, "");
 
 	bt_node_t::rdwr_child(file, version, sp_, action);
 }
