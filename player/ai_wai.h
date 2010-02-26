@@ -4,14 +4,15 @@
 #include "ai.h"
 #include "simplay.h"
 #include "wai/bt.h"
-#include "wai/nodes/industry_manager.h"
-#include "wai/nodes/factory_searcher.h"
-#include "wai/utils/wrapper.h"
 
 #include "../tpl/vector_tpl.h"
 #include "../utils/log.h"
 
 #define WAI_VERSION (1)
+
+class industry_manager_t;
+class factory_searcher_t;
+class wrapper_t;
 
 class ai_wai_t : public ai_t {
 public:

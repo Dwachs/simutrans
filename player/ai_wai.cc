@@ -1,6 +1,8 @@
 #include "ai_wai.h"
 
+#include "wai/nodes/industry_manager.h"
 #include "wai/nodes/factory_searcher.h"
+#include "wai/utils/wrapper.h"
 
 #include "../dataobj/loadsave.h"
 

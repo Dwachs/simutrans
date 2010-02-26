@@ -9,7 +9,7 @@ void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wa
 {
 	uint8 t;
 	if (file->is_saving()) {
-		t = c ? (uint8) c->get_type() : CONN_NULL;
+		t = c ? (uint8) c->get_type() :  (uint8)CONN_NULL;
 	}
 	file->rdwr_byte(t,"");
 	if (file->is_loading()) {
@@ -42,7 +42,7 @@ connection_t* connection_t::alloc_connection(connection_types t, ai_wai_t *sp)
 	}
 }
 
-void connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
+void connection_t::rdwr(loadsave_t* file, const uint16 /*version*/, ai_wai_t *sp)
 {
 	uint16 line_id;
 	if (file->is_saving()) {
@@ -164,7 +164,8 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 
 	// count status of convois
-	vector_tpl<convoihandle_t> stopped, empty, loss; uint32 newc=0;
+	vector_tpl<convoihandle_t> stopped, empty, loss; 
+	uint32 newc=0;
 	sint64 mitt_gewinn = 0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
@@ -209,7 +210,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	sp->get_log().message( "freight_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d new=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count(), newc);
 	// now decide something
 	if (freight_available) {
-		if (newc==0 && stopped.get_count()> max(line->count_convoys()/2, 2) ) {
+		if (newc==0  &&  stopped.get_count()> (uint32)max(line->count_convoys()/2, 2) ) {
 			// traffic jam ..
 			if (!bigger_convois_impossible()) {
 				// try to find the bigger convois

@@ -158,7 +158,6 @@ return_value_t *connector_ship_t::step()
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
 				fpl->append(sp->get_welt()->lookup(start), ladegrad);
-				const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
 				koord3d ziel =  get_ship_target(); // harbour_pos - koord(gr->get_grund_hang());
 				fpl->append(sp->get_welt()->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
@@ -227,7 +226,6 @@ koord3d connector_ship_t::get_ship_target()
 	// sea pos (and not on harbour ... )
 	halthandle_t halt = haltestelle_t::get_halt(welt,harbour_pos,sp);
 	const grund_t *gr = welt->lookup(harbour_pos);
-	gebaeude_t *h = gr->find<gebaeude_t>();	
 	koord pos1 = harbour_pos.get_2d();
 	koord3d best_pos = koord3d::invalid;
 	uint8 radius = 1; // welt->get_einstellungen()->get_station_coverage()

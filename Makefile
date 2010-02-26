@@ -306,6 +306,7 @@ SOURCES += player/wai/nodes/industry_connector.cc
 SOURCES += player/wai/nodes/industry_manager.cc
 SOURCES += player/wai/nodes/vehikel_builder.cc
 SOURCES += player/wai/utils/amphi_searcher.cc
+SOURCES += player/wai/utils/wrapper.cc
 SOURCES += player/simplay.cc
 SOURCES += old_blockmanager.cc
 SOURCES += simcity.cc

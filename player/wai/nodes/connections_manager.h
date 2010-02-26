@@ -24,7 +24,7 @@ public:
 	void set_line(linehandle_t l) { line = l; }
 	linehandle_t get_line() const { return line; }
 
-	virtual report_t* get_report(ai_wai_t *sp) { return NULL; }
+	virtual report_t* get_report(ai_wai_t *) { return NULL; }
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	virtual void rotate90( const sint16 /*y_size*/ ) {}

@@ -1,11 +1,11 @@
 #ifndef _WRAPPER_H_
 #define _WRAPPER_H_
 
+#include "../../ai_wai.h"
 #include "../../../simdebug.h"
 #include "../../../simtypes.h"
 #include "../../../dataobj/loadsave.h"
 
-class ai_wai_t;
 class fabrik_t;
 
 /*
