@@ -49,6 +49,8 @@ public:
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
 	virtual void debug( log_t &file, cstring_t prefix );
 
+	ai_wai_t *get_sp() const { return sp; }
+
 
 	/*
 	 * Identifies the node, used for loading / saving purposes

@@ -50,8 +50,7 @@ public:
 
 	/*
 	 * merges given report into (this)
-	 * does not copy action
-	 * only for serial connections
+	 * merges actions creating a bt_sequential root node if needed, r->action is NULL afterwards
 	 */
 	void merge_report(report_t* r);
 };

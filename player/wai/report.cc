@@ -12,6 +12,22 @@ void report_t::merge_report(report_t* r)
 	gain_per_m   += r->gain_per_m;
 	gain_per_v_m = (gain_per_v_m * nr_vehicles + r->gain_per_v_m * r->nr_vehicles) / (nr_vehicles + r->nr_vehicles);
 	nr_vehicles  += r->nr_vehicles;
+	// merge actions, create bt_sequential root node if needed
+	if (r->action) {
+		if (action) {
+			bt_node_t *root_action = action;
+			if (action->get_type()!=BT_SEQUENTIAL) {
+				root_action = new bt_sequential_t(action->get_sp(), "merged report action");
+				((bt_sequential_t*)root_action)->append_child(action);
+			}
+			((bt_sequential_t*)root_action)->append_child(r->action);
+			action = root_action;
+		}
+		else {
+			action = r->action;
+		}
+		r->action = NULL;
+	}
 }
 
 void report_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_)
