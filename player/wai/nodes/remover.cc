@@ -13,6 +13,7 @@
 // 1 .. cannot remove now, wait
 // 2 .. ignore this tile
 // 3 .. remove way here
+// removes depots!
 uint8 remover_t::check_position(koord3d pos) 
 {
 	karte_t *welt = sp->get_welt();
@@ -28,6 +29,19 @@ uint8 remover_t::check_position(koord3d pos)
 		// ignore foreign ways
 		return 2;
 	}
+	if (gr->get_depot()) {
+		if (gr->get_depot()->ist_entfernbar(sp)!=NULL) {
+			// depot not empty .. ignore
+			return 2;
+		}
+		wkz_remover_t bulldozer;
+		bulldozer.init(welt, sp);
+		while(gr->get_depot()  &&  bulldozer.work(welt, sp, gr->get_pos())==NULL);
+		if (gr->get_depot()) {
+			// depot does not want to go away .. ignore
+			return 2;
+		}
+	}
 	// crossing with traffic
 	if (ribi_t::is_threeway(weg->get_ribi_unmasked())  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
 		return 1;
@@ -37,16 +51,16 @@ uint8 remover_t::check_position(koord3d pos)
 
 return_value_t* remover_t::step()
 {
-	sp->get_log().warning("remover_t::step", "from %s to %s,%d", start.get_str(), end.get_2d().get_str(), end.z);
 	uint8 res1 = check_position(start);
-	uint8 res2 = check_position(start);
+	uint8 res2 = check_position(end);
+	sp->get_log().warning("remover_t::step", "from %s(%d) to %s,%d(%d)", start.get_str(), res1, end.get_2d().get_str(), end.z, res2);
 	// fatal
 	if (res1==0  ||  res2==0) {
 		return new_return_value(RT_TOTAL_FAIL);
 	}
 	// wait
-	if (res1==1  &&  res2==1) {
-		return new_return_value(RT_PARTIAL_SUCCESS);
+	if (res1==1) {
+		return new_return_value(RT_DONE_NOTHING);
 	}
 	// start removing
 	route_t verbindung;
@@ -71,16 +85,17 @@ return_value_t* remover_t::step()
 		sint32 imax = verbindung.get_count()-1;
 		// remove from both ends in two phases (step=-1 or +1)
 		for (sint8 step = -1; step<=1; step+=2) {
-			for(sint32 i = step==-1 ? verbindung.get_count()-2 : 1; (i>0) && (i<imax); i+=step) {
+			for(sint32 i = step==-1 ? verbindung.get_count()-2 : 1; (i>=0) && (i<=imax); i+=step) {
 				// TODO: what happens with harbours and shipyards?
 				uint8 res = check_position(verbindung.position_bei(i-step));
+				sp->get_log().warning("remover_t::step", "check %s(%d)", verbindung.position_bei(i-step).get_str(), res);
 				if (res==2) continue;
 				bool ok = res > 1;
 				if (ok) {
 					wkz.init(welt, sp);
-					const char *err1 = wkz.work(welt, sp, verbindung.position_bei(min(i,i-step)));
-					const char *err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(max(i,i-step))) : err1;
-					sp->get_log().warning("remover_t::step", "from %s to %s, res %d/%s/%s", verbindung.position_bei(min(i,i-step)).get_str(),verbindung.position_bei(max(i,i-step)).get_2d().get_str(), res, err1, err2);
+					const char *err1 = wkz.work(welt, sp, verbindung.position_bei(i-step));
+					const char *err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(i)) : err1;
+					sp->get_log().warning("remover_t::step", "from %s to %s, res %d/%s/%s", verbindung.position_bei(i-step).get_str(),verbindung.position_bei(i).get_2d().get_str(), res, err1, err2);
 					if (err1!=NULL	||  err2!=NULL) {
 							ok = false;
 					}
@@ -93,7 +108,7 @@ return_value_t* remover_t::step()
 					else {
 						start = verbindung.position_bei(i-step);
 					}
-					imax = i;
+					imax = i-step;
 					break;
 				}
 			}
@@ -106,7 +121,7 @@ return_value_t* remover_t::step()
 			}
 		}
 	}
-	return new_return_value(RT_TOTAL_SUCCESS);
+	return new_return_value(RT_SUCCESS);
 }
 
 void remover_t::rdwr(loadsave_t* file, const uint16 version)

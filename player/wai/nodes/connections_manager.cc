@@ -320,7 +320,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 					sp->simlinemgmt.get_lines( dep->get_line_type(), &lines );
 					for(uint32 i=0; i<lines.get_count(); i++) {
 						linehandle_t line2 = lines[i];
-						if (line2->count_convoys()>0  &&  line2->get_convoy(0)->get_home_depot()==try_depot) {
+						if (line!=line2  &&  line2->count_convoys()>0  &&  line2->get_convoy(0)->get_home_depot()==try_depot) {
 							ok = false;
 							break;
 						}
@@ -355,6 +355,9 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		test_driver = vehikelbauer_t::baue(start, sp, NULL, &remover_besch);
 		uint32 tiles=0;
 		// .. first start->end
+		sp->get_log().warning("freight_connection_t::get_final_report", "start %s", start.get_str());
+		sp->get_log().warning("freight_connection_t::get_final_report", "end %s", end.get_str());
+		sp->get_log().warning("freight_connection_t::get_final_report", "depot %s", depot.get_str());
 		if (start!=koord3d::invalid  &&  end!=koord3d::invalid) {
 			verbindung_e.calc_route(sp->get_welt(), start, end, test_driver, 0);
 			tiles = verbindung_e.get_count();
@@ -367,7 +370,8 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 			for(i=0; (i<verbindung_d.get_count()) && (i<verbindung_e.get_count())  &&  (verbindung_d.position_bei(i)==verbindung_e.position_bei(i)); i++) ;
 			if (i<verbindung_d.get_count()) {
 				tiles += verbindung_d.get_count()-i+1;
-				root->append_child( new remover_t(sp, wt, verbindung_d.position_bei(i), depot));
+				sp->get_log().warning("freight_connection_t::get_final_report", "entry %s", verbindung_d.position_bei(i>0 ? i-1 : 0).get_str());
+				root->append_child( new remover_t(sp, wt, depot, verbindung_d.position_bei(i>0 ? i-1 : 0)));
 			}
 		}
 		delete test_driver;
