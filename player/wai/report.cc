@@ -10,7 +10,9 @@ void report_t::merge_report(report_t* r)
 	cost_fix     += r->cost_fix;
 	cost_monthly += r->cost_monthly;
 	gain_per_m   += r->gain_per_m;
-	gain_per_v_m = (gain_per_v_m * nr_vehicles + r->gain_per_v_m * r->nr_vehicles) / (nr_vehicles + r->nr_vehicles);
+	if (nr_vehicles + r->nr_vehicles > 0) {
+		gain_per_v_m = (gain_per_v_m * nr_vehicles + r->gain_per_v_m * r->nr_vehicles) / (nr_vehicles + r->nr_vehicles);
+	}
 	nr_vehicles  += r->nr_vehicles;
 	// merge actions, create bt_sequential root node if needed
 	if (r->action) {
