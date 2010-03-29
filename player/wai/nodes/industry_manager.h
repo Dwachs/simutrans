@@ -15,6 +15,7 @@ enum connection_status {
 	competitor = 2,	// connection of other player
 	exists     = 3,	// connection exists
 	planned    = 4,	// connection planned
+	broken     = 8, // connection has to be removed
 
 	forbidden  = 256,
 	unplanable = planned | exists | forbidden
@@ -28,6 +29,8 @@ public:
 	~industry_link_t();
 
 	report_t* get_report(ai_wai_t *sp);
+	// prepare report to remove all infrastructure
+	report_t* get_final_report(ai_wai_t *sp);
 
 	void append_connection(connection_t* c) { connections->append_connection(c); }
 

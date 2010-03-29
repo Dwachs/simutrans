@@ -28,7 +28,19 @@ report_t* industry_link_t::get_report(ai_wai_t *sp)
 	if (!is(own)) {
 		return NULL;
 	}
+	if (!start.is_bound()  ||  !ziel.is_bound()) {
+		set(broken);
+		return NULL;
+	}
 	return connections->get_report(sp);
+}
+
+report_t* industry_link_t::get_final_report(ai_wai_t *sp)
+{
+	if (!is(own)) {
+		return NULL;
+	}
+	return connections->get_final_report(sp);
 }
 
 void industry_link_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
@@ -139,7 +151,7 @@ void industry_manager_t::append_report(report_t *report)
 {
 	// TODO: do something more smarter here
 	if(report) {
-		if (report->gain_per_v_m > 0) {
+		if (report->gain_per_m > 0) {
 			sp->get_log().message( "industry_manager_t::append_report()","got a nice report for immediate execution");
 			if (report->action) {
 				report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
@@ -152,6 +164,10 @@ void industry_manager_t::append_report(report_t *report)
 			delete report;
 		}
 		else {
+			sp->get_log().message( "industry_manager_t::append_report()","got a bad report, put it in trash bin");
+			if (report->action) {
+				report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
+			}
 			delete report;
 		}
 	}
@@ -170,7 +186,17 @@ return_value_t *industry_manager_t::work()
 		append_report(report);
 	}
 
-	next_cid ++;
+	if (connections[next_cid]->is(broken)) {
+		report = connections[next_cid]->get_final_report(sp);
+		if (report) {
+			append_report(report);
+		}
+		delete connections[next_cid];
+		connections.remove_at(next_cid);
+	}
+	else {
+		next_cid ++;
+	}
 	return new_return_value(RT_SUCCESS);
 }
 

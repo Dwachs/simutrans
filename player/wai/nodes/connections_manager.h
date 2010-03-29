@@ -25,6 +25,8 @@ public:
 	linehandle_t get_line() const { return line; }
 
 	virtual report_t* get_report(ai_wai_t *) { return NULL; }
+	// prepare report to remove all infrastructure
+	virtual report_t* get_final_report(ai_wai_t *sp) { return NULL; }
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	virtual void rotate90( const sint16 /*y_size*/ ) {}
@@ -44,6 +46,9 @@ public:
 	combined_connection_t() : connection_t(), next_to_report(0) { type=CONN_COMBINED; }
 	~combined_connection_t();
 	void append_connection(connection_t* c) { connections.append(c); }
+
+	// prepare report to remove all infrastructure
+	virtual report_t* get_final_report(ai_wai_t *sp);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	virtual void debug( log_t &file, cstring_t prefix );
@@ -77,6 +82,8 @@ public:
 	freight_connection_t(ai_wai_t *sp) : connection_t(), ziel(NULL,sp) { type=CONN_FREIGHT; }
 	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f, ai_wai_t *sp) : connection_t(), ziel(z,sp), freight(f), status(0) { type=CONN_FREIGHT; }
 	virtual report_t* get_report(ai_wai_t *sp);
+	// prepare report to remove all infrastructure
+	virtual report_t* get_final_report(ai_wai_t *sp);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	virtual void debug( log_t &file, cstring_t prefix );

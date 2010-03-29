@@ -3,8 +3,15 @@
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
+#include "../../../simlinemgmt.h"
 #include "../../../dataobj/loadsave.h"
 #include "../../../vehicle/simvehikel.h"
+#include "../../../bauer/vehikelbauer.h"
+#include "../../../besch/vehikel_besch.h"
+#include "../../../dataobj/route.h"
+#include "../../../vehicle/simvehikel.h"
+#include "remover.h"
+
 void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wai_t *sp, connection_t* &c)
 {
 	uint8 t;
@@ -70,6 +77,18 @@ combined_connection_t::~combined_connection_t()
 		delete connections[i];
 		connections[i]=NULL;
 	}
+}
+
+
+report_t* combined_connection_t::get_final_report(ai_wai_t *sp)
+{
+	report_t *r = new report_t();
+	for(uint32 i=0; i<connections.get_count(); i++) {
+		report_t *ri = connections[i]->get_final_report(sp);
+		r->merge_report(ri);
+		delete ri;
+	}
+	return r;
 }
 
 void combined_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
@@ -275,7 +294,93 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 	return NULL;
 }
+report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
+{
+	// nothing to do ?
+	if (!line.is_bound()) return NULL;
 
+	report_t *report = new report_t();
+	// find depot and stations
+	koord3d depot(koord3d::invalid), start(koord3d::invalid), end(koord3d::invalid);
+	karte_t *const welt = sp->get_welt();
+	if (line->count_convoys()>0) {
+		convoihandle_t cnv0 = line->get_convoy(0);
+		// find depot (this should be empty and not home depot of another line)
+		koord3d try_depot = cnv0->get_home_depot();
+		bool ok = false;
+		grund_t *gr = welt->lookup(try_depot);
+		if (gr) {
+			depot_t *dep = gr->get_depot();
+			if (dep  &&  dep->get_besitzer()==sp  
+				&&  dep->get_wegtyp()==cnv0->get_vehikel(0)->get_waytype()
+				&&  dep->convoi_count()==0) {
+					// search all other lines
+					ok = true;
+					vector_tpl<linehandle_t> lines;
+					sp->simlinemgmt.get_lines( dep->get_line_type(), &lines );
+					for(uint32 i=0; i<lines.get_count(); i++) {
+						linehandle_t line2 = lines[i];
+						if (line2->count_convoys()>0  &&  line2->get_convoy(0)->get_home_depot()==try_depot) {
+							ok = false;
+							break;
+						}
+					}
+			}
+		}
+		// TODO: what if a new route is build in the meanwhile that needs this depot?
+		if (ok) {
+			depot = try_depot;
+		}
+		// now find the stations
+		schedule_t *fpl = cnv0->get_schedule();
+		if (fpl  &&   fpl->get_count()>1) {
+			for(uint8 i=0; i<fpl->get_count();i++) {
+				// TODO: do something smarter here
+				if (start==koord3d::invalid  &&  fpl->eintrag[i].ladegrad > 0) {
+					start = fpl->eintrag[i].pos;
+				}
+				if (end==koord3d::invalid  &&  fpl->eintrag[i].ladegrad == 0) {
+					end = fpl->eintrag[i].pos;
+				}
+			}
+		}
+		bt_sequential_t *root = new bt_sequential_t(sp, "remove routes");
+		report->action = root;
+		// find route start->end, start->depot
+		route_t verbindung_e, verbindung_d;
+		// get a default vehikel
+		fahrer_t* test_driver;
+		waytype_t wt = cnv0->get_vehikel(0)->get_waytype();
+		vehikel_besch_t remover_besch(wt, 500, vehikel_besch_t::diesel );
+		test_driver = vehikelbauer_t::baue(start, sp, NULL, &remover_besch);
+		uint32 tiles=0;
+		// .. first start->end
+		if (start!=koord3d::invalid  &&  end!=koord3d::invalid) {
+			verbindung_e.calc_route(sp->get_welt(), start, end, test_driver, 0);
+			tiles = verbindung_e.get_count();
+			root->append_child( new remover_t(sp, wt, start, end));
+		}
+		// ..  then start->depot
+		if (start!=koord3d::invalid  &&  depot!=koord3d::invalid) {
+			verbindung_d.calc_route(sp->get_welt(), start, depot, test_driver, 0);
+			uint32 i;
+			for(i=0; (i<verbindung_d.get_count()) && (i<verbindung_e.get_count())  &&  (verbindung_d.position_bei(i)==verbindung_e.position_bei(i)); i++) ;
+			if (i<verbindung_d.get_count()) {
+				tiles += verbindung_d.get_count()-i+1;
+				root->append_child( new remover_t(sp, wt, verbindung_d.position_bei(i), depot));
+			}
+		}
+		delete test_driver;
+		// TODO complete report
+		report->cost_fix = tiles * 1;
+		report->gain_per_m = tiles * 1;
+	}
+	// immediately sell all convois
+	for(sint32 i=line->count_convoys()-1; i>=0; i--) {
+		line->get_convoy(i)->self_destruct();
+	}
+	return report;
+}
 
 void freight_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
 {
