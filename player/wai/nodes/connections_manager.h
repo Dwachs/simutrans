@@ -20,6 +20,7 @@ enum connection_types {
 class connection_t {
 public:
 	connection_t() : type(CONN_SIMPLE) {}
+	virtual ~connection_t() {}
 
 	void set_line(linehandle_t l) { line = l; }
 	linehandle_t get_line() const { return line; }
