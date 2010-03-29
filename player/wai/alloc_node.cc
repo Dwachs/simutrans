@@ -12,6 +12,7 @@
 #include "nodes/industry_connection_planner.h"
 #include "nodes/industry_connector.h"
 #include "nodes/industry_manager.h"
+#include "nodes/remover.h"
 #include "nodes/vehikel_builder.h"
 
 bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
@@ -35,6 +36,8 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 		case BT_VEH_BUILDER:	return new vehikel_builder_t(sp, NULL);
 		case BT_FREE_TILE:		return new free_tile_searcher_t(sp, NULL);
 		case BT_CON_IND:		return new industry_connector_t(sp, NULL);
+
+		case BT_REMOVER:        return new remover_t(sp);
 		default:
 			assert(0);
 			return NULL;

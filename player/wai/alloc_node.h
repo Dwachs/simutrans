@@ -27,7 +27,9 @@ enum bt_types {
 	BT_CON_SHIP      = 304,
 	BT_VEH_BUILDER   = 305,
 	BT_FREE_TILE     = 306,
-	BT_CON_IND       = 307
+	BT_CON_IND       = 307,
+	// Remover:
+	BT_REMOVER       = 401
 };
 
 class bt_node_t;

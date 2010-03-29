@@ -785,6 +785,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\remover.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\report.cc"
 				>
 			</File>
@@ -1246,6 +1250,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\planner.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\remover.h"
 				>
 			</File>
 			<File

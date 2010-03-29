@@ -304,6 +304,7 @@ SOURCES += player/wai/nodes/free_tile_searcher.cc
 SOURCES += player/wai/nodes/industry_connection_planner.cc
 SOURCES += player/wai/nodes/industry_connector.cc
 SOURCES += player/wai/nodes/industry_manager.cc
+SOURCES += player/wai/nodes/remover.cc
 SOURCES += player/wai/nodes/vehikel_builder.cc
 SOURCES += player/wai/utils/amphi_searcher.cc
 SOURCES += player/wai/utils/wrapper.cc
