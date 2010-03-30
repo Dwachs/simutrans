@@ -21,16 +21,8 @@ uint8 remover_t::check_position(koord3d pos)
 {
 	karte_t *welt = sp->get_welt();
 	grund_t *gr = welt->lookup(pos);
-	if(gr==NULL  ||  !gr->hat_weg(wt)) {
+	if(gr==NULL  ||  !(gr->hat_weg(wt)  ||  (wt==water_wt  &&  gr->ist_wasser())) ){
 		return CP_FATAL;
-	}
-	if(wt==water_wt  &&  gr->ist_wasser()) {
-		return CP_IGNORE;
-	}
-	weg_t *weg = gr->get_weg(wt);
-	if (weg->ist_entfernbar(sp)!=NULL) {
-		// ignore foreign ways
-		return CP_IGNORE;
 	}
 	if (gr->get_depot()) {
 		if (gr->get_depot()->ist_entfernbar(sp)!=NULL) {
@@ -44,6 +36,14 @@ uint8 remover_t::check_position(koord3d pos)
 			// depot does not want to go away .. ignore
 			return CP_IGNORE;
 		}
+	}
+	if(wt==water_wt  &&  gr->ist_wasser()) {
+		return CP_IGNORE;
+	}
+	weg_t *weg = gr->get_weg(wt);
+	if (weg->ist_entfernbar(sp)!=NULL) {
+		// ignore foreign ways
+		return CP_IGNORE;
 	}
 #ifdef remove_crossing_with_no_traffic
 	// crossing with traffic
