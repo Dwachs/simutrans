@@ -20,6 +20,9 @@ public:
 
 	virtual return_value_t *step();
 	virtual void rdwr( loadsave_t* file, const uint16 version);
+
+	static sint64 calc_building_cost(const haus_besch_t* st, waytype_t wt, karte_t *welt);
+	static sint64 calc_building_maint(const haus_besch_t* st, karte_t *welt);
 private:
 	connection_plan_data_t* plan_connection(waytype_t wt, sint32 prod, uint32 dist);
 	koord3d get_harbour_pos();

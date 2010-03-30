@@ -309,27 +309,33 @@ koord3d industry_connection_planner_t::get_harbour_pos()
 	return harbour_pos;
 }
 
+
 sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
+{
+	return calc_building_cost(st, wt, sp->get_welt());
+}
+
+sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st, waytype_t wt, karte_t *welt)
 {
 	switch(st->get_utyp()) {
 		case haus_besch_t::generic_stop: {
 			sint64 cost = - st->get_level()*st->get_b()*st->get_h();
 			switch(wt) {
 				case road_wt:
-					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_roadstop;
+					cost *= welt->get_einstellungen()->cst_multiply_roadstop;
 					break;
 				case track_wt:
 				case monorail_wt:
 				case maglev_wt:
 				case narrowgauge_wt:
 				case tram_wt:
-					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_station;
+					cost *= welt->get_einstellungen()->cst_multiply_station;
 					break;
 				case water_wt:
-					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_dock;
+					cost *= welt->get_einstellungen()->cst_multiply_dock;
 					break;
 				case air_wt:
-					cost *= sp->get_welt()->get_einstellungen()->cst_multiply_airterminal;
+					cost *= welt->get_einstellungen()->cst_multiply_airterminal;
 					break;
 				default:
 					assert(0);
@@ -340,17 +346,17 @@ sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
 		case haus_besch_t::depot:
 			switch(wt) {
 				case road_wt:
-					return -sp->get_welt()->get_einstellungen()->cst_depot_road;
+					return -welt->get_einstellungen()->cst_depot_road;
 				case track_wt:
 				case monorail_wt:
 				case tram_wt:
 				case maglev_wt:
 				case narrowgauge_wt:
-					return -sp->get_welt()->get_einstellungen()->cst_depot_rail;
+					return -welt->get_einstellungen()->cst_depot_rail;
 				case water_wt:
-					return -sp->get_welt()->get_einstellungen()->cst_depot_ship;
+					return -welt->get_einstellungen()->cst_depot_ship;
 				case air_wt:
-					return -sp->get_welt()->get_einstellungen()->cst_depot_air;
+					return -welt->get_einstellungen()->cst_depot_air;
 				default:
 					assert(0);
 					return 0;
@@ -362,9 +368,14 @@ sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
 }
 
 
-sint64 industry_connection_planner_t::calc_building_maint(const haus_besch_t* besch)
+sint64 industry_connection_planner_t::calc_building_maint(const haus_besch_t* besch, karte_t *welt)
 {
-	return sp->get_welt()->get_einstellungen()->maint_building*besch->get_level()*besch->get_groesse().x*besch->get_groesse().y;
+	return welt->get_einstellungen()->maint_building*besch->get_level()*besch->get_groesse().x*besch->get_groesse().y;
+}
+
+sint64 industry_connection_planner_t::calc_building_maint(const haus_besch_t* st)
+{
+	return calc_building_maint(st, sp->get_welt());
 }
 
 void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version)
