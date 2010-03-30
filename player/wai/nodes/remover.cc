@@ -153,5 +153,5 @@ void remover_t::rotate90( const sint16 y_size)
 }
 void remover_t::debug( log_t &file, cstring_t prefix )
 {
-	file.message("remo","from %s to %s,%d", start.get_str(), end.get_2d().get_str(), end.z);
+	file.message("remo","%s from %s to %s,%d", (const char*)prefix, start.get_str(), end.get_2d().get_str(), end.z);
 }

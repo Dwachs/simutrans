@@ -55,6 +55,9 @@ void ai_wai_t::step()
 
 	if(  ( get_welt()->get_steps() & 31 ) == 0 ) {
 		report_t* report = factory_searcher->get_report();
+		if( report==NULL ) {
+			report = industry_manager->get_report();
+		}
 		if( report ) {
 			sint64 cost = report->cost_fix;
 			calc_finance_history();

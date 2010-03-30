@@ -1,5 +1,6 @@
 #include "connections_manager.h"
 #include "vehikel_builder.h"
+#include "industry_connection_planner.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
@@ -305,11 +306,12 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 	karte_t *const welt = sp->get_welt();
 	if (line->count_convoys()>0) {
 		convoihandle_t cnv0 = line->get_convoy(0);
+		waytype_t wt = cnv0->get_vehikel(0)->get_waytype();
 		// find depot (this should be empty and not home depot of another line)
 		koord3d try_depot = cnv0->get_home_depot();
-		bool ok = false;
 		grund_t *gr = welt->lookup(try_depot);
 		if (gr) {
+			bool ok = false;
 			depot_t *dep = gr->get_depot();
 			if (dep  &&  dep->get_besitzer()==sp  
 				&&  dep->get_wegtyp()==cnv0->get_vehikel(0)->get_waytype()
@@ -326,10 +328,12 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 						}
 					}
 			}
-		}
-		// TODO: what if a new route is build in the meanwhile that needs this depot?
-		if (ok) {
-			depot = try_depot;
+			// TODO: what if a new route is build in the meanwhile that needs this depot?
+			if (ok) {
+				depot = try_depot;
+			}
+			report->cost_fix   += -welt->get_einstellungen()->cst_multiply_remove_haus;
+			report->gain_per_m += industry_connection_planner_t::calc_building_maint(dep->get_tile()->get_besch(), welt);
 		}
 		// now find the stations
 		schedule_t *fpl = cnv0->get_schedule();
@@ -350,34 +354,50 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		route_t verbindung_e, verbindung_d;
 		// get a default vehikel
 		fahrer_t* test_driver;
-		waytype_t wt = cnv0->get_vehikel(0)->get_waytype();
 		vehikel_besch_t remover_besch(wt, 500, vehikel_besch_t::diesel );
 		test_driver = vehikelbauer_t::baue(start, sp, NULL, &remover_besch);
-		uint32 tiles=0;
 		// .. first start->end
 		sp->get_log().warning("freight_connection_t::get_final_report", "start %s", start.get_str());
 		sp->get_log().warning("freight_connection_t::get_final_report", "end %s", end.get_str());
 		sp->get_log().warning("freight_connection_t::get_final_report", "depot %s", depot.get_str());
 		if (start!=koord3d::invalid  &&  end!=koord3d::invalid) {
 			verbindung_e.calc_route(sp->get_welt(), start, end, test_driver, 0);
-			tiles = verbindung_e.get_count();
+			// evaluate the route
+			for(uint32 i=0; i<verbindung_e.get_count(); i++) {
+				grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
+				if (gr->hat_weg(wt)  &&  gr->get_weg(wt)->get_besch()  &&  gr->get_weg(wt)->ist_entfernbar(sp)==NULL) {
+					report->cost_fix   += gr->get_weg(wt)->get_besch()->get_preis();
+					report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_bits_per_tag-18);
+				}
+				if ( (i==0  ||  i==verbindung_e.get_count()-1)  &&  gr->is_halt()) {
+					// TODO estimate costs for bridges/tunnels/wayobjs/signals etc
+					report->cost_fix   += -welt->get_einstellungen()->cst_multiply_remove_haus;
+					if (gr->find<gebaeude_t>()) {
+						report->gain_per_m += industry_connection_planner_t::calc_building_maint(gr->find<gebaeude_t>()->get_tile()->get_besch(), welt);
+					}
+				}
+			}
 			root->append_child( new remover_t(sp, wt, start, end));
 		}
 		// ..  then start->depot
 		if (start!=koord3d::invalid  &&  depot!=koord3d::invalid) {
 			verbindung_d.calc_route(sp->get_welt(), start, depot, test_driver, 0);
-			uint32 i;
-			for(i=0; (i<verbindung_d.get_count()) && (i<verbindung_e.get_count())  &&  (verbindung_d.position_bei(i)==verbindung_e.position_bei(i)); i++) ;
-			if (i<verbindung_d.get_count()) {
-				tiles += verbindung_d.get_count()-i+1;
-				sp->get_log().warning("freight_connection_t::get_final_report", "entry %s", verbindung_d.position_bei(i>0 ? i-1 : 0).get_str());
-				root->append_child( new remover_t(sp, wt, depot, verbindung_d.position_bei(i>0 ? i-1 : 0)));
+			uint32 j;
+			for(j=0; (j<verbindung_d.get_count()) && (j<verbindung_e.get_count())  &&  (verbindung_d.position_bei(j)==verbindung_e.position_bei(j)); j++) ;
+			if (j<verbindung_d.get_count()) {
+				sp->get_log().warning("freight_connection_t::get_final_report", "entry %s", verbindung_d.position_bei(j>0 ? j-1 : 0).get_str());
+				// evaluate the route
+				for(uint32 i=j; i<verbindung_e.get_count(); i++) {
+					grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
+					if (gr->hat_weg(wt)  &&  gr->get_weg(wt)->get_besch()  &&  gr->get_weg(wt)->ist_entfernbar(sp)==NULL) {
+						report->cost_fix   += gr->get_weg(wt)->get_besch()->get_preis();
+						report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_bits_per_tag-18);
+					}
+				}
+				root->append_child( new remover_t(sp, wt, depot, verbindung_d.position_bei(j>0 ? j-1 : 0)));
 			}
 		}
 		delete test_driver;
-		// TODO complete report
-		report->cost_fix = tiles * 1;
-		report->gain_per_m = tiles * 1;
 	}
 	// immediately sell all convois
 	for(sint32 i=line->count_convoys()-1; i>=0; i--) {

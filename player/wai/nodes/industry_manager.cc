@@ -152,16 +152,22 @@ void industry_manager_t::append_report(report_t *report)
 	// TODO: do something more smarter here
 	if(report) {
 		if (report->gain_per_m > 0) {
-			sp->get_log().message( "industry_manager_t::append_report()","got a nice report for immediate execution");
-			if (report->action) {
-				report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
+			if (sp->is_cash_available(report->cost_fix)) {
+				sp->get_log().message( "industry_manager_t::append_report()","got a nice report for immediate execution");
+				if (report->action) {
+					report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
+				}
+				else {
+					sp->get_log().warning( "industry_manager_t::append_report()","empty action");
+				}
+				append_child( report->action );
+				report->action = NULL;
+				delete report;
 			}
 			else {
-				sp->get_log().warning( "industry_manager_t::append_report()","empty action");
+				// will be delivered by get_report()
+				manager_t::append_report(report);
 			}
-			append_child( report->action );
-			report->action = NULL;
-			delete report;
 		}
 		else {
 			sp->get_log().message( "industry_manager_t::append_report()","got a bad report, put it in trash bin");
