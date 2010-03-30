@@ -2065,6 +2065,7 @@ uint8 wkz_wayremover_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3
 		error = "No suitable ground!";
 		return 0;
 	}
+	error = NULL;
 	return 2;
 }
 
