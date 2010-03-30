@@ -9,44 +9,54 @@
 #include "../../../simwerkz.h"
 
 // returns
-// 0 .. error, abort removing
-// 1 .. cannot remove now, wait
-// 2 .. ignore this tile
-// 3 .. remove way here
+enum {
+	CP_FATAL  = 0,
+	CP_ERROR  = 1,
+	CP_WAIT   = 2,
+	CP_REMOVE = 3,
+	CP_IGNORE = 4
+};
 // removes depots!
 uint8 remover_t::check_position(koord3d pos) 
 {
 	karte_t *welt = sp->get_welt();
 	grund_t *gr = welt->lookup(pos);
 	if(gr==NULL  ||  !gr->hat_weg(wt)) {
-		return 0;
+		return CP_FATAL;
 	}
 	if(wt==water_wt  &&  gr->ist_wasser()) {
-		return 2;
+		return CP_IGNORE;
 	}
 	weg_t *weg = gr->get_weg(wt);
 	if (weg->ist_entfernbar(sp)!=NULL) {
 		// ignore foreign ways
-		return 2;
+		return CP_IGNORE;
 	}
 	if (gr->get_depot()) {
 		if (gr->get_depot()->ist_entfernbar(sp)!=NULL) {
 			// depot not empty .. ignore
-			return 2;
+			return CP_IGNORE;
 		}
 		wkz_remover_t bulldozer;
 		bulldozer.init(welt, sp);
 		while(gr->get_depot()  &&  bulldozer.work(welt, sp, gr->get_pos())==NULL);
 		if (gr->get_depot()) {
 			// depot does not want to go away .. ignore
-			return 2;
+			return CP_IGNORE;
 		}
 	}
+#ifdef remove_crossing_with_no_traffic
 	// crossing with traffic
-	if (ribi_t::is_threeway(weg->get_ribi_unmasked())  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
-		return 1;
+	if (!ribi_t::is_threeway(weg->get_ribi_unmasked())  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
+		return CP_WAIT;
 	}
-	return 3;
+#else
+	// crossing - stop removing here
+	if (!ribi_t::ist_einfach(weg->get_ribi_unmasked())) {
+		return CP_ERROR;
+	}
+#endif
+	return CP_REMOVE;
 }
 
 return_value_t* remover_t::step()
@@ -55,11 +65,11 @@ return_value_t* remover_t::step()
 	uint8 res2 = check_position(end);
 	sp->get_log().warning("remover_t::step", "from %s(%d) to %s,%d(%d)", start.get_str(), res1, end.get_2d().get_str(), end.z, res2);
 	// fatal
-	if (res1==0  ||  res2==0) {
+	if (res1==CP_FATAL  ||  res2==CP_FATAL  || (res1==CP_ERROR  &&  res2==CP_ERROR)) {
 		return new_return_value(RT_TOTAL_FAIL);
 	}
 	// wait
-	if (res1==1) {
+	if (res1==CP_WAIT) {
 		return new_return_value(RT_DONE_NOTHING);
 	}
 	// start removing
@@ -85,17 +95,19 @@ return_value_t* remover_t::step()
 		sint32 imax = verbindung.get_count()-1;
 		// remove from both ends in two phases (step=-1 or +1)
 		for (sint8 step = -1; step<=1; step+=2) {
+			bool ready = true;
 			for(sint32 i = step==-1 ? verbindung.get_count()-2 : 1; (i>=0) && (i<=imax); i+=step) {
-				// TODO: what happens with harbours and shipyards?
+				// TODO: what happens with harbours?
 				uint8 res = check_position(verbindung.position_bei(i-step));
 				sp->get_log().warning("remover_t::step", "check %s(%d)", verbindung.position_bei(i-step).get_str(), res);
-				if (res==2) continue;
-				bool ok = res > 1;
+				// if fatal: maybe we want to go over already deleted bridge
+				if (res==CP_IGNORE  ||  res==CP_FATAL) continue;
+				bool ok = res >= CP_REMOVE;
 				if (ok) {
 					wkz.init(welt, sp);
-					const char *err1 = wkz.work(welt, sp, verbindung.position_bei(i-step));
-					const char *err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(i)) : err1;
-					sp->get_log().warning("remover_t::step", "from %s to %s, res %d/%s/%s", verbindung.position_bei(i-step).get_str(),verbindung.position_bei(i).get_2d().get_str(), res, err1, err2);
+					const char *err1 = wkz.work(welt, sp, verbindung.position_bei(min(i,i-step)));
+					const char *err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(max(i,i-step))) : err1;
+					sp->get_log().warning("remover_t::step", "from %s to %s, res %d/%s/%s", verbindung.position_bei(min(i,i-step)).get_str(),verbindung.position_bei(max(i,i-step)).get_2d().get_str(), res, err1, err2);
 					if (err1!=NULL	||  err2!=NULL) {
 							ok = false;
 					}
@@ -104,20 +116,20 @@ return_value_t* remover_t::step()
 					// failed, reset start, end
 					if (step==-1) {
 						end = verbindung.position_bei(i-step);
+						sp->get_log().warning("remover_t::step", "set end to %s", end.get_str());
 					}
 					else {
 						start = verbindung.position_bei(i-step);
+						sp->get_log().warning("remover_t::step", "set start to %s", start.get_str());
 					}
 					imax = i-step;
+					ready = false;
 					break;
 				}
 			}
-			if (imax == verbindung.get_count()-1) {
+			if (ready) {
 				// removed everything
 				return new_return_value(RT_TOTAL_SUCCESS);
-			}
-			if (!twosided) {
-				break;
 			}
 		}
 	}

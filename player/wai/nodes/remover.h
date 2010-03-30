@@ -14,10 +14,8 @@ class remover_t : public bt_node_t {
 public:
 	waytype_t wt;
 	koord3d start, end;
-	// only remove beginning at start
-	bool twosided;
 
-	remover_t( ai_wai_t *sp, waytype_t wt_=invalid_wt, koord3d start_=koord3d::invalid, koord3d end_=koord3d::invalid, bool two=true) : bt_node_t(sp), wt(wt_), start(start_), end(end_), twosided(two) { type = BT_REMOVER; }
+	remover_t( ai_wai_t *sp, waytype_t wt_=invalid_wt, koord3d start_=koord3d::invalid, koord3d end_=koord3d::invalid) : bt_node_t(sp), wt(wt_), start(start_), end(end_) { type = BT_REMOVER; }
 
 	return_value_t* step();
 
