@@ -151,7 +151,7 @@ void industry_manager_t::append_report(report_t *report)
 {
 	// TODO: do something more smarter here
 	if(report) {
-		if (report->gain_per_m > 0) {
+		if (report->gain_per_m > 0  ||  report->gain_per_v_m > 0) {
 			if (sp->is_cash_available(report->cost_fix)) {
 				sp->get_log().message( "industry_manager_t::append_report()","got a nice report for immediate execution");
 				if (report->action) {
