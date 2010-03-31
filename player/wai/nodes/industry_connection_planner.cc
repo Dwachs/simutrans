@@ -130,14 +130,14 @@ return_value_t *industry_connection_planner_t::step()
 	// create the action nodes
 	if( include_ships ) {
 		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road+ship", *start, *ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL, harbour_pos) );
+		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd_road->wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL, harbour_pos) );
 		// TODO: was passiert, wenn der road-connector seine Route nicht bauen kann?
 		action->append_child( new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd_ship->d, cpd_ship->report->nr_vehicles, harbour_pos) );
 		report->action = action;
 	}
 	else {
 		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road", *start, *ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL) );
+		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd_road->wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL) );
 		report->action = action;
 	}
 	// free memory
@@ -230,11 +230,12 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 			cpd->report->gain_per_m               = gain_per_m;
 			cpd->wb                               = wb;
 		}
+		sp->get_log().message("industry_connection_planner_t::plan_connection", "way: %20s(%d) gain/tile=%lld tiles/m=%d nrv=%d gain/v*m=%lld gain/m=%lld", wb ? wb->get_name() : "open water", wb ? wb->get_topspeed() : 0, gain_per_tile, tiles_per_month, nr_vehicles, gain_per_v_m, gain_per_m);
 	}
 	delete ways;
 
 
-	sp->get_log().message("industry_connection_planner_t::plan_connection","wt=%d  gain/vm=%lld  vehicles=%d  cost/m=%lld", wt, cpd->report->gain_per_v_m, cpd->report->nr_vehicles, cpd->report->cost_monthly);
+	sp->get_log().message("industry_connection_planner_t::plan_connection","wt=%d:%20s(%d)  gain/m=%lld  vehicles=%d  cost/m=%lld", wt, cpd->wb ? cpd->wb->get_name() : "open water", cpd->wb ? cpd->wb->get_topspeed() : 0, cpd->report->gain_per_m, cpd->report->nr_vehicles, cpd->report->cost_monthly);
 	return cpd;
 }
 
