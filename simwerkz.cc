@@ -1563,6 +1563,7 @@ uint8 wkz_wegebau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d &
 	else {
 		return 0;
 	}
+	error = NULL;
 	return 2;
 }
 
@@ -1952,6 +1953,7 @@ uint8 wkz_tunnelbau_t::is_valid_pos( karte_t *welt, spieler_t *sp, const koord3d
 		return 0;
 	}
 	// if starting tile is tunnel .. build underground tracks
+	error = NULL;
 	if(gr->ist_tunnel()) {
 		return 2;
 	}
@@ -2308,7 +2310,7 @@ bool wkz_wayobj_t::calc_route( route_t &verbindung, spieler_t *sp, const koord3d
 	return can_built;
 }
 
-uint8 wkz_wayobj_t::is_valid_pos( karte_t * welt, spieler_t * sp, const koord3d& pos, const char *&/*error*/, const koord3d & )
+uint8 wkz_wayobj_t::is_valid_pos( karte_t * welt, spieler_t * sp, const koord3d& pos, const char *&error, const koord3d & )
 {
 	// search for starting ground
 	grund_t *gr=wkz_intern_koord_to_weg_grund(sp, welt, pos, wt );
@@ -2317,6 +2319,7 @@ uint8 wkz_wayobj_t::is_valid_pos( karte_t * welt, spieler_t * sp, const koord3d&
 		// wrong ground or not this way here => exit
 		return 0;
 	}
+	error = NULL;
 	return 2;
 }
 
