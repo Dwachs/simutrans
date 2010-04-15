@@ -82,7 +82,7 @@ bool ai_wai_t::is_cash_available(sint64 cost)
 	// calc_finance_history(); done in step()
 	sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
 	// future maintenance
-	sint64 maint = ((sint64)get_maintenance()<<((sint64)get_welt()->ticks_bits_per_tag-18l));
+	sint64 maint = ((sint64)get_maintenance()<<((sint64)get_welt()->ticks_per_world_month_shift-18l));
 	// Mit Polster von ca. 20.000 + 2* monatliche Betriebskosten
 	return( 10*cost + 20000000 + 20* maint < 9*cash );
 }

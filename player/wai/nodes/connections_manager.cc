@@ -367,7 +367,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 				grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
 				if (gr->hat_weg(wt)  &&  gr->get_weg(wt)->get_besch()  &&  gr->get_weg(wt)->ist_entfernbar(sp)==NULL) {
 					report->cost_fix   += gr->get_weg(wt)->get_besch()->get_preis();
-					report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_bits_per_tag-18);
+					report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_per_world_month_shift-18);
 				}
 				if ( (i==0  ||  i==verbindung_e.get_count()-1)  &&  gr->is_halt()) {
 					// TODO estimate costs for bridges/tunnels/wayobjs/signals etc
@@ -391,7 +391,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 					grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
 					if (gr->hat_weg(wt)  &&  gr->get_weg(wt)->get_besch()  &&  gr->get_weg(wt)->ist_entfernbar(sp)==NULL) {
 						report->cost_fix   += gr->get_weg(wt)->get_besch()->get_preis();
-						report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_bits_per_tag-18);
+						report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_per_world_month_shift-18);
 					}
 				}
 				root->append_child( new remover_t(sp, wt, depot, verbindung_d.position_bei(j>0 ? j-1 : 0)));

@@ -213,13 +213,13 @@ connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t
 		uint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
 
-		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_tag) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
+		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_world_month) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
 
 		// number of vehicles
 		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
 
 		// now check
-		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_bits_per_tag-18);
+		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
 		const sint64 gain_per_v_m = gain_per_tile * tiles_per_month;
 		const sint64 gain_per_m   = gain_per_v_m * nr_vehicles - cost_monthly;
 		if (gain_per_m > cpd->report->gain_per_m) {
@@ -255,7 +255,7 @@ sint32 industry_connection_planner_t::calc_production()
 	while(  ziel_ware<eingang.get_count()  &&  eingang[ziel_ware].get_typ()!=freight  ) {
 		ziel_ware++;
 	}
-	const uint8  shift = 8 - welt->ticks_bits_per_tag +10 +8; // >>(simfab) * welt::monatslaenge /PRODUCTION_DELTA_T +dummy
+	const uint8  shift = 8 - welt->ticks_per_world_month_shift +10 +8; // >>(simfab) * welt::monatslaenge /PRODUCTION_DELTA_T +dummy
 	const sint32 prod_z = (ziel->get_base_production()  *  ziel->get_besch()->get_lieferant(ziel_ware)->get_verbrauch() )>>shift;
 	const sint32 prod_s = ((start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor())>> shift) - start->get_abgabe_letzt(start_ware);
 	const sint32 prod = min(  prod_z,prod_s);
