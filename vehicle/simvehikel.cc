@@ -1432,7 +1432,7 @@ void vehikel_t::rdwr_from_convoi(loadsave_t *file)
 		file->rdwr_long(fracht_count, " ");
 		file->rdwr_long(l, "\n");
 		route_index = (uint16)l;
-		insta_zeit = (insta_zeit >> welt->ticks_bits_per_tag) + welt->get_einstellungen()->get_starting_year();
+		insta_zeit = (insta_zeit >> welt->ticks_per_world_month_shift) + welt->get_einstellungen()->get_starting_year();
 DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1,insta_zeit/12);
 	}
 	else {
@@ -3867,11 +3867,10 @@ aircraft_t::hop()
 
 
 
-// this routine will display the shadow
-void
-aircraft_t::display_after(int xpos_org, int ypos_org, bool is_global) const
+// this routine will display the aircraft (if in flight)
+void aircraft_t::display_after(int xpos_org, int ypos_org, bool is_global) const
 {
-	if(bild != IMG_LEER) {
+	if(bild != IMG_LEER  &&  !is_on_ground()) {
 		int xpos = xpos_org, ypos = ypos_org;
 
 		const int raster_width = get_current_tile_raster_width();
@@ -3889,6 +3888,7 @@ aircraft_t::display_after(int xpos_org, int ypos_org, bool is_global) const
 		get_screen_offset( xpos, ypos, raster_width );
 
 		// will be dirty
+		// the aircraft!!!
 		display_color(bild, xpos, ypos, get_player_nr(), true, true/*get_flag(ding_t::dirty)*/ );
 
 		vehikel_t::display_after( xpos_org, ypos_org-tile_raster_scale_y(current_flughohe-hoff-2, raster_width), is_global );
