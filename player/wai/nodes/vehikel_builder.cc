@@ -60,7 +60,7 @@ return_value_t *vehikel_builder_t::step()
 	}
 	// try to start the convoi
 	if (cnv.is_bound() && cnv->get_pos()==pos) {
-		if (dp->start_convoi(cnv)) {
+		if (dp->start_convoi(cnv, sp==sp->get_welt()->get_active_player())) {
 			sp->get_log().message("vehikel_builder::step","started convoi");
 			// now give the new convoi name from first vehicle
 			cnv->set_name(prototyper->proto->besch[0]->get_name());
