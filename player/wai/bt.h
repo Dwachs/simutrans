@@ -15,7 +15,7 @@ class report_t;
 
 /*
  * This defines a node of a behaviour tree.
- * @author Daniel, Gerd Wachsmuth
+ * @author dwachs, gerw
  * @date  08.05.2009
  */
 
@@ -66,7 +66,7 @@ public:
 /*
  * This defines a node of a behaviour tree,
  * with childs.
- * @author Daniel, Gerd Wachsmuth
+ * @author dwachs, gerw
  * @date  08.05.2009
  */
 
@@ -91,19 +91,4 @@ private:
 	// Which child should get the next step?
 	uint32 next_to_step;
 };
-
-/*
- * ## Gerd:
- * Sollten wir noch eine Klasse caller_t einführen, von
- * der bt_sequential abgelitten wird und die an ::step()
- * übergeben wird?
- *
- * Damit könnte dann ein bt_node_t auf seinen 'Vater'
- * zurückgreifen und ihm etwas mitteilen.
- *
- * (Dann müssten wir auch die AI selber davon ableiten,
- * da sie ja den ersten call macht, aber das stört ja nicht
- * weiter).
- */
-
 #endif

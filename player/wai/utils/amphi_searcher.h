@@ -7,7 +7,7 @@
  * Searches a route from a water side factory to
  * an other factory. Switches only one times from water
  * to land.
- * @author Gerd, Daniel Wachsmuth
+ * @author gerw, dwachs
  * @date 5.7.2009
  */
 

@@ -3,7 +3,7 @@
 
 /*
  * This class builds a road station.
- * @author Gerd Wachsmuth
+ * @author gerw
  * @date 26.6.2009
  */
 

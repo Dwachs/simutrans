@@ -8,7 +8,7 @@
  * This class contains just data.
  * The meaning of each entry depend on the
  * child which has created it.
- * @author Gerd, Daniel Wachsmuth
+ * @author gerw, dwachs
  * @date 12.7.09
  */
 

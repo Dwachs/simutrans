@@ -18,7 +18,7 @@ enum return_code {
 /*
  * This class defines the return code of
  * bt_node_t::step().
- * @author Daniel, Gerd Wachsmuth
+ * @author dwachs, gerw
  * @date  08.05.2009
  */
 

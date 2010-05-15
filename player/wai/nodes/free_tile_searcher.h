@@ -6,7 +6,7 @@
 
 /*
  * Searches free tiles around a factory.
- * @author Gerd Wachsmuth
+ * @author gerw
  */
 
 class fabrik_t;

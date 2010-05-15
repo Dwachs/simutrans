@@ -3,7 +3,7 @@
 
 /*
  * This node builds a road connection.
- * @author Gerd Wachsmuth
+ * @author gerw
  * @date 20.06.2009
  */
 
