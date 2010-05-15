@@ -67,6 +67,7 @@
 #include "dings/wayobj.h"
 #include "dings/groundobj.h"
 #include "dings/gebaeude.h"
+#include "dings/leitung2.h"
 
 #include "gui/password_frame.h"
 #include "gui/messagebox.h"
@@ -319,7 +320,7 @@ bool karte_t::get_height_data_from_file( const char *filename, sint8 grundwasser
 				// usually, after P6 there comes a comment with the maker
 				// but comments can be anywhere
 				if(*c==0) {
-					read_line(buf, 255, file);
+					read_line(buf, sizeof(buf), file);
 					c = buf;
 					continue;
 				}
@@ -552,7 +553,7 @@ DBG_MESSAGE("karte_t::destroy()", "player destroyed");
 	simlinemgmt_t::init_line_ids();
 DBG_MESSAGE("karte_t::destroy()", "lines destroyed");
 
-	// alle fabriken aufraeumn
+	// alle fabriken aufraeumen
 	slist_iterator_tpl<fabrik_t*> fab_iter(fab_list);
 	while(fab_iter.next()) {
 		delete fab_iter.get_current();
@@ -872,9 +873,8 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","took %lu ms for all towns",
 		finance_history_year[0][WORLD_CITICENS] = finance_history_month[0][WORLD_CITICENS] = last_month_bev;
 
 		// Hajo: connect some cities with roads
-		const weg_besch_t* besch = umgebung_t::intercity_road_type ? wegbauer_t::get_besch(umgebung_t::intercity_road_type) : NULL;
+		const weg_besch_t* besch = einstellungen->get_intercity_road_type(get_timeline_year_month());
 		if(besch == 0) {
-			dbg->warning("karte_t::init()", "road type '%s' not found", umgebung_t::intercity_road_type);
 			// Hajo: try some default (might happen with timeline ... )
 			besch = wegbauer_t::weg_search(road_wt,80,get_timeline_year_month(),weg_t::type_flat);
 		}
@@ -909,7 +909,7 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","took %lu ms for all towns",
 						const koord size = gb->get_tile()->get_besch()->get_groesse(gb->get_tile()->get_layout());
 						koord inc(1,0);
 						// scan all adjacent tiles, take the first that has a road
-						for(uint32 i=0; i<2*size.x+2*size.y+4  &&  !ok; i++) {
+						for(sint32 i=0; i<2*size.x+2*size.y+4  &&  !ok; i++) {
 							grund_t *gr = lookup_kartenboden(pos);
 							if (gr  &&  gr->hat_weg(road_wt)) {
 								k.append(gr->get_pos());
@@ -2684,7 +2684,7 @@ void karte_t::update_frame_sleep_time(long /*delta*/)
 
 
 // add an amout to a subcategory
-void karte_t::buche(const sint64 betrag, enum player_cost type)
+void karte_t::buche(sint64 const betrag, player_cost const type)
 {
 	assert(type < MAX_WORLD_COST);
 	finance_history_year[0][type] += betrag;
@@ -2903,7 +2903,7 @@ void karte_t::recalc_average_speed()
 		}
 
 		// city road check
-		const weg_besch_t* city_road_test = wegbauer_t::get_besch(get_einstellungen()->get_city_road_type(), get_timeline_year_month());
+		const weg_besch_t* city_road_test = get_einstellungen()->get_city_road_type(get_timeline_year_month());
 		if(city_road_test) {
 			city_road = city_road_test;
 		}
@@ -2915,7 +2915,7 @@ void karte_t::recalc_average_speed()
 	}
 	else {
 		// defaults
-		city_road = wegbauer_t::get_besch(get_einstellungen()->get_city_road_type(), 0);
+		city_road = get_einstellungen()->get_city_road_type(0);
 		if(city_road==NULL) {
 			city_road = wegbauer_t::weg_search(road_wt,50,0,weg_t::type_flat);
 		}
@@ -3122,6 +3122,11 @@ void karte_t::step()
 		iter.get_current()->step(delta_t);
 	}
 	finance_history_year[0][WORLD_FACTORIES] = finance_history_month[0][WORLD_FACTORIES] = fab_list.get_count();
+
+	// step powerlines - required order: pumpe, senke, then powernet
+	pumpe_t::step_all( delta_t );
+	senke_t::step_all( delta_t );
+	powernet_t::step_all( delta_t );
 
 	// then step all players
 	for(  int i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
@@ -3402,10 +3407,10 @@ static sint8 median( sint8 a, sint8 b, sint8 c )
 	}
 #elif 0
 	if(  a<=b  ) {
-		return b<=c ? b : max(a,c);;
+		return b<=c ? b : max(a,c);
 	}
 	else {
-		return b>c ? b : min(a,c);;
+		return b>c ? b : min(a,c);
 	}
 #else
 		return (6*128+3 + a+a+b+b+c+c)/6-128;
@@ -4000,8 +4005,10 @@ void karte_t::laden(loadsave_t *file)
 	tile_counter = 0;
 	simloops = 60;
 
-	// powernets zum laden vorbereiten -> tabelle loeschen
+	// zum laden vorbereiten -> tabelle loeschen
 	powernet_t::neue_karte();
+	pumpe_t::neue_karte();
+	senke_t::neue_karte();
 
 	// jetzt geht das laden los
 	DBG_MESSAGE("karte_t::laden", "Fileversion: %d, %p", file->get_version(), einstellungen);
@@ -4069,7 +4076,7 @@ DBG_DEBUG("karte_t::laden", "init felder ok");
 	}
 	// old game might have wrong month
 	letzter_monat %= 12;
- 	// set the current month count
+	// set the current month count
 	set_ticks_per_world_month_shift(einstellungen->get_bits_per_month());
 	current_month = letzter_monat + (letztes_jahr*12);
 	season = (2+letzter_monat/3)&3; // summer always zero
@@ -4092,7 +4099,7 @@ DBG_MESSAGE("karte_t::laden()", "init player");
 		else if(i<8) {
 			// get the old player ...
 			if(  spieler[i]==NULL  ) {
-				spieler[i] = (i==3) ? (spieler_t*)(new ai_passenger_t(this, i)) : (spieler_t*)(new ai_goods_t(this, i));
+				new_spieler( i, (i==3) ? spieler_t::AI_PASSENGER : spieler_t::AI_GOODS );
 			}
 			einstellungen->spieler_type[i] = spieler[i]->get_ai_id();
 		}
@@ -4847,17 +4854,21 @@ void karte_t::bewege_zeiger(const event_t *ev)
 
 
 /* creates a new player with this type */
-void karte_t::new_spieler(uint8 new_player, uint8 type)
+const char *karte_t::new_spieler(uint8 new_player, uint8 type)
 {
-	assert(  spieler[new_player]==NULL  );
+	if(  new_player>=PLAYER_UNOWNED  ||  get_spieler(new_player)!=NULL  ) {
+		return "Id invalid/already in use!";
+	}
 	switch( type ) {
 		case spieler_t::EMPTY: break;
 		case spieler_t::HUMAN: spieler[new_player] = new spieler_t(this,new_player); break;
 		case spieler_t::AI_GOODS: spieler[new_player] = new ai_goods_t(this,new_player); break;
 		case spieler_t::AI_PASSENGER: spieler[new_player] = new ai_passenger_t(this,new_player); break;
 		case spieler_t::AI_WAI: spieler[new_player] = new ai_wai_t(this,new_player); break;
-		default: dbg->fatal( "karte_t::new_spieler()","Unknow AI type %i!",type );
+		default: return "Unknow AI type!";
 	}
+	get_einstellungen()->set_player_type( new_player, type );
+	return NULL;
 }
 
 
@@ -4888,8 +4899,8 @@ void karte_t::switch_active_player(uint8 new_player)
 		koord3d old_zeiger_pos = zeiger->get_pos();
 		zeiger->set_bild( IMG_LEER );	// unmarks also area
 		zeiger->set_pos( koord3d::invalid );
-		if(  dynamic_cast<two_click_werkzeug_t *>(werkzeug[active_player_nr])  ) {
-			dynamic_cast<two_click_werkzeug_t *>(werkzeug[active_player_nr])->cleanup( active_player, false );
+		if (two_click_werkzeug_t* const tool = dynamic_cast<two_click_werkzeug_t*>(werkzeug[active_player_nr])) {
+			tool->cleanup(active_player, false);
 		}
 		renew_menu = (active_player_nr==1  ||  new_player==1);
 		active_player_nr = new_player;
@@ -5394,4 +5405,3 @@ void karte_t::network_disconnect()
 	create_win(280, 40, new news_img("Lost synchronisation\nwith server."), w_info, magic_none);
 	beenden(false);
 }
-

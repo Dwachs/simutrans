@@ -56,8 +56,8 @@
 /* will highlite marked areas and convoi will leave traces */
 //#define DEBUG_ROUTES
 
-/* shows which tiles are grown as dings (used in boden/grund.cc) */
-//#define SHOW_FORE_GRUND 1
+/* shows which tiles are drawn as dings (used in boden/grund.cc) */
+//#define SHOW_FORE_GRUND
 
 /* shows with block needed update and which not */
 //#define DEBUG_FLUSH_BUFFER
@@ -144,5 +144,10 @@
 #define Z_PLAN (4)
 #define Z_GRID (0)
 
+
+// sanity check: USE_C if not GCC and not intel 32bit
+#if !defined USE_C && (!defined __GNUC__ || !defined __i386__)
+#	define USE_C
+#endif
 
 #endif

@@ -37,8 +37,8 @@ ifeq ($(OSTYPE),freebsd)
 endif
 
 ifeq ($(OSTYPE),mac)
-  CFLAGS   += -DUSE_HW -DUSE_C  -Os -fast
-  CXXFLAGS   += -DUSE_HW -DUSE_C
+  CFLAGS   += -DUSE_HW -Os -fast
+  CXXFLAGS += -DUSE_HW
   STD_LIBS ?= -lz -lbz2
 endif
 
@@ -69,16 +69,13 @@ SDL_CONFIG     ?= sdl-config
 
 
 ifneq ($(OPTIMISE),)
-  ifneq ($(PROFILE),)
-    CFLAGS   += -O3 -minline-all-stringops
-    CXXFLAGS += -O3
-  else
-    CFLAGS   += -O3 -fomit-frame-pointer
-    CXXFLAGS += -O3 -fomit-frame-pointer
-  endif
+    CFLAGS   += -O3 -fno-schedule-insns
+    CXXFLAGS += -O3 -fno-schedule-insns
   ifneq ($(OSTYPE),mac)
-    CFLAGS   += -minline-all-stringops
-    LDFLAGS += -ffunctions-sections
+    ifneq ($(OSTYPE),haiku)
+      CFLAGS   += -minline-all-stringops
+      CXXFLAGS   += -minline-all-stringops
+    endif
   endif
 else
   CFLAGS   += -O
@@ -98,11 +95,14 @@ ifdef DEBUG
     CFLAGS   += -O0
     CXXFLAGS += -O0
   endif
+else
+  CFLAGS += -DNDEBUG
+  CXXFLAGS += -DNDEBUG
 endif
 
 ifneq ($(PROFILE),)
-  CFLAGS   += -pg -DPROFILE -fno-inline
-  CXXFLAGS += -pg -DPROFILE -fno-inline
+  CFLAGS   += -pg -DPROFILE -fno-inline -fno-schedule-insns
+  CXXFLAGS += -pg -DPROFILE -fno-inline -fno-schedule-insns
   LDFLAGS += -pg
 endif
 
@@ -385,8 +385,9 @@ ifeq ($(BACKEND),sdl)
   CXXFLAGS += -DUSE_16BIT_DIB
   ifeq ($(OSTYPE),mac)
     # Core Audio (Quicktime) base sound system routines
-    SOURCES += sound/core-audio_sound.mm
-    SOURCES += music/core-audio_midi.mm
+    SOURCES  += sound/core-audio_sound.mm
+    SOURCES  += music/core-audio_midi.mm
+    STD_LIBS += -framework Foundation -framework QTKit
   else
     SOURCES  += sound/sdl_sound.cc
     ifeq ($(findstring $(OSTYPE), cygwin mingw),)
@@ -467,4 +468,3 @@ include common.mk
 
 makeobj_prog:
 	$(MAKE) -e -C makeobj FLAGS="$(FLAGS)"
-

@@ -56,7 +56,17 @@ void boden_t::calc_bild_internal()
 
 		if (is_visible()) {
 			if(weg  &&  weg->hat_gehweg()) {
-				set_bild(skinverwaltung_t::fussweg->get_bild_nr(slope_this));
+			    if(get_hoehe() >= welt->get_snowline()  &&  skinverwaltung_t::fussweg->get_bild_nr(slope_this+1)!=IMG_LEER) {
+			        // snow images
+			        set_bild(skinverwaltung_t::fussweg->get_bild_nr(slope_this+1));
+			    }
+			    else if(slope_this!=0  &&  get_hoehe() == welt->get_snowline()-1  &&  skinverwaltung_t::fussweg->get_bild_nr(slope_this+2)!=IMG_LEER) {
+			        // transition images
+			        set_bild(skinverwaltung_t::fussweg->get_bild_nr(slope_this+2));
+			    }
+			    else {
+			        set_bild(skinverwaltung_t::fussweg->get_bild_nr(slope_this));
+			    }
 			}
 			else {
 				set_bild(grund_besch_t::get_ground_tile(slope_this,get_disp_height()) );
@@ -67,7 +77,7 @@ void boden_t::calc_bild_internal()
 			set_bild(IMG_LEER);
 		}
 #else
-		if(weg && dynamic_cast<strasse_t *>(weg)->hat_gehweg()) {
+		if (weg && weg->hat_gehweg()) {
 			set_bild(skinverwaltung_t::fussweg->get_bild_nr(grund_besch_t::slopetable[slope_this]));
 		}
 		else {

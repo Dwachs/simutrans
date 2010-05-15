@@ -343,15 +343,18 @@ bool depot_t::disassemble_convoi(convoihandle_t cnv, bool sell)
 }
 
 
-bool depot_t::start_convoi(convoihandle_t cnv)
+bool depot_t::start_convoi(convoihandle_t cnv, bool local_execution)
 {
-	bool can_create_win =get_besitzer()==welt->get_active_player();
 	// close schedule window if not yet closed
 	if(cnv.is_bound() &&  cnv->get_schedule()!=NULL) {
 		if(!cnv->get_schedule()->ist_abgeschlossen()) {
 			// close the schedule window
 			destroy_win((long)cnv->get_schedule());
 		}
+	}
+	// convoi not in depot anymore, maybe user double-clicked on start-button
+	if(!convois.is_contained(cnv)) {
+		return false;
 	}
 
 	if(cnv.is_bound() &&  cnv->get_schedule()!=NULL  &&  cnv->get_schedule()->get_count() > 0) {
@@ -363,10 +366,12 @@ bool depot_t::start_convoi(convoihandle_t cnv)
 
 		// pruefen ob zug vollstaendig
 		if(cnv->get_sum_leistung() == 0 || !cnv->pruefe_alle()) {
-			if (can_create_win) create_win( new news_img("Diese Zusammenstellung kann nicht fahren!\n"), w_time_delete, magic_none);
+			if (local_execution) {
+				create_win( new news_img("Diese Zusammenstellung kann nicht fahren!\n"), w_time_delete, magic_none);
+			}
 		} else if (!cnv->get_vehikel(0)->calc_route(this->get_pos(), cur_pos, cnv->get_min_top_speed(), cnv->get_route())) {
 			// no route to go ...
-			if (can_create_win) {
+			if (local_execution) {
 				static char buf[256];
 				sprintf(buf,translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
 				create_win( new news_img(buf), w_time_delete, magic_none);
@@ -383,18 +388,28 @@ bool depot_t::start_convoi(convoihandle_t cnv)
 				// make another the current selected convoi
 				depot_frame_t *win = dynamic_cast<depot_frame_t *>(win_get_magic( (long)this ));
 				if(  win  ) {
-					win->activate_convoi( !convois.empty() ? convois.at( min((uint32)icnv, convois.get_count()-1) ) : convoihandle_t() );
+					if (local_execution) {
+						// change state of depot window only for local execution
+						win->activate_convoi( !convois.empty() ? convois.at( min((uint32)icnv, convois.get_count()-1) ) : convoihandle_t() );
+					}
+					else {
+						win->update_data();
+					}
 				}
 			}
 
 			return true;
 		}
 		else {
-			if (can_create_win) create_win(new news_img("Blockstrecke ist\nbelegt\n"), w_time_delete, magic_none);
+			if (local_execution) {
+				create_win(new news_img("Blockstrecke ist\nbelegt\n"), w_time_delete, magic_none);
+			}
 		}
 	}
 	else {
-		if (can_create_win) create_win( new news_img("Noch kein Fahrzeug\nmit Fahrplan\nvorhanden\n"), w_time_delete, magic_none);
+		if (local_execution) {
+			create_win( new news_img("Noch kein Fahrzeug\nmit Fahrplan\nvorhanden\n"), w_time_delete, magic_none);
+		}
 
 		if(!cnv.is_bound()) {
 			dbg->warning("depot_t::start_convoi()","No convoi to start!");

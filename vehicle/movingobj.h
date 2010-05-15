@@ -57,6 +57,7 @@ public:
 	// otherwise I suggest use the plant tree function (see below)
 	movingobj_t(karte_t *welt, loadsave_t *file);
 	movingobj_t(karte_t *welt, koord3d pos, const groundobj_besch_t *);
+	~movingobj_t();
 
 	bool sync_step(long delta_t);
 
@@ -68,7 +69,7 @@ public:
 	virtual waytype_t get_waytype() const { return get_besch()->get_waytype(); }
 
 	const char *get_name() const {return "Movingobj";}
-	enum ding_t::typ get_typ() const {return movingobj;}
+	typ get_typ() const { return movingobj; }
 
 	bool check_season(const long delta_t);
 

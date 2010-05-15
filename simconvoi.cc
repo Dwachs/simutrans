@@ -158,6 +158,8 @@ void convoi_t::init(karte_t *wl, spieler_t *sp)
 
 	home_depot = koord3d::invalid;
 	last_stop_pos = koord3d::invalid;
+
+	recalc_data = true;
 }
 
 
@@ -466,23 +468,28 @@ void convoi_t::add_running_cost()
 }
 
 
-
 /* Calculates (and sets) new akt_speed
  * needed for driving, entering and leaving a depot)
  */
 void convoi_t::calc_acceleration(long delta_t)
 {
-	// Prissi: more pleasant and a little more "physical" model *
-	int sum_friction_weight = 0;
-	sum_gesamtgewicht = 0;
-	// calculate total friction
-	for(unsigned i=0; i<anz_vehikel; i++) {
-		const vehikel_t* v = fahr[i];
-		int total_vehicle_weight = v->get_gesamtgewicht();
+	// Dwachs: only compute this if a vehicle in the convoi hopped
+	if (recalc_data) {
+		sum_friction_weight = 0;
+		sum_gesamtgewicht = 0;
+		akt_speed_soll = min_top_speed;
+		// calculate total friction
+		for(unsigned i=0; i<anz_vehikel; i++) {
+			const vehikel_t* v = fahr[i];
+			int total_vehicle_weight = v->get_gesamtgewicht();
 
-		sum_friction_weight += v->get_frictionfactor() * total_vehicle_weight;
-		sum_gesamtgewicht += total_vehicle_weight;
+			sum_friction_weight += v->get_frictionfactor() * total_vehicle_weight;
+			sum_gesamtgewicht += total_vehicle_weight;
+			akt_speed_soll = min(akt_speed_soll, v->get_speed_limit());
+		}
+		recalc_data = false;
 	}
+	// Prissi: more pleasant and a little more "physical" model *
 
 	// try to simulate quadratic friction
 	if(sum_gesamtgewicht != 0) {
@@ -1326,7 +1333,7 @@ bool convoi_t::set_schedule(schedule_t * f)
 		return false;
 	}
 
-	enum states old_state = state;
+	states old_state = state;
 	state = INITIAL;	// because during a sync-step we might be called twice ...
 
 	DBG_DEBUG("convoi_t::set_schedule()", "new=%p, old=%p", f, fpl);
@@ -1536,8 +1543,7 @@ void convoi_t::vorfahren()
 	// Hajo: init speed settings
 	sp_soll = 0;
 	set_tiles_overtaking( 0 );
-
-	set_akt_speed_soll( vehikel_t::SPEED_UNLIMITED );
+	recalc_data = true;
 
 	koord3d k0 = route.position_bei(0);
 	grund_t *gr = welt->lookup(k0);
@@ -2459,6 +2465,9 @@ void convoi_t::calc_loading()
 	}
 	loading_level = fracht_max > 0 ? (fracht_menge*100)/fracht_max : 100;
 	loading_limit = 0;	// will be set correctly from hat_gehalten() routine
+
+	// since weight has changed
+	recalc_data=true;
 }
 
 
@@ -2922,8 +2931,7 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 		// Check for other vehicles
 		const uint8 top = gr->get_top();
 		for(  uint8 j=1;  j<top;  j++ ) {
-			vehikel_basis_t *v = (vehikel_basis_t *)gr->obj_bei(j);
-			if(v->is_moving()) {
+			if (vehikel_basis_t* const v = ding_cast<vehikel_basis_t>(gr->obj_bei(j))) {
 				// check for other traffic on the road
 				const overtaker_t *ov = v->get_overtaker();
 				if(ov) {
@@ -2977,8 +2985,8 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 		ribi_t::ribi their_direction = ribi_t::rueckwaerts( fahr[0]->calc_richtung(pos_prev, pos_next.get_2d()) );
 		const uint8 top = gr->get_top();
 		for(  uint8 j=1;  j<top;  j++ ) {
-			vehikel_basis_t *v = (vehikel_basis_t *)gr->obj_bei(j);
-			if(v->is_moving()  &&  v->get_fahrtrichtung()==their_direction  &&  v->get_overtaker()) {
+			vehikel_basis_t* const v = ding_cast<vehikel_basis_t>(gr->obj_bei(j));
+			if (v && v->get_fahrtrichtung() == their_direction && v->get_overtaker()) {
 				return false;
 			}
 		}

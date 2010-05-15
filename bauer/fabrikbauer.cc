@@ -371,10 +371,26 @@ void fabrikbauer_t::verteile_tourist(karte_t* welt, int max_number)
 	reliefkarte_t::get_karte()->calc_map_groesse();
 }
 
+class RelativeDistanceOrdering
+{
+private:
+	const koord m_origin;
+public:
+	RelativeDistanceOrdering(const koord& origin)
+		: m_origin(origin)
+	{ /* nothing */ }
 
+	/**
+		* Returns true if `a' is closer to the origin than `b', otherwise false.
+		*/
+	bool operator()(const stadt_t *a, const stadt_t *b) const
+	{
+		return koord_distance(m_origin, a->get_pos()) < koord_distance(m_origin, b->get_pos());
+	}
+};
 
 /**
- * baue fabrik nach Angaben in info
+ * Build factory according to instructions in 'info'
  * @author Hj.Malthaner
  */
 fabrik_t* fabrikbauer_t::baue_fabrik(karte_t* welt, koord3d* parent, const fabrik_besch_t* info, int rotate, koord3d pos, spieler_t* spieler)
@@ -437,8 +453,15 @@ fabrik_t* fabrikbauer_t::baue_fabrik(karte_t* welt, koord3d* parent, const fabri
 	// add passenger to pax>0, (so no sucide diver at the fish swarm)
 	if(info->get_pax_level()>0) {
 		const weighted_vector_tpl<stadt_t*>& staedte = welt->get_staedte();
+		vector_tpl<stadt_t *>distance_stadt( staedte.get_count() );
+
 		for (weighted_vector_tpl<stadt_t*>::const_iterator i = staedte.begin(), end = staedte.end(); i != end; ++i) {
-			(*i)->add_factory_arbeiterziel(fab);
+			distance_stadt.insert_ordered( *i, RelativeDistanceOrdering(fab->get_pos().get_2d()) );
+		}
+		for(  int i = 0;  i<distance_stadt.get_count()  &&  fab->get_arbeiterziele().get_count()<welt->get_einstellungen()->get_factory_worker_maximum_towns();  i++  ) {
+			if(  fab->get_arbeiterziele().get_count() < welt->get_einstellungen()->get_factory_worker_minimum_towns()  ||  koord_distance( fab->get_pos(), distance_stadt[i]->get_pos() ) < welt->get_einstellungen()->get_factory_worker_radius()  ) {
+				distance_stadt[i]->add_factory_arbeiterziel(fab);
+			}
 		}
 	}
 	return fab;
@@ -482,7 +505,8 @@ bool fabrikbauer_t::can_factory_tree_rotate( const fabrik_besch_t *besch )
 
 
 /**
- * vorbedingung: pos ist für fabrikbau geeignet
+ * Build a full chain of factories
+ * Precondition before calling this function: pos is suitable for factory construction
  */
 int fabrikbauer_t::baue_hierarchie(koord3d* parent, const fabrik_besch_t* info, int rotate, koord3d* pos, spieler_t* sp, int number_of_chains )
 {
@@ -520,30 +544,35 @@ int fabrikbauer_t::baue_hierarchie(koord3d* parent, const fabrik_besch_t* info, 
 		// built consumer (factory) intown
 		sf.stadt = welt->suche_naechste_stadt(k);
 
-		//
-		// Drei Varianten:
-		// A:
-		// Ein Bauplatz, möglichst nah am Rathaus mit einer Strasse daneben.
-		// Das könnte ein Zeitproblem geben, wenn eine Stadt keine solchen Bauplatz
-		// hat und die Suche bis zur nächsten Stadt weiterläuft
-		// Ansonsten erscheint mir das am realistischtsten..
+		/* Three variants:
+		 * A:
+		 * A building site, preferably close to the town hall with a street next to it.
+		 * This could be a temporary problem, if a city has no such site and the search
+		 * continues to the next city.
+		 * Otherwise seems to me the most realistic.
+		 */
 		bool	is_rotate=info->get_haus()->get_all_layouts()>1;
 		k = factory_bauplatz_mit_strasse_sucher_t(welt).suche_platz(sf.stadt->get_pos(), size.x, size.y, info->get_haus()->get_allowed_climate_bits(), &is_rotate);
 		rotate = is_rotate?1:0;
 
 		INT_CHECK( "fabrikbauer 588" );
 
-		// B:
-		// Gefällt mir auch. Die Endfabriken stehen eventuell etwas außerhalb der Stadt
-		// aber nicht weit weg.
-		// (does not obey climates though!)
-		// k = finde_zufallsbauplatz(welt, welt->lookup(sf.stadt->get_pos())->get_boden()->get_pos(), 3, land_bau.dim).get_2d();
+		/* B:
+		 * Also good.  The final factories stand possibly somewhat outside of the city however not far away.
+		 * (does not obey climates though!)
+		 */
+#if 0
+		k = finde_zufallsbauplatz(welt, welt->lookup(sf.stadt->get_pos())->get_boden()->get_pos(), 3, land_bau.dim).get_2d();
+#endif /* 0 */
 
-		// C:
-		// Ein Bauplatz, möglichst nah am Rathaus.
-		// Wenn mehrere Endfabriken bei einer Stadt landen, sind die oft hinter
-		// einer Reihe Häuser "versteckt", von Strassen abgeschnitten.
-		//k = bauplatz_sucher_t(welt).suche_platz(sf.stadt->get_pos(), land_bau.dim.x, land_bau.dim.y, info->get_haus()->get_allowed_climate_bits(), &is_rotate);
+		/* C:
+		 * A building site, as near as possible to the city hall.
+		 *  If several final factories land in one city, they are often
+		 * often hidden behind a row of houses, cut off from roads.
+		 */
+#if 0
+		k = bauplatz_sucher_t(welt).suche_platz(sf.stadt->get_pos(), land_bau.dim.x, land_bau.dim.y, info->get_haus()->get_allowed_climate_bits(), &is_rotate);
+#endif /* 0 */
 
 		if(k != koord::invalid) {
 			*pos = welt->lookup(k)->get_kartenboden()->get_pos();
@@ -553,7 +582,7 @@ int fabrikbauer_t::baue_hierarchie(koord3d* parent, const fabrik_besch_t* info, 
 		}
 	}
 
-DBG_MESSAGE("fabrikbauer_t::baue_hierarchie","Construction of %s at (%i,%i).",info->get_name(),pos->x,pos->y);
+	DBG_MESSAGE("fabrikbauer_t::baue_hierarchie","Construction of %s at (%i,%i).",info->get_name(),pos->x,pos->y);
 	INT_CHECK("fabrikbauer 594");
 
 	const fabrik_t *our_fab=baue_fabrik(welt, parent, info, rotate, *pos, sp);
@@ -836,12 +865,12 @@ int fabrikbauer_t::increase_industry_density( karte_t *welt, bool tell_me )
 		// ok, found consumer
 		if(  last_built_consumer  ) {
 			for(  int i=0;  i < last_built_consumer->get_besch()->get_lieferanten();  i++  ) {
-				uint8 w_idx = last_built_consumer->get_besch()->get_lieferant(i)->get_ware()->get_index();
+				ware_besch_t const* const w = last_built_consumer->get_besch()->get_lieferant(i)->get_ware();
 				for(  uint32 j=0;  j<last_built_consumer->get_suppliers().get_count();  j++  ) {
 					fabrik_t *sup = fabrik_t::get_fab( welt, last_built_consumer->get_suppliers()[j] );
 					const fabrik_besch_t* const fb = sup->get_besch();
 					for (uint32 k = 0; k < fb->get_produkte(); k++) {
-						if (fb->get_produkt(k)->get_ware()->get_index() == w_idx) {
+						if (fb->get_produkt(k)->get_ware() == w) {
 							last_built_consumer_ware = i+1;
 							goto next_ware_check;
 						}

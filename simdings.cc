@@ -160,17 +160,12 @@ spieler_t *ding_t::get_besitzer() const
  */
 void ding_t::info(cbuffer_t & buf) const
 {
-	char translation[256];
-
-	if(besitzer_n==1) {
-		tstrncpy( translation, translator::translate("Eigenbesitz\n"), 256 );
-	}
-	else if(besitzer_n==PLAYER_UNOWNED) {
-		tstrncpy( translation, translator::translate("Kein Besitzer\n"), 256 );
-	}
-	else {
-		tstrncpy( translation, get_besitzer()->get_name(), 256 );
-	}
+	char              translation[256];
+	char const* const owner =
+		besitzer_n == 1              ? translator::translate("Eigenbesitz\n")   :
+		besitzer_n == PLAYER_UNOWNED ? translator::translate("Kein Besitzer\n") :
+		get_besitzer()->get_name();
+	tstrncpy(translation, owner, lengthof(translation));
 	// remove trailing linebreaks etc.
 	for(  int i=strlen(translation);  i>0  &&  ' '>(uint8)translation[i-1];  i--  ) {
 		translation[i-1] = 0;
@@ -234,9 +229,8 @@ ding_t::display(int xpos, int ypos, bool /*reset_dirty*/) const
 {
 	const int raster_width = get_current_tile_raster_width();
 
-	if(is_moving()) {
-		// vehicles needs finer steps to appear smoother
-		const vehikel_basis_t* const v = (const vehikel_basis_t*)this;
+	if (vehikel_basis_t const* const v = ding_cast<vehikel_basis_t>(this)) {
+		// vehicles need finer steps to appear smoother
 		v->get_screen_offset( xpos, ypos, raster_width );
 	}
 	xpos += tile_raster_scale_x(get_xoff(), raster_width);
@@ -317,9 +311,8 @@ ding_t::mark_image_dirty(image_id bild,sint8 yoff) const
 {
 	if(bild!=IMG_LEER) {
 		int xpos=0, ypos=0;
-		if(is_moving()) {
-			// vehicles needs finer steps to appear smoother
-			const vehikel_basis_t* const v = (const vehikel_basis_t*)this;
+		if (vehikel_basis_t const* const v = ding_cast<vehikel_basis_t>(this)) {
+			// vehicles need finer steps to appear smoother
 			v->get_screen_offset( xpos, ypos, get_tile_raster_width() );
 		}
 		// better not try to twist your brain to follow the retransformation ...

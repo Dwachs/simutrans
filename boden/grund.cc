@@ -48,6 +48,8 @@
 
 #include "../utils/cbuffer_t.h"
 
+#include "../vehicle/simpeople.h"
+
 #include "wege/kanal.h"
 #include "wege/maglev.h"
 #include "wege/monorail.h"
@@ -347,13 +349,13 @@ void grund_t::rdwr(loadsave_t *file)
 	}
 	else {
 		// saving all ways ...
-		if(flags&has_way1) {
-			file->wr_obj_id( ((weg_t *)obj_bei(0))->get_waytype() );
-			obj_bei(0)->rdwr(file);
+		if (weg_t* const w = get_weg_nr(0)) {
+			file->wr_obj_id(w->get_waytype());
+			w->rdwr(file);
 		}
-		if(flags&has_way2) {
-			file->wr_obj_id( ((weg_t *)obj_bei(1))->get_waytype() );
-			obj_bei(1)->rdwr(file);
+		if (weg_t* const w = get_weg_nr(1)) {
+			file->wr_obj_id(w->get_waytype());
+			w->rdwr(file);
 		}
 		file->wr_obj_id(-1);   // Ende der Wege
 	}
@@ -363,7 +365,7 @@ void grund_t::rdwr(loadsave_t *file)
 
 	// need to add a crossing for old games ...
 	if (file->is_loading()  &&  ist_uebergang()  &&  !find<crossing_t>(2)) {
-		const kreuzung_besch_t *cr_besch = crossing_logic_t::get_crossing( ((weg_t *)obj_bei(0))->get_waytype(), ((weg_t *)obj_bei(1))->get_waytype() );
+		const kreuzung_besch_t *cr_besch = crossing_logic_t::get_crossing( ((weg_t *)obj_bei(0))->get_waytype(), ((weg_t *)obj_bei(1))->get_waytype(), 0 );
 		if(cr_besch==0) {
 			dbg->fatal("crossing_t::crossing_t()","requested for waytypes %i and %i but nothing defined!", ((weg_t *)obj_bei(0))->get_waytype(), ((weg_t *)obj_bei(1))->get_waytype() );
 		}
@@ -621,7 +623,9 @@ void grund_t::calc_back_bild(const sint8 hgt,const sint8 slope_this)
 	const koord k = get_pos().get_2d();
 
 	clear_flag(grund_t::draw_as_ding);
-	if(((flags&has_way1)  &&  ((weg_t *)obj_bei(0))->get_besch()->is_draw_as_ding())  ||  ((flags&has_way2)  &&  ((weg_t *)obj_bei(1))->get_besch()->is_draw_as_ding())) {
+	weg_t const* w;
+	if ((w = get_weg_nr(0)) && w->get_besch()->is_draw_as_ding() ||
+			(w = get_weg_nr(1)) && w->get_besch()->is_draw_as_ding()) {
 		set_flag(grund_t::draw_as_ding);
 	}
 	bool left_back_is_building = false;
@@ -682,9 +686,11 @@ void grund_t::calc_back_bild(const sint8 hgt,const sint8 slope_this)
 				set_flag(grund_t::draw_as_ding);
 				if(  corner1(slope_this)==corner4(slope_this)  ) {
 					// ok, we need a fence here, if there is not a vertical bridgehead
-					fence_west = (flags&has_way1)==0  ||
-								 ( ((static_cast<weg_t *>(obj_bei(0)))->get_ribi_unmasked()&ribi_t::west)==0 &&
-									( (flags&has_way2)==0  ||  ((static_cast<weg_t *>(obj_bei(1)))->get_ribi_unmasked()&ribi_t::west)==0) );
+					weg_t const* w;
+					fence_west = !(w = get_weg_nr(0)) || (
+						!(w->get_ribi_unmasked() & ribi_t::west) &&
+						(!(w = get_weg_nr(1)) || !(w->get_ribi_unmasked() & ribi_t::west))
+					);
 				}
 			}
 			// no fences between water tiles or between invisible tiles
@@ -742,9 +748,11 @@ void grund_t::calc_back_bild(const sint8 hgt,const sint8 slope_this)
 				set_flag(grund_t::draw_as_ding);
 				if(  corner3(slope_this)==corner4(slope_this)  ) {
 					// ok, we need a fence here, if there is not a vertical bridgehead
-					fence_north = (flags&has_way1)==0  ||
-								 ( ((static_cast<weg_t *>(obj_bei(0)))->get_ribi_unmasked()&ribi_t::nord)==0 &&
-									( (flags&has_way2)==0  ||  ((static_cast<weg_t *>(obj_bei(1)))->get_ribi_unmasked()&ribi_t::nord)==0) );
+					weg_t const* w;
+					fence_north = !(w = get_weg_nr(0)) || (
+						!(w->get_ribi_unmasked() & ribi_t::nord) &&
+						(!(w = get_weg_nr(1)) || !(w->get_ribi_unmasked() & ribi_t::nord))
+					);
 				}
 			}
 			// no fences between water tiles or between invisible tiles
@@ -946,10 +954,10 @@ void grund_t::display_dinge_all(const sint16 xpos, const sint16 ypos, const sint
 	const bool visible = !ist_karten_boden()  ||  is_karten_boden_visible();
 
 	ribi_t::ribi ribi = ribi_t::keine;
-	if (flags & has_way1) {
-		ribi |= (static_cast<const weg_t*>(obj_bei(0)))->get_ribi_unmasked();
-		if (flags & has_way2) {
-			ribi |= (static_cast<const weg_t*>(obj_bei(1)))->get_ribi_unmasked();
+	if (weg_t const* const w1 = get_weg_nr(0)) {
+		ribi |= w1->get_ribi_unmasked();
+		if (weg_t const* const w2 = get_weg_nr(1)) {
+			ribi |= w2->get_ribi_unmasked();
 		}
 	}
 	else if (ist_wasser()) {
@@ -1030,7 +1038,7 @@ void grund_t::display_dinge_all(const sint16 xpos, const sint16 ypos, const sint
 	if (ribi & ribi_t::ost) {
 		grund_t *gr;
 		if (get_neighbour(gr, invalid_wt, koord(1,0))) {
-			const bool draw_other_ways = (gr->flags&draw_as_ding)  ||  !gr->ist_karten_boden();
+			const bool draw_other_ways = (flags&draw_as_ding)  ||  (gr->flags&draw_as_ding)  ||  !gr->ist_karten_boden();
 			activate_ribi_clip(ribi_t::ost);
 			gr->display_dinge_bg(xpos+raster_tile_width/2, ypos+raster_tile_width/4-tile_raster_scale_y( (gr->get_hoehe()-pos.z)*TILE_HEIGHT_STEP/Z_TILE_STEP, raster_tile_width), is_global, draw_other_ways, true);
 		}
@@ -1038,7 +1046,7 @@ void grund_t::display_dinge_all(const sint16 xpos, const sint16 ypos, const sint
 	if (ribi & ribi_t::sued) {
 		grund_t *gr;
 		if (get_neighbour(gr, invalid_wt, koord(0,1))) {
-			const bool draw_other_ways = (gr->flags&draw_as_ding)  ||  !gr->ist_karten_boden();
+			const bool draw_other_ways = (flags&draw_as_ding)  ||  (gr->flags&draw_as_ding)  ||  !gr->ist_karten_boden();
 			activate_ribi_clip(ribi_t::sued);
 			gr->display_dinge_bg(xpos-raster_tile_width/2, ypos+raster_tile_width/4-tile_raster_scale_y( (gr->get_hoehe()-pos.z)*TILE_HEIGHT_STEP/Z_TILE_STEP, raster_tile_width), is_global, draw_other_ways, true);
 		}
@@ -1137,9 +1145,6 @@ void grund_t::display_dinge_fg(const sint16 xpos, const sint16 ypos, const bool 
 	dinge.display_dinge_fg(xpos, ypos, start_offset, is_global);
 	// display front part of markers
 	if(is_global  &&  get_flag(grund_t::marked)) {
-		const uint8 hang = get_grund_hang();
-		const uint8 back_hang = (hang&1) + ((hang>>1)&6)+8;
-
 		display_normal(grund_besch_t::marker->get_bild(get_grund_hang()&7), xpos, ypos, 0, true, dirty);
 
 		if (!ist_karten_boden()) {
@@ -1182,6 +1187,7 @@ void grund_t::display_overlay(const sint16 xpos, const sint16 ypos)
 
 #ifdef SHOW_FORE_GRUND
 	if(get_flag(grund_t::draw_as_ding)) {
+		const sint16 raster_tile_width = get_tile_raster_width();
 		display_fillbox_wh_clip( xpos+raster_tile_width/2, ypos+(raster_tile_width*3)/4, 16, 16, 0, dirty);
 	}
 #endif
@@ -1239,6 +1245,37 @@ bool grund_t::weg_erweitern(waytype_t wegtyp, ribi_t::ribi ribi)
 	return false;
 }
 
+/**
+ * remove trees and groundobjs on this tile
+ * called before building way or powerline
+ * @returns costs
+ */
+sint64 grund_t::remove_trees()
+{
+	sint64 cost=0;
+	// remove all trees ...
+	while(1) {
+		baum_t *d=find<baum_t>(0);
+		if(d==NULL) {
+			break;
+		}
+		// we must mark it by hand, sinc ewe want to join costs
+		d->mark_image_dirty( get_bild(), 0 );
+		delete d;
+		cost -= welt->get_einstellungen()->cst_remove_tree;
+	}
+	// remove all groundobjs ...
+	while(1) {
+		groundobj_t *d=find<groundobj_t>(0);
+		if(d==NULL) {
+			break;
+		}
+		cost += d->get_besch()->get_preis();
+		delete d;
+	}
+	return cost;
+}
+
 
 sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp)
 {
@@ -1250,29 +1287,8 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp)
 		// ok, we are unique
 
 		if((flags&has_way1)==0) {
-			// new first way here
-
-			// remove all trees ...
-			while(1) {
-				baum_t *d=find<baum_t>(0);
-				if(d==NULL) {
-					break;
-				}
-				// we must mark it by hand, sinc ewe want to join costs
-				d->mark_image_dirty( get_bild(), 0 );
-				delete d;
-				cost -= welt->get_einstellungen()->cst_remove_tree;
-			}
-			// remove all groundobjs ...
-			while(1) {
-				groundobj_t *d=find<groundobj_t>(0);
-				if(d==NULL) {
-					break;
-				}
-				cost += d->get_besch()->get_preis();
-				delete d;
-			}
-
+			// new first way here, clear trees
+			cost += remove_trees();
 
 			// add
 			weg->set_ribi(ribi);
@@ -1294,7 +1310,7 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp)
 			if(ist_uebergang()) {
 				// no tram => crossing needed!
 				waytype_t w2 =  ((weg_t *)obj_bei( obj_bei(0)==weg ? 1 : 0 ))->get_waytype();
-				const kreuzung_besch_t *cr_besch = crossing_logic_t::get_crossing( weg->get_waytype(), w2 );
+				const kreuzung_besch_t *cr_besch = crossing_logic_t::get_crossing( weg->get_waytype(), w2, welt->get_timeline_year_month() );
 				if(cr_besch==0) {
 					dbg->fatal("crossing_t::crossing_t()","requested for waytypes %i and %i but nothing defined!", weg->get_waytype(), w2 );
 				}
@@ -1304,7 +1320,7 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp)
 			}
 		}
 
-		// just add the cost
+		// just add the maintenance
 		if(sp && !ist_wasser()) {
 			spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung());
 			weg->set_besitzer( sp );
@@ -1312,11 +1328,8 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp)
 
 		// may result in a crossing, but the wegebauer will recalc all images anyway
 		weg->calc_bild();
-//		dinge.dump();
-
-		return cost;
 	}
-	return 0;
+	return cost;
 }
 
 
@@ -1461,11 +1474,11 @@ sint8 grund_t::get_vmove(koord dir) const
 int grund_t::get_max_speed() const
 {
 	int max = 0;
-	if(flags&has_way1) {
-		max = ((weg_t *)obj_bei(0))->get_max_speed();
+	if (weg_t const* const w = get_weg_nr(0)) {
+		max = w->get_max_speed();
 	}
-	if(flags&has_way2) {
-		max = min( max, ((weg_t *)obj_bei(1))->get_max_speed() );
+	if (weg_t const* const w = get_weg_nr(0)) {
+		max = min(max, w->get_max_speed());
 	}
 	return max;
 }
@@ -1521,44 +1534,47 @@ bool grund_t::remove_everything_from_way(spieler_t* sp, waytype_t wt, ribi_t::ri
 			if(d->is_way()) {
 				continue;
 			}
-			// roadsigns: check dir: dirs changed? delete
-			if(d->get_typ()==ding_t::roadsign  &&  ((roadsign_t *)d)->get_besch()->get_wtyp()==wt) {
-				if((((roadsign_t *)d)->get_dir()&(~add))!=0) {
-					costs -= ((roadsign_t *)d)->get_besch()->get_preis();
-					delete d;
+			if (roadsign_t* const sign = ding_cast<roadsign_t>(d)) {
+				// roadsigns: check dir: dirs changed => delete
+				if (sign->get_besch()->get_wtyp() == wt && (sign->get_dir() & ~add) != 0) {
+					costs -= sign->get_besch()->get_preis();
+					delete sign;
 				}
-			}
-			// singal: not on crossings => remove all
-			else if(d->get_typ()==ding_t::signal  &&  ((roadsign_t *)d)->get_besch()->get_wtyp()==wt) {
-				costs -= ((roadsign_t *)d)->get_besch()->get_preis();
-				delete d;
-			}
-			// wayobj: check dir
-			else if(add==ribi_t::keine  &&  d->get_typ()==ding_t::wayobj  &&  ((wayobj_t *)d)->get_besch()->get_wtyp()==wt) {
-				uint8 new_dir=((wayobj_t *)d)->get_dir()&add;
-				if(new_dir) {
-					// just change dir
-					((wayobj_t *)d)->set_dir(new_dir);
+			} else if (signal_t* const signal = ding_cast<signal_t>(d)) {
+				// singal: not on crossings => remove all
+				if (signal->get_besch()->get_wtyp() == wt) {
+					costs -= signal->get_besch()->get_preis();
+					delete signal;
 				}
-				else {
-					costs -= ((wayobj_t *)d)->get_besch()->get_preis();
-					delete d;
+			} else if (wayobj_t* const wayobj = ding_cast<wayobj_t>(d)) {
+				// wayobj: check dir
+				if (add == ribi_t::keine && wayobj->get_besch()->get_wtyp() == wt) {
+					uint8 new_dir=wayobj->get_dir()&add;
+					if(new_dir) {
+						// just change dir
+						wayobj->set_dir(new_dir);
+					}
+					else {
+						costs -= wayobj->get_besch()->get_preis();
+						delete wayobj;
+					}
 				}
-			}
-			// citycar or pedestrians: just delete
-			else if (wt==road_wt  &&  (d->get_typ()==ding_t::verkehr || d->get_typ()==ding_t::fussgaenger)) {
-				delete d;
-			}
-			// remove tunnel portal, if not the last tile ...
-			// must be done before weg_entfernen() to get maintenance right
-			else if(d->get_typ()==ding_t::tunnel) {
-				uint8 wt = ((tunnel_t *)d)->get_besch()->get_waytype();
+			} else if (stadtauto_t* const citycar = ding_cast<stadtauto_t>(d)) {
+				// citycar: just delete
+				if (wt == road_wt) delete citycar;
+			} else if (fussgaenger_t* const pedestrian = ding_cast<fussgaenger_t>(d)) {
+				// pedestrians: just delete
+				if (wt == road_wt) delete pedestrian;
+			} else if (tunnel_t* const tunnel = ding_cast<tunnel_t>(d)) {
+				// remove tunnel portal, if not the last tile ...
+				// must be done before weg_entfernen() to get maintenance right
+				uint8 wt = tunnel->get_besch()->get_waytype();
 				if (weg->get_waytype()==wt) {
 					if((flags&has_way2)==0) {
 						if (add==ribi_t::keine) {
 							// last way was belonging to this tunnel
-							d->entferne(sp);
-							delete d;
+							tunnel->entferne(sp);
+							delete tunnel;
 						}
 					}
 					else {
@@ -1601,13 +1617,11 @@ wayobj_t *grund_t::get_wayobj( waytype_t wt ) const
 {
 	waytype_t wt1 = ( wt == tram_wt ) ? track_wt : wt;
 
-	wayobj_t *wayobj;
 	if(  find<wayobj_t>()  ) {
 		// since there might be more than one, we have to iterate through all of them
 		for(  uint8 i = 0;  i < get_top();  i++  ) {
 			ding_t *d = obj_bei(i);
-			if(  d  &&  d->get_typ() == ding_t::wayobj  ) {
-				wayobj = (wayobj_t *)d;
+			if (wayobj_t* const wayobj = ding_cast<wayobj_t>(d)) {
 				waytype_t wt2 = wayobj->get_besch()->get_wtyp();
 				if(  wt2 == tram_wt  ) {
 					wt2 = track_wt;

@@ -69,7 +69,19 @@ template<> struct map_ding<stadtauto_t>   { static const ding_t::typ code = ding
 template<> struct map_ding<automobil_t>   { static const ding_t::typ code = ding_t::automobil;   };
 template<> struct map_ding<tunnel_t>      { static const ding_t::typ code = ding_t::tunnel;      };
 template<> struct map_ding<wayobj_t>      { static const ding_t::typ code = ding_t::wayobj;      };
+template<> struct map_ding<weg_t>         { static const ding_t::typ code = ding_t::way;         };
 template<> struct map_ding<zeiger_t>      { static const ding_t::typ code = ding_t::zeiger;      };
+
+
+template<typename T> static inline T const* ding_cast(ding_t const* const d)
+{
+	return d->get_typ() == map_ding<T>::code ? static_cast<T const*>(d) : 0;
+}
+
+template<typename T> static inline T* ding_cast(ding_t* const d)
+{
+	return d->get_typ() == map_ding<T>::code ? static_cast<T*>(d) : 0;
+}
 
 
 
@@ -229,12 +241,10 @@ public:
 	* Setzt Flags für das neuzeichnen geänderter Untergründe
 	* @author Hj. Malthaner
 	*/
-	inline void set_flag(enum flag_values flag) {flags |= flag;}
+	inline void set_flag(flag_values flag) {flags |= flag;}
 
-	inline void clear_flag(enum flag_values flag) {flags &= ~flag;}
-	inline bool get_flag(enum flag_values flag) const {return (flags & flag) != 0;}
-
-	void entferne_grund_info() const;
+	inline void clear_flag(flag_values flag) {flags &= ~flag;}
+	inline bool get_flag(flag_values flag) const {return (flags & flag) != 0;}
 
 	/**
 	* start a new month (and toggle the seasons)
@@ -275,7 +285,7 @@ public:
 	* @return Der Typ des Untergrundes.
 	* @author Hj. Malthaner
 	*/
-	virtual enum grund_t::typ get_typ() const {return grund;}
+	virtual typ get_typ() const { return grund; }
 
 	/**
 	* Gibt eine Beschreibung des Untergrundes (informell) zurueck.
@@ -545,14 +555,12 @@ public:
 	* @author Hj. Malthaner
 	*/
 	weg_t *get_weg(waytype_t typ) const {
-		if(flags&has_way1) {
-			weg_t *w=(weg_t *)obj_bei(0);
+		if (weg_t* const w = get_weg_nr(0)) {
 			if(w->get_waytype()==typ) {
 				return w;
 			}
 		}
-		if(flags&has_way2) {
-			weg_t *w=(weg_t *)obj_bei(1);
+		if (weg_t* const w = get_weg_nr(1)) {
 			if(w->get_waytype()==typ) {
 				return w;
 			}
@@ -639,6 +647,13 @@ public:
 	* Interface zur Bauen der Wege
 	* =============================
 	*/
+
+	/**
+	 * remove trees and groundobjs on this tile
+	 * called before building way or powerline
+	 * @returns costs
+	 */
+	sint64 remove_trees();
 
 	/**
 	 * Bauhilfsfunktion - ein neuer weg wird mit den vorgegebenen ribis

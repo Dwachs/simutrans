@@ -85,10 +85,10 @@ static struct clip_dimension clip_rect;
  * at screen line y
  * associated to some clipline
  */
-typedef struct {
+struct xrange {
 	int xmin,xmax,sx,sy,y;
 	bool non_convex_active;
-} xrange;
+};
 
 #define MAX_POLY_CLIPS 6
 static xrange      xranges[MAX_POLY_CLIPS];
@@ -163,15 +163,15 @@ static uint8 player_offsets[MAX_PLAYER_COUNT][2];
 struct imd {
 	sint16 base_x; // min x offset
 	sint16 base_y; // min y offset
-	uint8 base_w; //  width
-	uint8 base_h; // height
+	sint16 base_w; //  width
+	sint16 base_h; // height
 
 	sint16 x; // current (zoomed) min x offset
 	sint16 y; // current (zoomed) min y offset
-	uint8 w; // current (zoomed) width
-	uint8 h; // current (zoomed) height
+	sint16 w; // current (zoomed) width
+	sint16 h; // current (zoomed) height
 
-	uint16 len; // base image data size (used for allocation purposes only)
+	uint32 len; // base image data size (used for allocation purposes only)
 
 	uint8 recode_flags; // divers flags for recoding
 	uint8 player_flags; // 128 = free/needs recode, otherwise coded to this color in player_data
@@ -1027,7 +1027,7 @@ void set_zoom_factor(int z)
 int zoom_factor_up()
 {
 	// zoom out, if size permits
-	if(  zoom_factor>0  &&  (base_tile_raster_width * zoom_num[zoom_factor-1]) / zoom_den[zoom_factor-1] <= 254  ) {
+	if(  zoom_factor>0  ) {
 		set_zoom_factor( zoom_factor-1 );
 		return true;
 	}
@@ -1198,7 +1198,7 @@ static void recode_color_img(const unsigned int n, const unsigned char player_nr
  * Blurs a bit
  * @author prissi
  */
-static void rezoom_img(const unsigned int n)
+static void rezoom_img(const image_id n)
 {
 	// Hajo: may this image be zoomed
 	if (n < anz_images && images[n].base_h > 0) {
@@ -1232,10 +1232,10 @@ static void rezoom_img(const unsigned int n)
 			images[n].h = images[n].base_h;
 			{
 				// recalculate length
-				uint8 h = images[n].base_h;
+				sint16 h = images[n].base_h;
 				PIXVAL *sp = images[n].base_data;
 
-				while(h--) {
+				while(h-->0) {
 					do {
 						// clear run + colored run + next clear run
 						sp++;
@@ -1243,7 +1243,7 @@ static void rezoom_img(const unsigned int n)
 					} while (*sp);
 					sp++;
 				}
-				images[n].len = (uint16)(size_t)(sp-images[n].base_data);
+				images[n].len = (uint32)(size_t)(sp-images[n].base_data);
 			}
 			return;
 		}
@@ -1262,14 +1262,14 @@ static void rezoom_img(const unsigned int n)
 			static PIXVAL *baseimage2 = NULL;
 			PIXVAL *src = images[n].base_data;
 			PIXVAL *dest = NULL;
-			uint32 x, y;
+			sint32 x, y;
 			// embed the baseimage in an image with margin ~ remainder
-			const sint8 x_rem = (images[n].base_x*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
-			const sint8 y_rem = (images[n].base_y*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
-			const sint8 xl_margin = max( x_rem, 0);
-			const sint8 xr_margin = max(-x_rem, 0);
-			const sint8 yl_margin = max( y_rem, 0);
-			const sint8 yr_margin = max(-y_rem, 0);
+			const sint16 x_rem = (images[n].base_x*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
+			const sint16 y_rem = (images[n].base_y*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
+			const sint16 xl_margin = max( x_rem, 0);
+			const sint16 xr_margin = max(-x_rem, 0);
+			const sint16 yl_margin = max( y_rem, 0);
+			const sint16 yr_margin = max(-y_rem, 0);
 			// baseimage top-left  corner is at (xl_margin, yl_margin)
 			// ...       low-right corner is at (xr_margin, yr_margin)
 
@@ -1608,9 +1608,9 @@ static void rezoom_img(const unsigned int n)
 			images[n].h = newzoomheight;
 			if(newzoomheight>0) {
 				const size_t zoom_len = (size_t)(((uint8 *)dest) - ((uint8 *)baseimage));
-				images[n].len = (uint16)(zoom_len/sizeof(PIXVAL));
+				images[n].len = (uint32)(zoom_len/sizeof(PIXVAL));
 				images[n].zoom_data = MALLOCN(PIXVAL, images[n].len);
-				assert( zoom_len<65535*sizeof(PIXVAL)  &&  images[n].zoom_data  );
+				assert( images[n].zoom_data  );
 				memcpy( images[n].zoom_data, baseimage, zoom_len );
 			}
 		} else {
@@ -1807,7 +1807,7 @@ void register_image(struct bild_t* bild)
 	image->player_data = NULL;	// chaches data for one AI
 
 	// since we do not recode them, we can work with the original data
-	image->base_data = (PIXVAL*)(bild + 1);
+	image->base_data = bild->data;
 
 	// does this image have color?
 	if(  bild->h > 0  ) {
@@ -2069,7 +2069,6 @@ static void display_img_nc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 #else
 				// this code is sometimes slower, mostly 5% faster, not really clear why and when (cache alignment?)
 				asm volatile (
-					"cld\n\t"
 					// rep movsw and we would be finished, but we unroll
 					// uneven number of words to copy
 					"shrl %2\n\t"
@@ -2216,20 +2215,157 @@ static void display_img_nc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 					"movsd\n\t"
 					"movsd\n\t"
 					"movsd\n\t"
+					"movsd\n\t"
+
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
+					"movsd\n\t"
 					"movsd\n"
 
 					"1:\n\t"
 
 					: "+D" (p), "+S" (sp), "+r" (runlen)
 					:
-					: "cc"
+					: "cc", "memory"
 				);
 #endif
 				runlen = *sp++;
 			} while (runlen != 0);
 
 			tp += disp_width;
-		} while (--h != 0);
+		} while (--h > 0);
 	}
 }
 
@@ -2961,21 +3097,18 @@ static void display_fb_internal(KOORD_VAL xp, KOORD_VAL yp, KOORD_VAL w, KOORD_V
 			p = (PIXVAL *)lp;
 #else
 			asm volatile (
-				"cld\n\t"
 				// uneven words to copy?
-				// if(w&1)
-				"testb $1,%%cl\n\t"
-				"je 0f\n\t"
+				"shrl %1\n\t"
+				"jnc 0f\n\t"
 				// set first word
 				"stosw\n\t"
 				"0:\n\t"
 				// now we set long words ...
-				"shrl %%ecx\n\t"
 				"rep\n\t"
 				"stosl"
 				: "+D" (p), "+c" (count)
 				: "a" (longcolval)
-				: "cc"
+				: "cc", "memory"
 			);
 #endif
 

@@ -604,3 +604,4 @@ void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 		}
 	}
 }
+

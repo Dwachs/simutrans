@@ -38,7 +38,7 @@ bool loadsave_t::rd_open(const char *filename)
 
 	version = 0;
 	mode = zipped;
-	fp = (FILE *)fopen( filename, "rb" );
+	fp = fopen(filename, "rb");
 	if(  fp==NULL  ) {
 		// most likely not existing
 		return false;
@@ -982,6 +982,3 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 
 	return version;
 }
-
-
-

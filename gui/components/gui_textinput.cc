@@ -274,7 +274,7 @@ void gui_hidden_textinput_t::infowin_event(const event_t *ev)
 		sint16 asterix_width = display_calc_proportional_string_len_width("*",1);
 		cursor_pos = 0;
 		if (text) {
-			cursor_pos = min( strlen(text), (pos.x-ev->cx)/asterix_width );;
+			cursor_pos = min( strlen(text), (pos.x-ev->cx)/asterix_width );
 		}
 DBG_DEBUG("gui_textinput_t::gui_textinput_t()","cursor_pos=%i, cx=%i",cursor_pos,ev->cx);
 	}
@@ -308,7 +308,6 @@ void gui_hidden_textinput_t::zeichnen(koord offset)
 		sint16 xpos = pos.x+offset.x+2;
 		utf16  c = 0;
 		do {
-			size_t las_pos = text_pos;
 			// cursor?
 			if(  text_pos==cursor_pos  &&  has_focus(this)  ) {
 				display_fillbox_wh_clip( xpos, pos.y+offset.y+1, 1, 11, COL_WHITE, true);

@@ -721,7 +721,7 @@ stadt_t::~stadt_t()
 		// remove city info and houses
 		while (!buildings.empty()) {
 			// old buildings are not where they think they are, so we ask for map floor
-			gebaeude_t* gb = (gebaeude_t *)buildings.front();
+			gebaeude_t* const gb = buildings.front();
 			buildings.remove(gb);
 			assert(  gb!=NULL  &&  !buildings.is_contained(gb)  );
 			if(gb->get_tile()->get_besch()->get_utyp()==haus_besch_t::firmensitz) {
@@ -1110,21 +1110,12 @@ void stadt_t::zeige_info(void)
 /* add workers to factory list */
 void stadt_t::add_factory_arbeiterziel(fabrik_t* fab)
 {
-	const koord k = fab->get_pos().get_2d() - pos;
-	// worker do not travel more than 50 tiles
-	if(  koord_distance( fab->get_pos(), pos ) < welt->get_einstellungen()->get_factory_worker_radius()  ) {
-		// no fish swarms ...
-		if (strcmp("fish_swarm", fab->get_besch()->get_name()) != 0) {
-//			DBG_MESSAGE("stadt_t::add_factory_arbeiterziel()", "found %s with level %i", fab->get_name(), fab->get_besch()->get_pax_level());
-			fab->add_arbeiterziel(this);
-			arbeiterziele.append_unique(fab, fab->get_besch()->get_pax_level(), 4);
-		}
-	}
+	fab->add_arbeiterziel(this);
+	arbeiterziele.append_unique(fab, fab->get_besch()->get_pax_level(), 4);
 }
 
 
 /* calculates the factories which belongs to certain cities */
-/* we connect all factories, which are closer than 50 tiles radius */
 void stadt_t::verbinde_fabriken()
 {
 	DBG_MESSAGE("stadt_t::verbinde_fabriken()", "search factories near %s (center at %i,%i)", get_name(), pos.x, pos.y);
@@ -1529,7 +1520,6 @@ void stadt_t::step_passagiere()
 				}
 
 				// now try to add them to the target halt
-				uint32 max_ware = ret_halt->get_capacity(wtyp->get_index());
 				if(  !ret_halt->is_overcrowded(wtyp->get_catg_index())  ) {
 					// prissi: not overcrowded and can recieve => add them
 					if (found) {
@@ -2612,8 +2602,6 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 	const uint32 ymax2 = wl->get_groesse_y()/minimum_city_distance+1;
 	array2d_tpl< vector_tpl<koord> > result_places(xmax2, ymax2);
 
-	uint64 its = 0;
-
 	for (int i = 0; i < anzahl; i++) {
 		// check distances of all cities to their respective neightbours
 		while (!index_to_places.empty()) {
@@ -2635,7 +2623,6 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 				for(sint32 j=k2mcd.y-1; ok && j<=k2mcd.y+1; j++) {
 					if (i>=0 && i<(sint32)xmax2 && j>=0 && j<(sint32)ymax2) {
 						for(uint32 l=0; ok && l<result_places.at(i,j).get_count(); l++) {
-							its++;
 							if (koord_distance(k, result_places.at(i,j)[l]) < minimum_city_distance){
 								ok = false;
 							}
@@ -2668,8 +2655,6 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 	}
 	list->clear();
 	delete list;
-
-	printf("simcity::  number of iterations %d\n", its);
 
 	return result;
 }
