@@ -19,7 +19,7 @@ enum connection_types {
 
 class connection_t {
 public:
-	connection_t() : type(CONN_SIMPLE) {}
+	connection_t() : type(CONN_SIMPLE), state(0) {}
 	virtual ~connection_t() {}
 
 	void set_line(linehandle_t l) { line = l; }
@@ -37,9 +37,16 @@ public:
 	static void rdwr_connection(loadsave_t* file, const uint16 version, ai_wai_t *sp, connection_t* &c);
 
 	connection_types get_type() { return type; }
+
+	bool is_broken() { return state & broken;}
+
 protected:
 	linehandle_t line;
 	connection_types type;
+	enum {
+		broken = 1
+	};
+	uint8 state;
 };
 
 class combined_connection_t : public connection_t {

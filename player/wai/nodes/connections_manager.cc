@@ -62,12 +62,13 @@ void connection_t::rdwr(loadsave_t* file, const uint16 /*version*/, ai_wai_t *sp
 			line = sp->simlinemgmt.get_line_by_id(line_id);
 		}
 	}
+	file->rdwr_byte(state, "");
 }
 
 void connection_t::debug( log_t &file, cstring_t prefix )
 {
 	if (line.is_bound()) {
-		file.message("conn", "%s line(%d) %s", (const char*)prefix, line->get_line_id(), line->get_name() );
+		file.message("conn", "%s line(%d) (state %d) %s", (const char*)prefix, line->get_line_id(), state, line->get_name() );
 	}
 }
 
@@ -118,29 +119,48 @@ void combined_connection_t::debug( log_t &file, cstring_t prefix )
 report_t* serial_connection_t::get_report(ai_wai_t *sp)
 {
 	if (connections.empty()) {
+		state |= broken;
 		return NULL;
 	}
 	if (next_to_report >= connections.get_count()) {
 		next_to_report = 0;
 	}
-	return connections[next_to_report++]->get_report(sp);
+	report_t *report = connections[next_to_report]->get_report(sp);
+	if (connections[next_to_report]->is_broken()) {
+		state |= broken;
+	}
+	next_to_report++;
+	return report;
 }
 
 report_t* parallel_connection_t::get_report(ai_wai_t *sp)
 {
 	if (connections.empty()) {
+		state |= broken;
 		return NULL;
 	}
 	if (next_to_report >= connections.get_count()) {
 		next_to_report = 0;
 	}
-	return connections[next_to_report++]->get_report(sp);
+	report_t *report = connections[next_to_report]->get_report(sp);
+	if (connections[next_to_report]->is_broken()) {
+		if (report) delete report;
+		// get final report of broken connection
+		report = connections[next_to_report]->get_final_report(sp);
+		// .. and delete the connection (infrastructure will be deleted by report)
+		connection_t* conn = connections[next_to_report];
+		connections.remove_at(next_to_report);
+		delete conn;
+	}
+	next_to_report++;
+	return report;
 }
 
 report_t* freight_connection_t::get_report(ai_wai_t *sp)
 {
 	if (!line.is_bound()  ||  line->count_convoys()==0  ||  !ziel.is_bound()) {
-		// TODO: remove the line, wird die vielleicht gebraucht??
+		// remove the line
+		state |= broken;
 		return NULL;
 	}
 	karte_t* welt = sp->get_welt();
@@ -185,7 +205,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 
 	// count status of convois
 	vector_tpl<convoihandle_t> stopped, empty, loss; 
-	uint32 newc=0;
+	uint32 newc=0, no_route=0;
 	sint64 mitt_gewinn = 0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
@@ -212,8 +232,10 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			loss.append(cnv);
 		}
 		switch (cnv->get_state()){
-			case convoi_t::INITIAL:
 			case convoi_t::NO_ROUTE:
+				no_route++;
+				/* fall through */
+			case convoi_t::INITIAL:
 			case convoi_t::LOADING:
 			case convoi_t::WAITING_FOR_CLEARANCE:
 			case convoi_t::WAITING_FOR_CLEARANCE_ONE_MONTH:
@@ -229,6 +251,12 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 	sp->get_log().message( "freight_connection_t::get_report()","line '%s' cnv=%d empty=%d loss=%d stopped=%d new=%d", line->get_name(), line->count_convoys(), empty.get_count(), loss.get_count(), stopped.get_count(), newc);
 	// now decide something
+	if (no_route > 1  ||  no_route==line->count_convoys()) {
+		// do not expect to much here: at least the stations will be removed
+		state |= broken;
+		sp->get_log().message( "freight_connection_t::get_report()","%d convois without route", no_route);
+		return NULL;
+	}
 	if (freight_available) {
 		if (newc==0  &&  stopped.get_count()> (uint32)max(line->count_convoys()/2, 2) ) {
 			// traffic jam ..
