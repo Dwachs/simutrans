@@ -91,6 +91,10 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 		const vector_tpl<ware_production_t>& eingang = fab->get_eingang();
 		uint ware_nr;
 		for(  ware_nr=0;  ware_nr<eingang.get_count()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
+		if(ware_nr >= eingang.get_count()) {
+			// something wrong here.
+			return false;
+		}
 		if(  eingang[ware_nr].menge > eingang[ware_nr].max/10  ) {
 			// already enough supplied to
 			continue;
