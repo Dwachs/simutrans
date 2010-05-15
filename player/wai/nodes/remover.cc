@@ -21,7 +21,7 @@ uint8 remover_t::check_position(koord3d pos)
 {
 	karte_t *welt = sp->get_welt();
 	grund_t *gr = welt->lookup(pos);
-	if(gr==NULL  ||  !(gr->hat_weg(wt)  ||  (wt==water_wt  &&  gr->ist_wasser())) ){
+	if(gr==NULL  ||  !(gr->hat_weg(wt)  ||  (wt==water_wt  &&  (gr->ist_wasser()  ||  gr->is_halt()))) ){
 		return CP_FATAL;
 	}
 	if (gr->get_depot()) {
@@ -41,18 +41,18 @@ uint8 remover_t::check_position(koord3d pos)
 		return CP_IGNORE;
 	}
 	weg_t *weg = gr->get_weg(wt);
-	if (weg->ist_entfernbar(sp)!=NULL) {
+	if (weg  &&  weg->ist_entfernbar(sp)!=NULL) {
 		// ignore foreign ways
 		return CP_IGNORE;
 	}
 #ifdef remove_crossing_with_no_traffic
 	// crossing with traffic
-	if (!ribi_t::is_threeway(weg->get_ribi_unmasked())  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
+	if (weg  &&  !ribi_t::is_threeway(weg->get_ribi_unmasked())  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
 		return CP_WAIT;
 	}
 #else
 	// crossing - stop removing here
-	if (!ribi_t::ist_einfach(weg->get_ribi_unmasked())) {
+	if (weg  &&  !ribi_t::ist_einfach(weg->get_ribi_unmasked())) {
 		return CP_ERROR;
 	}
 #endif
@@ -72,6 +72,32 @@ return_value_t* remover_t::step()
 	if (res1==CP_WAIT) {
 		return new_return_value(RT_DONE_NOTHING);
 	}
+	karte_t *welt = sp->get_welt();
+	// remove harbours at end
+	if (wt==water_wt  &&  first_step) {
+		// find harbour
+		grund_t *harbour = NULL;
+		grund_t *gr = welt->lookup(end);
+		if (gr  &&  !gr->is_halt()) {
+			for (uint8 r=0; r<8; r++) {
+				grund_t *test=welt->lookup_kartenboden(end.get_2d() + koord::neighbours[r]);
+				if (test  &&  test->is_halt()  &&  test->get_halt()->get_besitzer()==sp  
+					&&  (!test->hat_wege()  ||  test->hat_weg(water_wt))) {
+					harbour = test;
+					break;
+				}
+			}
+		}
+		if (harbour) {
+			wkz_remover_t bulldozer;
+			const char *msg;
+			do {
+				msg = bulldozer.work(welt, sp, harbour->get_pos());
+			} while (msg==NULL  ||  harbour->is_halt());
+			sp->get_log().warning("remover_t::step", "harbour at (%s) deleted, msg = %s", harbour->get_pos().get_str(), msg);
+		}
+	}
+	first_step = false;
 	// start removing
 	route_t verbindung;
 	// get a default vehikel
@@ -83,9 +109,8 @@ return_value_t* remover_t::step()
 	else {
 		return new_return_value(RT_TOTAL_FAIL);
 	}
-	verbindung.calc_route(sp->get_welt(), start, end, test_driver, 0);
+	verbindung.calc_route(welt, start, end, test_driver, 0);
 	delete test_driver;
-	karte_t *welt = sp->get_welt();
 	if (verbindung.get_count()>1) {
 		// use wayremover
 		wkz_wayremover_t wkz;
@@ -144,6 +169,7 @@ void remover_t::rdwr(loadsave_t* file, const uint16 version)
 	uint8 iwt = wt;
 	file->rdwr_byte(iwt, "");
 	wt = (waytype_t) iwt;
+	file->rdwr_bool(first_step, "");
 }
 void remover_t::rotate90( const sint16 y_size)
 {

@@ -15,7 +15,7 @@ public:
 	waytype_t wt;
 	koord3d start, end;
 
-	remover_t( ai_wai_t *sp, waytype_t wt_=invalid_wt, koord3d start_=koord3d::invalid, koord3d end_=koord3d::invalid) : bt_node_t(sp), wt(wt_), start(start_), end(end_) { type = BT_REMOVER; }
+	remover_t( ai_wai_t *sp, waytype_t wt_=invalid_wt, koord3d start_=koord3d::invalid, koord3d end_=koord3d::invalid) : bt_node_t(sp), wt(wt_), start(start_), end(end_), first_step(true) { type = BT_REMOVER; }
 
 	return_value_t* step();
 
@@ -24,6 +24,7 @@ public:
 	void debug( log_t &file, cstring_t prefix );
 private:
 	uint8 check_position(koord3d pos);
+	bool first_step;
 };
 
 
