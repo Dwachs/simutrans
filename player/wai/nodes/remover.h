@@ -24,6 +24,7 @@ public:
 	void debug( log_t &file, cstring_t prefix );
 private:
 	uint8 check_position(koord3d pos);
+	void remove_way_end(koord3d &pos);
 	bool first_step;
 };
 

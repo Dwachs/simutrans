@@ -410,20 +410,36 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		// ..  then start->depot
 		if (start!=koord3d::invalid  &&  depot!=koord3d::invalid) {
 			verbindung_d.calc_route(sp->get_welt(), start, depot, test_driver, 0);
-			uint32 j;
-			for(j=0; (j<verbindung_d.get_count()) && (j<verbindung_e.get_count())  &&  (verbindung_d.position_bei(j)==verbindung_e.position_bei(j)); j++) ;
-			if (j<verbindung_d.get_count()) {
-				sp->get_log().warning("freight_connection_t::get_final_report", "entry %s", verbindung_d.position_bei(j>0 ? j-1 : 0).get_str());
-				// evaluate the route
-				for(uint32 i=j; i<verbindung_e.get_count(); i++) {
-					grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
-					if (gr->hat_weg(wt)  &&  gr->get_weg(wt)->get_besch()  &&  gr->get_weg(wt)->ist_entfernbar(sp)==NULL) {
-						report->cost_fix   += gr->get_weg(wt)->get_besch()->get_preis();
-						report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_per_world_month_shift-18);
+			koord3d depot_end=start;
+			if (verbindung_d.get_count()>1) {
+				uint32 j;
+				if (verbindung_e.get_count()>1) {
+					// loop until the first tile that is not in both routes
+					for(j=0; (j<verbindung_d.get_count()) && (j<verbindung_e.get_count())  &&  (verbindung_d.position_bei(j)==verbindung_e.position_bei(j)); j++) ;
+				}
+				else {
+					for(j=0; j<verbindung_d.get_count(); j++) {
+						grund_t *gr = welt->lookup(verbindung_d.position_bei(j));
+						if (!gr  ||  ribi_t::is_threeway(gr->get_weg_ribi_unmasked(wt))) {
+							j++;
+							break;
+						}
 					}
 				}
-				root->append_child( new remover_t(sp, wt, depot, verbindung_d.position_bei(j>0 ? j-1 : 0)));
+				if (j<verbindung_d.get_count()) {
+					sp->get_log().warning("freight_connection_t::get_final_report", "entry %s", verbindung_d.position_bei(j>0 ? j-1 : 0).get_str());
+					// evaluate the route
+					for(uint32 i=j; i<verbindung_e.get_count(); i++) {
+						grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
+						if (gr->hat_weg(wt)  &&  gr->get_weg(wt)->get_besch()  &&  gr->get_weg(wt)->ist_entfernbar(sp)==NULL) {
+							report->cost_fix   += gr->get_weg(wt)->get_besch()->get_preis();
+							report->gain_per_m += gr->get_weg(wt)->get_besch()->get_wartung() << (welt->ticks_per_world_month_shift-18);
+						}
+					}
+					depot_end = verbindung_d.position_bei(j>0 ? j-1 : 0);
+				}
 			}
+			root->append_child( new remover_t(sp, wt, depot, depot_end));
 		}
 		delete test_driver;
 	}

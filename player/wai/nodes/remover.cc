@@ -41,21 +41,27 @@ uint8 remover_t::check_position(koord3d pos)
 		return CP_IGNORE;
 	}
 	weg_t *weg = gr->get_weg(wt);
-	if (weg  &&  weg->ist_entfernbar(sp)!=NULL) {
-		// ignore foreign ways
-		return CP_IGNORE;
-	}
+	if (weg) {
+		if (weg->ist_entfernbar(sp)!=NULL) {
+			// ignore foreign ways
+			return CP_IGNORE;
+		}
+		ribi_t::ribi ribi = weg->get_ribi_unmasked();
 #ifdef remove_crossing_with_no_traffic
-	// crossing with traffic
-	if (weg  &&  !ribi_t::is_threeway(weg->get_ribi_unmasked())  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
-		return CP_WAIT;
-	}
+		// crossing with traffic
+		if (weg  &&  !ribi_t::is_threeway(ribi)  &&  (weg->get_statistics(WAY_STAT_CONVOIS)==0)) {
+			return CP_WAIT;
+		}
 #else
-	// crossing - stop removing here
-	if (weg  &&  !ribi_t::ist_einfach(weg->get_ribi_unmasked())) {
-		return CP_ERROR;
-	}
+		// crossing - stop removing here
+		if (ribi  &&  !ribi_t::ist_einfach(ribi)) {
+			return CP_ERROR;
+		}
 #endif
+	}
+	else {
+		return CP_FATAL;
+	}
 	return CP_REMOVE;
 }
 
@@ -158,7 +164,51 @@ return_value_t* remover_t::step()
 			}
 		}
 	}
+	else {
+		// delete from start/end until crossing is encountered
+		remove_way_end(start);
+		remove_way_end(end);
+		// nothing more to do: no route found / deleted everything we could
+		//return new_return_value(RT_TOTAL_SUCCESS);
+	}
 	return new_return_value(RT_SUCCESS);
+}
+
+void remover_t::remove_way_end(koord3d &pos)
+{
+	karte_t *welt = sp->get_welt();
+	wkz_wayremover_t bulldozer;
+	char buf[10]; 
+	sprintf(buf, "%d", wt);
+	bulldozer.set_default_param(buf);
+
+	while(check_position(pos)==CP_REMOVE) {
+		grund_t *gr = welt->lookup(pos);
+		assert(gr);
+		if(gr->hat_weg(wt)) {
+			weg_t *weg = gr->get_weg(wt);
+			ribi_t::ribi ribi = weg->get_ribi_unmasked();
+			if (ribi_t::ist_einfach(ribi)  ||  ribi == ribi_t::keine) {
+				grund_t *to = NULL;
+				gr->get_neighbour(to, wt, koord(ribi));
+				// 'double click' to remove way here
+				bulldozer.init(welt, sp);
+				const char *msg = bulldozer.work(welt, sp, pos);
+				if (msg==NULL) {
+					msg = bulldozer.work(welt, sp, pos);
+				}
+				if (msg) {
+					sp->get_log().warning("remover_t::remove_way_end", "bulldozing at (%s) failed: %s", pos.get_str(),msg);
+				}
+				if (to) {
+					pos = to->get_pos();
+				}
+				else {
+					break;
+				}
+			}
+		}
+	}
 }
 
 void remover_t::rdwr(loadsave_t* file, const uint16 version)
