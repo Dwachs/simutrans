@@ -380,6 +380,17 @@ public:
 		return *this;
 	}
 
+ 	/**
+	 * start iteration
+	 * @author Hj. Malthaner
+	 */
+	void begin(const slist_tpl<T> *list)
+	{
+		current_node = &lead;
+		lead.next = list->head;
+	}
+
+
 	/**
 	 * iterate next element
 	 * @return false, if no more elements
