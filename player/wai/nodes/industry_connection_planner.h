@@ -21,6 +21,7 @@ public:
 	virtual return_value_t *step();
 	virtual void rdwr( loadsave_t* file, const uint16 version);
 
+	static bool is_infrastructure_available(waytype_t wt, karte_t *welt, bool check_for_ways=true);
 	static sint64 calc_building_cost(const haus_besch_t* st, waytype_t wt, karte_t *welt);
 	static sint64 calc_building_maint(const haus_besch_t* st, karte_t *welt);
 private:

@@ -43,25 +43,20 @@ return_value_t *industry_connection_planner_t::step()
 		sp->get_log().warning("industry_connection_planner_t::step", "connection already planned/built/forbidden");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
+	if(ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
+		sp->get_log().warning("industry_connection_planner_t::step", "only oil rigs supported yet");
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
+		return new_return_value(RT_TOTAL_FAIL);
+	}
 	// check if we already have a report
 	if( report ) {
 		// This shouldn't happen. We are deleted, if we delivered a report.
 		assert( false );
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
-	// get a way
-	const weg_besch_t *wb = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
-	if (!wb) {
-		sp->get_log().warning("industry_connection_planner_t::step","no way found for waytype %d", wt);
-		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-	}
-
-	// check for depots, station
-	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
-	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
-	if (st==NULL || dep ==NULL) {
-		sp->get_log().warning("industry_connection_planner_t::step", "no %s%s available for waytype=%d", (st==NULL?"station ":""), (dep==NULL?"depot":""), wt);
+	// check for ways/stations/depots
+	if (!is_infrastructure_available(wt, sp->get_welt(), true)) {
+		sp->get_log().warning("industry_connection_planner_t::step","no ways/stations/depots found for waytype %d", wt);
 		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -77,20 +72,13 @@ return_value_t *industry_connection_planner_t::step()
 	bool include_ships = false;
 	koord3d harbour_pos = koord3d::invalid;
 	// need ships too?
-	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
-		if(start->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser || ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
-			sp->get_log().warning("industry_connection_planner_t::step", "only oil rigs supported yet");
-			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-			return new_return_value(RT_TOTAL_FAIL);
-		}
+	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 		sp->get_log().message("industry_connection_planner_t::step", "start factory at water side spotted");
 		include_ships = true;
 
-		// check for ship depots, dock
-		const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, water_wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
-		const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, sp->get_welt()->get_timeline_year_month(), 0);
-		if (st==NULL || dep ==NULL) {
-			sp->get_log().warning("industry_connection_planner_t::step", "no %s%s available for waytype=%d", (st==NULL?"station ":""), (dep==NULL?"depot":""), water_wt);
+		// check for ways/stations/depots
+		if (!is_infrastructure_available(wt, sp->get_welt(), true)) {
+			sp->get_log().warning("industry_connection_planner_t::step","no ways/stations/depots found for waytype %d", water_wt);
 			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 		}
@@ -156,30 +144,33 @@ return_value_t *industry_connection_planner_t::step()
 
 connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t wt, sint32 prod, uint32 dist)
 {
-	connection_plan_data_t* cpd = new connection_plan_data_t();
+	// check for depots, station
+	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
+	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
+
 	// get a vehicle
-	cpd->d = new simple_prototype_designer_t(sp);
-	cpd->d->freight = freight;
-	cpd->d->production = prod;
-	cpd->d->include_electric = false; // wt != road_wt;
-	cpd->d->max_length = 1;
-	cpd->d->max_weight = 0xffffffff;
-	cpd->d->min_speed  = 1;
-	cpd->d->not_obsolete = true;
-	cpd->d->wt = wt;
-	cpd->d->min_trans= 0;
-	cpd->d->distance = dist;
-	cpd->d->update();
-	const vehikel_prototype_t *proto = cpd->d->proto;
+	connection_plan_data_t* cpd = new connection_plan_data_t();
+	cpd->d  = new simple_prototype_designer_t(sp);
+	simple_prototype_designer_t* d = cpd->d;
+	d->freight = freight;
+	d->production = prod;
+	d->include_electric = false; // wt != road_wt;
+	d->max_length = 1;
+	d->max_weight = 0xffffffff;
+	d->min_speed  = 1;
+	d->not_obsolete = true;
+	d->wt = wt;
+	d->min_trans= 0;
+	d->distance = dist;
+	d->update();
+	const vehikel_prototype_t *proto = d->proto;
 
 	if (proto->is_empty()) {
 		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
-		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return cpd;
 	}
-	// check for ship depots, dock
-	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
-	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
+
+	// we checked everything, now the plan can be developed= d;
 
 	// cost for stations
 	const sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
@@ -310,6 +301,22 @@ koord3d industry_connection_planner_t::get_harbour_pos()
 	return harbour_pos;
 }
 
+bool industry_connection_planner_t::is_infrastructure_available(waytype_t wt, karte_t *welt, bool check_for_ways)
+{
+	uint16 time = welt->get_timeline_year_month();
+	if (wt != water_wt) {
+		// check for depots, stations, ways
+		return hausbauer_t::get_random_station(haus_besch_t::depot, wt, time, 0) != NULL
+			&& hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, time, haltestelle_t::WARE, hausbauer_t::generic_station )!=NULL
+			&& (!check_for_ways  ||  wegbauer_t::weg_search(wt, 0, time, weg_t::type_flat) != NULL);
+	}
+	else {
+		return hausbauer_t::get_random_station(haus_besch_t::depot, wt, time, 0) != NULL
+			&& (!check_for_ways  ||  wegbauer_t::weg_search(wt, 0, time, weg_t::type_flat) != NULL)
+			&& (hausbauer_t::get_random_station(haus_besch_t::hafen, wt, time, haltestelle_t::WARE, hausbauer_t::generic_station )!=NULL
+				|| (check_for_ways  &&  hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, time, haltestelle_t::WARE, hausbauer_t::generic_station )!=NULL) );
+	}
+}
 
 sint64 industry_connection_planner_t::calc_building_cost(const haus_besch_t* st)
 {
