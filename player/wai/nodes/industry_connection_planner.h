@@ -35,9 +35,10 @@ private:
 	 * @param start_pos: start coordinate, if invalid then position of start-factory is taken
 	 * @param ziel_pos: ziel coordinate, if invalid then position of ziel-factory is taken
 	 *			if wt==water_wt then ziel_pos can be harbour position
+	 * @param create_industry_connector if true then report->action is of type industry_connector_t*
 	 * @returns complete report inclusive action nodes
 	 */
-	report_t* plan_simple_connection(waytype_t wt, sint32 prod, koord3d start_pos=koord3d::invalid, koord3d end_pos=koord3d::invalid);
+	report_t* plan_simple_connection(waytype_t wt, sint32 prod, koord3d start_pos=koord3d::invalid, koord3d end_pos=koord3d::invalid, bool create_industry_connector=true);
 
 	/**
 	 * plans combined land+sea connection
