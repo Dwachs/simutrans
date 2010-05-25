@@ -17,12 +17,12 @@ void report_t::merge_report(report_t* r)
 	// merge actions, create bt_sequential root node if needed
 	if (r->action) {
 		if (action) {
-			bt_node_t *root_action = action;
-			if (action->get_type()!=BT_SEQUENTIAL) {
+			bt_sequential_t *root_action = dynamic_cast<bt_sequential_t*>(action);
+			if (root_action == NULL) {
 				root_action = new bt_sequential_t(action->get_sp(), "merged report action");
-				((bt_sequential_t*)root_action)->append_child(action);
+				root_action->append_child(action);
 			}
-			((bt_sequential_t*)root_action)->append_child(r->action);
+			root_action->append_child(r->action);
 			action = root_action;
 		}
 		else {
