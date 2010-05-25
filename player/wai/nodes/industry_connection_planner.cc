@@ -54,12 +54,6 @@ return_value_t *industry_connection_planner_t::step()
 		assert( false );
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
-	// check for ways/stations/depots
-	if (!is_infrastructure_available(wt, sp->get_welt(), true)) {
-		sp->get_log().warning("industry_connection_planner_t::step","no ways/stations/depots found for waytype %d", wt);
-		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-	}
 
 	// estimate production
 	sint32 prod = calc_production();
@@ -69,70 +63,18 @@ return_value_t *industry_connection_planner_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
-	bool include_ships = false;
-	koord3d harbour_pos = koord3d::invalid;
-	// need ships too?
+	report = NULL;
 	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
-		sp->get_log().message("industry_connection_planner_t::step", "start factory at water side spotted");
-		include_ships = true;
-
-		// check for ways/stations/depots
-		if (!is_infrastructure_available(wt, sp->get_welt(), true)) {
-			sp->get_log().warning("industry_connection_planner_t::step","no ways/stations/depots found for waytype %d", water_wt);
-			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-		}
-
-		harbour_pos = get_harbour_pos();
-		if (harbour_pos == koord3d::invalid) {
-			sp->get_log().warning("industry_connection_planner_t::step", "Keine Amphibienroute");
-			sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-			return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-		}
-	}
-	// wt planner
-	const uint32 dist1 = koord_distance(include_ships ? harbour_pos : start->get_pos(), ziel->get_pos());
-	connection_plan_data_t *cpd_road = plan_connection(wt, prod, dist1);
-	if (!cpd_road->is_ok()) {
-		delete cpd_road;
-		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-	}
-	// ship planner
-	const uint32 dist2 = koord_distance(harbour_pos, start->get_pos());
-	connection_plan_data_t *cpd_ship = include_ships ? plan_connection(water_wt, prod, dist2) : NULL;
-	if (include_ships && !cpd_ship->is_ok()) {
-		delete cpd_road;
-		delete cpd_ship;
-		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
-		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
-	}
-
-	// merge the reports and create new report
-	// TODO: save the prototype-designer somewhere
-	report = cpd_road->report; 
-	if (include_ships) {
-		report->merge_report(cpd_ship->report);
-	}
-
-	// create the action nodes
-	if( include_ships ) {
-		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road+ship", *start, *ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd_road->wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL, harbour_pos) );
-		// TODO: was passiert, wenn der road-connector seine Route nicht bauen kann?
-		action->append_child( new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd_ship->d, cpd_ship->report->nr_vehicles, harbour_pos) );
-		report->action = action;
+		report = plan_amph_connection(road_wt, prod);
 	}
 	else {
-		bt_sequential_t *action = new industry_connector_t( sp, "industry_connector with road", *start, *ziel, freight );
-		action->append_child( new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd_road->wb, cpd_road->d, cpd_road->report->nr_vehicles, NULL) );
-		report->action = action;
+		report = plan_simple_connection(road_wt, prod);
 	}
-	// free memory
-	cpd_road->report = NULL;
-	cpd_road->d = NULL; delete cpd_road;
-	if (include_ships) {
-		cpd_ship->d = NULL; delete cpd_ship;
+
+	if (report==NULL) {
+		sp->get_log().warning("industry_connection_planner_t::step","no report");
+		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
+		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /m = %lld", report->gain_per_m/100);
@@ -142,7 +84,67 @@ return_value_t *industry_connection_planner_t::step()
 	return new_return_value(RT_TOTAL_SUCCESS);
 }
 
-connection_plan_data_t* industry_connection_planner_t::plan_connection(waytype_t wt, sint32 prod, uint32 dist)
+
+
+report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, sint32 prod, koord3d start_pos, koord3d ziel_pos)
+{
+	// check for ways/stations/depots
+	if (!is_infrastructure_available(wt, sp->get_welt(), true)) {
+		sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","no ways/stations/depots found for waytype %d", wt);
+		return NULL;
+	}
+	// distance
+	koord3d p1 = start_pos!=koord3d::invalid ? start->get_pos() : start_pos;
+	koord3d p2 =  ziel_pos!=koord3d::invalid ?  ziel->get_pos() :  ziel_pos;
+	const uint32 dist1 = koord_distance(p1, p2);
+	// wt planner
+	connection_plan_data_t *cpd = calc_plan_data(wt, prod, dist1);
+	if (!cpd->is_ok()) {
+		delete cpd;
+		return NULL;
+	}
+	// get report
+	report_t *report = cpd->report;
+	cpd->report = NULL;
+
+	// create action node
+	switch(wt) {
+		case road_wt:
+			report->action = new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd->wb, cpd->d, report->nr_vehicles, NULL, start_pos);
+			break;
+		case water_wt:
+			report->action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd->d, report->nr_vehicles, ziel_pos);
+			break;
+		default:
+			sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","unhandled waytype %d", wt);
+	}
+
+	cpd->d = NULL;
+	delete cpd;
+
+	return report;
+}
+
+
+report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint32 prod)
+{
+	// find position for harbour
+	koord3d harbour_pos = get_harbour_pos();
+	if (harbour_pos == koord3d::invalid) {
+		sp->get_log().warning("industry_connection_planner_t::step", "no marine rout");
+		NULL;
+	}
+	report_t *report1 = plan_simple_connection(wt, prod, harbour_pos, koord3d::invalid);
+	if (report1) {
+		report_t *report2 = plan_simple_connection(water_wt, prod, koord3d::invalid, harbour_pos);
+		if (report2) {
+			report1->merge_report(report2);
+		}
+	}
+	return report1;
+}
+
+connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist)
 {
 	// check for depots, station
 	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );

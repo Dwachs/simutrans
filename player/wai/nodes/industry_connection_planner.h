@@ -25,7 +25,27 @@ public:
 	static sint64 calc_building_cost(const haus_besch_t* st, waytype_t wt, karte_t *welt);
 	static sint64 calc_building_maint(const haus_besch_t* st, karte_t *welt);
 private:
-	connection_plan_data_t* plan_connection(waytype_t wt, sint32 prod, uint32 dist);
+	/**
+	 * calculates convoi prototype, gain / cost
+	 */
+	connection_plan_data_t* calc_plan_data(waytype_t wt, sint32 prod, uint32 dist);
+
+	/**
+	 * plans a connection
+	 * @param start_pos: start coordinate, if invalid then position of start-factory is taken
+	 * @param ziel_pos: ziel coordinate, if invalid then position of ziel-factory is taken
+	 *			if wt==water_wt then ziel_pos can be harbour position
+	 * @returns complete report inclusive action nodes
+	 */
+	report_t* plan_simple_connection(waytype_t wt, sint32 prod, koord3d start_pos=koord3d::invalid, koord3d end_pos=koord3d::invalid);
+
+	/**
+	 * plans combined land+sea connection
+	 * @param wt non-water waytype
+	 */
+	report_t* plan_amph_connection(waytype_t wt, sint32 prod);
+
+
 	koord3d get_harbour_pos();
 	sint32 calc_production();
 	sint64 calc_building_cost(const haus_besch_t* st);
