@@ -2,23 +2,26 @@
 #define FREE_TILE_SEARCHER_H
 
 #include "../bt.h"
-#include "../utils/wrapper.h"
+#include "../../../dataobj/koord3d.h"
 
 /*
- * Searches free tiles around a factory.
- * @author gerw
+ * Searches free tiles around given location
+ * @author gerw/dwachs
  */
-
-class fabrik_t;
-class return_value_t;
 
 class free_tile_searcher_t : public bt_node_t
 {
-	wfabrik_t fab;
+	/**
+	 * Search for free tiles (suitable for stations) near pos
+	 * -- if a factory is at pos then find places that reach the factory
+	 * -- if a halt is at pos then find places connected to that halt
+	 * -- otherwise check whether pos itself is suitable for placing a station
+	 */
+	koord3d pos;
 	bool through; // force to search for places for through stations
 public:
 	free_tile_searcher_t( ai_wai_t *sp, const char* name );
-	free_tile_searcher_t( ai_wai_t *sp, const char* name, const fabrik_t *fab, bool through = false );
+	free_tile_searcher_t( ai_wai_t *sp, const char* name, koord3d pos, bool through = false );
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual return_value_t *step();
 };

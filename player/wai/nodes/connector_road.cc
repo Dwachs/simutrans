@@ -54,9 +54,9 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 		tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
 	}
 	else {
-		append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab1 ));
+		append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1->get_pos() ));
 	}
-	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab2 ));
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2->get_pos() ));
 }
 
 connector_road_t::~connector_road_t()
@@ -163,9 +163,9 @@ return_value_t *connector_road_t::step()
 							tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
 						}
 						else {
-							append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab1, force_through&1 ));
+							append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1->get_pos(), force_through&1 ));
 						}
-						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", *fab2, force_through&2 ));
+						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2->get_pos(), force_through&2 ));
 						sp->get_log().message( "connector_road_t::step", "did not complete phase %d", phase);
 						return new_return_value(RT_PARTIAL_SUCCESS);
 					}
