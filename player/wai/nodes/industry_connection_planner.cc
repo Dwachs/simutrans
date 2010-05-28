@@ -153,7 +153,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	return report1;
 }
 
-connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist)
+connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist, uint32 dist_way)
 {
 	// check for depots, station
 	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
@@ -200,12 +200,15 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 
 	// find the best way
 	vector_tpl<const weg_besch_t *> *ways;
-	if (wt!=water_wt) {
+	if (wt!=water_wt  ||  dist_way>0) {
 		ways = wegbauer_t::get_way_list(wt, sp->get_welt());
 	}
 	else {
 		ways = new vector_tpl<const weg_besch_t *>(1);
 		ways->append(NULL);
+	}
+	if (dist_way==0) {
+		dist_way = dist;
 	}
 	// loop over all ways and find the best
 	for(uint32 i=0; i<ways->get_count(); i++) {
@@ -220,11 +223,11 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
 
 		// now check
-		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
+		const sint64 cost_monthly = (main_buildings + (wb ? dist_way*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
 		const sint64 gain_per_v_m = gain_per_tile * tiles_per_month;
 		const sint64 gain_per_m   = gain_per_v_m * nr_vehicles - cost_monthly;
 		if (gain_per_m > cpd->report->gain_per_m) {
-			cpd->report->cost_fix                 = cost_buildings + (wb ? dist*wb->get_preis()  : 0);
+			cpd->report->cost_fix                 = cost_buildings + (wb ? dist_way*wb->get_preis()  : 0);
 			cpd->report->cost_monthly             = cost_monthly;
 			cpd->report->gain_per_v_m             = gain_per_v_m;
 			cpd->report->nr_vehicles              = nr_vehicles;

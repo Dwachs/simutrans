@@ -28,7 +28,7 @@ private:
 	/**
 	 * calculates convoi prototype, gain / cost
 	 */
-	connection_plan_data_t* calc_plan_data(waytype_t wt, sint32 prod, uint32 dist);
+	connection_plan_data_t* calc_plan_data(waytype_t wt, sint32 prod, uint32 dist, uint32 dist_way=0);
 
 	/**
 	 * plans a connection
