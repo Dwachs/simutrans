@@ -5,6 +5,7 @@
 #include "planner.h"
 #include "nodes/builder_road_station.h"
 #include "nodes/builder_way_obj.h"
+#include "nodes/connector_generic.h"
 #include "nodes/connector_road.h"
 #include "nodes/connector_ship.h"
 #include "nodes/factory_searcher.h"
@@ -36,6 +37,7 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 		case BT_VEH_BUILDER:	return new vehikel_builder_t(sp, NULL);
 		case BT_FREE_TILE:		return new free_tile_searcher_t(sp, NULL);
 		case BT_CON_IND:		return new industry_connector_t(sp, NULL);
+		case BT_CON_GENERIC:    return new connector_generic_t(sp, NULL);
 
 		case BT_REMOVER:        return new remover_t(sp);
 		default:

@@ -301,6 +301,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\connector_generic.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\nodes\connector_road.cc"
 				>
 			</File>
@@ -1214,6 +1218,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\connections_manager.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_generic.h"
 				>
 			</File>
 			<File

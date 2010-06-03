@@ -287,6 +287,7 @@ SOURCES += player/wai/vehikel_prototype.cc
 SOURCES += player/wai/nodes/builder_road_station.cc
 SOURCES += player/wai/nodes/builder_way_obj.cc
 SOURCES += player/wai/nodes/connections_manager.cc
+SOURCES += player/wai/nodes/connector_generic.cc
 SOURCES += player/wai/nodes/connector_road.cc
 SOURCES += player/wai/nodes/connector_ship.cc
 SOURCES += player/wai/nodes/factory_searcher.cc

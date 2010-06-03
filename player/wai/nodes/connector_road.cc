@@ -1,5 +1,6 @@
 #include "connector_road.h"
 
+#include "connector_generic.h"
 #include "builder_road_station.h"
 #include "builder_way_obj.h"
 #include "free_tile_searcher.h"
@@ -48,7 +49,7 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 	e = e_;
 	harbour_pos = harbour_pos_;
 
-
+#ifdef oldmethod
 	if( harbour_pos != koord3d::invalid ) {
 		const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
 		tile_list[0].append( harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1) );
@@ -57,6 +58,14 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik
 		append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab1->get_pos() ));
 	}
 	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", fab2->get_pos() ));
+#else
+	koord3d start_pos = fab1->get_pos();
+	if( harbour_pos != koord3d::invalid ) {
+		const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
+		start_pos = harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1);
+	}
+	append_child(new connector_generic_t(sp, "connector_generic(road)", start_pos, fab2->get_pos(), road_besch));
+#endif
 }
 
 connector_road_t::~connector_road_t()
@@ -116,9 +125,12 @@ return_value_t *connector_road_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 	if( childs.empty() ) {
+
 		datablock_t *data = NULL;
 		sp->get_log().message("connector_road_t::step", "phase %d of build route %s => %s", phase, fab1->get_name(), fab2->get_name() );
+		
 		switch(phase) {
+#ifdef oldmethod
 			case 0: {
 				// need through station?
 				uint through = 0;
@@ -340,6 +352,11 @@ return_value_t *connector_road_t::step()
 				}
 				break;
 			}
+#else
+			case 0:
+			case 1:
+				break;
+#endif
 			case 2: {
 				// create line
 				schedule_t *fpl=new autofahrplan_t();
@@ -381,6 +398,7 @@ return_value_t *connector_road_t::step()
 	else {
 		// Step the childs.
 		return_value_t *rv = bt_sequential_t::step();
+#ifdef oldmethod
 		if( rv->type == BT_FREE_TILE ) {
 			uint8 i = 1;
 			if( tile_list[0].empty() && through_tile_list[0].empty() ) {
@@ -391,9 +409,24 @@ return_value_t *connector_road_t::step()
 			delete rv;
 			return new_return_value( RT_PARTIAL_SUCCESS );
 		}
-		else {
-			return rv;
+#else
+		if (rv->type == BT_CON_GENERIC) {
+			if (rv->is_ready() &&  rv->data  &&  rv->data->pos1.get_count()>2) {
+				start  = rv->data->pos1[0];
+				ziel   = rv->data->pos1[1];
+				deppos = rv->data->pos1[2];
+				phase = 2;
+				delete rv;
+				return new_return_value( RT_PARTIAL_SUCCESS );
+			}
+			else if (rv->is_failed()) {
+				sp->get_log().warning("connector_road_t::step", "connector_generic failed");
+				delete rv;
+				return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+			}
 		}
+#endif
+		return rv;
 	}
 }
 
