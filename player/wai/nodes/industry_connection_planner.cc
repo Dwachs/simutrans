@@ -120,7 +120,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 			sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","unhandled waytype %d", wt);
 	}
 	if (action  &&  create_industry_connector) {
-		industry_connector_t *connector = new industry_connector_t( sp, "industry_connector with road+ship", *start, *ziel, freight );
+		industry_connector_t *connector = new industry_connector_t( sp, "industry_connector", *start, *ziel, freight );
 		connector->append_child(action);
 		report->action = connector;
 	}
