@@ -223,13 +223,13 @@ return_value_t *connector_generic_t::step()
 				// build immediately 1x1 stations
 				ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
 				if (!ok) {
-					sp->get_log().warning( "connector_generic_t::step", "failed to built road station at (%s)", start.get_str() );
+					sp->get_log().warning( "connector_generic_t::step", "failed to built station at (%s)", start.get_str() );
 				}
 				else {
 					completed = 1;
 					ok = sp->call_general_tool(WKZ_STATION, ziel.get_2d(), through & 2 ? through_st->get_name() : terminal_st->get_name());
 					if (!ok) {
-						sp->get_log().warning( "connector_generic_t::step", "failed to built road station at (%s)", ziel.get_str() );
+						sp->get_log().warning( "connector_generic_t::step", "failed to built station at (%s)", ziel.get_str() );
 					}
 				}
 				if (!ok) {
@@ -343,5 +343,4 @@ void connector_generic_t::debug( log_t &file, cstring_t prefix )
 {
 	bt_sequential_t::debug(file, prefix);
 	file.message("cong","%s phase=%d", (const char*)prefix, phase);
-	cstring_t next_prefix( prefix + " prototyp");
 }
