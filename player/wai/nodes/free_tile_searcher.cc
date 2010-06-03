@@ -95,6 +95,7 @@ return_value_t *free_tile_searcher_t::step()
 	else if (gr->is_halt()) {
 	}
 	else {
+		list1.append(pos);
 	}
 
 	if(!through) {
