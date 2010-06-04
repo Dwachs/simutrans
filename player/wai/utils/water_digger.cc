@@ -39,6 +39,7 @@ bool water_digger_t::terraform()
 			}
 			ai->get_log().message("water_digger_t::terraform()", "terraformed at (%s)", route[i].get_str());
 		}
+		// TODO: remove later
 		for(uint32 i=0; i<route.get_count(); i++) {
 			grund_t *gr = welt->lookup_kartenboden(route[i].get_2d());
 			if (gr  &&  gr->ist_wasser()) {
