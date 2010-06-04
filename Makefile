@@ -298,6 +298,7 @@ SOURCES += player/wai/nodes/industry_manager.cc
 SOURCES += player/wai/nodes/remover.cc
 SOURCES += player/wai/nodes/vehikel_builder.cc
 SOURCES += player/wai/utils/amphi_searcher.cc
+SOURCES += player/wai/utils/water_digger.cc
 SOURCES += player/wai/utils/wrapper.cc
 SOURCES += player/simplay.cc
 SOURCES += old_blockmanager.cc

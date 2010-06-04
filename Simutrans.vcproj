@@ -1143,6 +1143,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\utils\water_digger.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\way_obj_reader.cc"
 				>
 			</File>
@@ -1278,6 +1282,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\vehikel_prototype.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\water_digger.h"
 				>
 			</File>
 			<File
