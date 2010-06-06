@@ -15,6 +15,7 @@ public:
 	water_digger_t(karte_t *welt, spieler_t *spl) : wegbauer_t(welt, spl) {};
 
 	bool terraform();
+	sint64 calc_costs();
 protected:
 	virtual bool is_allowed_step( const grund_t *from, const grund_t *to, long *costs );
 };

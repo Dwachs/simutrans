@@ -2143,7 +2143,8 @@ void wegbauer_t::baue_fluss()
 			// one step higher?
 			if (route[j].z > route[i].z) break;
 			// check
-			ok = welt->can_ebne_planquadrat(route[j].get_2d(), max(route[j].z-1, start_h));
+			int dummy;
+			ok = welt->can_ebne_planquadrat(route[j].get_2d(), max(route[j].z-1, start_h), dummy);
 		}
 		// now lower all tiles that have the same height as tile i
 		for(uint32 k=i; k<j; k++) {

@@ -229,7 +229,7 @@ private:
 	/**
 	 * Raise tile (x,y): height of each corner is given
 	 */
-	bool can_raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest=15) const;
+	bool can_raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, int &cost, uint8 ctest=15) const;
 	int  raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw);
 	/**
 	 * Raise grid point (x,y), used during map creation/enlargement
@@ -239,7 +239,7 @@ private:
 	/**
 	 * Lower tile (x,y): height of each corner is given
 	 */
-	bool can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest=15) const;
+	bool can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, int &cost, uint8 ctest=15) const;
 	int  lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw);
 	/**
 	 * Lwer grid point (x,y), used during map creation/enlargement
@@ -783,7 +783,7 @@ public:
 	 * @param y y-Gitterkoordinate
 	 * @author Hj. Malthaner
 	 */
-	bool can_raise(sint16 x,sint16 y) const;
+	bool can_raise(sint16 x,sint16 y, int &cost) const;
 
 	/**
 	 * Erhoeht die Hoehe an Gitterkoordinate (x,y) um eins.
@@ -799,7 +799,7 @@ public:
 	 * @param y y-Gitterkoordinate
 	 * @author Hj. Malthaner
 	 */
-	bool can_lower(sint16 x,sint16 y) const;
+	bool can_lower(sint16 x,sint16 y, int &cost) const;
 
 	/**
 	 * Erniedrigt die Hoehe an Gitterkoordinate (x,y) um eins.
@@ -809,7 +809,7 @@ public:
 	int lower(koord pos);
 
 	// mostly used by AI: Ask to flatten a tile
-	bool can_ebne_planquadrat(koord pos, sint8 hgt);
+	bool can_ebne_planquadrat(koord pos, sint8 hgt, int &cost);
 	bool ebne_planquadrat(spieler_t *sp, koord pos, sint8 hgt);
 
 	// the convois are also handled each steps => thus we keep track of them too

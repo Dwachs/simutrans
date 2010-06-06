@@ -7,10 +7,12 @@ bool water_digger_t::is_allowed_step( const grund_t *from, const grund_t *to, lo
 
 	const sint8 sea_level = welt->get_grundwasser();
 
-	if(!from->ist_wasser()  &&  !welt->can_ebne_planquadrat(from->get_pos().get_2d(), sea_level)) {
+	int cost = 0;
+	if(!from->ist_wasser()  &&  !welt->can_ebne_planquadrat(from->get_pos().get_2d(), sea_level, cost)) {
 		return false;
 	}
-	if(from!=to  &&  !to->ist_wasser()  &&  !welt->can_ebne_planquadrat(to->get_pos().get_2d(), sea_level)) {
+	cost = 0;
+	if(from!=to  &&  !to->ist_wasser()  &&  !welt->can_ebne_planquadrat(to->get_pos().get_2d(), sea_level, cost)) {
 		return false;
 	}
 
@@ -20,10 +22,26 @@ bool water_digger_t::is_allowed_step( const grund_t *from, const grund_t *to, lo
 	else {
 		const sint8 hgt_diff = to->get_hoehe() - sea_level;
 
-		*costs = hgt_diff*(hgt_diff + 1);
+		*costs = 1 + cost;
 	}
 	return true;
 }
+
+
+sint64 water_digger_t::calc_costs()
+{
+	sint64 cost = 0;
+	const sint8 sea_level = welt->get_grundwasser();
+	int estimate = 0;
+
+	if (route.get_count()>1) {
+		for(uint32 i=1; i<route.get_count()-1; i++) {
+			bool ok = welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
+		}
+	}
+	return  -(estimate*welt->get_einstellungen()->cst_alter_land) / 100;
+}			
+
 
 bool water_digger_t::terraform()
 {
@@ -32,12 +50,27 @@ bool water_digger_t::terraform()
 
 	if (route.get_count()>1) {
 		for(uint32 i=1; i<route.get_count()-1; i++) {
-			bool ok = welt->ebne_planquadrat(sp, route[i].get_2d(), sea_level);
-			if (!ok  &&  ai) {
-				ai->get_log().warning("water_digger_t::terraform()", "terraforming failed at (%s)", route[i].get_str());
+			int estimate = 0;
+			bool ok = welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
+			sint64 money_before = sp->get_finance_history_month(0, COST_CASH);
+
+			ok  = welt->ebne_planquadrat(sp, route[i].get_2d(), sea_level);
+
+			sint64 money_after  = sp->get_finance_history_month(0, COST_CASH);
+			int paid = (money_before - money_after) / 100;
+			int estimated_cost = -(estimate*welt->get_einstellungen()->cst_alter_land) / 100;
+			
+			if (ai) {
+				if (ok  &&  (paid>0  ||  estimated_cost>0)) {
+					ai->get_log().message("water_digger_t::terraform()", "terraformed at (%s) estimated %d paid %d", route[i].get_str(), estimated_cost, paid);
+				}
+				if (!ok) {
+					ai->get_log().warning("water_digger_t::terraform()", "terraforming failed at (%s)", route[i].get_str());
+				}
+			}
+			if (!ok) {
 				return false;
 			}
-			ai->get_log().message("water_digger_t::terraform()", "terraformed at (%s)", route[i].get_str());
 		}
 		// TODO: remove later
 		for(uint32 i=0; i<route.get_count(); i++) {

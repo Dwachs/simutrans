@@ -117,6 +117,7 @@ return_value_t *connector_ship_t::step()
 					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour at %s (route %s => %s)", harbour_pos.get_str(), fab1->get_name(), fab2->get_name() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
+				break;
 			}
 			case 1: {
 				koord zv(welt->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
@@ -125,9 +126,12 @@ return_value_t *connector_ship_t::step()
 				
 				baubiber.route_fuer((wegbauer_t::bautyp_t)water_wt, wegbauer_t::weg_search(water_wt, 1, 0, weg_t::type_flat));
 				baubiber.calc_route(start, harbour_pos-zv);
-				sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start.get_2d().get_str(), harbour_pos.get_str());
-				baubiber.terraform();
-				// TODO: estimate costs
+				const sint64 cost = baubiber.calc_costs();
+				if (baubiber.get_route().get_count()>2  &&  sp->is_cash_available(cost)) {
+					sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start.get_2d().get_str(), harbour_pos.get_str());
+					baubiber.terraform();
+				}
+				// no else branch as a route should exist without digging anyway
 				break;
 			}
 
@@ -238,7 +242,7 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 // from ai_goods
 koord3d connector_ship_t::get_ship_target() 
 {
-	karte_t *welt = welt;
+	karte_t *welt = sp->get_welt();
 	// sea pos (and not on harbour ... )
 	halthandle_t halt = haltestelle_t::get_halt(welt,harbour_pos,sp);
 	const grund_t *gr = welt->lookup(harbour_pos);
