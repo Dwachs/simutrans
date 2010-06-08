@@ -7,13 +7,12 @@
 #include "../simimg.h"
 
 class karte_t;
-class rauch_besch_t;
 
 /**
  * smoke clouds (formerly sync_wolke_t)
  * @author Hj. Malthaner
  */
-class wolke_t : public ding_t, public sync_steppable
+class wolke_t : public ding_no_info_t, public sync_steppable
 {
 private:
 	// maximum 16 types of clouds for now ...
@@ -27,8 +26,6 @@ private:
 public:
 	static bool register_besch(const skin_besch_t *besch);
 
-	inline sint32 get_insta_zeit() const { return insta_zeit; }
-
 	wolke_t(karte_t *welt, loadsave_t *file);
 	wolke_t(karte_t *welt, koord3d pos, sint8 xoff, sint8 yoff, const skin_besch_t *cloud );
 	~wolke_t();
@@ -37,8 +34,6 @@ public:
 
 	const char* get_name() const { return "Wolke"; }
 	typ get_typ() const { return sync_wolke; }
-
-	void zeige_info() {} // show no info
 
 	image_id get_bild() const { return all_clouds[cloud_nr]->get_bild_nr(insta_zeit/divisor); }
 

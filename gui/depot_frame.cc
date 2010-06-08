@@ -638,7 +638,7 @@ void depot_frame_t::build_vehicle_lists()
 			const vehikel_besch_t *veh = NULL;
 			convoihandle_t cnv = depot->get_convoi(icnv);
 			if(cnv.is_bound() && cnv->get_vehikel_anzahl()>0) {
-				veh = (veh_action == va_insert) ? cnv->get_vehikel(0)->get_besch() : cnv->get_vehikel(cnv->get_vehikel_anzahl() - 1)->get_besch();
+				veh = (veh_action == va_insert ? cnv->front() : cnv->back())->get_besch();
 			}
 
 			// current vehicle
@@ -733,7 +733,7 @@ void depot_frame_t::update_data()
 		}
 
 		/* color bars for current convoi: */
-		convoi_pics[0].lcolor = convoi_t::pruefe_vorgaenger(NULL, cnv->get_vehikel(0)->get_besch()) ? COL_GREEN : COL_YELLOW;
+		convoi_pics[0].lcolor = convoi_t::pruefe_vorgaenger(NULL, cnv->front()->get_besch()) ? COL_GREEN : COL_YELLOW;
 		for(  i=1;  i<cnv->get_vehikel_anzahl(); i++) {
 			convoi_pics[i - 1].rcolor = convoi_t::pruefe_nachfolger(cnv->get_vehikel(i - 1)->get_besch(), cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
 			convoi_pics[i].lcolor     = convoi_t::pruefe_vorgaenger(cnv->get_vehikel(i - 1)->get_besch(), cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
@@ -752,11 +752,7 @@ void depot_frame_t::update_data()
 			}
 		}
 
-		if(veh_action == va_insert) {
-			veh = cnv->get_vehikel(0)->get_besch();
-		} else if(veh_action == va_append) {
-			veh = cnv->get_vehikel(cnv->get_vehikel_anzahl() - 1)->get_besch();
-		}
+		veh = (veh_action == va_insert ? cnv->front() : cnv->back())->get_besch();
 	}
 
 	ptrhashtable_iterator_tpl<const vehikel_besch_t *, gui_image_list_t::image_data_t *> iter1(vehicle_map);
@@ -1312,7 +1308,6 @@ void depot_frame_t::update_tabs()
 	cont_pas.add_komponente(&pas);
 	scrolly_pas.set_show_scroll_x(false);
 	scrolly_pas.set_size_corner(false);
-	scrolly_pas.set_read_only(false);
 	// add only if there are any
 	if(!pas_vec.empty()) {
 		tabs.add_tab(&scrolly_pas, translator::translate( depot->get_passenger_name() ) );
@@ -1322,7 +1317,6 @@ void depot_frame_t::update_tabs()
 	cont_electrics.add_komponente(&electrics);
 	scrolly_electrics.set_show_scroll_x(false);
 	scrolly_electrics.set_size_corner(false);
-	scrolly_electrics.set_read_only(false);
 	// add only if there are any trolleybuses
 	if(!electrics_vec.empty()) {
 		tabs.add_tab(&scrolly_electrics, translator::translate( depot->get_electrics_name() ) );
@@ -1332,7 +1326,6 @@ void depot_frame_t::update_tabs()
 	cont_loks.add_komponente(&loks);
 	scrolly_loks.set_show_scroll_x(false);
 	scrolly_loks.set_size_corner(false);
-	scrolly_loks.set_read_only(false);
 	// add, if waggons are there ...
 	if (!loks_vec.empty() || !waggons_vec.empty()) {
 		tabs.add_tab(&scrolly_loks, translator::translate( depot->get_zieher_name() ) );
@@ -1342,7 +1335,6 @@ void depot_frame_t::update_tabs()
 	cont_waggons.add_komponente(&waggons);
 	scrolly_waggons.set_show_scroll_x(false);
 	scrolly_waggons.set_size_corner(false);
-	scrolly_waggons.set_read_only(false);
 	// only add, if there are waggons
 	if (!waggons_vec.empty()) {
 		tabs.add_tab(&scrolly_waggons, translator::translate( depot->get_haenger_name() ) );

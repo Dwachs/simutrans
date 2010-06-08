@@ -29,7 +29,6 @@
 #include "boden/grund.h"
 #include "boden/wege/strasse.h"
 
-#include "dataobj/translator.h"
 #include "dataobj/umgebung.h"
 #include "dataobj/tabfile.h"
 
@@ -269,6 +268,13 @@ void werkzeug_t::init_menu()
 }
 
 
+// for sorting: compare tool key
+static bool compare_werkzeug(werkzeug_t const* const a, werkzeug_t const* const b)
+{
+	uint16 const ac = a->command_key & ~32;
+	uint16 const bc = b->command_key & ~32;
+	return ac != bc ? ac < bc : a->command_key < b->command_key;
+}
 
 
 // read a tab file to add images, cursors and sound to the tools

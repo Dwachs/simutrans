@@ -1009,7 +1009,7 @@ sint32 haltestelle_t::rebuild_destinations()
 
 	// since per schedule the non_identical_schedules counter must be incremented only once to identify transfer stops (which have >1):
 	uint8 non_identical_schedules_flag[256];
-	memset( non_identical_schedules_flag, 0, warenbauer_t::get_max_catg_index() );
+	MEMZERON(non_identical_schedules_flag, warenbauer_t::get_max_catg_index());
 
 	const spieler_t *owner;
 	schedule_t *fpl;
@@ -1241,7 +1241,7 @@ int haltestelle_t::suche_route( ware_t &ware, koord *next_to_ziel, const bool no
 	// set curretn marker
 	current_mark ++;
 	if(  current_mark==0  ) {
-		memset( markers, 0, halthandle_t::get_size() );
+		MEMZERON(markers, halthandle_t::get_size());
 		current_mark = 1;
 	}
 
@@ -2312,7 +2312,7 @@ void haltestelle_t::recalc_status()
 	// since the status is ordered ...
 	uint8 status_bits = 0;
 
-	memset( overcrowded, 0, 8 );
+	MEMZERO(overcrowded);
 
 	long total_sum = 0;
 	if(get_pax_enabled()) {
@@ -2701,7 +2701,8 @@ bool haltestelle_t::reserve_position(grund_t *gr,convoihandle_t cnv)
 			grund_t* gr = i->grund;
 			if(gr) {
 				// found a stop for this waytype but without object d ...
-				if(gr->hat_weg(cnv->get_vehikel(0)->get_waytype())  &&  gr->suche_obj(cnv->get_vehikel(0)->get_typ())==NULL) {
+				vehikel_t const& v = *cnv->front();
+				if (gr->hat_weg(v.get_waytype()) && !gr->suche_obj(v.get_typ())) {
 					// not occipied
 //DBG_MESSAGE("haltestelle_t::reserve_position()","sucess for gr=%i,%i cnv=%d",gr->get_pos().x,gr->get_pos().y,cnv.get_id());
 					i->reservation = cnv;
@@ -2748,7 +2749,8 @@ DBG_MESSAGE("haltestelle_t::is_reservable()","gr=%d,%d already reserved by cnv=%
 			// not reseved
 			if (!i->reservation.is_bound()) {
 				// found a stop for this waytype but without object d ...
-				if(gr->hat_weg(cnv->get_vehikel(0)->get_waytype())  &&  gr->suche_obj(cnv->get_vehikel(0)->get_typ())==NULL) {
+				vehikel_t const& v = *cnv->front();
+				if (gr->hat_weg(v.get_waytype()) && !gr->suche_obj(v.get_typ())) {
 					// not occipied
 					return true;
 				}

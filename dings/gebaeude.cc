@@ -7,6 +7,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "../bauer/hausbauer.h"
+#include "../gui/money_frame.h"
 #include "../simworld.h"
 #include "../simdings.h"
 #include "../simfab.h"
@@ -90,14 +91,13 @@ gebaeude_t::gebaeude_t(karte_t *welt, koord3d pos, spieler_t *sp, const haus_til
 	init();
 	if(t) {
 		set_tile(t);	// this will set init time etc.
+		spieler_t::add_maintenance(get_besitzer(), welt->get_einstellungen()->maint_building*tile->get_besch()->get_level() );
 	}
 
 	grund_t *gr=welt->lookup(pos);
 	if(gr  &&  gr->get_weg_hang()!=gr->get_grund_hang()) {
 		set_yoff(-TILE_HEIGHT_STEP);
 	}
-
-	spieler_t::add_maintenance(get_besitzer(), welt->get_einstellungen()->maint_building*tile->get_besch()->get_level() );
 }
 
 
@@ -348,7 +348,7 @@ void gebaeude_t::calc_bild()
 {
 	grund_t *gr=welt->lookup(get_pos());
 	// snow image?
-	snow = (!gr->ist_tunnel()  ||  gr->ist_karten_boden())  &&  (get_pos().z+(get_yoff()/TILE_HEIGHT_STEP)>= welt->get_snowline());
+	snow = (!gr->ist_tunnel()  ||  gr->ist_karten_boden())  &&  (get_pos().z-(get_yoff()/TILE_HEIGHT_STEP)>= welt->get_snowline());
 	// need no ground?
 	if(!tile->get_besch()->ist_mit_boden()  ||  !tile->has_image()) {
 		grund_t *gr=welt->lookup(get_pos());
@@ -799,6 +799,9 @@ void gebaeude_t::rdwr(loadsave_t *file)
 							const haus_besch_t *hb = hausbauer_t::get_industrie(level,welt->get_timeline_year_month(),welt->get_climate(get_pos().z));
 							if(hb==NULL) {
 								hb = hausbauer_t::get_industrie(level,0, MAX_CLIMATES );
+								if(hb==NULL) {
+									hb = hausbauer_t::get_gewerbe(level,0, MAX_CLIMATES );
+								}
 							}
 							dbg->message("gebaeude_t::rwdr", "replace unknown building %s with industrie level %i by %s",buf,level,hb->get_name());
 							tile = hb->get_tile(0);

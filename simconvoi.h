@@ -21,7 +21,6 @@
 
 #define MAX_CONVOI_COST   6 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
-#define MAX_CONVOI_NON_MONEY_TYPES 2 // number of non money types in convoi's financial statistic
 #define CONVOI_CAPACITY   0 // the amount of ware that could be transported, theoretically
 #define CONVOI_TRANSPORTED_GOODS 1 // the amount of ware that has been transported
 #define CONVOI_REVENUE		2 // the income this CONVOI generated
@@ -32,7 +31,6 @@
 class depot_t;
 class karte_t;
 class spieler_t;
-class convoi_info_t;
 class vehikel_t;
 class vehikel_besch_t;
 class schedule_t;
@@ -102,12 +100,6 @@ private:
 	*/
 	uint8 name_offset;
 	char name_and_id[128];
-
-	/**
-	* Information window for ourselves.
-	* @author Hj. Malthaner
-	*/
-	convoi_info_t *convoi_info;
 
 	/**
 	* Alle vehikel-fahrplanzeiger zeigen hierauf
@@ -369,6 +361,8 @@ private:
 
 	void check_pending_updates();
 
+	uint32 move_to(karte_t const&, koord3d const& k, uint16 start_index);
+
 public:
 	route_t* get_route() { return &route; }
 
@@ -393,13 +387,6 @@ public:
 	*/
 	void set_line(linehandle_t );
 
-	/**
-	* registers the convoy with a line, but does not apply the line's fahrplan!
-	* used only during convoi restoration from savegame!
-	* @author hsiegeln
-	*/
-	void register_with_line(uint16 line_id);
-
 	/* changes the state of a convoi via werkzeug_t; mandatory for networkmode! *
 	 * for list of commands and parameter see werkzeug_t::wkz_change_convoi_t
 	 */
@@ -409,7 +396,7 @@ public:
 	* get state
 	* @author hsiegeln
 	*/
-	int get_state() { return state; }
+	int get_state() const { return state; }
 
 	/**
 	* true if in waiting state (maybe also due to starting)
@@ -585,6 +572,10 @@ public:
 	 * @return Vehicle at position i
 	 */
 	vehikel_t* get_vehikel(uint16 i) const { return fahr[i]; }
+
+	vehikel_t* front() const { return fahr[0]; }
+
+	vehikel_t* back() const { return fahr[anz_vehikel - 1]; }
 
 	/**
 	* Adds a vehicel at the start or end of the convoi.

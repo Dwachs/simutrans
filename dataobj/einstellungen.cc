@@ -20,6 +20,10 @@
 #include "loadsave.h"
 #include "tabfile.h"
 
+
+#define NEVER 0xFFFFU
+
+
 einstellungen_t::einstellungen_t() :
 	filename(""),
 	heightfield("")
@@ -651,7 +655,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	rtrim( city_roads[0].name );
 	// default her: always available
 	city_roads[0].intro = 1;
-	city_roads[0].retire = 0xFFFFu;
+	city_roads[0].retire = NEVER;
 
 	// new: up to ten city_roads are possible
 	if(  *contents.get("city_road[0]")  ) {
@@ -691,7 +695,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 		rtrim( city_roads[0].name );
 		// default her: always available
 		city_roads[0].intro = 1;
-		city_roads[0].retire = 0xFFFFu;
+		city_roads[0].retire = NEVER;
 		num_city_roads = 1;
 	}
 
@@ -706,7 +710,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	rtrim( intercity_roads[0].name );
 	// default her: always available
 	intercity_roads[0].intro = 0;
-	intercity_roads[0].retire = 0xFFFFu;
+	intercity_roads[0].retire = NEVER;
 
 	// new: up to ten intercity_roads are possible
 	if(  *contents.get("intercity_road[0]")  ) {
@@ -966,11 +970,12 @@ sint64 einstellungen_t::get_starting_money(sint16 year) const
 	}
 }
 
+
 /**
- * returns way-besch for road_timeline_t arrays
+ * returns newest way-besch for road_timeline_t arrays
  * @param road_timeline_t must be an array with at least num_roads elements, no range checks!
  */
-const weg_besch_t *get_timeline_road_type( uint16 year, uint16 num_roads, road_timeline_t* roads)
+static const weg_besch_t *get_timeline_road_type( uint16 year, uint16 num_roads, road_timeline_t* roads)
 {
 	const weg_besch_t *besch = NULL;
 	const weg_besch_t *test;
@@ -981,16 +986,18 @@ const weg_besch_t *get_timeline_road_type( uint16 year, uint16 num_roads, road_t
 			if(  year==0  ) {
 				return test;
 			}
-			// else find newest available ...
 			if(  roads[i].intro==0  ) {
+				// fill in real intro date
 				roads[i].intro = test->get_intro_year_month();
 			}
 			if(  roads[i].retire==0  ) {
+				// fill in real retire date
 				roads[i].retire = test->get_retire_year_month();
 				if(  roads[i].retire==0  ) {
-					roads[i].retire = 0xFFFFu;
+					roads[i].retire = NEVER;
 				}
 			}
+			// find newest available ...
 			if(  year>=roads[i].intro  &&  year<roads[i].retire  ) {
 				if(  besch==0  ||  besch->get_intro_year_month()<test->get_intro_year_month()  ) {
 					besch = test;
@@ -1001,10 +1008,12 @@ const weg_besch_t *get_timeline_road_type( uint16 year, uint16 num_roads, road_t
 	return besch;
 }
 
+
 const weg_besch_t *einstellungen_t::get_city_road_type( uint16 year )
 {
 	return get_timeline_road_type(year, num_city_roads, city_roads);
 }
+
 
 const weg_besch_t *einstellungen_t::get_intercity_road_type( uint16 year )
 {

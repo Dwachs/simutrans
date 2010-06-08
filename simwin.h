@@ -12,7 +12,6 @@
 
 class karte_t;
 class gui_fenster_t;
-class gui_komponente_t;
 struct event_t;
 
 /* Typen fuer die Fenster */
@@ -22,6 +21,7 @@ enum wintype {
 	w_no_overlap   = 4, // try to place it below a previous window with the same flag
 	w_time_delete  = 8	// deletion after MESG_WAIT has elapsed
 };
+ENUM_BITSET(wintype)
 
 
 enum magic_numbers {
@@ -85,34 +85,8 @@ enum magic_numbers {
 void init_map_win();
 
 
-/**
- * redirect keyboard input into UI windows
- *
- * @return true if focus granted
- * @author Hj. Malthaner
- */
-bool request_focus(gui_komponente_t *);
-
-
-/**
- * current focus?
- *
- * @return true if focus granted
- * @author Hj. Malthaner
- */
-bool has_focus(const gui_komponente_t *);
-
-
-/**
- * redirect keyboard input into game engine
- *
- * @author Hj. Malthaner
- */
-void release_focus(gui_komponente_t *);
-
-
-int create_win(gui_fenster_t *ig, uint8 wt, long magic);
-int create_win(int x, int y, gui_fenster_t *ig, uint8 wt, long magic);
+int create_win(gui_fenster_t*, wintype, long magic);
+int create_win(int x, int y, gui_fenster_t*, wintype, long magic);
 
 bool check_pos_win(struct event_t *ev);
 

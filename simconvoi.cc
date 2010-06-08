@@ -48,9 +48,6 @@
 #include "utils/cbuffer_t.h"
 
 
-// zeige debugging info in infofenster wenn definiert
-// #define DEBUG 1
-
 /*
  * Waiting time for loading (ms)
  * @author Hj- Malthaner
@@ -204,7 +201,7 @@ DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 		if(!fpl->ist_abgeschlossen()) {
 			destroy_win((long)fpl);
 		}
-		if(fpl->get_count()>0  &&  !line.is_bound()  ) {
+		if (!fpl->empty() && !line.is_bound()) {
 			welt->set_schedule_counter();
 		}
 		delete fpl;
@@ -216,6 +213,37 @@ DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 	self.detach();
 }
 
+
+uint32 convoi_t::move_to(karte_t const& welt, koord3d const& k, uint16 const start_index)
+{
+	uint32 train_length = 0;
+	for (unsigned i = 0; i != anz_vehikel; ++i) {
+		vehikel_t& v = *fahr[i];
+
+		steps_driven = -1;
+
+		if (grund_t const* const gr = welt.lookup(v.get_pos())) {
+			v.mark_image_dirty(v.get_bild(), v.get_hoff());
+			v.verlasse_feld();
+			// maybe unreserve this
+			if (schiene_t* const rails = dynamic_cast<schiene_t*>(gr->get_weg(v.get_waytype()))) {
+				rails->unreserve(&v);
+			}
+		}
+
+		/* Set pos_prev to the starting point this way.  Otherwise it may be
+		 * elsewhere, especially on curves and with already broken convois. */
+		v.set_pos(k);
+		v.neue_fahrt(start_index, true);
+		if (welt.lookup(v.get_pos())) {
+			v.set_pos(k);
+			v.betrete_feld();
+		}
+
+		if (i != anz_vehikel - 1U) train_length += v.get_besch()->get_length();
+	}
+	return train_length;
+}
 
 
 void convoi_t::laden_abschliessen()
@@ -286,7 +314,7 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 				line = new_line;
 				line_id = new_line->get_line_id();
 				line->add_convoy(self);
-				DBG_DEBUG("convoi_t::register_with_line()","%s registers for %d", name_and_id, line_id);
+				DBG_DEBUG("convoi_t::laden_abschliessen()","%s registers for %d", name_and_id, line_id);
 			}
 			else {
 				line_id = INVALID_LINE_ID;
@@ -307,41 +335,8 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 		// since start may have been changed
 		uint16 start_index = max(2,fahr[anz_vehikel-1]->get_route_index())-2;
 		koord3d k0 = fahr[anz_vehikel-1]->get_pos();
-		uint32 train_length = 1;	// length in 1/16 of tile
 
-		for(unsigned i=0; i<anz_vehikel; i++) {
-
-			vehikel_t *v = fahr[i];
-			steps_driven = -1;
-			grund_t* gr = welt->lookup(v->get_pos());
-			if(gr) {
-				v->mark_image_dirty( v->get_bild(), v->get_hoff() );
-				v->verlasse_feld();
-				// eventually unreserve this
-				schiene_t * sch0 = dynamic_cast<schiene_t *>( gr->get_weg(fahr[i]->get_waytype()) );
-				if(sch0) {
-					sch0->unreserve(v);
-				}
-			}
-
-			// steps to advance afterwards ...
-			if(  i < (anz_vehikel-1u)  ) {
-				train_length += fahr[i]->get_besch()->get_length();
-			}
-
-			/* we will set by this method the pos_prev to the starting point;
-			 * otherwise it may be elsewhere, especially on curves and with already
-			 * broken convois.
-			 */
-			v->set_pos(k0);
-			v->neue_fahrt(start_index, true);
-			gr=welt->lookup(v->get_pos());
-			if(gr) {
-				v->set_pos(k0);
-				v->betrete_feld();
-			}
-		}
-		train_length = max(1,train_length);
+		uint32 train_length = move_to(*welt, k0, start_index) + 1;
 
 		// now advance all convoi until it is completely on the track
 		fahr[0]->set_erstes(false); // switches off signal checks ...
@@ -767,7 +762,7 @@ void convoi_t::step()
 
 				set_schedule(fpl);
 
-				if(fpl->get_count()==0) {
+				if (fpl->empty()) {
 					// no entry => no route ...
 					state = NO_ROUTE;
 				}
@@ -776,9 +771,12 @@ void convoi_t::step()
 					// this station? then complete loading task else drive on
 					halthandle_t h = haltestelle_t::get_halt( welt, get_pos(), get_besitzer() );
 					if(  h.is_bound()  &&  h==haltestelle_t::get_halt( welt, fpl->get_current_eintrag().pos, get_besitzer() )  ) {
-						if(  route.get_count()>0  &&  h==haltestelle_t::get_halt( welt, route.position_bei(route.get_count()-1), get_besitzer() )  ){
-							state = get_pos()==route.position_bei(route.get_count()-1) ? LOADING : DRIVING;
-							break;
+						if (route.get_count() > 0) {
+							koord3d const& pos = route.back();
+							if (h == haltestelle_t::get_halt(welt, pos, get_besitzer())) {
+								state = get_pos() == pos ? LOADING : DRIVING;
+								break;
+							}
 						}
 						else {
 							if(  drive_to()  ) {
@@ -810,7 +808,7 @@ void convoi_t::step()
 			{
 				vehikel_t* v = fahr[0];
 
-				if(fpl->get_count()==0) {
+				if (fpl->empty()) {
 					state = NO_ROUTE;
 				}
 				else {
@@ -834,7 +832,7 @@ void convoi_t::step()
 			{
 				vehikel_t* v = fahr[0];
 
-				if(fpl->get_count()==0) {
+				if (fpl->empty()) {
 					// no entries => no route ...
 					get_besitzer()->bescheid_vehikel_problem(self, v->get_pos());
 				}
@@ -1015,7 +1013,7 @@ void convoi_t::betrete_depot(depot_t *dep)
 		}
 	}
 
-	dep->convoi_arrived(self, self->get_schedule()!=0);
+	dep->convoi_arrived(self, get_schedule());
 
 	destroy_win( magic_convoi_info+self.get_id() );
 	destroy_win( magic_convoi_detail+self.get_id() );
@@ -1038,7 +1036,7 @@ void convoi_t::start()
 			home_depot = fahr[0]->get_pos();
 		}
 		else {
-			home_depot = route.position_bei(0);
+			home_depot = route.front();
 			fahr[0]->set_pos( home_depot );
 		}
 		// put the convoi on the depot ground, to get automatical rotation
@@ -1408,7 +1406,7 @@ bool convoi_t::can_go_alte_richtung()
 	}
 
 	// going backwards? then recalculate all
-	ribi_t::ribi neue_richtung_rwr = ribi_t::rueckwaerts(fahr[0]->calc_richtung(route.position_bei(0).get_2d(), route.position_bei(min(2,route.get_count()-1)).get_2d()));
+	ribi_t::ribi neue_richtung_rwr = ribi_t::rueckwaerts(fahr[0]->calc_richtung(route.front().get_2d(), route.position_bei(min(2, route.get_count() - 1)).get_2d()));
 //	DBG_MESSAGE("convoi_t::go_alte_richtung()","neu=%i,rwr_neu=%i,alt=%i",neue_richtung_rwr,ribi_t::rueckwaerts(neue_richtung_rwr),alte_richtung);
 	if(neue_richtung_rwr&alte_richtung) {
 		akt_speed = 8;
@@ -1477,7 +1475,7 @@ bool convoi_t::can_go_alte_richtung()
 	// we continue our journey; however later cars need also a correct route entry
 	// eventually we need to add their positions to the convois route
 	koord3d pos = fahr[0]->get_pos();
-	assert(pos==route.position_bei(0));
+	assert(pos == route.front());
 	if(welt->lookup(pos)->get_depot()) {
 		return false;
 	}
@@ -1485,12 +1483,12 @@ bool convoi_t::can_go_alte_richtung()
 		for(i=0; i<anz_vehikel; i++) {
 			vehikel_t* v = fahr[i];
 			// eventually add current position to the route
-			if(route.position_bei(0)!=v->get_pos()  &&  route.position_bei(1)!=v->get_pos()) {
+			if (route.front() != v->get_pos() && route.position_bei(1) != v->get_pos()) {
 				route.insert(v->get_pos());
 			}
 			// eventually we need to add also a previous position to this path
 			if(v->get_besch()->get_length()>8  &&  i+1<anz_vehikel) {
-				if(route.position_bei(0)!=v->get_pos_prev()  &&  route.position_bei(1)!=v->get_pos_prev()) {
+				if (route.front() != v->get_pos_prev() && route.position_bei(1) != v->get_pos_prev()) {
 					route.insert(v->get_pos_prev());
 				}
 			}
@@ -1545,7 +1543,7 @@ void convoi_t::vorfahren()
 	set_tiles_overtaking( 0 );
 	recalc_data = true;
 
-	koord3d k0 = route.position_bei(0);
+	koord3d k0 = route.front();
 	grund_t *gr = welt->lookup(k0);
 	if(gr  &&  gr->get_depot()) {
 		// start in depot
@@ -1589,40 +1587,11 @@ void convoi_t::vorfahren()
 		if(  steps_driven>0  ||  !can_go_alte_richtung()  ) {
 
 			// since start may have been changed
-			k0 = route.position_bei(0);
+			k0 = route.front();
 
-			for(unsigned i=0; i<anz_vehikel; i++) {
-
-				vehikel_t *v = fahr[i];
-				steps_driven = -1;
-				grund_t* gr = welt->lookup(v->get_pos());
-				if(gr) {
-					v->mark_image_dirty( v->get_bild(), v->get_hoff() );
-					v->verlasse_feld();
-					// eventually unreserve this
-					schiene_t * sch0 = dynamic_cast<schiene_t *>( gr->get_weg(fahr[i]->get_waytype()) );
-					if(sch0) {
-						sch0->unreserve(v);
-					}
-				}
-				/* we will set by this method the pos_prev to the starting point;
-				 * otherwise it may be elsewhere, especially on curves and with already
-				 * broken convois.
-				 */
-				v->set_pos(k0);
-				v->neue_fahrt(0, true);
-				gr=welt->lookup(v->get_pos());
-				if(gr) {
-					v->set_pos(k0);
-					v->betrete_feld();
-				}
-			}
+			uint32 train_length = move_to(*welt, k0, 0);
 
 			// move one train length to the start position ...
-			int train_length = 0;
-			for(unsigned i=0; i<anz_vehikel-1u; i++) {
-				train_length += fahr[i]->get_besch()->get_length(); // this give the length in 1/TILE_STEPS of a full tile
-			}
 			// in north/west direction, we leave the vehicle away to start as much back as possible
 			ribi_t::ribi neue_richtung = fahr[0]->get_fahrtrichtung();
 			if(neue_richtung==ribi_t::sued  ||  neue_richtung==ribi_t::ost) {
@@ -1971,7 +1940,10 @@ convoi_t::rdwr(loadsave_t *file)
 		last_stop_pos.rdwr(file);
 	}
 	else {
-		last_stop_pos = !route.empty() ? route.position_bei(0) : (anz_vehikel > 0 ? fahr[0]->get_pos() : koord3d(0, 0, 0));
+		last_stop_pos =
+			!route.empty()   ? route.front()      :
+			anz_vehikel != 0 ? fahr[0]->get_pos() :
+			koord3d(0, 0, 0);
 	}
 
 	// for leaving the depot routine
@@ -2080,11 +2052,11 @@ void convoi_t::get_freight_info(cbuffer_t & buf)
 		// rebuilt the list with goods ...
 		vector_tpl<ware_t> total_fracht;
 
-		ALLOCA(uint32, max_loaded_waren, warenbauer_t::get_waren_anzahl());
-		memset( max_loaded_waren, 0, sizeof(uint32)*warenbauer_t::get_waren_anzahl() );
+		size_t const n = warenbauer_t::get_waren_anzahl();
+		ALLOCA(uint32, max_loaded_waren, n);
+		MEMZERON(max_loaded_waren, n);
 
-		unsigned i;
-		for(i=0; i<anz_vehikel; i++) {
+		for (size_t i = 0; i != anz_vehikel; ++i) {
 			const vehikel_t* v = fahr[i];
 
 			// first add to capacity indicator
@@ -2124,7 +2096,7 @@ void convoi_t::get_freight_info(cbuffer_t & buf)
 
 		// apend info on total capacity
 		slist_tpl <ware_t>capacity;
-		for(i=0;  i<warenbauer_t::get_waren_anzahl();  i++  ) {
+		for (size_t i = 0; i != n; ++i) {
 			if(max_loaded_waren[i]>0  &&  i!=warenbauer_t::INDEX_NONE) {
 				ware_t ware(warenbauer_t::get_info(i));
 				ware.menge = max_loaded_waren[i];
@@ -2662,7 +2634,7 @@ void convoi_t::check_pending_updates()
 		bool is_depot = false;
 		koord3d current = koord3d::invalid, depot = koord3d::invalid;
 
-		if(fpl->get_count()==0  ||  new_fpl->get_count()==0) {
+		if (fpl->empty() || new_fpl->empty()) {
 			// was no entry or is no entry => goto  1st stop
 			aktuell = 0;
 		}

@@ -29,7 +29,6 @@
 #include "../boden/wege/monorail.h"
 #include "../boden/wege/kanal.h"
 #include "../boden/wege/strasse.h"
-#include "../dataobj/translator.h"
 #include "../dataobj/umgebung.h"
 #include "../dataobj/koord3d.h"
 
@@ -415,6 +414,11 @@ const weg_besch_t *tunnelbauer_t::baue_einfahrt(karte_t *welt, spieler_t *sp, ko
 				tunnel->weg_erweitern(besch->get_waytype(), ribi_typ(-zv));
 				ground_outside->weg_erweitern(besch->get_waytype(), ribi_typ(zv));
 			}
+		}
+		if (besch->get_waytype()==water_wt  &&  ground_outside->ist_wasser()) {
+			// connect to the sea
+			tunnel->weg_erweitern(besch->get_waytype(), ribi_typ(-zv));
+			ground_outside->calc_bild(); // to recalculate ribis
 		}
 	}
 
