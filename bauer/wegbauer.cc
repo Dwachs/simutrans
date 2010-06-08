@@ -174,6 +174,18 @@ const weg_besch_t* wegbauer_t::weg_search(const waytype_t wtyp, const uint32 spe
 	return best;
 }
 
+vector_tpl<const weg_besch_t *>* wegbauer_t::get_way_list( const waytype_t wtyp, const karte_t *welt )
+{
+	vector_tpl<const weg_besch_t *> *ways = new vector_tpl<const weg_besch_t *>(4);
+	const uint16 time = welt->get_timeline_year_month();
+	for(  stringhashtable_iterator_tpl<const weg_besch_t*> iter(alle_wegtypen); iter.next();  ) {
+		const weg_besch_t* const test = iter.get_current_value();
+		if(  test->get_wtyp()==wtyp  &&  (time==0  ||  (test->get_intro_year_month()<=time  &&  time<=test->get_retire_year_month())  ) ) {
+			ways->append(test);
+		}
+	}
+	return ways;
+}
 
 
 const weg_besch_t *wegbauer_t::get_earliest_way(const waytype_t wtyp)
@@ -485,7 +497,7 @@ bool wegbauer_t::check_owner( const spieler_t *sp1, const spieler_t *sp2 ) const
 /* do not go through depots, station buildings etc. ...
  * direction results from layout
  */
-static bool check_building( const grund_t *to, const koord dir )
+bool wegbauer_t::check_building( const grund_t *to, const koord dir )
 {
 	if(dir==koord(0,0)) {
 		return true;

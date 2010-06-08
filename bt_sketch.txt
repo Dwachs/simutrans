@@ -1,0 +1,110 @@
+
+Root-Knoten
+	-- wer plant neue Verbindungen etc?
+
+	Kindknoten:
+	-> Reaktionen auf Ereignisse von aussen
+	-> Bauer ??
+	-> Planer ??
+	-> Manager (viele)
+		-- falls Probleme auftreten
+			a) Loesungen planen
+			b) die 'beste' herausnehmen und an den Root melden
+			   'billige' oder kritische Aktionen werden direkt als Kindknoten am Manager ausgefuehrt
+		-> Dringende Aktion
+
+
+Ereignisse von aussen (neue Fahrzeuge, vehikel-Problem)
+	-> legen einen Kindknoten bei Root an
+
+
+
+//=================
+// behavior tree
+//=================
+
+// rueckgabewert
+enum ret_code { SUCCESS, FAIL, NOTREADY, ...}
+
+// einfacher Knoten - Blatt
+class btleave_t {
+	spieler_t *sp;
+
+	virtual ~btleave_t();
+	virtual ret_code step();
+	virtual undo();
+	// + die unvermeidlichen rdwr(), rotate90()
+}
+
+// Knoten im Baum
+class btnode_t : public btleave_t {
+	vector_tpl<btleave_t*> childs;
+	append_child()
+	remove_child()
+}
+
+// Sequentielle Ausfuehrung
+// .. in jedem step() wird ein child gestepp()t
+class bt_sequential : public btnote_t {}
+
+// Parallele Ausfuehrung
+// .. in jedem step() werden alle child gestepp()t
+// .. zB um mehrere Bedingungen fuer eine Aktion abzufragen
+class bt_parallel : public btnote_t {}
+
+// Vielleicht noch Listener / Callbacks - Interfaces?
+
+//=================
+// planer / etc
+//=================
+
+// Berichte ueber geplante Vorhaben (Bau, Upgrade etc)
+// -- die werden abhaengig vom geschaetzten Gewinn etc ausgefuehrt
+class report_t {
+	sint64 value;	  // Bewertung dieser Aktion
+	btnode_t *action; // Das wird ausgefuehrt - kann ein ganzer Baum sein
+}
+
+class planer : public btnode_t {
+	report_t report;
+	virtual void step() { update_report(); return ??}
+	virtual update_report(); // Stellt den Report zusammen
+}
+
+class decisionmaker {
+	// hat die Planer unter sich
+	// nimmt die Reports und gewichtet sie nach irgendwelchen Kriterien (Dringlichkeit, Geldbedarf, geschaetzter Gewinn)
+	// fuehrt dann die Baume der Sieger-Reports aus, geht was schief, dann kommt der Report in eine Blacklist
+}
+
+//=================
+// manager
+//=================
+.. laufen als Kindknoten des root-Knoten mit.
+
+//=================
+// events
+//=================
+
+wie reagiert man auf Ereignisse von aussen?
+	-- vehikel findet keine route
+	-- neues Dings verfuegbar/ nicht mehr verfuegbar
+
+	-> am root Knoten neue Kinder-Knoten/Baeume anlegen, mit hoher Prioritaet versehen.
+
+
+//=================
+// ausfuehrung
+//=================
+in jedem step() der ai wird root->step() aufgerufen.
+
+
+//=================
+// baumstruktur im spiel
+//=================
+
+root -> Manager -> Linienmanager -> Linie 1
+                                 -> Linie 2
+                -> Industrieverb -> A-B
+                                 -> B-C
+     -> Decider -> Advisors      -> Strassenverbindungsplaner

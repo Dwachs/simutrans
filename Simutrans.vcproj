@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8,00"
+	Version="9,00"
 	Name="Simutrans"
 	ProjectGUID="{0621B295-BEB7-4767-82F1-F27995610323}"
 	RootNamespace="Simutrans"
 	Keyword="Win32Proj"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -41,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
+				AdditionalIncludeDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\shared\include&quot;;&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
 				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;STEPS16;USE_C;WIN32;DEBUG=3"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -52,7 +53,7 @@
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="3"
-				DisableSpecificWarnings="4200;4800;4311;4996"
+				DisableSpecificWarnings="4200;4800;4311;4996;4396"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -66,12 +67,15 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib wsock32.lib libbz2.lib $(NOINHERIT)"
+				OutputFile="C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans-prog\simutrans-wai.exe"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
+				AdditionalLibraryDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\win32\library&quot;;&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreAllDefaultLibraries="false"
 				IgnoreDefaultLibraryNames="libcmt.lib"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -91,9 +95,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -152,6 +153,8 @@
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -171,9 +174,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -198,6 +198,18 @@
 			</File>
 			<File
 				RelativePath=".\player\ai_passenger.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\ai_wai.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\alloc_node.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\amphi_searcher.cc"
 				>
 			</File>
 			<File
@@ -241,6 +253,18 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\bt.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_road_station.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_way_obj.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\building_reader.cc"
 				>
 			</File>
@@ -270,6 +294,18 @@
 			</File>
 			<File
 				RelativePath=".\gui\colors.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connections_manager.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_road.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_ship.cc"
 				>
 			</File>
 			<File
@@ -357,6 +393,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\factory_searcher.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\factorylist_frame_t.cc"
 				>
 			</File>
@@ -378,6 +418,10 @@
 			</File>
 			<File
 				RelativePath=".\font.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\free_tile_searcher.cc"
 				>
 			</File>
 			<File
@@ -553,6 +597,18 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\industry_connection_planner.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_connector.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_manager.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\jump_frame.cc"
 				>
 			</File>
@@ -618,6 +674,10 @@
 			</File>
 			<File
 				RelativePath=".\boden\wege\maglev.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\manager.cc"
 				>
 			</File>
 			<File
@@ -709,6 +769,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\planner.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\sucher\platzsucher.cc"
 				>
 			</File>
@@ -718,6 +782,18 @@
 			</File>
 			<File
 				RelativePath=".\dataobj\powernet.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\remover.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\report.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\return_value.cc"
 				>
 			</File>
 			<File
@@ -1031,6 +1107,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\vehikel_builder.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\vehikel_prototype.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\bauer\vehikelbauer.cc"
 				>
 			</File>
@@ -1091,6 +1175,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\utils\wrapper.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\xref_reader.cc"
 				>
 			</File>
@@ -1104,6 +1192,90 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\player\wai\alloc_node.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\amphi_searcher.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\bt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_road_station.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\builder_way_obj.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connections_manager.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_road.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_ship.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\factory_searcher.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\free_tile_searcher.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_connection_planner.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_connector.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\industry_manager.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\manager.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\planner.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\remover.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\report.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\return_value.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\vehikel_builder.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\vehikel_prototype.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\wrapper.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"

@@ -109,3 +109,23 @@ void koord3d_vector_t::rotate90( sint16 y_size )
 		operator[](i).rotate90( y_size );
 	}
 }
+
+void koord3d_vector_t::rdwr(loadsave_t *file)
+{
+	uint32 count_ = get_count();
+	file->rdwr_long( count_, "c" );
+	if( file->is_loading() ) {
+		clear();
+		resize( count_ );
+		for( uint32 i = 0; i < count_; i++ ) {
+			koord3d temp;
+			temp.rdwr( file );
+			append( temp );
+		}
+	}
+	else {
+		for( uint32 i = 0; i < get_count(); i++ ) {
+			operator[](i).rdwr( file );
+		}
+	}
+}

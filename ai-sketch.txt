@@ -1,0 +1,328 @@
+Linie
+	Linehandle
+	Fabrikverbindung
+	Route?
+	Wartungskosten?
+	Fahrtzeit?
+
+	Status:
+
+LinienNetzManager
+	.. alle Linien
+	.. Frachttransportmoeglichkeiten / freie Kapazitaeten
+
+
+LinienManager
+	Upgrade
+	Profitabilitaet
+	Ueberlastet
+
+Station
+	Halthandle
+	Linienhandles
+	Welche Gueter?
+	Transit?
+
+RoadStationManager
+	Ueberlastet -> Ausbau?
+
+ConvoiManager
+	Upgrade?
+
+RoadNetzwerkmanager
+	.. haelt alle Strassenverbindungen
+	.. Autobahnen ..
+
+Strassenmanager
+	.. guckt nach Staus
+	.. Strasse noch benoetigt oder hat man eine bessere Ausweichstrecke?
+	.. schlaegt neue Ausbauten vor
+	.. Upgrades Tunnel Bruecken Abkuerzungen Terraforming
+
+PropertyManager
+	.. Unbenutzte Tiles killen
+
+---------------
+Neue Strassenverbindung einrichten:
+	Gueter von F1 nach F2
+	-- Besteht schon eine Verbindung?
+		-- Wuerde der Transport Gewinn abwerfen? (Stichwort Umwege)
+			-- Ja: Neue Fahrzeuge falls notwendig, Stations ausbauen falls notwendig
+
+	-- Neue Verbindung entwerfen
+	.. Welche Infrastruktur kann gebaut werden?
+		- Strassen, Bruecken, Stationen, Schilder, Tunnel, Hochstrassen
+	.. Route und Station planen
+
+	-- Kostenrechnung
+	.. Baukosten
+	.. Wartungskosten
+	.. Exp Gewinn pro Guetereinheit
+	.. Besten Convoi ermitteln
+	.. Macht der Gewinn?
+
+	-- Bauen
+	.. Reibungsfaktoren in Abh von Zuglaenge / Geschwindigkeiten schaetzen
+
+	.. Fehler abfangen
+
+	-- Zeit stoppen
+
+--------------
+Neue Fahrzeugsuche in vehikel_bauer
+	-> Rueckgabe ein Convoi mit den ganzen Bausteinen
+
+	Constraints:
+	-- min_speed		.. min erreichbare Geschw / sollte alleine fahren koennen
+	-- obey_time_line	.. aus world ?
+	-- use_obsolete
+	-- use_electric
+	-- min_freight		.. array (frachttyp => menge), menge kann =1 sein
+	-- min_income / load    .. Einnahmen bei load%-vollem Konvoi (inkl Betriebskosten)
+	-- max_length
+	-- max_weight
+
+	-- max_vehicel		.. gegeben durch depot_t::get_max_convoi_length
+
+	~~~~ koennen in den Evaluator
+	~~ target_speed
+	~~ target_weight
+
+	Randomize
+	-- factor		.. nehme besseres Fahrzeug falls ??? factor*( 1/(neu-alt) ) < rand
+
+	Evaluator sint32 evaluate(convoi_t)
+	-- berechnet den Wert fuer die entsprechende KI
+	-- je groesser desto besser
+	-- falls = 2^31-1 -> nehme den sofort
+
+	-- Meine Idee
+		:: Maximale Fracht schaetzen
+		-- Nur ein Convoi?
+			:: Betriebskosten Infrastruktur schaetzen
+			.. Fahrtzeit schaetzen in Abhaengigkeit
+			.. Gewinn pro Jahr schaetzen
+		-- Mehrere Convois?
+			:: Betriebskosten Infrastruktur schaetzen
+			.. Maximale Anzahl Convois schaetzen
+			.. Fahrtzeit schaetzen in Abhaengigkeit
+			.. Gewinn pro Jahr schaetzen
+		-- Exp Gewinn pro Jahr als Rueckgabe
+		== Unteraufgaben
+			-- Maximale Fracht schaetzen
+			-- Betriebskosten Infrastruktur schaetzen (Weg, Elektr, Signale, Depots, Bahnhoefe...)
+			.. Maximale Anzahl Convois schaetzen
+			.. Ab welcher Anzahl Convois mehrgleisige Bahnhoefe?
+			.. Fahrtzeit schaetzen in Abhaengigkeit von Leistung, Gewicht, Wege ...
+			.. Gewinn pro Jahr schaetzen
+
+Neues Fahrzeug bauen -> Vehikelbauer
+	-- Uebergabe ein Fahrzeug bzw ganzer Konvoi zum Bauen/ Klonen
+	-- Spieler
+	-- Koordinate3d
+	:: Check: Depot an Koordinate (richtiger Wegtyp, Spieler)?
+	:: Check: Constraints (was kann wo angehaengt werden), convoi_t::pruefe_alle();
+	:: Check: Timeline
+	:: Kosten abbuchen (Kauf, Wartung)
+
+
+
+Wegbauer
+	bahnhoefe richtig drehen
+	diagonale Wege glaetten und kreuzen
+	terraforming
+
+
+Zeitberechnung
+	convoi_t::calc_acceleration(long delta_t)
+		... maximal moegliche Geschwindigkeit
+	convoi_t::sync_step
+		// now actually move the units
+		sp_soll += (akt_speed*delta_t);
+	simintr.cc
+		const long diff = delta_t = ((now - last_time)*welt_modell->get_time_multiplier())/16;
+	simworld.cc
+		delta_t hat selbe Einheit wie ticks
+
+	.. Durchschnittsgeschwindigkeit schaetzen ??
+
+
+
+	Maximalgeschwindigkeit nach convoi_t (siehe auch depot-frame)
+		power = sum power*gear
+		frict = sum frict*weight
+		masse = sum weight
+
+	--> maxspeed = sqrt( (power - masse*64) * (256*25) / fric)
+			= sqrt( (power - masse*64) * 6400 / fric)
+			= sqrt( (power/masse - 64) * 6400 * masse / fric)
+	--> max_kmh = sqrt( ([power/64]/masse-1) * 64 * 6400 * masse / fric) * 80/1024
+			= sqrt( ([power/64]/masse-1) * 2500 * masse / fric)
+
+	friction:
+		vehikel
+			gerade: 1
+			kurve: 8
+
+			bergauf +23
+			bergab -13
+
+		schiff
+			bergauf/ab: 16
+			flach:1
+
+			kurve: *2
+
+		flugzeug ??
+==================
+Manager
+
+
+######Linien-Manager	[ueberwacht eine Linie]
+--Daten
+	Depot
+	Industrie-Linie: Lieferant, Abnehmer
+
+Strassenlinie:
+--Funktionen
+::Check_Line
+	0) Fahrzeug leer, alt genug, nichts transportiert -> weg
+	I) zuviele Fahrzeuge warten
+	?? Sum(Vehicle::Status == Waiting / Loading) > fact * Sum(Vehicle)
+		Ia) Station zu klein (Ladezeiten dominieren)
+		Ib) zuwenig Transportgueter:
+		?? Sum(Vehicle::At(TrackBackRoute n steps) )> n/Vehicle::Length && Lieferant.Lager==fast_leer
+			Iaa) Industrie im Einzugsgebiet?
+			Iab) Station zu klein
+			?? Station::Storage < Convoy::Capacity
+				Station::IncreaseStorage
+			Iac) Station zu kurz
+
+			Iad)
+			?? else
+				Lieferant::IncreaseProduction
+		Ic) Stau
+		?? CountVehicles(TrackRoute) large
+		-- find hot spots, umfahrung, Ampel? Einbahnstrassen?
+
+	II) Linie macht Verlust
+		Wird die Linie gebraucht?
+
+	III) Upgraden
+
+::IncreaseCapacity
+	Argument:	additional-revenue - Wert in Ct pro zusaetzlich transportierter Ware
+
+	a) Fahrzeuge upgraden
+		evtl neu evaluieren, andere Kostenfunktion?
+	b) Mehr Fahrzeuge
+		?? CalcCapacity(Route)
+	c) Streckenverbesserung
+		c1) schnellere Wege
+		c2) Abkuerzungen
+
+::DecreaseCapacity
+	EmptyVehicle.Sell
+	?? Leere Linie This.Deconstruct
+
+::CalcCapacity
+	CalcRoute
+	Foreach(Tile in Route) {
+	  if Tile.Isempty
+		cap += 1
+	  else Tile.hasStation
+		cap -= ??
+	  else Tile.isCrossing
+		cap -= ??
+	If Type==Road cap*=2
+
+
+::Deconstruct
+	-- komplett abreissen
+		Tiles vormerken: DeleteList
+		Depot noch benutzt von line? Route Depot->line.Start aus DeleteList
+		Ueberpruefen, welche Tiles von eigenen Linien benutzt werden
+		Unbenutzte Tiles abreissen
+	???? Wann Anderer Verkehrstraeger??
+
+::UpgradeConvois
+	Vehicles.Abwracken
+	Build(NewConvoi)
+
+
+######Fabrik-Manager  [ueberwacht eine Fabrik]
+	Links
+		-> Stationen
+		-> Linien
+		-> Fabriken Lieferanten/ Abnehmer
+	Aufgaben
+	== Produktion sicher stellen
+	?? Rohstoff fehlt
+		?? eigene Verbindung vorhanden
+		ja:
+			Lieferverbindung::IncreaseCapacity
+		no:
+			-> Verbindung erstellen notfalls Konkurrenzkampf
+			fehlgeschlagen Abnehemr::DecreaseCap
+	?? Abnehmer voll
+		Abnehmerverbindung::IncreaseCap
+		Lieferverbindung(en)::DecreaseCap
+
+######Station-Manager	[ueberwacht eine Station]
+	Links
+		-> Linien
+	Aufgaben
+	== Station erweitern (Schilder Extensions Depot)
+
+	getrennte Anfahrtspuren fuer Abladen/ Aufladen
+	Templates aehnlich wie cityrules.tab fuer Stations-Layout nutzen
+
+
+######Powernet-Manager
+	world::percent-electricity
+
+
+######Prototyp-Manager
+Liste
+	Fracht -> Prototyp
+		-> Linien, die den Prototyp benutzen
+
+	Falls neue Fahrzeuge verfuegbar
+	-> alle neu evaluieren
+	-> den Linien mitteilen
+Spionage
+	bei anderen Spielern abgucken :)
+
+=============
+Trunk Funktionen
+	--- Message wenn (besch) neu eingefuehrt wird bzw obsolet ist
+
+
+=============
+Observer .. pollt .. micro-management .. haut Plaene raus
+
+Plan	.. verschiedene Moeglichkeiten ausloten, um ein Ziel zu erreichen
+	Reports
+
+Report
+	Conditions.. (ueberhaupt Vehikel etc verfuegbar?)
+	Actionen...
+	Kosten (fix, pro Vehikel, pro Monat) etc
+	Gewinn (  -- " -- )
+
+	Utility-Function in Abh. von zur Verfuegung stehenden Geld
+
+Action
+	bool Test	// returns true if Action can be done
+	bool Work	// perform Action, returns true on success (ideally Test==Work)
+	uint CalcCost	// Fixed Costs
+	uint CalcMain	// Monthly Cost
+
+Bsp:
+Plan:	Errichten einer Linie zum Transport von A nach B
+	Report:	Strassenlinie
+	Report: Eisenbahnlinie
+		Action:	Station bauen
+			Strecke bauen
+			Depot bauen
+			Fahrzeuge bauen

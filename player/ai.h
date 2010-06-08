@@ -39,7 +39,7 @@ public:
 	ai_t(karte_t *wl, uint8 nr) : spieler_t( wl, nr ) {}
 
 	// return true, if there is already a connection
-	bool is_connected(const koord star_pos, const koord end_pos, const ware_besch_t *wtyp) const;
+	static bool is_connected(const koord star_pos, const koord end_pos, const ware_besch_t *wtyp);
 
 	// prepares a general tool just like a human player work do
 	bool init_general_tool( int tool, const char *param );
@@ -74,6 +74,16 @@ public:
 
 	// builds a round between those two places or returns false
 	bool create_simple_road_transport(koord platz1, koord size1, koord platz2, koord size2, const weg_besch_t *road );
+
+	// rdwr helper functions
+	static void rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab);
+
+	static void rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight);
+	static void rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg);
+
+	static bool rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel_besch_t*> &besch );
+
+	static void add_neighbourhood( vector_tpl<koord> &list, const uint16 size);
 };
 
 #endif

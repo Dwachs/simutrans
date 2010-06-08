@@ -26,6 +26,8 @@
 
 #include "../dings/zeiger.h"
 
+#include "../dataobj/loadsave.h"
+
 #include "../vehicle/simvehikel.h"
 
 
@@ -69,7 +71,7 @@ bool ai_bauplatz_mit_strasse_sucher_t::ist_platz_ok(koord pos, sint16 b, sint16 
  * if there is already a connection
  * @author prissi
  */
-bool ai_t::is_connected( const koord start_pos, const koord dest_pos, const ware_besch_t *wtyp ) const
+bool ai_t::is_connected( const koord start_pos, const koord dest_pos, const ware_besch_t *wtyp )
 {
 	// Dario: Check if there's a stop near destination
 	const planquadrat_t* start_plan = welt->lookup(start_pos);
@@ -524,3 +526,82 @@ void ai_t::tell_tool_result(werkzeug_t *tool, koord3d pos, const char *err, bool
 
 	// TODO: process the result...
 }
+
+// rdwr helper functions
+void ai_t::rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab)
+{
+	koord pos;
+	if (file->is_saving()) { // save only position
+		pos = fab!=NULL ? fab->get_pos().get_2d() : koord::invalid;
+	}
+	pos.rdwr(file);
+	if (file->is_loading())
+	{
+		fab = fabrik_t::get_fab(welt, pos);
+	}
+}
+void ai_t::rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight)
+{
+	const char *s = NULL;
+	if (file->is_saving() && freight) { // save name
+		s = freight->get_name();
+	}
+	file->rdwr_str( s );
+	if (file->is_loading())
+	{
+		freight = s ? warenbauer_t::get_info(s) : NULL;
+		if (s) delete s;
+	}
+}
+void ai_t::rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg)
+{
+	const char *s = NULL;
+	if (file->is_saving()) { // save name
+		s =  weg->get_name();
+	}
+	file->rdwr_str( s );
+	if (file->is_loading())
+	{
+		weg = s ? wegbauer_t::get_besch(s,0) : NULL;
+		if (s) delete s;
+	}
+}
+
+bool ai_t::rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel_besch_t*> &besch )
+{
+	uint32 count = besch.get_count();
+	file->rdwr_long( count, " ");
+
+	bool ok = true;
+	const char *s = NULL;
+	for(uint32 i=0; i<count; i++) {
+		if (file->is_saving()) {
+			s = besch[i]->get_name();
+		}
+		file->rdwr_str( s );
+		if (file->is_loading()) {
+			const vehikel_besch_t *b = vehikelbauer_t::get_info(s);
+			if (b) {
+				besch.append(b);
+			}
+			else {
+				ok = false;
+			}
+		}
+	}
+	return ok;
+}
+
+void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
+{
+	uint32 old_size = list.get_count();
+	koord test;
+	for( uint32 i = 0; i < old_size; i++ ) {
+		for( test.x = -size; test.x < size+1; test.x++ ) {
+			for( test.y = -size; test.y < size+1; test.y++ ) {
+				list.append_unique( list[i] + test );
+			}
+		}
+	}
+}
+

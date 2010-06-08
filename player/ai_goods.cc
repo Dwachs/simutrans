@@ -215,20 +215,6 @@ int ai_goods_t::get_factory_tree_missing_count( fabrik_t *fab )
 	return numbers;
 }
 
-void add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
-{
-	uint32 old_size = list.get_count();
-	koord test;
-	for( uint32 i = 0; i < old_size; i++ ) {
-		for( test.x = -size; test.x < size+1; test.x++ ) {
-			for( test.y = -size; test.y < size+1; test.y++ ) {
-				list.append_unique( list[i] + test );
-			}
-		}
-	}
-}
-
-
 bool ai_goods_t::suche_platz1_platz2(fabrik_t *qfab, fabrik_t *zfab, int length )
 {
 	clean_marker(platz1,size1);

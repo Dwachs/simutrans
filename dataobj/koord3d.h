@@ -140,6 +140,7 @@ public:
 	// computes ribi at position i only if distance to previous/next is not larger than 1
 	ribi_t::ribi get_short_ribi( uint32 index ) const;
 	void rotate90( sint16 );
+	void rdwr(loadsave_t* file);
 };
 
 #endif
