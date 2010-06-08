@@ -12,32 +12,64 @@
 #include "skin_besch.h"
 #include "ware_besch.h"
 #include "../dataobj/koord.h"
+#include "../tpl/weighted_vector_tpl.h"
 
 
-/*
+/* Knightly : this besch will store data specific to each class of fields
  * Fields are xref'ed from skin_besch_t
  */
+class field_class_besch_t : public obj_besch_t {
+	friend class factory_field_class_writer_t;
+	friend class factory_field_class_reader_t;
+	friend class factory_field_reader_t;		// Knightly : this is a special case due to besch restructuring
+
+private:
+	uint8  snow_image;			// 0 or 1 for snow
+	uint16 production_per_field;
+	uint16 storage_capacity;
+	uint16 spawn_weight;
+
+public:
+	skin_besch_t const* get_bilder() const { return get_child<skin_besch_t>(0); }
+	const char *get_name() const { return get_bilder()->get_name(); }
+	const char *get_copyright() const { return get_bilder()->get_copyright(); }
+
+	uint8 has_snow_image() const { return snow_image; }
+	uint16 get_field_production() const { return production_per_field; }
+	uint16 get_storage_capacity() const { return storage_capacity; }
+	uint16 get_spawn_weight() const { return spawn_weight; }
+};
+
+
+// Knightly : this besch now only contains common, shared data regarding fields
 class field_besch_t : public obj_besch_t {
 	friend class factory_field_writer_t;
 	friend class factory_field_reader_t;
 
 private:
-	uint8	has_winter;	// 0 or 1 for snow
-	uint16 probability;	// between 0 ...10000
-	uint16 max_fields;	// maximum number of fields around a single factory
-	uint16 min_fields;	// number of fields to start with
-	uint16 production_per_field;
+	uint16 probability;		// between 0 ...10000
+	uint16 max_fields;		// maximum number of fields around a single factory
+	uint16 min_fields;		// number of fields to start with
+	uint16 field_classes;	// number of field classes
+
+	weighted_vector_tpl<uint16> field_class_indices;
+	void init_field_class_indices()
+	{
+		if(  field_classes>0  ) {
+			field_class_indices.resize( field_classes );
+			for(  uint16 i=0  ;  i<field_classes  ;  ++i  ) {
+				field_class_indices.append( i, get_field_class(i)->get_spawn_weight() );
+			}
+		}
+	}
 
 public:
-	const skin_besch_t *get_bilder() const { return static_cast<const skin_besch_t *>(get_child(0)); }
-	const char *get_name() const { return get_bilder()->get_name(); }
-	const char *get_copyright() const { return get_bilder()->get_copyright(); }
-
-	uint8 has_snow_bild() const { return has_winter; }
 	uint16 get_probability() const { return probability; }
 	uint16 get_max_fields() const { return max_fields; }
 	uint16 get_min_fields() const { return min_fields; }
-	uint16 get_field_production() const { return production_per_field; }
+	uint16 get_field_class_count() const { return field_classes; }
+	field_class_besch_t const* get_field_class(uint16 const idx) const { return idx < field_classes ? get_child<field_class_besch_t>(idx) : 0; }
+	const weighted_vector_tpl<uint16> &get_field_class_indices() const { return field_class_indices; }
 };
 
 
@@ -65,7 +97,7 @@ private:
 public:
 	const char *get_name() const { return get_bilder()->get_name(); }
 	const char *get_copyright() const { return get_bilder()->get_copyright(); }
-	const skin_besch_t *get_bilder() const { return static_cast<const skin_besch_t *>(get_child(0)); }
+	skin_besch_t const* get_bilder() const { return get_child<skin_besch_t>(0); }
 
 	// get the tile with the smoke
 	koord get_pos_off( koord size, uint8 rotation) const {
@@ -111,7 +143,7 @@ private:
 	uint16  verbrauch;
 
 public:
-	const ware_besch_t *get_ware() const { return static_cast<const ware_besch_t *>(get_child(0)); }
+	ware_besch_t const* get_ware() const { return get_child<ware_besch_t>(0); }
 	int get_kapazitaet() const { return kapazitaet; }
 	int get_anzahl() const { return anzahl; }
 	int get_verbrauch() const { return verbrauch; }
@@ -143,7 +175,7 @@ private:
     uint16 faktor;
 
 public:
-	const ware_besch_t *get_ware() const { return static_cast<const ware_besch_t *>(get_child(0)); }
+	ware_besch_t const* get_ware() const { return get_child<ware_besch_t>(0); }
 	uint32 get_kapazitaet() const { return kapazitaet; }
 	uint32 get_faktor() const { return faktor; }
 };
@@ -192,21 +224,21 @@ public:
 	*/
 	const char *get_name() const { return get_haus()->get_name(); }
 	const char *get_copyright() const { return get_haus()->get_copyright(); }
-	const haus_besch_t *get_haus() const { return static_cast<const haus_besch_t *>(get_child(0)); }
-	const rauch_besch_t *get_rauch() const { return static_cast<const rauch_besch_t *>(get_child(1)); }
+	haus_besch_t  const* get_haus()  const { return get_child<haus_besch_t>(0); }
+	rauch_besch_t const* get_rauch() const { return get_child<rauch_besch_t>(1); }
 
 	// we must take care, for the case of no producer/consumer
 	const fabrik_lieferant_besch_t *get_lieferant(int i) const
 	{
-		return (i >= 0 && i < lieferanten) ? static_cast<const fabrik_lieferant_besch_t *>(get_child(2 + i)) : NULL;
+		return 0 <= i && i < lieferanten ? get_child<fabrik_lieferant_besch_t>(2 + i) : 0;
 	}
 	const fabrik_produkt_besch_t *get_produkt(int i) const
 	{
-		return (i >= 0 && i < produkte) ? static_cast<const fabrik_produkt_besch_t *>(get_child(2 + lieferanten + i)) : NULL;
+		return 0 <= i && i < produkte ? get_child<fabrik_produkt_besch_t>(2 + lieferanten + i) : 0;
 	}
 	const field_besch_t *get_field() const {
 		if(!fields) return NULL;
-		return static_cast<const field_besch_t *>(get_child(2 + lieferanten + produkte));
+		return get_child<field_besch_t>(2 + lieferanten + produkte);
 	}
 
 	int get_lieferanten() const { return lieferanten; }

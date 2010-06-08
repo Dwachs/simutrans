@@ -25,6 +25,8 @@
 #include "tpl/vector_tpl.h"
 
 
+#define RESCHEDULING (1)
+#define REROUTING (2)
 
 #define MAX_HALT_COST   7 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
@@ -100,9 +102,29 @@ private:
 	uint8 status_color;
 	uint32 capacity[3]; // passenger, post, goods
 	uint8 overcrowded[8];	// bit set, when overcrowded
-	void recalc_status();
+
+	static uint8 status_step;	// NONE or SCHEDULING or REROUTING
+
+	/**
+	 * Markers used in suche_route() to avoid processing the same halt more than once
+	 * Originally they are instance variables of haltestelle_t
+	 * Now consolidated into a static array to speed up suche_route()
+	 * @author Knightly
+	 */
+	static uint8 markers[65536];
+	static uint8 current_mark;
 
 public:
+	/* recalculates the station bar */
+	void recalc_status();
+
+	/**
+	 * Handles changes of schedules and the resulting rerouting
+	 */
+	static void step_all();
+
+	static uint8 get_rerouting_status() { return status_step; }
+
 	/**
 	 * Tries to generate some pedestrians on the sqaure and the
 	 * adjacent sqaures. Return actual number of generated
@@ -188,7 +210,19 @@ private:
 	// List with all reachable destinations
 	vector_tpl<halthandle_t>* warenziele;
 
-	// loest warte_menge ab
+	/**
+	 * For each schedule/line, that adds halts to a warenziel array,
+	 * this counter is incremented. Each ware category needs a separate
+	 * counter. If this counter is more than 1, this halt is a transfer
+	 * halt, i.e. contains non_identical_schedules with overlapping
+	 * destinations.
+	 * Non-transfer stops do not need to be searched for connections
+	 * => large speedup possible.
+	 * @author Knightly
+	 */
+	uint8 *non_identical_schedules;
+
+	// Array with different categries that contains all waiting goods at this stop
 	vector_tpl<ware_t> **waren;
 
 	/**
@@ -208,6 +242,9 @@ private:
 
 	uint8 rebuilt_destination_counter;	// new schedule, first rebuilt destinations asynchroniously
 	uint8 reroute_counter;						// the reroute goods
+	// since we do partial routing, we remeber the last offset
+	uint8 last_catg_index;
+	uint32 last_ware_index;
 
 	/* station flags (most what enabled) */
 	uint8 enables;
@@ -234,13 +271,6 @@ private:
 	 */
 	uint32 pax_unhappy;
 
-	/**
-	 * Haltestellen werden beim warenrouting markiert. Jeder durchgang
-	 * hat eine eindeutige marke
-	 * @author Hj. Malthaner
-	 */
-	uint32 marke;
-
 #ifdef USE_QUOTE
 	// for station rating
 	const char * quote_bezeichnung(int quote) const;
@@ -262,6 +292,13 @@ private:
 	void liefere_an_fabrik(const ware_t& ware);
 
 	/*
+	 * transfers all goods to given station
+	 *
+	 * @author Dwachs
+	 */
+	void transfer_goods(halthandle_t halt);
+
+	/*
 	* parameter to ease sorting
 	* sortierung is local and stores the sortorder for the individual station
 	* @author hsiegeln
@@ -275,11 +312,12 @@ private:
 
 public:
 	/**
-	* Called every 255 steps
+	* Called after schedule calculation of all stations is finished
 	* will distribute the goods to changed routes (if there are any)
+	* returns true upon completion
 	* @author Hj. Malthaner
 	*/
-	void reroute_goods();
+	bool reroute_goods(sint16 &units_remaining);
 
 	/**
 	 * getter/setter for sortby
@@ -310,10 +348,10 @@ public:
 
 	/**
 	 * Rebuilds the list of reachable destinations
-	 *
+	 * returns the search number of connections
 	 * @author Hj. Malthaner
 	 */
-	void rebuild_destinations();
+	sint32 rebuild_destinations();
 
 	uint8 get_rebuild_destination_counter() const  { return rebuilt_destination_counter; }
 
@@ -335,10 +373,10 @@ public:
 	const slist_tpl<fabrik_t*>& get_fab_list() const { return fab_list; }
 
 	/**
-	 * Haltestellen messen regelmaessig die Fahrplaene pruefen
+	 * called regularily to update status and reroute stuff
 	 * @author Hj. Malthaner
 	 */
-	void step();
+	bool step(sint16 &units_remaining);
 
 	/**
 	 * Called every month/every 24 game hours
@@ -361,7 +399,7 @@ public:
 	 *
 	 * @author prissi
 	 */
-	int suche_route( ware_t &ware, koord *next_to_ziel, bool avoid_overcrowding );
+	int suche_route( ware_t &ware, koord *next_to_ziel, const bool no_routing_over_overcrowding );
 
 	int get_pax_enabled()  const { return enables & PAX;  }
 	int get_post_enabled() const { return enables & POST; }
@@ -374,6 +412,18 @@ public:
 			return enables&PAX;
 		}
 		else if(wtyp==warenbauer_t::post) {
+			return enables&POST;
+		}
+		return enables&WARE;
+	}
+
+	// a separate version for checking with goods category index
+	int is_enabled( const uint8 ctg )
+	{
+		if (ctg==0) {
+			return enables&PAX;
+		}
+		else if(ctg==1) {
 			return enables&POST;
 		}
 		return enables&WARE;
@@ -407,7 +457,7 @@ public:
 #endif
 
 	bool add_grund(grund_t *gb);
-	void rem_grund(grund_t *gb);
+	bool rem_grund(grund_t *gb);
 
 	uint32 get_capacity(uint8 typ) const { return capacity[typ]; }
 
@@ -443,13 +493,6 @@ public:
 	 */
 	uint32 get_ware_fuer_zwischenziel(const ware_besch_t *warentyp, const halthandle_t zwischenziel) const;
 
-	/**
-	 * @returns the sum of all waiting goods (100t coal + 10
-	 * passengers + 2000 liter oil = 2110)
-	 * @author Markus Weber
-	 */
-	uint32 sum_all_waiting_goods() const;
-
 	// true, if we accept/deliver this kind of good
 	bool gibt_ab(const ware_besch_t *warentyp) const { return waren[warentyp->get_catg_index()] != NULL; }
 
@@ -477,14 +520,6 @@ public:
 	 */
 	uint32 liefere_an(ware_t ware);
 	uint32 starte_mit_route(ware_t ware);
-
-	/**
-	 * wird von Fahrzeug aufgerufen, wenn dieses an der Haltestelle
-	 * gehalten hat.
-	 * @param typ der beförderte warentyp
-	 * @author Hj. Malthaner
-	 */
-	void hat_gehalten( const ware_besch_t *warentyp, const schedule_t *fpl, const spieler_t *sp );
 
 	const grund_t *find_matching_position(waytype_t wt) const;
 
@@ -549,7 +584,7 @@ public:
 	void set_name(const char *name);
 
 	// create an unique name: better to be called with valid handle, althoug it will work without
-	char *create_name(const koord k, const char *typ);
+	char *create_name(const koord k, const char *typ, const int lang);
 
 	void rdwr(loadsave_t *file);
 
@@ -598,5 +633,17 @@ public:
 	* @author prissi
 	*/
 	void mark_unmark_coverage(const bool mark) const;
+
+	/*
+	* deletes factory references so map rotation won't segfault
+	*/
+	void release_factory_links();
+
+	/**
+	 * Initialise the markers to zero
+	 * @author Knightly
+	 */
+	static void init_markers();
+
 };
 #endif

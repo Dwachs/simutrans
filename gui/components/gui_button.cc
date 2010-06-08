@@ -21,7 +21,10 @@
 #include "../../besch/skin_besch.h"
 #include "../../utils/cstring_t.h"
 
+#include "../../ifc/gui_fenster.h"
+
 #define STATE_MASK (127)
+#define AUTOMATIC_MASK (255)
 static const char *empty="";
 
 /*
@@ -56,9 +59,9 @@ static image_id b_cap_right_p = IMG_LEER;
  * Lazy button image number init
  * @author Hj. Malthaner
  */
-static void init_button_images()
+void button_t::init_button_images()
 {
-	if(square_button_pushed==IMG_LEER  &&  obj_reader_t::has_been_init) {
+	if(skinverwaltung_t::window_skin!=NULL) {
 
 		square_button_normal = skinverwaltung_t::window_skin->get_bild(6)->get_nummer();
 		square_button_pushed = skinverwaltung_t::window_skin->get_bild(7)->get_nummer();
@@ -190,7 +193,6 @@ button_t::button_t()
 	translated_tooltip = tooltip = NULL;
 	background = MN_GREY3;
 	b_enabled = true;
-	init_button_images();
 }
 
 
@@ -213,6 +215,14 @@ void button_t::set_typ(enum type t)
 	type = t;
 	switch (type&STATE_MASK) {
 		case square:
+			if(  translated_text  &&  strlen(translated_text)>0  ) {
+				groesse.x = 16 + proportional_string_width( translated_text );
+			}
+			else {
+				groesse.x = 10;
+			}
+			groesse.y = 10;
+			break;
 		case arrowleft:
 		case repeatarrowleft:
 		case arrowright:
@@ -236,11 +246,14 @@ void button_t::set_typ(enum type t)
  * Setzt den im Button angezeigten Text
  * @author Hj. Malthaner
  */
-void
-button_t::set_text(const char * text)
+void button_t::set_text(const char * text)
 {
 	this->text = text;
 	translated_text = b_no_translate ? text : translator::translate(text);
+
+	if(  (type&STATE_MASK)==square  &&  translated_text  &&  strlen(translated_text)>0  ) {
+		groesse.x = 16 + proportional_string_width( translated_text );
+	}
 }
 
 
@@ -262,8 +275,7 @@ void button_t::set_tooltip(const char * t)
 
 
 
-bool
-button_t::getroffen(int x,int y) {
+bool button_t::getroffen(int x,int y) {
 	bool hit=gui_komponente_t::getroffen(x, y);
 	if(pressed  &&  !hit  &&  type<=STATE_MASK) {
 		// moved away
@@ -290,15 +302,34 @@ void button_t::infowin_event(const event_t *ev)
 		}
 	}
 
+	if(  ev->ev_class==EVENT_KEYBOARD  &&  ev->ev_code==32  &&  get_focus()  ) {
+		// space toggles button
+		call_listeners( (long)0 );
+	}
+
 	// Hajo: we ignore resize events, they shouldn't make us
 	// pressed or upressed
 	if(!b_enabled  ||  IS_WINDOW_RESIZE(ev)) {
 		return;
 	}
 
-	if(type<=STATE_MASK) {
+	// Knightly : check if the initial click and the current mouse positions are within the button's boundary
+	const bool cxy_within_boundary = ( (ev->cx>=0 && ev->cx<get_groesse().x && ev->cy>=0 && ev->cy<get_groesse().y) ? true : false );
+	const bool mxy_within_boundary = ( (ev->mx>=0 && ev->mx<get_groesse().x && ev->my>=0 && ev->my<get_groesse().y) ? true : false );
+
+	// Knightly : update the button pressed state only when mouse positions are within boundary or when it is mouse release
+	if(  type<=STATE_MASK  &&  cxy_within_boundary  &&  (  mxy_within_boundary  ||  IS_LEFTRELEASE(ev)  )  ) {
 		// Hajo: check button state, if we should look depressed
-		pressed = (ev->button_state==1)  &&  b_enabled;
+		pressed = (ev->button_state==1);
+	}
+
+	// Knightly : make sure that the button will take effect only when the mouse positions are within the component's boundary
+	if(  !cxy_within_boundary  ||  !mxy_within_boundary  ) {
+		return;
+	}
+
+	if(  type>AUTOMATIC_MASK  &&  IS_LEFTCLICK(ev)  ) {
+		pressed = !pressed;
 	}
 
 	if(IS_LEFTRELEASE(ev)) {
@@ -332,28 +363,53 @@ void button_t::zeichnen(koord offset)
 	switch (type&STATE_MASK) {
 
 		case box: // old, 4-line box
-		{
-			if (pressed) {
-				display_ddd_box_clip(bx, by, bw, bh, MN_GREY0, MN_GREY4);
-				display_fillbox_wh_clip(bx+1, by+1, bw-2, bh-2, background, false);
+			{
+				const gui_fenster_t *win = win_get_top();
+				if(  win  &&  win->get_focus()==this  ) {
+					// white box around
+					display_fillbox_wh_clip(bx-1, by+bh, bw+2, 1, COL_WHITE, false);
+				}
+				if (pressed) {
+					display_ddd_box_clip(bx, by, bw, bh, MN_GREY0, MN_GREY4);
+					display_fillbox_wh_clip(bx+1, by+1, bw-2, bh-2, background, false);
+				}
+				else {
+					display_ddd_box_clip(bx, by, bw, bh, COL_GREY6, COL_GREY3);
+					display_fillbox_wh_clip(bx+1, by+1, bw-2, bh-2, background, false);
+				}
+				int len = proportional_string_width(translated_text);
+				display_proportional_clip(bx+max((bw-len)/2,0),by+(bh-large_font_height)/2, translated_text, ALIGN_LEFT, b_enabled ? foreground : COL_GREY4, true);
 			}
-			else {
-				display_ddd_box_clip(bx, by, bw, bh, COL_GREY6, COL_GREY3);
-				display_fillbox_wh_clip(bx+1, by+1, bw-2, bh-2, background, false);
-			}
-			int len = proportional_string_width(translated_text);
-			display_proportional_clip(bx+max((bw-len)/2,0),by+(bh-large_font_height)/2, translated_text, ALIGN_LEFT, b_enabled ? foreground : COL_GREY4, true);
-		}
-		break;
+			break;
 
 		case roundbox: // new box with round corners
-			draw_roundbutton( bx, by, bw, bh, pressed );
-			display_proportional_clip(bx+(bw>>1),by+(bh-large_font_height)/2, translated_text, ALIGN_MIDDLE, b_enabled ? foreground : COL_GREY4, true);
+			{
+				const gui_fenster_t *win = win_get_top();
+				if(  win  &&  win->get_focus()==this  ) {
+					// white box around
+					display_fillbox_wh_clip(bx-1, by-1, bw+2, 1, COL_WHITE, false);
+					if(b_cap_left!=IMG_LEER  &&  bh==14) {
+						display_fillbox_wh_clip(bx-1, by+skinverwaltung_t::window_skin->get_bild(13)->get_pic()->h, bw+2, 1, COL_WHITE, false);
+					}
+					else {
+						display_fillbox_wh_clip(bx-1, by+bh, bw+2, 1, COL_WHITE, false);
+					}
+				}
+				draw_roundbutton( bx, by, bw, bh, pressed );
+				display_proportional_clip(bx+(bw>>1),by+(bh-large_font_height)/2, translated_text, ALIGN_MIDDLE, b_enabled ? foreground : COL_GREY4, true);
+			}
 			break;
 
 		case square: // little square in front of text
-			display_button_image(bx, by, SQUARE_BUTTON, pressed);
-			display_proportional_clip(bx+16,by+(12-large_font_height)/2, translated_text, ALIGN_LEFT, b_enabled ? foreground : COL_GREY4, true);
+			{
+				const gui_fenster_t *win = win_get_top();
+				if(  win  &&  win->get_focus()==this  ) {
+					// white box around
+					display_fillbox_wh_clip(bx+16, by+(12+large_font_height)/2-2, bw-14, 1, COL_WHITE, false);
+				}
+				display_button_image(bx, by, SQUARE_BUTTON, pressed);
+				display_proportional_clip(bx+16,by+(12-large_font_height)/2, translated_text, ALIGN_LEFT, b_enabled ? foreground : COL_GREY4, true);
+			}
 			break;
 
 		case arrowleft:
@@ -415,4 +471,28 @@ void button_t::zeichnen(koord offset)
 	if(translated_tooltip &&  getroffen( get_maus_x()-offset.x, get_maus_y()-offset.y )) {
 		win_set_tooltip(get_maus_x() + 16, get_maus_y() - 16, translated_tooltip );
 	}
+}
+
+
+gui_komponente_t *button_t::get_focus() const
+{
+	switch (type&STATE_MASK) {
+
+		case box: // old, 4-line box
+		case roundbox: // new box with round corners
+		case square: // little square in front of text
+			return (gui_komponente_t *)this;
+
+		// those cannot recieve focus ...
+		case arrowleft:
+		case repeatarrowleft:
+		case arrowright:
+		case repeatarrowright:
+		case posbutton:
+		case arrowup:
+		case arrowdown:
+		case scrollbar:
+			break;
+	}
+	return NULL;
 }

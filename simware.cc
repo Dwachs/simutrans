@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2001 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2001 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -46,16 +46,14 @@ ware_t::ware_t(karte_t *welt,loadsave_t *file)
 }
 
 
-void
-ware_t::set_besch(const ware_besch_t* type)
+void ware_t::set_besch(const ware_besch_t* type)
 {
 	index = type->get_index();
 }
 
 
 
-void
-ware_t::rdwr(karte_t *welt,loadsave_t *file)
+void ware_t::rdwr(karte_t *welt,loadsave_t *file)
 {
 	sint32 amount = menge;
 	file->rdwr_long(amount, " ");
@@ -77,7 +75,7 @@ ware_t::rdwr(karte_t *welt,loadsave_t *file)
 	}
 	else {
 		char typ[256];
-		file->rdwr_str(typ,256);
+		file->rdwr_str(typ, lengthof(typ));
 		const ware_besch_t *type = warenbauer_t::get_info(typ);
 		if(type==NULL) {
 			dbg->warning("ware_t::rdwr()","unknown ware of catg %d!",catg);
@@ -91,24 +89,24 @@ ware_t::rdwr(karte_t *welt,loadsave_t *file)
 	// convert coordinate to halt indices
 	if(file->is_saving()) {
 		koord ziel_koord = ziel.is_bound() ? ziel->get_basis_pos() : koord::invalid;
-		koord zwischenziel_koord = zwischenziel.is_bound() ? zwischenziel->get_basis_pos() : koord::invalid;
 		ziel_koord.rdwr(file);
+		koord zwischenziel_koord = zwischenziel.is_bound() ? zwischenziel->get_basis_pos() : koord::invalid;
 		zwischenziel_koord.rdwr(file);
 	}
 	else {
 		koord ziel_koord;
 		ziel_koord.rdwr(file);
 		ziel = welt->get_halt_koord_index(ziel_koord);
-		ziel_koord.rdwr(file);
-		zwischenziel = welt->get_halt_koord_index(ziel_koord);
+		koord zwischen_ziel_koord;
+		zwischen_ziel_koord.rdwr(file);
+		zwischenziel = welt->get_halt_koord_index(zwischen_ziel_koord);
 	}
 	zielpos.rdwr(file);
 }
 
 
 
-void
-ware_t::laden_abschliessen(karte_t *welt)
+void ware_t::laden_abschliessen(karte_t *welt,spieler_t * /*sp*/)
 {
 	// since some halt was referred by with several koordinates
 	// this routine will correct it

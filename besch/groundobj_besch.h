@@ -29,11 +29,14 @@
 class groundobj_besch_t : public obj_besch_std_name_t {
 	friend class groundobj_writer_t;
 	friend class groundobj_reader_t;
+	friend class groundobj_t;
+	friend class movingobj_t;
 
-	climate_bits	allowed_climates;
+	climate_bits allowed_climates;
 	uint16 distribution_weight;
 	uint8  number_of_seasons;
 	uint32  speed;
+	uint16 index;
 	bool  trees_on_top;
 	waytype_t waytype;
 	sint32 cost_removal;
@@ -44,7 +47,7 @@ public:
 	bool is_allowed_climate( climate cl ) const { return ((1<<cl)&allowed_climates)!=0; }
 
 	const bild_besch_t *get_bild(int season, int phase) const  	{
-		return static_cast<const bildliste2d_besch_t *>(get_child(2))->get_bild(phase, season);
+		return get_child<bildliste2d_besch_t>(2)->get_bild(phase, season);
 	}
 
 	// moving stuff should have eight
@@ -52,10 +55,10 @@ public:
 	// if anzahl==1, this will not appear on slopes
 	uint16 get_phases() const
 	{
-		return static_cast<const bildliste2d_besch_t *>(get_child(2))->get_anzahl();
+		return get_child<bildliste2d_besch_t>(2)->get_anzahl();
 	}
 
-	int get_seasons() const { return number_of_seasons; }
+	uint8 get_seasons() const { return number_of_seasons; }
 
 	uint32 get_speed() const { return speed; }
 
@@ -64,6 +67,8 @@ public:
 	waytype_t get_waytype() const { return waytype; }
 
 	sint32 get_preis() const { return cost_removal; }
+
+	uint16 get_index() const { return index; }
 };
 
 #endif

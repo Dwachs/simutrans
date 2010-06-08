@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2004 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2004 Hj. Malthaner
  *
  * Line management
  *
@@ -7,6 +7,7 @@
  * (see licence.txt)
  */
 
+#include <algorithm>
 #include <stdio.h>
 
 #include "messagebox.h"
@@ -25,12 +26,14 @@
 #include "../vehicle/simvehikel.h"
 #include "../simwin.h"
 #include "../simlinemgmt.h"
+#include "../simwerkz.h"
 #include "../utils/simstring.h"
 
 #include "../bauer/vehikelbauer.h"
 
 #include "../dataobj/fahrplan.h"
 #include "../dataobj/translator.h"
+#include "../dataobj/umgebung.h"
 
 #include "../boden/wege/kanal.h"
 #include "../boden/wege/maglev.h"
@@ -45,34 +48,78 @@
 #include "karte.h"
 
 
-const char schedule_list_gui_t::cost_type[MAX_LINE_COST][64] =
+static const char *cost_type[MAX_LINE_COST] =
 {
-	"Free Capacity",
-	"Transported",
-	"Revenue",
-	"Operation",
-	"Profit",
-	"Convoys"
+	"Free Capacity", "Transported", "Revenue", "Operation", "Profit", "Convoys", "Distance"
+};
+
+const int cost_type_color[MAX_LINE_COST] =
+{
+	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT, COL_VEHICLE_ASSETS, COL_DISTANCE
 };
 
 static uint8 tabs_to_lineindex[9];
 static uint8 max_idx=0;
 
-const int schedule_list_gui_t::cost_type_color[MAX_LINE_COST] =
-{
-	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT, COL_VEHICLE_ASSETS
+static uint8 statistic[MAX_LINE_COST]={
+	LINE_CAPACITY, LINE_TRANSPORTED_GOODS, LINE_REVENUE, LINE_OPERATIONS, LINE_PROFIT, LINE_CONVOIS, LINE_DISTANCE
 };
 
-uint8 schedule_list_gui_t::statistic[MAX_LINE_COST]={
-	LINE_CAPACITY, LINE_TRANSPORTED_GOODS, LINE_REVENUE, LINE_OPERATIONS, LINE_PROFIT, LINE_CONVOIS
+static uint8 statistic_type[MAX_LINE_COST]={
+	STANDARD, STANDARD, MONEY, MONEY, MONEY, STANDARD, STANDARD
 };
 
-uint8 schedule_list_gui_t::statistic_type[MAX_LINE_COST]={
-	STANDARD, STANDARD, MONEY, MONEY, MONEY, STANDARD
-};
+enum sort_modes_t { SORT_BY_NAME=0, SORT_BY_ID, SORT_BY_PROFIT, SORT_BY_TRANSPORTED, SORT_BY_CONVOIS, SORT_BY_DISTANCE, MAX_SORT_MODES };
+static uint8 current_sort_mode = 0;
 
 #define LINE_NAME_COLUMN_WIDTH ((BUTTON_WIDTH*3)+11+11)
 #define SCL_HEIGHT (170)
+
+
+static bool compare_lines(line_scrollitem_t* a, line_scrollitem_t* b)
+{
+	switch(  current_sort_mode  ) {
+		case SORT_BY_NAME:	// default
+			break;
+		case SORT_BY_ID:
+			return (a->get_line().get_id(),b->get_line().get_id())<0;
+		case SORT_BY_PROFIT:
+			return (a->get_line()->get_finance_history(1,LINE_PROFIT) - b->get_line()->get_finance_history(1,LINE_PROFIT))<0;
+		case SORT_BY_TRANSPORTED:
+			return (a->get_line()->get_finance_history(1,LINE_TRANSPORTED_GOODS) - b->get_line()->get_finance_history(1,LINE_TRANSPORTED_GOODS))<0;
+		case SORT_BY_CONVOIS:
+			return (a->get_line()->get_finance_history(1,LINE_CONVOIS) - b->get_line()->get_finance_history(1,LINE_CONVOIS))<0;
+		case SORT_BY_DISTANCE:
+			// normalizing to the number of convoys to get the fastest ones ...
+			return (a->get_line()->get_finance_history(1,LINE_DISTANCE)/max(1,a->get_line()->get_finance_history(1,LINE_CONVOIS)) -
+			        b->get_line()->get_finance_history(1,LINE_DISTANCE)/max(1,b->get_line()->get_finance_history(1,LINE_CONVOIS)) )<0;
+	}
+	// default sorting ...
+
+	// first: try to sort by number
+	const char *atxt = a->get_text();
+	int aint = 0;
+	// isdigit produces with UTF8 assertions ...
+	if(  atxt[0]>='0'  &&  atxt[0]<='9'  ) {
+		aint = atoi( atxt );
+	}
+	else if(  atxt[1]>='0'  &&  atxt[1]<='9'  ) {
+		aint = atoi( atxt+1 );
+	}
+	const char *btxt = b->get_text();
+	int bint = 0;
+	if(  btxt[0]>='0'  &&  btxt[0]<='9'  ) {
+		bint = atoi( btxt );
+	}
+	else if(  btxt[1]>='0'  &&  btxt[1]<='9'  ) {
+		bint = atoi( btxt+1 );
+	}
+	if(  aint!=bint  ) {
+		return (aint-bint)<0;
+	}
+	// otherwise: sort by name
+	return strcmp(atxt, btxt)<0;
+}
 
 
 // Hajo: 17-Jan-04: changed layout to make components fit into
@@ -92,7 +139,7 @@ schedule_list_gui_t::schedule_list_gui_t(spieler_t* sp_) :
 	button_t button_def;
 
 	// init scrolled list
-	scl.set_groesse(koord(LINE_NAME_COLUMN_WIDTH-22, SCL_HEIGHT-14));
+	scl.set_groesse(koord(LINE_NAME_COLUMN_WIDTH-22, SCL_HEIGHT-18));
 	scl.set_pos(koord(0,1));
 	scl.set_highlight_color(sp->get_player_color1()+1);
 	scl.add_listener(this);
@@ -162,19 +209,25 @@ schedule_list_gui_t::schedule_list_gui_t(spieler_t* sp_) :
 
 	// halt list?
 	cont_haltestellen.set_groesse(koord(500, 28));
-	scrolly_haltestellen.set_pos(koord(0, 14 + SCL_HEIGHT+BUTTON_HEIGHT+2));
+	scrolly_haltestellen.set_pos(koord(0, 7 + SCL_HEIGHT+2*BUTTON_HEIGHT+2));
 	scrolly_haltestellen.set_visible(false);
 	add_komponente(&scrolly_haltestellen);
 
 	// normal buttons edit new remove
-	bt_new_line.set_pos(koord(11, 14 + SCL_HEIGHT));
+	bt_new_line.set_pos(koord(11, 7 + SCL_HEIGHT));
 	bt_new_line.set_groesse(koord(BUTTON_WIDTH,BUTTON_HEIGHT));
 	bt_new_line.set_typ(button_t::roundbox);
 	bt_new_line.set_text("New Line");
 	add_komponente(&bt_new_line);
 	bt_new_line.add_listener(this);
+	if (tabs.get_active_tab_index()>0) {
+		bt_new_line.enable();
+	}
+	else {
+		bt_new_line.disable();
+	}
 
-	bt_change_line.set_pos(koord(11+BUTTON_WIDTH, 14 + SCL_HEIGHT));
+	bt_change_line.set_pos(koord(11+BUTTON_WIDTH, 7 + SCL_HEIGHT));
 	bt_change_line.set_groesse(koord(BUTTON_WIDTH,BUTTON_HEIGHT));
 	bt_change_line.set_typ(button_t::roundbox);
 	bt_change_line.set_text("Update Line");
@@ -183,13 +236,22 @@ schedule_list_gui_t::schedule_list_gui_t(spieler_t* sp_) :
 	bt_change_line.add_listener(this);
 	bt_change_line.disable();
 
-	bt_delete_line.set_pos(koord(11+2*BUTTON_WIDTH, 14 + SCL_HEIGHT));
+	bt_delete_line.set_pos(koord(11+2*BUTTON_WIDTH, 7 + SCL_HEIGHT));
 	bt_delete_line.set_groesse(koord(BUTTON_WIDTH,BUTTON_HEIGHT));
 	bt_delete_line.set_typ(button_t::roundbox);
 	bt_delete_line.set_text("Delete Line");
 	add_komponente(&bt_delete_line);
 	bt_delete_line.add_listener(this);
 	bt_delete_line.disable();
+
+	bt_withdraw_line.set_pos(koord(11+0*BUTTON_WIDTH, 7 + SCL_HEIGHT+BUTTON_HEIGHT));
+	bt_withdraw_line.set_groesse(koord(BUTTON_WIDTH,BUTTON_HEIGHT));
+	bt_withdraw_line.set_typ(button_t::roundbox_state);
+	bt_withdraw_line.set_text("Withdraw All");
+	bt_withdraw_line.set_tooltip("Convoi is sold when all wagons are empty.");
+	add_komponente(&bt_withdraw_line);
+	bt_withdraw_line.add_listener(this);
+	bt_withdraw_line.disable();
 
 	//CHART
 	chart.set_dimension(12, 1000);
@@ -223,8 +285,7 @@ schedule_list_gui_t::schedule_list_gui_t(spieler_t* sp_) :
  * Mausklicks werden hiermit an die GUI-Komponenten
  * gemeldet
  */
-void
-schedule_list_gui_t::infowin_event(const event_t *ev)
+void schedule_list_gui_t::infowin_event(const event_t *ev)
 {
 	if(ev->ev_class == INFOWIN) {
 		if(ev->ev_code == WIN_CLOSE) {
@@ -241,7 +302,7 @@ schedule_list_gui_t::infowin_event(const event_t *ev)
 
 
 
-bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp,value_t /* */)           // 28-Dec-01    Markus Weber    Added
+bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t v )           // 28-Dec-01    Markus Weber    Added
 {
 	if (komp == &bt_change_line) {
 		if (line.is_bound()) {
@@ -249,50 +310,59 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp,value_t /
 		}
 	}
 	else if (komp == &bt_new_line) {
-		if (tabs.get_active_tab_index() > 0) {
-			// create typed line
-			assert(tabs.get_active_tab_index()<max_idx);
-			uint8 type=tabs_to_lineindex[tabs.get_active_tab_index()];
-			linehandle_t new_line = sp->simlinemgmt.create_line(type,sp);
-			create_win( new line_management_gui_t(new_line, sp), w_info, (long)line.get_rep());
-			update_lineinfo( new_line );
-			build_line_list( tabs.get_active_tab_index() );
-		}
-		else {
-			create_win( new news_img("Cannot create generic line!\nSelect line type by\nusing filter tabs."), w_time_delete, magic_none);
-		}
+		// create typed line
+		assert(  tabs.get_active_tab_index() > 0  &&  tabs.get_active_tab_index()<max_idx  );
+		// update line schedule via tool!
+		werkzeug_t *w = create_tool( WKZ_LINE_TOOL | SIMPLE_TOOL );
+		cbuffer_t buf(128);
+		buf.printf( "c,0,%i,%ld,0|,", (int)tabs_to_lineindex[tabs.get_active_tab_index()], 0 );
+		w->set_default_param(buf);
+		sp->get_welt()->set_werkzeug( w, sp );
+		// since init always returns false, it is save to delete immediately
+		delete w;
 	}
 	else if (komp == &bt_delete_line) {
 		if (line.is_bound()) {
-			// close a schedule window, if stil active
-			gui_fenster_t *w = win_get_magic( (long)line.get_rep() );
-			if(w) {
-				destroy_win( w );
-			}
-			linehandle_t delete_line=line;
-			update_lineinfo( linehandle_t() );
-			sp->simlinemgmt.delete_line(delete_line);
-			build_line_list(tabs.get_active_tab_index());
+			werkzeug_t *w = create_tool( WKZ_LINE_TOOL | SIMPLE_TOOL );
+			cbuffer_t buf(128);
+			buf.printf( "d,%i", line.get_id() );
+			w->set_default_param(buf);
+			sp->get_welt()->set_werkzeug( w, sp );
+			// since init always returns false, it is save to delete immediately
+			delete w;
+		}
+	}
+	else if (komp == &bt_withdraw_line) {
+		bt_withdraw_line.pressed ^= 1;
+		if (line.is_bound()) {
+			werkzeug_t *w = create_tool( WKZ_LINE_TOOL | SIMPLE_TOOL );
+			cbuffer_t buf(128);
+			buf.printf( "w,%i,%i", line.get_id(), bt_withdraw_line.pressed );
+			w->set_default_param(buf);
+			sp->get_welt()->set_werkzeug( w, sp );
+			// since init always returns false, it is save to delete immediately
+			delete w;
 		}
 	}
 	else if (komp == &tabs) {
 		update_lineinfo( linehandle_t() );
 		build_line_list(tabs.get_active_tab_index());
+		if (tabs.get_active_tab_index()>0) {
+			bt_new_line.enable();
+		}
+		else {
+			bt_new_line.disable();
+		}
 	}
 	else if (komp == &scl) {
-		if(!line.is_bound()) {
-			bt_change_line.disable();
-			bt_delete_line.disable();
+		if(  (uint32)(v.i)<scl.get_count()  ) {
+			// get selected line
+			linehandle_t new_line = ((line_scrollitem_t *)scl.get_element(v.i))->get_line();
+			update_lineinfo( new_line );
 		}
-		// get selected line
-		linehandle_t new_line = linehandle_t();
-		selection = scl.get_selection();
-		if(  (unsigned)selection < lines.get_count()  ) {
-			new_line = lines[selection];
-			bt_change_line.enable();
-			bt_delete_line.enable();
+		else {
+			update_lineinfo(linehandle_t());
 		}
-		update_lineinfo(new_line);
 		// brute force: just recalculate whole list on each click to keep it current
 		build_line_list(tabs.get_active_tab_index());
 	}
@@ -320,16 +390,23 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp,value_t /
 
 void schedule_list_gui_t::zeichnen(koord pos, koord gr)
 {
+	if(  old_line_count!=sp->simlinemgmt.get_line_count()  ) {
+		show_lineinfo( line );
+	}
+
 	gui_frame_t::zeichnen(pos, gr);
-	if (line.is_bound()) {
+
+	if(  line.is_bound()  ) {
+		if(  last_schedule_count!=line->get_schedule()->get_count()  ||  last_vehicle_count!=line->count_convoys()  ) {
+			update_lineinfo(line);
+		}
 		display(pos);
 	}
 }
 
 
 
-void
-schedule_list_gui_t::display(koord pos)
+void schedule_list_gui_t::display(koord pos)
 {
 	int icnv = line->count_convoys();
 
@@ -341,7 +418,7 @@ schedule_list_gui_t::display(koord pos)
 	sint64 profit = line->get_finance_history(0,LINE_PROFIT);
 
 	for (int i = 0; i<icnv; i++) {
-		convoihandle_t cnv = line->get_convoy(i)->self;
+		convoihandle_t const cnv = line->get_convoy(i);
 		// we do not want to count the capacity of depot convois
 		if (!cnv->in_depot()) {
 			for (unsigned j = 0; j<cnv->get_vehikel_anzahl(); j++) {
@@ -373,7 +450,7 @@ schedule_list_gui_t::display(koord pos)
 	len2 += display_proportional(pos.x+LINE_NAME_COLUMN_WIDTH+len2, pos.y+16+14+SCL_HEIGHT+14+4+LINESPACE, ctmp, ALIGN_LEFT, profit>=0?MONEY_PLUS:MONEY_MINUS, true );
 
 	int rest_width = max( (get_fenstergroesse().x-LINE_NAME_COLUMN_WIDTH)/2, max(len2,len) );
-	number_to_string(ctmp, capacity);
+	number_to_string(ctmp, capacity, 2);
 	sprintf(buffer, translator::translate("Capacity: %s\nLoad: %d (%d%%)"), ctmp, load, loadfactor);
 	display_multiline_text(pos.x + LINE_NAME_COLUMN_WIDTH + rest_width, pos.y+16 + 14 + SCL_HEIGHT + 14 +4 , buffer, COL_BLACK);
 }
@@ -410,18 +487,29 @@ void schedule_list_gui_t::build_line_list(int filter)
 	sp->simlinemgmt.sort_lines();	// to take care of renaming ...
 	scl.clear_elements();
 	sp->simlinemgmt.get_lines(tabs_to_lineindex[filter], &lines);
+	vector_tpl<line_scrollitem_t *>selected_lines;
+
 	for (vector_tpl<linehandle_t>::const_iterator i = lines.begin(), end = lines.end(); i != end; i++) {
 		linehandle_t l = *i;
-		scl.append_element( new line_scrollitem_t(l) );
-		if (line == l) {
+		selected_lines.append( new line_scrollitem_t(l) );
+	}
+
+	std::sort(selected_lines.begin(),selected_lines.end(),compare_lines);
+
+	for (vector_tpl<line_scrollitem_t *>::const_iterator i = selected_lines.begin(), end = selected_lines.end(); i != end; i++) {
+		scl.append_element( *i );
+		if(line == (*i)->get_line()  ) {
 			sel = scl.get_count() - 1;
 		}
 	}
+
 	scl.set_sb_offset( sb_offset );
 	if(  sel>=0  ) {
 		scl.set_selection( sel );
 		scl.show_selection( sel );
 	}
+
+	old_line_count = sp->simlinemgmt.get_line_count();
 }
 
 
@@ -447,7 +535,7 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 		cont.remove_all();
 		int ypos = 5;
 		for(i = 0;  i<icnv;  i++  ) {
-			gui_convoiinfo_t *cinfo = new gui_convoiinfo_t(new_line->get_convoy(i)->self, i + 1);
+			gui_convoiinfo_t* const cinfo = new gui_convoiinfo_t(new_line->get_convoy(i), i + 1);
 			cinfo->set_pos(koord(0, ypos));
 			cinfo->set_groesse(koord(400, 40));
 			cont.add_komponente(cinfo);
@@ -455,12 +543,18 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 		}
 		cont.set_groesse(koord(500, ypos));
 
+		bt_delete_line.disable();
+		bt_withdraw_line.disable();
 		if(icnv>0) {
-			bt_delete_line.disable();
+			bt_withdraw_line.enable();
 		}
 		else {
 			bt_delete_line.enable();
 		}
+		bt_change_line.enable();
+
+		new_line->recalc_catg_index();	// update withdraw info
+		bt_withdraw_line.pressed = new_line->get_withdraw();
 
 		// fill haltestellen container with info of line's haltestellen
 		cont_haltestellen.remove_all();
@@ -486,7 +580,7 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 		// chart
 		chart.remove_curves();
 		for(i=0; i<MAX_LINE_COST; i++)  {
-			chart.add_curve(cost_type_color[i], new_line->get_finance_history(), MAX_LINE_COST, statistic[i], MAX_MONTHS, statistic_type[i], filterButtons[i].pressed, true);
+			chart.add_curve(cost_type_color[i], new_line->get_finance_history(), MAX_LINE_COST, statistic[i], MAX_MONTHS, statistic_type[i], filterButtons[i].pressed, true, statistic_type[i]*2 );
 			if(filterButtons[i].pressed) {
 				chart.show_curve(i);
 			}
@@ -495,8 +589,11 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 
 		// set this schedule as current to show on minimap if possible
 		reliefkarte_t::get_karte()->set_current_fpl(new_line->get_schedule(), sp->get_player_nr()); // (*fpl,player_nr)
+
+		last_schedule_count = new_line->get_schedule()->get_count();
+		last_vehicle_count = new_line->count_convoys();
 	}
-	else if(line.is_bound()) {
+	else if(  inp_name.is_visible()  ) {
 		// previously a line was visible
 		// thus the need to hide everything
 		cont.remove_all();
@@ -507,6 +604,8 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 		inp_name.set_visible(false);
 		filled_bar.set_visible(false);
 		scl.set_selection(-1);
+		bt_withdraw_line.disable();
+		bt_withdraw_line.pressed = false;
 		bt_delete_line.disable();
 		bt_change_line.disable();
 		for(int i=0; i<MAX_LINE_COST; i++)  {
@@ -516,20 +615,26 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 
 		// hide schedule on minimap (may not current, but for safe)
 		reliefkarte_t::get_karte()->set_current_fpl(NULL, 0); // (*fpl,player_nr)
+
+		last_schedule_count = -1;
+		last_vehicle_count = 0;
 	}
 	line = new_line;
 }
 
+
 void schedule_list_gui_t::show_lineinfo(linehandle_t line)
 {
 	update_lineinfo(line);
-	// rebuilding line list will also show selection
-	for(  uint8 i=0;  i<max_idx;  i++  ) {
-		if(  tabs_to_lineindex[i]==line->get_linetype()  ) {
-			tabs.set_active_tab_index( i );
-			build_line_list( i );
-			break;
+
+	if(  line.is_bound()  ) {
+		// rebuilding line list will also show selection
+		for(  uint8 i=0;  i<max_idx;  i++  ) {
+			if(  tabs_to_lineindex[i]==line->get_linetype()  ) {
+				tabs.set_active_tab_index( i );
+				build_line_list( i );
+				break;
+			}
 		}
 	}
 }
-

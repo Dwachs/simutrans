@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2001 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2001 HansjÃ¶rg Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -90,6 +90,7 @@ savegame_frame_t::savegame_frame_t(const char *suffix, const char *path ) :
 	cancelbutton.add_listener(this);
 	add_komponente(&cancelbutton);
 
+	set_focus( &input );
 	set_fenstergroesse(koord(DIALOG_WIDTH, y + 40));
 }
 
@@ -149,9 +150,9 @@ void savegame_frame_t::fill_list()
 #else
 	{
 		struct _finddata_t entry;
-		long hfind;
+		size_t hfind;
 
-		hfind = _findfirst( searchpath, &entry);
+		hfind = _findfirst( searchpath, &entry );
 		if(hfind == -1) {
 			dbg->warning("savegame_frame_t::savegame_frame_t()","Couldn't read directory.");
 		}
@@ -214,7 +215,7 @@ savegame_frame_t::~savegame_frame_t()
 // sets the current filename in the input box
 void savegame_frame_t::set_filename(const char *fn)
 {
-	long len = strlen(fn);
+	size_t len = strlen(fn);
 	if(len>=4  &&  len-SAVE_PATH_X_LEN-3<128) {
 		if(strncmp(fn,SAVE_PATH_X,SAVE_PATH_X_LEN)==0) {
 			tstrncpy(ibuf, fn+SAVE_PATH_X_LEN, len-SAVE_PATH_X_LEN-3 );
@@ -242,7 +243,7 @@ void savegame_frame_t::add_file(const char *filename, const char *pak, const boo
 	button->set_no_translate(true);
 	button->set_text(name);	// to avoid translation
 
-	const cstring_t compare_to = umgebung_t::objfilename.len()>0  ?  umgebung_t::objfilename.left( umgebung_t::objfilename.len()-1 ) + " -"  :  "";
+	const cstring_t compare_to = umgebung_t::objfilename.len()>0  ?  umgebung_t::objfilename.left( umgebung_t::objfilename.len()-1 ) + " -"  :  cstring_t("");
 	// sort by date descending:
 	slist_tpl<entry>::iterator i = entries.begin();
 	slist_tpl<entry>::iterator end = entries.end();
@@ -303,13 +304,18 @@ bool savegame_frame_t::action_triggered( gui_action_creator_t *komp,value_t /* *
 		// Save/Load Button or Enter-Key pressed
 		//---------------------------------------
 
-		tstrncpy(buf, SAVE_PATH_X, lengthof(buf));
-		strcat(buf, ibuf);
-		strcat(buf, suffix);
+		if (strstr(ibuf,"net:")==ibuf) {
+			tstrncpy(buf,ibuf,lengthof(buf));
+		} else {
+			tstrncpy(buf, SAVE_PATH_X, lengthof(buf));
+			strcat(buf, ibuf);
+			strcat(buf, suffix);
+		}
+
+		action(buf);
 
 		destroy_win(this);      //29-Oct-2001         Markus Weber    Close window
 
-		action(buf);
 	}
 	else if(komp == &cancelbutton) {
 		// Cancel-button pressed
@@ -320,8 +326,8 @@ bool savegame_frame_t::action_triggered( gui_action_creator_t *komp,value_t /* *
 	else {
 		// File in list selected
 		//--------------------------
-		for (slist_tpl<entry>::const_iterator i = entries.begin(), end = entries.end(); i != end  &&  !in_action; ++i) {
-			if (komp == i->button || komp == i->del) {
+		for(  slist_tpl<entry>::iterator i = entries.begin(), end = entries.end();  i != end  &&  !in_action;  ++i  ) {
+			if(  komp == i->button  ||  komp == i->del  ) {
 				in_action = true;
 				const bool action_btn = komp == i->button;
 				buf[0] = 0;
@@ -335,11 +341,25 @@ bool savegame_frame_t::action_triggered( gui_action_creator_t *komp,value_t /* *
 
 				if(action_btn) {
 					action(buf);
+					destroy_win(this);
 				}
 				else {
-					del_action(buf);
+					if(  del_action(buf)  ) {
+						destroy_win(this);
+					}
+					else {
+						// remove only file from list
+						button_frame.remove_komponente( i->button );
+						delete i->button;
+						button_frame.remove_komponente( i->del );
+						delete i->del;
+						button_frame.remove_komponente( i->label );
+						delete i->label;
+						entries.erase( i );
+						resize( koord(0,0) );
+						in_action = false;
+					}
 				}
-				destroy_win(this);
 				break;
 			}
 		}
@@ -362,17 +382,24 @@ void savegame_frame_t::set_fenstergroesse(koord groesse)
 		groesse.y = display_get_height()-64;
 		// position adjustment will be done automatically ... nice!
 	}
-	scrolly.set_groesse( koord(groesse.x,groesse.y-30-40-8) );
 	gui_frame_t::set_fenstergroesse(groesse);
 	input.set_groesse(koord(groesse.x-75-10-10, 14));
+
+	sint16 y = 0;
 	for (slist_tpl<entry>::const_iterator i = entries.begin(), end = entries.end(); i != end; ++i) {
 		// resize all but delete button
-		// button_t*    button1 = i->del;
+		button_t*    button1 = i->del;
+		button1->set_pos( koord( button1->get_pos().x, y ) );
 		button_t*    button2 = i->button;
 		gui_label_t* label   = i->label;
+		button2->set_pos( koord( button2->get_pos().x, y ) );
 		button2->set_groesse(koord( groesse.x/2-40, 14));
-		label->set_pos(koord(groesse.x/2-40+30, label->get_pos().y));
+		label->set_pos(koord(groesse.x/2-40+30, y));
+		y += 14;
 	}
+
+	button_frame.set_groesse( koord( groesse.x, y ) );
+	scrolly.set_groesse( koord(groesse.x,groesse.y-30-40-8) );
 
 	divider1.set_pos(koord(10,groesse.y-44));
 	divider1.set_groesse(koord(groesse.x-20,0));

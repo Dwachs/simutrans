@@ -71,7 +71,8 @@ void sound_set_mute(bool on)
 	umgebung_t::mute_sound = on;
 }
 
-bool sound_get_mute() {
+bool sound_get_mute()
+{
 	return umgebung_t::mute_sound  ||  SFX_CASH==NO_SOUND;
 }
 
@@ -81,14 +82,14 @@ bool sound_get_mute() {
  * spielt sound ab
  * @author Hj. Malthaner
  */
-void
-sound_play(const struct sound_info info)
+void sound_play(const struct sound_info info)
 {
 	if(info.index!=(uint16)NO_SOUND  &&  !umgebung_t::mute_sound) {
 //DBG_MESSAGE("karte_t::interactive_event(event_t &ev)", "play sound %i",info.index);
 		dr_play_sample(info.index, (info.volume*umgebung_t::global_volume)>>8);
 	}
 }
+
 
 
 
@@ -171,10 +172,10 @@ int midi_init(const char *directory)
 		while(!feof(file)) {
 			char buf[256];
 			char title[256];
-			long len;
+			size_t len;
 
-			read_line(buf, 256, file);
-			read_line(title, 256, file);
+			read_line(buf,   sizeof(buf),   file);
+			read_line(title, sizeof(title), file);
 			if(!feof(file)) {
 				len = strlen(buf);
 				while(len>0  &&  buf[--len] <= 32) {
@@ -183,7 +184,7 @@ int midi_init(const char *directory)
 
 				if(len > 1) {
 					sprintf( full_path, "%s%s", directory, buf );
-					print("  Reading MIDI file '%s' - %s", full_path, title);
+					printf("  Reading MIDI file '%s' - %s", full_path, title);
 					max_midi = dr_load_midi(full_path);
 
 					if(max_midi >= 0) {
@@ -215,7 +216,8 @@ void midi_play(const int no)
 {
 	if (no > max_midi) {
 		dbg->warning("midi_play()", "MIDI index %d too high (total loaded: %d)", no, max_midi);
-	} else 	if(!midi_get_mute()) {
+	}
+	else if(!midi_get_mute()) {
 		dr_play_midi(no);
 	}
 }
@@ -250,7 +252,8 @@ void midi_set_mute(bool on)
 
 
 
-bool midi_get_mute() {
+bool midi_get_mute()
+{
 	return  (umgebung_t::mute_midi || max_midi==-1);
 }
 
@@ -267,8 +270,8 @@ void check_midi()
 	// ok, we are in playing mode => check for next sound
 	if(dr_midi_pos() < 0  ||  new_midi == 1) {
 		if(umgebung_t::shuffle_midi  &&  max_midi>1) {
-			// shuffle songs
-			int new_midi = simrand(max_midi-1);
+			// shuffle songs (must no use simrand()!)
+			int new_midi = sim_async_rand(max_midi);
 			if(new_midi>=current_midi) {
 				new_midi ++;
 			}

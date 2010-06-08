@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "../simdebug.h"
+#include "../simgraph.h"
 #include "dingliste.h"
 #include "../bauer/hausbauer.h"
 #include "../dings/dummy.h"
@@ -129,7 +130,8 @@ static void dl_free(ding_t** p, uint8 size)
 	assert(size > 1);
 	if (size <= 16) {
 		freelist_t::putback_node(sizeof(*p) * size, p);
-	} else {
+	}
+	else {
 		guarded_free(p);
 	}
 }
@@ -141,7 +143,8 @@ static ding_t** dl_alloc(uint8 size)
 	ding_t** p;
 	if (size <= 16) {
 		p = static_cast<ding_t**>(freelist_t::gimme_node(size * sizeof(*p)));
-	} else {
+	}
+	else {
 		p = MALLOCN(ding_t*, size);
 	}
 	return p;
@@ -166,8 +169,7 @@ dingliste_t::~dingliste_t()
 }
 
 
-void
-dingliste_t::set_capacity(uint8 new_cap)
+void dingliste_t::set_capacity(uint8 new_cap)
 {
 	// DBG_MESSAGE("dingliste_t::set_capacity()", "old cap=%d, new cap=%d", capacity, new_cap);
 
@@ -201,7 +203,7 @@ dingliste_t::set_capacity(uint8 new_cap)
 	else if(capacity<=1  &&  new_cap>1) {
 		ding_t *tmp=obj.one;
 		obj.some = dl_alloc(new_cap);
-		memset( obj.some, 0, sizeof(ding_t*)*new_cap );
+		MEMZERON(obj.some, new_cap);
 		obj.some[0] = tmp;
 		capacity = new_cap;
 		assert(top<=1);
@@ -248,8 +250,7 @@ bool dingliste_t::grow_capacity()
 
 
 
-void
-dingliste_t::shrink_capacity(uint8 o_top)
+void dingliste_t::shrink_capacity(uint8 o_top)
 {
 	// strategy: avoid free'ing mem if not neccesary. Only if we hold lots
 	// of memory then free it.
@@ -336,10 +337,13 @@ bool dingliste_t::intern_add_moving(ding_t* ding)
 				if((fahrtrichtung&(~ribi_t::suedost))==0) {
 					// if we are going south or southeast we must be drawn as the first in east direction (after nord and nordeast)
 					for(uint8 i=start;  i<end;  i++  ) {
-						const ding_t *dt = obj.some[i];
-						if(dt  &&  dt->is_moving()  &&  (((const vehikel_t*)dt)->get_fahrtrichtung()&ribi_t::suedwest)!=0) {
-							intern_insert_at(ding, i);
-							return true;
+						if (ding_t const* const dt = obj.some[i]) {
+							if (vehikel_basis_t const* const v = ding_cast<vehikel_basis_t>(dt)) {
+								if ((v->get_fahrtrichtung() & ribi_t::suedwest) != 0) {
+									intern_insert_at(ding, i);
+									return true;
+								}
+							}
 						}
 					}
 				}
@@ -445,11 +449,9 @@ bool dingliste_t::add(ding_t* ding)
 	// roads must be first!
 	if(pri==0) {
 		// check for other ways to keep order! (maximum is two ways per tile at the moment)
-		if( obj.some[0]->get_typ()==ding_t::way  &&  ((weg_t *)ding)->get_waytype()>((weg_t *)obj.some[0])->get_waytype()) {
-			intern_insert_at(ding, 1);
-		} else {
-			intern_insert_at(ding, 0);
-		}
+		weg_t const* const w   = ding_cast<weg_t>(obj.some[0]);
+		uint8        const pos = w && w->get_waytype() ? 1 : 0;
+		intern_insert_at(ding, pos);
 		return true;
 	}
 
@@ -469,7 +471,8 @@ bool dingliste_t::add(ding_t* ding)
 			const sint8 offset = ding->get_yoff() + ding->get_xoff();
 
 			for(  ;  i<top;  i++) {
-				if(obj.some[i]->get_typ()!=ding_t::baum  ||  obj.some[i]->get_yoff()+obj.some[i]->get_xoff()>offset) {
+				baum_t const* const tree = ding_cast<baum_t>(obj.some[i]);
+				if (!tree || tree->get_yoff() + tree->get_xoff() > offset) {
 					break;
 				}
 			}
@@ -488,8 +491,7 @@ bool dingliste_t::add(ding_t* ding)
 // take the thing out from the list
 // use this only for temperary removing
 // since it does not shrink list or checks for ownership
-ding_t *
-dingliste_t::remove_last()
+ding_t *dingliste_t::remove_last()
 {
 	ding_t *d=NULL;
 	if(capacity==0) {
@@ -546,8 +548,7 @@ bool dingliste_t::remove(const ding_t* ding)
 
 
 
-bool
-dingliste_t::loesche_alle(spieler_t *sp, uint8 offset)
+bool dingliste_t::loesche_alle(spieler_t *sp, uint8 offset)
 {
 	if(top<=offset) {
 		return false;
@@ -560,8 +561,9 @@ dingliste_t::loesche_alle(spieler_t *sp, uint8 offset)
 		while(  top>offset  ) {
 			top --;
 			ding_t *dt = obj.some[top];
-			if(dt->is_moving()  &&  !(dt->get_typ()==ding_t::fussgaenger  ||  dt->get_typ()==ding_t::verkehr  ||  dt->get_typ()==ding_t::movingobj)) {
-				((vehikel_t *)dt)->verlasse_feld();
+			vehikel_basis_t* const v = ding_cast<vehikel_basis_t>(dt);
+			if (v && dt->get_typ() != ding_t::fussgaenger && dt->get_typ() != ding_t::verkehr && dt->get_typ() != ding_t::movingobj) {
+				v->verlasse_feld();
 				assert(0);
 			}
 			else {
@@ -576,8 +578,9 @@ dingliste_t::loesche_alle(spieler_t *sp, uint8 offset)
 	else {
 		if(capacity==1) {
 			ding_t *dt = obj.one;
-			if(dt->is_moving()) {
-				((vehikel_t *)dt)->verlasse_feld();
+			vehikel_basis_t* const v = ding_cast<vehikel_basis_t>(dt);
+			if (v && dt->get_typ() != ding_t::fussgaenger && dt->get_typ() != ding_t::verkehr && dt->get_typ() != ding_t::movingobj) {
+				v->verlasse_feld();
 			}
 			else {
 				dt->entferne(sp);
@@ -597,8 +600,7 @@ dingliste_t::loesche_alle(spieler_t *sp, uint8 offset)
 
 
 /* returns the text of an error message, if obj could not be removed */
-const char *
-dingliste_t::kann_alle_entfernen(const spieler_t *sp, uint8 offset) const
+const char *dingliste_t::kann_alle_entfernen(const spieler_t *sp, uint8 offset) const
 {
 	if(top<=offset) {
 		return NULL;
@@ -624,8 +626,7 @@ dingliste_t::kann_alle_entfernen(const spieler_t *sp, uint8 offset) const
 
 /* recalculates all images
  */
-void
-dingliste_t::calc_bild()
+void dingliste_t::calc_bild()
 {
 	if(capacity==0) {
 		// nothing
@@ -660,8 +661,7 @@ bool dingliste_t::ist_da(const ding_t* ding) const
 
 
 
-ding_t *
-dingliste_t::suche(ding_t::typ typ,uint8 start) const
+ding_t *dingliste_t::suche(ding_t::typ typ,uint8 start) const
 {
 	if(capacity==0) {
 		return NULL;
@@ -683,8 +683,7 @@ dingliste_t::suche(ding_t::typ typ,uint8 start) const
 
 
 
-ding_t *
-dingliste_t::get_leitung() const
+ding_t *dingliste_t::get_leitung() const
 {
 	if(capacity==0) {
 		return NULL;
@@ -708,8 +707,7 @@ dingliste_t::get_leitung() const
 
 
 
-ding_t *
-dingliste_t::get_convoi_vehicle() const
+ding_t *dingliste_t::get_convoi_vehicle() const
 {
 	if(capacity==0) {
 		return NULL;
@@ -735,8 +733,7 @@ dingliste_t::get_convoi_vehicle() const
 
 
 
-void
-dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
+void dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 {
 	sint32 max_object_index;
 	if(file->is_saving()) {
@@ -778,7 +775,8 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 						wo->set_flag(ding_t::not_on_map);
 						delete wo;
 						d = NULL;
-					} else {
+					}
+					else {
 						d = wo;
 					}
 					break;
@@ -795,7 +793,8 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 						pedestrian->set_flag(ding_t::not_on_map);
 						delete pedestrian;
 						d = NULL;
-					} else {
+					}
+					else {
 						d = pedestrian;
 					}
 					break;
@@ -810,8 +809,8 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 						// no citycars ... delete this
 						car->set_flag(ding_t::not_on_map);
 						delete car;
-						d = NULL;
-					} else {
+					}
+					else {
 						d = car;
 					}
 					break;
@@ -848,29 +847,24 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 				case ding_t::bahndepot:
 				{
 					// for compatibilty reasons we may have to convert them to tram and monorail depots
-					gebaeude_t *gb = new gebaeude_t(welt, file);
-					if(gb->get_tile()->get_besch()->get_extra()==monorail_wt) {
-						monoraildepot_t *md = new monoraildepot_t(welt,gb->get_pos(),(spieler_t *)NULL,gb->get_tile());
-						md->rdwr_vehicles(file);
-						d = md;
-					}
-					else if(gb->get_tile()->get_besch()->get_extra()==tram_wt) {
-						tramdepot_t *td = new tramdepot_t(welt,gb->get_pos(),(spieler_t *)NULL,gb->get_tile());
-						td->rdwr_vehicles(file);
-						d = td;
+					bahndepot_t*                   bd;
+					gebaeude_t                     gb(welt, file);
+					haus_tile_besch_t const* const tile = gb.get_tile();
+					if(  tile  ) {
+						switch (tile->get_besch()->get_extra()) {
+							case monorail_wt: bd = new monoraildepot_t(welt, gb.get_pos(), gb.get_besitzer(), tile); break;
+							case tram_wt:     bd = new tramdepot_t(    welt, gb.get_pos(), gb.get_besitzer(), tile); break;
+							default:          bd = new bahndepot_t(    welt, gb.get_pos(), gb.get_besitzer(), tile); break;
+						}
 					}
 					else {
-						bahndepot_t *bd = new bahndepot_t(welt,gb->get_pos(),(spieler_t *)NULL,gb->get_tile());
-						bd->rdwr_vehicles(file);
-						d = bd;
+						bd = new bahndepot_t( welt, gb.get_pos(), gb.get_besitzer(), NULL );
 					}
-					d->set_besitzer( gb->get_besitzer() );
-					spieler_t::add_maintenance( gb->get_besitzer(), welt->get_einstellungen()->maint_building );
+					bd->rdwr_vehicles(file);
+					d   = bd;
 					typ = d->get_typ();
-
 					// do not remove from this position, since there will be nothing
-					gb->set_flag(ding_t::not_on_map);
-					delete gb;
+					gb.set_flag(ding_t::not_on_map);
 				}
 				break;
 
@@ -899,21 +893,24 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 						// do not remove from this position, since there will be nothing
 						b->set_flag(ding_t::not_on_map);
 						delete b;
+						b = NULL;
 					}
-					d = b;
+					else {
+						d = b;
+					}
 				}
 				break;
 
 				case ding_t::groundobj:
 				{
 					groundobj_t* const groundobj = new groundobj_t(welt, file);
-					if (groundobj->get_besch() == NULL) {
+					if(groundobj->get_besch() == NULL) {
 						// do not remove from this position, since there will be nothing
 						groundobj->set_flag(ding_t::not_on_map);
 						// not use entferne, since it would try to lookup besch
 						delete groundobj;
-						d = NULL;
-					} else {
+					}
+					else {
 						d = groundobj;
 					}
 					break;
@@ -926,8 +923,8 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 						// no citycars ... delete this
 						movingobj->set_flag(ding_t::not_on_map);
 						delete movingobj;
-						d = NULL;
-					} else {
+					}
+					else {
 						d = movingobj;
 					}
 					break;
@@ -935,17 +932,16 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 
 				case ding_t::gebaeude:
 				{
-					// Wenn es ein Gebäude nicht mehr gibt, geänderte Tabfiles
-					// lassen wir es einfach weg. Das gibt zwar Fundamente ohne
-					// Aufbau, stürzt aber nicht ab.
 					gebaeude_t *gb = new gebaeude_t (welt, file);
 					if(gb->get_tile()==NULL) {
 						// do not remove from this position, since there will be nothing
 						gb->set_flag(ding_t::not_on_map);
 						delete gb;
-						gb  = 0;
+						gb = NULL;
 					}
-					d = gb;
+					else {
+						d = gb;
+					}
 				}
 				break;
 
@@ -1019,17 +1015,17 @@ dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 				// on old versions
 				if(d->get_pos()==current_pos) {
 					file->wr_obj_id(d->get_typ());
-					bei(i)->rdwr(file);
+					d->rdwr(file);
 				}
-				else if(bei(i)->get_pos().get_2d()==current_pos.get_2d()) {
+				else if (d->get_pos().get_2d() == current_pos.get_2d()) {
 					// ok, just error in z direction => we will correct it
-					dbg->warning( "dingliste_t::rdwr()","position error: z pos corrected on %i,%i from %i to %i",bei(i)->get_pos().x,bei(i)->get_pos().y,bei(i)->get_pos().z,current_pos.z);
+					dbg->warning( "dingliste_t::rdwr()","position error: z pos corrected on %i,%i from %i to %i", d->get_pos().x, d->get_pos().y, d->get_pos().z, current_pos.z);
 					file->wr_obj_id(d->get_typ());
-					bei(i)->set_pos( current_pos );
-					bei(i)->rdwr(file);
+					d->set_pos(current_pos);
+					d->rdwr(file);
 				}
 				else {
-					dbg->error( "dingliste_t::rdwr()","unresolvable position error: %i,%i instead %i,%i (object type %i will be not saved!)", bei(i)->get_pos().x, bei(i)->get_pos().y, current_pos.x, current_pos.y, bei(i)->get_typ() );
+					dbg->error("dingliste_t::rdwr()","unresolvable position error: %i,%i instead %i,%i (object type %i will be not saved!)", d->get_pos().x, d->get_pos().y, current_pos.x, current_pos.y, d->get_typ());
 					file->wr_obj_id(-1);
 				}
 			}
@@ -1060,12 +1056,114 @@ void dingliste_t::dump() const
 }
 
 
-
-/* display all things, much faster to do it here ...
- * reset_dirty will be only true for the main display; all miniworld windows should still reset main window ...
- *  @author prissi
+/**
+ * Routine to display background images of non-moving things
+ * powerlines have to be drawn after vehicles (and thus are in the obj-array inserted after vehicles)
+ * @param reset_dirty will be only true for the main display; all miniworld windows should still reset main window
+ * @return the index of the first moving thing (or powerline)
+ *
+ * dingliste_t::display_dinge_bg() .. called by the methods in grund_t
+ * local_display_dinge_bg()        .. local function to avoid code duplication, returns false if the first non-valid obj is reached
+ * @author Dwachs
  */
-void dingliste_t::display_dinge( const sint16 xpos, const sint16 ypos, const uint8 start_offset, const bool reset_dirty ) const
+inline bool local_display_dinge_bg(const ding_t *ding, const sint16 xpos, const sint16 ypos, const bool reset_dirty )
+{
+	const bool display_ding = !ding->is_moving();
+	if (display_ding) {
+		ding->display(xpos, ypos, reset_dirty );
+	}
+	return display_ding;
+}
+
+
+uint8 dingliste_t::display_dinge_bg( const sint16 xpos, const sint16 ypos, const uint8 start_offset, const bool reset_dirty ) const
+{
+	if(start_offset>=top) {
+		return start_offset;
+	}
+
+	if(capacity==1) {
+		if(local_display_dinge_bg(obj.one, xpos, ypos, reset_dirty)) {
+			return 1;
+		}
+		return 0;
+	}
+
+	for(uint8 n=start_offset; n<top; n++) {
+		if (!local_display_dinge_bg(obj.some[n], xpos, ypos, reset_dirty)) {
+			return n;
+		}
+	}
+	return top;
+}
+
+
+/**
+ * Routine to draw vehicles
+ * .. vehicles are draws if driving in direction ribi (with special treatment of flying aircrafts)
+ * .. clips vehicle only along relevant edges (depends on ribi and vehicle direction)
+ * @param ontile if true then vehicles are on the tile that defines the clipping
+ * @param reset_dirty will be only true for the main display; all miniworld windows should still reset main window
+ * @return the index of the first non-moving thing
+ *
+ * dingliste_t::display_dinge_vh() .. called by the methods in grund_t
+ * local_display_dinge_vh()        .. local function to avoid code duplication, returns false if the first non-valid obj is reached
+ * @author Dwachs
+ */
+inline bool local_display_dinge_vh(const ding_t *ding, const sint16 xpos, const sint16 ypos, const bool reset_dirty, const ribi_t::ribi ribi, const bool ontile)
+{
+	vehikel_basis_t const* const v = ding_cast<vehikel_basis_t>(ding);
+	aircraft_t      const*       a;
+	if (v && (ontile || !(a = ding_cast<aircraft_t>(v)) || a->is_on_ground())) {
+		const ribi_t::ribi veh_ribi = v->get_fahrtrichtung();
+		if (ontile || (veh_ribi & ribi)==ribi  ||  (ribi_t::rueckwaerts(veh_ribi) & ribi)==ribi  ||  ding->get_typ()==ding_t::aircraft) {
+			activate_ribi_clip((veh_ribi|ribi_t::rueckwaerts(veh_ribi))&ribi);
+			ding->display(xpos, ypos, reset_dirty );
+		}
+		return true;
+	}
+	else {
+		// if !ontile starting_offset is not correct, hence continue searching till the end
+		return !ontile;
+	}
+}
+
+
+uint8 dingliste_t::display_dinge_vh( const sint16 xpos, const sint16 ypos, const uint8 start_offset, const bool reset_dirty, const ribi_t::ribi ribi, const bool ontile ) const
+{
+	if(start_offset>=top) {
+		return start_offset;
+	}
+
+	if(capacity==1) {
+		if(local_display_dinge_vh(obj.one, xpos, ypos, reset_dirty, ribi, ontile)) {
+			return 1;
+		}
+		else {
+			return 0;
+		}
+	}
+
+	uint8 nr_v = start_offset;
+	for(uint8 n=start_offset; n<top; n++) {
+		if (local_display_dinge_vh(obj.some[n], xpos, ypos, reset_dirty, ribi, ontile)) {
+			nr_v = n;
+		}
+		else {
+			break;
+		}
+	}
+	activate_ribi_clip();
+	return nr_v+1;
+}
+
+
+/**
+ * Routine to draw foreground images of everything on the tile (no clipping) and powerlines
+ * @param start_offset .. draws also background images of all objects with index>=start_offset
+ * @param reset_dirty will be only true for the main display; all miniworld windows should still reset main window
+ */
+void dingliste_t::display_dinge_fg( const sint16 xpos, const sint16 ypos, const uint8 start_offset, const bool reset_dirty ) const
 {
 	if(capacity==0) {
 		return;
@@ -1073,10 +1171,10 @@ void dingliste_t::display_dinge( const sint16 xpos, const sint16 ypos, const uin
 	else if(capacity==1) {
 		if(start_offset==0) {
 			obj.one->display(xpos, ypos, reset_dirty );
-			obj.one->display_after(xpos, ypos, reset_dirty );
-			if(reset_dirty) {
-				obj.one->clear_flag(ding_t::dirty);
-			}
+		}
+		obj.one->display_after(xpos, ypos, reset_dirty );
+		if(reset_dirty) {
+			obj.one->clear_flag(ding_t::dirty);
 		}
 		return;
 	}
@@ -1088,15 +1186,16 @@ void dingliste_t::display_dinge( const sint16 xpos, const sint16 ypos, const uin
 	// foreground (needs to be done backwards!
 	for(int n=top-1; n>=0;  n--) {
 		obj.some[n]->display_after(xpos, ypos, reset_dirty );
-		obj.some[n]->clear_flag(ding_t::dirty);
+		if(reset_dirty) {
+			obj.some[n]->clear_flag(ding_t::dirty);
+		}
 	}
+	return;
 }
 
 
-
 // start next month (good for toogling a seasons)
-void
-dingliste_t::check_season(const long month)
+void dingliste_t::check_season(const long month)
 {
 	slist_tpl<ding_t *>loeschen;
 

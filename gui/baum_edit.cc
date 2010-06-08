@@ -7,7 +7,6 @@
  * (see licence.txt)
  */
 
-#include <algorithm>
 #include <stdio.h>
 
 #include "../simcolor.h"
@@ -39,7 +38,7 @@
 
 
 // new tool definition
-wkz_plant_tree_t baum_edit_frame_t::baum_tool=wkz_plant_tree_t();
+wkz_plant_tree_t baum_edit_frame_t::baum_tool;
 char baum_edit_frame_t::param_str[256];
 
 
@@ -64,7 +63,7 @@ baum_edit_frame_t::baum_edit_frame_t(spieler_t* sp_,karte_t* welt) :
 	offset_of_comp -= BUTTON_HEIGHT;
 
 	besch = NULL;
-	baum_tool.default_param = NULL;
+	baum_tool.set_default_param(NULL);
 
 	fill_list( is_show_trans_name );
 
@@ -79,12 +78,8 @@ void baum_edit_frame_t::fill_list( bool translate )
 	baumlist.clear();
 	const vector_tpl<const baum_besch_t *> *s = baum_t::get_all_besch();
 	for (vector_tpl<const baum_besch_t *>::const_iterator i = s->begin(), end = s->end(); i != end; ++i) {
-		if(*i) {
-			baumlist.append(*i);
-		}
+		baumlist.insert_ordered( *i, compare_baum_besch );
 	}
-
-	std::sort(baumlist.begin(), baumlist.end(), compare_baum_besch);
 
 	// now buil scrolled list
 	scl.clear_elements();
@@ -115,7 +110,7 @@ void baum_edit_frame_t::change_item_info(sint32 entry)
 		besch = baumlist[entry];
 
 		buf.append(translator::translate(besch->get_name()));
-		buf.append("\n");
+		buf.append("\n\n");
 
 		// climates
 		buf.append( translator::translate("allowed climates:\n") );
@@ -127,7 +122,8 @@ void baum_edit_frame_t::change_item_info(sint32 entry)
 		else {
 			for(uint16 i=0;  i<=arctic_climate;  i++  ) {
 				if(cl &  (1<<i)) {
-					buf.append( translator::translate( grund_besch_t::get_climate_name_from_bit( (enum climate)i ) ) );
+					buf.append(" - ");
+					buf.append(translator::translate(grund_besch_t::get_climate_name_from_bit((climate)i)));
 					buf.append("\n");
 				}
 			}
@@ -143,17 +139,17 @@ void baum_edit_frame_t::change_item_info(sint32 entry)
 		}
 
 		info_text.recalc_size();
-		cont.set_groesse( info_text.get_groesse() );
+		cont.set_groesse( info_text.get_groesse() + koord(0, 20) );
 
 		img[3].set_image( besch->get_bild_nr( 0, 3 ) );
 
 		sprintf( param_str, "%i%i,%s", bt_climates.pressed, bt_timeline.pressed, besch->get_name() );
-		baum_tool.default_param = param_str;
+		baum_tool.set_default_param(param_str);
 		baum_tool.cursor = werkzeug_t::general_tool[WKZ_PLANT_TREE]->cursor;
-		welt->set_werkzeug( &baum_tool );
+		welt->set_werkzeug( &baum_tool, sp );
 	}
-	else if(welt->get_werkzeug()==&baum_tool) {
+	else if(welt->get_werkzeug(sp->get_player_nr())==&baum_tool) {
 		besch = NULL;
-		welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+		welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], sp );
 	}
 }

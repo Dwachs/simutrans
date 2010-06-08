@@ -22,6 +22,8 @@
 #include "dataobj/umgebung.h"
 #include "dings/zeiger.h"
 
+#include "simtools.h"
+
 
 karte_ansicht_t::karte_ansicht_t(karte_t *welt)
 {
@@ -43,6 +45,9 @@ static const sint8 hours2night[] =
 void
 karte_ansicht_t::display(bool force_dirty)
 {
+	display_set_image_proc(true);
+
+	uint32 rs = get_random_seed();
 	const sint16 disp_width = display_get_width();
 	const sint16 disp_real_height = display_get_height();
 	const sint16 menu_height = werkzeug_t::toolbar_tool[0]->iconsize.y;
@@ -82,15 +87,15 @@ karte_ansicht_t::display(bool force_dirty)
 	else {
 		// calculate also days if desired
 		uint32 month = welt->get_last_month();
-		const uint32 ticks_this_month = welt->get_zeit_ms() % welt->ticks_per_tag;
+		const uint32 ticks_this_month = welt->get_zeit_ms() % welt->ticks_per_world_month;
 		uint32 stunden2;
-		if(umgebung_t::show_month>1) {
+		if (umgebung_t::show_month > umgebung_t::DATE_FMT_MONTH) {
 			static sint32 tage_per_month[12]={31,28,31,30,31,30,31,31,30,31,30,31};
-			stunden2 = (((sint64)ticks_this_month*tage_per_month[month]) >> (welt->ticks_bits_per_tag-17));
+			stunden2 = (((sint64)ticks_this_month*tage_per_month[month]) >> (welt->ticks_per_world_month_shift-17));
 			stunden2 = ((stunden2*3) / 8192) % 48;
 		}
 		else {
-			stunden2 = ( (ticks_this_month * 3) >> (welt->ticks_bits_per_tag-4) )%48;
+			stunden2 = ( (ticks_this_month * 3) >> (welt->ticks_per_world_month_shift-4) )%48;
 		}
 		display_day_night_shift(hours2night[stunden2]+umgebung_t::daynight_level);
 	}
@@ -98,8 +103,11 @@ karte_ansicht_t::display(bool force_dirty)
 	// not very elegant, but works:
 	// fill everything with black for Underground mode ...
 	if(grund_t::underground_mode) {
-		display_fillbox_wh(0, 32, disp_width, disp_height-menu_height, COL_BLACK, force_dirty);
+		display_fillbox_wh(0, menu_height, disp_width, disp_height-menu_height, COL_BLACK, force_dirty);
 	}
+	// to save calls to grund_t::get_disp_height
+	// gr->get_disp_height() == min(gr->get_hoehe(), hmax_ground)
+	const sint8 hmax_ground = (grund_t::underground_mode==grund_t::ugm_level) ? grund_t::underground_level : 127;
 
 	// first display ground
 	int	y;
@@ -114,15 +122,14 @@ karte_ansicht_t::display(bool force_dirty)
 			const sint16 xpos = x*(IMG_SIZE/2) + const_x_off;
 
 			if(xpos+IMG_SIZE>0  &&  xpos<disp_width) {
-				const planquadrat_t *plan=welt->lookup(koord(i,j));
-				if(plan  &&  plan->get_kartenboden()) {
-					sint16 yypos = ypos - tile_raster_scale_y( plan->get_kartenboden()->get_hoehe()*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE);
+				if (grund_t const* const kb = welt->lookup_kartenboden(koord(i, j))) {
+					sint16 const yypos = ypos - tile_raster_scale_y(min(kb->get_hoehe(), hmax_ground) * TILE_HEIGHT_STEP / Z_TILE_STEP, IMG_SIZE);
 					if(yypos-IMG_SIZE<disp_height  &&  yypos+IMG_SIZE>menu_height) {
-						plan->display_boden(xpos, yypos);
+						kb->display_if_visible(xpos, yypos, IMG_SIZE);
 					}
 				}
 				else {
-					// ouside ...
+					// outside ...
 					display_img(grund_besch_t::ausserhalb->get_bild(hang_t::flach), xpos,ypos - tile_raster_scale_y( welt->get_grundwasser()*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE ), force_dirty);
 				}
 			}
@@ -130,6 +137,7 @@ karte_ansicht_t::display(bool force_dirty)
 	}
 
 	// and then things (and other ground)
+	// especially necessary for vehicles
 	for(y=-dpy_height; y<dpy_height+dpy_width; y++) {
 
 		const sint16 ypos = y*(IMG_SIZE/4) + const_y_off;
@@ -143,9 +151,34 @@ karte_ansicht_t::display(bool force_dirty)
 			if(xpos+IMG_SIZE>0  &&  xpos<disp_width) {
 				const planquadrat_t *plan=welt->lookup(koord(i,j));
 				if(plan  &&  plan->get_kartenboden()) {
-					sint16 yypos = ypos - tile_raster_scale_y( plan->get_kartenboden()->get_hoehe()*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE);
+					const grund_t *gr = plan->get_kartenboden();
+					// minimum height: ground height for overground,
+					// for the definition of underground_level see grund_t::set_underground_mode
+					const sint8 hmin = min(gr->get_hoehe(), grund_t::underground_level);
+
+					// maximum height: 127 for overground, undergroundlevel for sliced, ground height-1 for complete underground view
+					const sint8 hmax = grund_t::underground_mode==grund_t::ugm_all ? gr->get_hoehe()-(!gr->ist_tunnel()) : grund_t::underground_level;
+
+					/* long version
+					switch(grund_t::underground_mode) {
+						case ugm_all:
+							hmin = -128;
+							hmax = gr->get_hoehe()-(!gr->ist_tunnel());
+							underground_level = -128;
+							break;
+						case ugm_level:
+							hmin = min(gr->get_hoehe(), underground_level);
+							hmax = underground_level;
+							underground_level = level;
+							break;
+						case ugm_none:
+							hmin = gr->get_hoehe();
+							hmax = 127;
+							underground_level = 127;
+					} */
+					sint16 yypos = ypos - tile_raster_scale_y( min(gr->get_hoehe(),hmax_ground)*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE);
 					if(yypos-IMG_SIZE*2<disp_height  &&  yypos+IMG_SIZE>menu_height) {
-						plan->display_dinge(xpos, yypos, IMG_SIZE, true);
+						plan->display_dinge(xpos, yypos, IMG_SIZE, true, hmin, hmax);
 					}
 				}
 			}
@@ -166,9 +199,17 @@ karte_ansicht_t::display(bool force_dirty)
 			if(xpos+IMG_SIZE>0  &&  xpos<disp_width) {
 				const planquadrat_t *plan=welt->lookup(koord(i,j));
 				if(plan  &&  plan->get_kartenboden()) {
-					sint16 yypos = ypos - tile_raster_scale_y( plan->get_kartenboden()->get_hoehe()*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE);
+					const grund_t *gr = plan->get_kartenboden();
+					// minimum height: ground height for overground,
+					// for the definition of underground_level see grund_t::set_underground_mode
+					const sint8 hmin = min(gr->get_hoehe(), grund_t::underground_level);
+
+					// maximum height: 127 for overground, undergroundlevel for sliced, ground height-1 for complete underground view
+					const sint8 hmax = grund_t::underground_mode==grund_t::ugm_all ? gr->get_hoehe()-(!gr->ist_tunnel()) : grund_t::underground_level;
+
+					sint16 yypos = ypos - tile_raster_scale_y( min(gr->get_hoehe(),hmax_ground)*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE);
 					if(yypos-IMG_SIZE<disp_height  &&  yypos+IMG_SIZE>menu_height) {
-						plan->display_overlay(xpos, yypos);
+						plan->display_overlay(xpos, yypos, hmin, hmax);
 					}
 				}
 			}
@@ -182,19 +223,22 @@ karte_ansicht_t::display(bool force_dirty)
 
 		const sint16 x = welt->get_x_off() + (diff.x-diff.y)*(rasterweite/2);
 		const sint16 y = welt->get_y_off() + (diff.x+diff.y)*(rasterweite/4) + tile_raster_scale_y( -zeiger->get_pos().z*TILE_HEIGHT_STEP/Z_TILE_STEP, rasterweite) + ((display_get_width()/rasterweite)&1)*(rasterweite/4);
-		grund_t *gr = welt->lookup( zeiger->get_pos() );
-		if(gr && gr->is_visible()) {
-			const PLAYER_COLOR_VAL transparent = TRANSPARENT25_FLAG|OUTLINE_FLAG| umgebung_t::cursor_overlay_color;
-			if(  gr->get_bild()==IMG_LEER  ) {
-				if(  gr->hat_wege()  ) {
-					display_img_blend( gr->obj_bei(0)->get_bild(), x, y, transparent, 0, true );
+		// mark the cursor position for all tools (except lower/raise)
+		if(zeiger->get_yoff()==Z_PLAN) {
+			grund_t *gr = welt->lookup( zeiger->get_pos() );
+			if(gr && gr->is_visible()) {
+				const PLAYER_COLOR_VAL transparent = TRANSPARENT25_FLAG|OUTLINE_FLAG| umgebung_t::cursor_overlay_color;
+				if(  gr->get_bild()==IMG_LEER  ) {
+					if(  gr->hat_wege()  ) {
+						display_img_blend( gr->obj_bei(0)->get_bild(), x, y, transparent, 0, true );
+					}
+					else {
+						display_img_blend( grund_besch_t::get_ground_tile(0,gr->get_hoehe()), x, y, transparent, 0, true );
+					}
 				}
 				else {
-					display_img_blend( grund_besch_t::get_ground_tile(0,gr->get_hoehe()), x, y, transparent, 0, true );
+					display_img_blend( gr->get_bild(), x, y, transparent, 0, true );
 				}
-			}
-			else {
-				display_img_blend( gr->get_bild(), x, y, transparent, 0, true );
 			}
 		}
 		zeiger->display( x + tile_raster_scale_x( zeiger->get_xoff(), rasterweite), y + tile_raster_scale_y( zeiger->get_yoff(), rasterweite), true );
@@ -209,6 +253,8 @@ karte_ansicht_t::display(bool force_dirty)
 			}
 		}
 	}
+
+	assert( rs == get_random_seed() );
 
 	if(force_dirty) {
 		mark_rect_dirty_wc( 0, 0, display_get_width(), display_get_height() );

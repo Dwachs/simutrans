@@ -7,6 +7,7 @@
 #ifndef simplay_h
 #define simplay_h
 
+#include "../dataobj/pwd_hash.h"
 #include "../simtypes.h"
 #include "../simlinemgmt.h"
 
@@ -30,7 +31,7 @@ enum player_cost {
 	COST_NETWEALTH,     // Total Cash + Assets
 	COST_PROFIT,        // COST_POWERLINES+COST_INCOME-(COST_CONSTRUCTION+COST_VEHICLE_RUN+COST_NEW_VEHICLE+COST_MAINTENANCE)
 	COST_OPERATING_PROFIT, // COST_POWERLINES+COST_INCOME-(COST_VEHICLE_RUN+COST_MAINTENANCE)
-	COST_MARGIN,        // COST_OPERATING_PROFIT/(COST_VEHICLE_RUN+COST_MAINTENANCE)
+	COST_MARGIN,        // COST_OPERATING_PROFIT/COST_INCOME
 	COST_ALL_TRANSPORTED, // all transported goods
 	COST_POWERLINES,	  // revenue from the power grid
 	COST_TRANSPORTED_PAS,	// number of passengers that actually reached destination
@@ -47,10 +48,8 @@ enum player_cost {
 
 class karte_t;
 class fabrik_t;
-class stadt_t;
-class gebaeude_t;
 class koord3d;
-class ware_production_t;
+class werkzeug_t;
 
 /**
  * play info for simutrans human and AI are derived from this class
@@ -99,6 +98,9 @@ protected:
 	 */
 	sint64 konto;
 
+	// remember the starting money
+	sint64 starting_money;
+
 	/**
 	 * Zählt wie viele Monate das Konto schon ueberzogen ist
 	 *
@@ -127,7 +129,7 @@ protected:
 
 	int last_message_index;
 
-	void add_message(koord k, int summe);
+	void add_message(koord k, sint32 summe);
 
 	/**
 	 * Kennfarbe (Fahrzeuge, Gebäude) des Speielers
@@ -159,10 +161,26 @@ protected:
 	 */
 	bool automat;
 
+	/**
+	 * Are this player allowed to do any changes?
+	 * @author Hj. Malthaner
+	 */
+	bool locked;
+
+	// contains the password hash for local games
+	pwd_hash_t pwd_hash;
+
 public:
 	virtual bool set_active( bool b ) { return automat = b; }
 
 	bool is_active() const { return automat; }
+
+	bool is_locked() const { return locked; }
+
+	bool set_unlock( uint8 *hash );
+
+	// some routine needs this for direct manipulation
+	pwd_hash_t& get_password_hash() { return pwd_hash; }
 
 	// this type of AIs identifier
 	virtual uint8 get_ai_id() { return HUMAN; }
@@ -216,13 +234,13 @@ public:
 	}
 
 	// Owen Rudge, finances
-	void buche(sint64 betrag, koord k, enum player_cost type);
+	void buche(sint64 betrag, koord k, player_cost type);
 
 	// do the internal accounting (currently only used externally for running costs of convois)
-	void buche(sint64 betrag, enum player_cost type);
+	void buche(sint64 betrag, player_cost type);
 
 	// this is also save to be called with sp==NULL, which may happen for unowned objects like bridges, ways, trees, ...
-	static void accounting( spieler_t *sp, const sint64 betrag, koord k, enum player_cost pc );
+	static void accounting(spieler_t* sp, sint64 betrag, koord k, player_cost pc);
 
 	/**
 	 * @return Kontostand als double (Gleitkomma) Wert
@@ -289,7 +307,7 @@ public:
 	 * @param file die offene Save-Datei
 	 * @author Hj. Malthaner
 	 */
-	void rdwr(loadsave_t *file);
+	virtual void rdwr(loadsave_t *file);
 
 	/*
 	 * called after game is fully loaded;
@@ -337,6 +355,25 @@ public:
 	 * @date 26-Nov-2001
 	 */
 	virtual void bescheid_vehikel_problem(convoihandle_t cnv,const koord3d ziel);
+
+	/**
+	 * Tells the player the result of tool-work commands
+	 * If player is active then play sound, popup error msg etc
+	 * AI players react upon this call and proceed
+	 * local is true if tool was called by player on our client
+	 * @author Dwachs
+	 */
+	virtual void tell_tool_result(werkzeug_t *tool, koord3d pos, const char *err, bool local);
+
+	/**
+	 * Tells the player that the factory
+	 * is going to be deleted (flag==0)
+	 * Bernd Gabriel, Dwachs
+	 */
+	enum notification_factory_t {
+		notify_delete	// notified immediately before object is deleted (and before nulled in the slist_tpl<>)!
+	};
+	virtual void notify_factory(notification_factory_t, const fabrik_t*) {}
 
 private:
 	/* undo informations *

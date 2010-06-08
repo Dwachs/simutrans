@@ -17,51 +17,53 @@
 #include "../dataobj/einstellungen.h"
 #include "../dataobj/umgebung.h"
 #include "../dataobj/translator.h"
+#include "../dings/zeiger.h"
 #include "../simgraph.h"
+#include "../simmenu.h"
 
 #include "../utils/simstring.h"
 
-#define MAX_BUTTONS (20)
-
 // y coordinates
-#define GRID_MODE			(0*13+6)
-#define UNDERGROUND		(1*13+6)
-#define DAY_NIGHT			(2*13+6)
-#define BRIGHTNESS		(3*13+6)
-#define SCROLL_INVERS (4*13+6)
-#define SCROLL_SPEED	(5*13+6)
+#define GRID_MODE			(6)
+#define UNDERGROUND		(GRID_MODE+13)
+#define SLICE			(UNDERGROUND+13)
+#define DAY_NIGHT			(SLICE+13)
+#define BRIGHTNESS		(DAY_NIGHT+13)
+#define SCROLL_INVERS (BRIGHTNESS+13)
+#define SCROLL_SPEED	(SCROLL_INVERS+13)
 
-#define SEPERATE1 (6*13+6)
+#define SEPERATE1 (SCROLL_SPEED+13)
 
-#define USE_TRANSPARENCY	(6*13+6+4)
-#define HIDE_TREES				(7*13+6+4)
-#define HIDE_CITY_HOUSES	(8*13+6+4)
+#define USE_TRANSPARENCY	(SEPERATE1+4)
+#define HIDE_TREES				(USE_TRANSPARENCY+13)
+#define HIDE_CITY_HOUSES	(HIDE_TREES+13)
 
-#define SEPERATE2 (9*13+6+4)
+#define SEPERATE2 (HIDE_CITY_HOUSES+13)
 
-#define USE_TRANSPARENCY_STATIONS	(9*13+6+2*4)
-#define SHOW_STATION_COVERAGE			(10*13+6+2*4)
-#define SHOW_STATION_SIGNS				(11*13+6+2*4)
-#define SHOW_STATION_GOODS				(12*13+6+2*4)
+#define USE_TRANSPARENCY_STATIONS	(SEPERATE2+4)
+#define SHOW_STATION_COVERAGE			(USE_TRANSPARENCY_STATIONS+13)
+#define SHOW_STATION_SIGNS				(SHOW_STATION_COVERAGE+13)
+#define SHOW_STATION_GOODS				(SHOW_STATION_SIGNS+13)
 
-#define SEPERATE3	(13*13+6+2*4)
+#define SEPERATE3	(SHOW_STATION_GOODS+13)
 
-#define CITY_WALKER								(13*13+6+3*4)
-#define STOP_WALKER								(14*13+6+3*4)
-#define DENS_TRAFFIC							(15*13+6+3*4)
-#define CONVOI_TOOLTIPS							(16*13+6+3*4)
+#define CITY_WALKER								(SEPERATE3+4)
+#define STOP_WALKER								(CITY_WALKER+13)
+#define DENS_TRAFFIC							(STOP_WALKER+13)
+#define CONVOI_TOOLTIPS							(DENS_TRAFFIC+13)
 
-#define SEPERATE4	(17*13+6+3*4)
+#define SEPERATE4	(CONVOI_TOOLTIPS+13)
 
-#define FPS_DATA (17*13+6+4*4)
-#define IDLE_DATA (18*13+6+4*4)
-#define FRAME_DATA (19*13+6+4*4)
-#define LOOP_DATA (20*13+6+4*4)
+#define FPS_DATA (SEPERATE4+4)
+#define IDLE_DATA (FPS_DATA+13)
+#define FRAME_DATA (IDLE_DATA+13)
+#define LOOP_DATA (FRAME_DATA+13)
 
-#define BOTTOM (21*13+6+12+5*4)
+#define BOTTOM (LOOP_DATA+30)
 
 // x coordinates
 #define RIGHT_WIDTH (220)
+#define NUMBER_INP (170)
 
 
 
@@ -157,13 +159,24 @@ color_gui_t::color_gui_t(karte_t *welt) :
 	buttons[19].set_text("show waiting bars");
 	buttons[19].pressed = umgebung_t::show_names&1;
 
+	buttons[20].set_pos( koord(10,SLICE) );
+	buttons[20].set_typ(button_t::square_state);
+	buttons[20].set_text("sliced underground mode");
+
+	inp_underground_level.set_pos(koord(NUMBER_INP, SLICE) );
+	inp_underground_level.set_groesse( koord(50,12));
+	inp_underground_level.set_limits(welt->get_grundwasser()-10, 32);
+	inp_underground_level.set_value( grund_t::underground_mode==grund_t::ugm_level ? grund_t::underground_level : welt->get_zeiger()->get_pos().z);
+	add_komponente(&inp_underground_level);
+	inp_underground_level.add_listener(this);
+
 	// left/right for convoi tooltips
 	buttons[0].set_pos( koord(10,CONVOI_TOOLTIPS) );
 	buttons[0].set_typ(button_t::arrowleft);
 	buttons[1].set_pos( koord(RIGHT_WIDTH-10-10,CONVOI_TOOLTIPS) );
 	buttons[1].set_typ(button_t::arrowright);
 
-	for(int i=0;  i<MAX_BUTTONS;  i++ ) {
+	for(int i=0;  i<COLORS_MAX_BUTTONS;  i++ ) {
 		buttons[i].add_listener(this);
 		add_komponente( buttons+i );
 	}
@@ -173,15 +186,20 @@ color_gui_t::color_gui_t(karte_t *welt) :
 
 
 
-bool
-color_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
+bool color_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
 {
-	einstellungen_t * sets = welt->get_einstellungen();
-
 	if(&brightness==komp) {
 		umgebung_t::daynight_level = v.i;
 	} else if(&traffic_density==komp) {
-		sets->set_verkehr_level( v.i );
+		if(  !umgebung_t::networkmode  ||  welt->get_active_player_nr()==1  ) {
+			static char level[16];
+			sprintf(level, "%li", v.i);
+			werkzeug_t::simple_tool[WKZ_TOOGLE_PEDESTRIANS&0xFFF]->set_default_param( level );
+			welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_TOOGLE_PEDESTRIANS&0xFFF], welt->get_active_player() );
+		}
+		else {
+			traffic_density.set_value( welt->get_einstellungen()->get_verkehr_level() );
+		}
 	} else if(&scrollspeed==komp) {
 		umgebung_t::scroll_multi = buttons[6].pressed ? -v.i : v.i;
 	} else if((buttons+0)==komp) {
@@ -192,11 +210,13 @@ color_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
 		buttons[6].pressed ^= 1;
 		umgebung_t::scroll_multi = -umgebung_t::scroll_multi;
 	} else if((buttons+7)==komp) {
-		welt->get_einstellungen()->set_show_pax( !welt->get_einstellungen()->get_show_pax() );
-		buttons[7].pressed ^= 1;
+		if(  !umgebung_t::networkmode  ||  welt->get_active_player_nr()==1  ) {
+			welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_TOOGLE_PAX&0xFFF], welt->get_active_player() );
+		}
 	} else if((buttons+8)==komp) {
-		welt->get_einstellungen()->set_random_pedestrians( !welt->get_einstellungen()->get_random_pedestrians() );
-		buttons[8].pressed ^= 1;
+		if(  !umgebung_t::networkmode  ||  welt->get_active_player_nr()==1  ) {
+			welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_TOOGLE_PEDESTRIANS&0xFFF], welt->get_active_player() );
+		}
 	} else if((buttons+9)==komp) {
 		umgebung_t::night_shift = !umgebung_t::night_shift;
 		buttons[9].pressed ^= 1;
@@ -215,23 +235,33 @@ color_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
 	} else if((buttons+15)==komp) {
 		umgebung_t::station_coverage_show = umgebung_t::station_coverage_show==0 ? 0xFF : 0;
 	} else if((buttons+16)==komp) {
-		grund_t::underground_mode = !grund_t::underground_mode;
-		for(int y=0; y<welt->get_groesse_y(); y++) {
-			for(int x=0; x<welt->get_groesse_x(); x++) {
-				const planquadrat_t *plan = welt->lookup(koord(x,y));
-				const int boden_count = plan->get_boden_count();
-				for(int schicht=0; schicht<boden_count; schicht++) {
-					grund_t *gr = plan->get_boden_bei(schicht);
-					gr->calc_bild();
-				}
-			}
-		}
+		// see simwerkz.cc::wkz_show_underground_t::init
+		grund_t::set_underground_mode(buttons[16].pressed ? grund_t::ugm_none : grund_t::ugm_all, inp_underground_level.get_value());
+		buttons[16].pressed = grund_t::underground_mode == grund_t::ugm_all;
+		// calc new images
+		welt->update_map();
+		// renew toolbar
+		werkzeug_t::update_toolbars(welt);
 	} else if((buttons+17)==komp) {
 		grund_t::toggle_grid();
 	} else if((buttons+18)==komp) {
 		umgebung_t::show_names ^= 1;
 	} else if((buttons+19)==komp) {
 		umgebung_t::show_names ^= 2;
+	} else if((buttons+20)==komp) {
+		// see simwerkz.cc::wkz_show_underground_t::init
+		grund_t::set_underground_mode(buttons[20].pressed ? grund_t::ugm_none : grund_t::ugm_level, inp_underground_level.get_value());
+		buttons[20].pressed = grund_t::underground_mode == grund_t::ugm_level;
+		// calc new images
+		welt->update_map();
+		// renew toolbar
+		werkzeug_t::update_toolbars(welt);
+	} else if (komp == &inp_underground_level) {
+		if(grund_t::underground_mode==grund_t::ugm_level) {
+			grund_t::underground_level = inp_underground_level.get_value();
+			// calc new images
+			welt->update_map();
+		}
 	}
 	welt->set_dirty();
 	return true;
@@ -244,16 +274,18 @@ void color_gui_t::zeichnen(koord pos, koord gr)
 {
 	const int x = pos.x;
 	const int y = pos.y+16;	// compensate for title bar
-	const einstellungen_t * sets = welt->get_einstellungen();
 	char buf[128];
 
 	// can be changed also with keys ...
+	buttons[7].pressed = welt->get_einstellungen()->get_show_pax();
+	buttons[8].pressed = welt->get_einstellungen()->get_random_pedestrians();
 	buttons[11].pressed = umgebung_t::hide_trees;
 	buttons[15].pressed = umgebung_t::station_coverage_show;
-	buttons[16].pressed = grund_t::underground_mode;
+	buttons[16].pressed = grund_t::underground_mode == grund_t::ugm_all;
 	buttons[17].pressed = grund_t::show_grid;
 	buttons[18].pressed = umgebung_t::show_names&1;
 	buttons[19].pressed = (umgebung_t::show_names&2)!=0;
+	buttons[20].pressed = grund_t::underground_mode == grund_t::ugm_level;
 
 	gui_frame_t::zeichnen(pos, gr);
 

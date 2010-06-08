@@ -29,11 +29,13 @@ protected:
 
 	enum { SHOW_FONT=1, SHOW_BACK=2, SWITCH_AUTOMATIC=16 };
 
-	uint8 zustand;	// counter for steps ...
+	uint8 zustand:3;	// counter for steps ...
+	uint8 dir:4;
 
 	uint8 automatic:1;
+	uint8 ticks_ns;
+	uint8 ticks_ow;
 
-	uint8 dir;
 
 	sint8 after_offset;
 
@@ -49,10 +51,10 @@ public:
 	ribi_t::ribi get_dir() const 	{ return dir; }
 	void set_dir(ribi_t::ribi dir);
 
-	void set_zustand(enum signalzustand z) {zustand = z; calc_bild();}
-	enum signalzustand get_zustand() {return (enum signalzustand)zustand;}
+	void set_zustand(signalzustand z) {zustand = z; calc_bild();}
+	signalzustand get_zustand() { return (signalzustand)zustand; }
 
-	virtual enum ding_t::typ get_typ() const { return roadsign; }
+	typ get_typ() const { return roadsign; }
 	const char* get_name() const { return "Roadsign"; }
 
 	roadsign_t(karte_t *welt, loadsave_t *file);
@@ -65,6 +67,9 @@ public:
 	 * Blockstrecke abgemeldet werden
 	 */
 	~roadsign_t();
+
+	// since traffic lights need their own window
+	void zeige_info();
 
 	/**
 	 * @return Einen Beschreibungsstring für das Objekt, der z.B. in einem
@@ -79,10 +84,16 @@ public:
 	virtual void calc_bild();
 
 	// true, if a free route choose point (these are always single way the avoid recalculation of long return routes)
-	bool is_free_route(uint8 check_dir) const { return besch->is_free_route() &&  check_dir == dir; }
+	bool is_free_route(uint8 check_dir) const { return besch->is_choose_sign() &&  check_dir == dir; }
 
 	// changes the state of a traffic light
 	bool sync_step(long);
+
+	// change the phases of the traffic lights
+	uint8 get_ticks_ns() const { return ticks_ns; }
+	void set_ticks_ns(uint8 ns) { ticks_ns = ns; }
+	uint8 get_ticks_ow() const { return ticks_ow; }
+	void set_ticks_ow(uint8 ow) { ticks_ow = ow; }
 
 	inline void set_bild( image_id b ) { bild = b; }
 	image_id get_bild() const { return bild; }
@@ -125,7 +136,7 @@ public:
 	 * Fill menu with icons of given stops from the list
 	 * @author Hj. Malthaner
 	 */
-	static void fill_menu(werkzeug_waehler_t *wzw, waytype_t wtyp, const karte_t *welt);
+	static void fill_menu(werkzeug_waehler_t *wzw, waytype_t wtyp, sint16 sound_ok, const karte_t *welt);
 
 	static const roadsign_besch_t *roadsign_search(uint8 flag,const waytype_t wt,const uint16 time);
 

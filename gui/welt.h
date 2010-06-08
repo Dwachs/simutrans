@@ -37,7 +37,6 @@ private:
 	*/
 	unsigned char karte[preview_size*preview_size];
 
-	char map_number_s[16];
 	bool load_heightfield, loaded_heightfield;
 	bool load;
 	bool start;
@@ -64,7 +63,7 @@ private:
 	button_t use_intro_dates;
 	button_t allow_player_change;
 
-	button_t open_climate_gui, open_sprach_gui;
+	button_t open_climate_gui, open_setting_gui;
 
 	button_t load_game;
 	button_t load_scenario;

@@ -18,7 +18,7 @@ fi
 distribute()
 {
 	# pack all files of the current release
-	FILELISTE=`find simutrans -type f "(" -name "*.tab" -o -name "*.mid" -o -name "*.bdf" -o -name "*.fnt" -o -name "*.txt"  -o -name "*.dll" ")"`
+	FILELISTE=`find simutrans -type f "(" -name "*.tab" -o -name "*.mid" -o -name "*.bdf" -o -name "*.fnt" -o -name "*.txt"  -o -name "*.dll"  -o -name "*.pak" ")"`
 	zip -9 $simarchiv.zip $FILELISTE simutrans/simutrans$simexe
 }
 
@@ -30,7 +30,7 @@ cd text
 # get the translations for basis
 # The first file is longer, but only because it contains SQL error messages
 # - discard it after complete download (although parsing it would give us the archive's name):
-wget --post-data "version=0&choice=all&submit=Export!" --delete-after http://simutrans-germany.com/translator/script/wrap.php || {
+wget --post-data "version=0&choice=all&submit=Export!" --delete-after http://simutrans-germany.com/translator/script/main.php?page=wrap || {
   echo "Error: generating file language_pack-Base+texts.zip failed (wget returned $?)" >&2;
   exit 3;
 }

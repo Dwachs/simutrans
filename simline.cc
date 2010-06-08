@@ -11,7 +11,9 @@
 #include "simlinemgmt.h"
 
 
-uint8 simline_t::convoi_to_line_catgory[MAX_CONVOI_COST]={LINE_CAPACITY, LINE_TRANSPORTED_GOODS, LINE_REVENUE, LINE_OPERATIONS, LINE_PROFIT };
+uint8 simline_t::convoi_to_line_catgory[MAX_CONVOI_COST] = {
+	LINE_CAPACITY, LINE_TRANSPORTED_GOODS, LINE_REVENUE, LINE_OPERATIONS, LINE_PROFIT, LINE_DISTANCE
+};
 
 karte_t *simline_t::welt=NULL;
 
@@ -27,6 +29,7 @@ simline_t::simline_t(karte_t* welt, spieler_t* sp)
 	this->old_fpl = NULL;
 	this->fpl = NULL;
 	this->sp = sp;
+	withdraw = false;
 	state_color = COL_YELLOW;
 }
 
@@ -42,22 +45,13 @@ void simline_t::set_line_id(uint32 id)
 
 simline_t::~simline_t()
 {
-	sint32 count = count_convoys() - 1;
-	for(  sint32 i = count;  i>=0;  i--  ) 	{
-		DBG_DEBUG("simline_t::~simline_t()", "convoi '%d' removed", i);
-		DBG_DEBUG("simline_t::~simline_t()", "convoi '%d'->fpl=%p", i, get_convoy(i)->get_schedule());
-
-		// Hajo: take care - this call will do "remove_convoi()"
-		// on our list!
-		get_convoy(i)->unset_line();
-	}
-	unregister_stops();
-
 	DBG_DEBUG("simline_t::~simline_t()", "deleting fpl=%p and old_fpl=%p", fpl, old_fpl);
+
+	assert(count_convoys()==0);
+	unregister_stops();
 
 	delete fpl;
 	delete old_fpl;
-
 	self.detach();
 
 	DBG_MESSAGE("simline_t::~simline_t()", "line %d (%p) destroyed", id, this);
@@ -74,16 +68,14 @@ void simline_t::add_convoy(convoihandle_t cnv)
 
 	// first convoi may change line type
 	if (type == trainline  &&  line_managed_convoys.empty() &&  cnv.is_bound()) {
-		if(cnv->get_vehikel(0)) {
-			// check, if needed to convert to tram line?
-			if(cnv->get_vehikel(0)->get_besch()->get_waytype()==tram_wt) {
-				type = simline_t::tramline;
-			}
-			// check, if needed to convert to monorail line?
-			if(cnv->get_vehikel(0)->get_besch()->get_waytype()==monorail_wt) {
-				type = simline_t::monorailline;
+		// check, if needed to convert to tram/monorail line
+		if (vehikel_t const* const v = cnv->front()) {
+			switch (v->get_besch()->get_waytype()) {
+				case tram_wt:     type = simline_t::tramline;     break;
 				// elevated monorail were saved with wrong coordinates for some versions.
 				// We try to recover here
+				case monorail_wt: type = simline_t::monorailline; break;
+				default:          break;
 			}
 		}
 	}
@@ -93,17 +85,11 @@ void simline_t::add_convoy(convoihandle_t cnv)
 	// what goods can this line transport?
 	bool update_schedules = false;
 	if(  cnv->get_state()!=convoi_t::INITIAL  ) {
-		// already on the road => need to add them
-		for(uint i=0;  i<cnv->get_vehikel_anzahl();  i++  ) {
-			// Only consider vehicles that really transport something
-			// this helps against routing errors through passenger
-			// trains pulling only freight wagons
-			if (cnv->get_vehikel(i)->get_fracht_max() == 0) {
-				continue;
-			}
-			const ware_besch_t *ware=cnv->get_vehikel(i)->get_fracht_typ();
-			if(ware!=warenbauer_t::nichts  &&  !goods_catg_index.is_contained(ware->get_catg_index())) {
-				goods_catg_index.append( ware->get_catg_index(), 1 );
+		const minivec_tpl<uint8> &convoys_goods = cnv->get_goods_catg_index();
+		for(  uint8 i = 0;  i < convoys_goods.get_count();  i++  ) {
+			const uint8 catg_index = convoys_goods[i];
+			if(  !goods_catg_index.is_contained( catg_index )  ) {
+				goods_catg_index.append( catg_index, 1 );
 				update_schedules = true;
 			}
 		}
@@ -142,7 +128,7 @@ void simline_t::rdwr(loadsave_t *file)
 
 	assert(fpl);
 
-	file->rdwr_str(name, sizeof(name));
+	file->rdwr_str(name, lengthof(name));
 	if(file->get_version()<88003) {
 		sint32 dummy=id;
 		file->rdwr_long(dummy, " ");
@@ -154,11 +140,28 @@ void simline_t::rdwr(loadsave_t *file)
 	fpl->rdwr(file);
 
 	//financial history
-	for (int j = 0; j<MAX_LINE_COST; j++) {
+	if(  file->get_version()<=102002  ) {
+		for (int j = 0; j<6; j++) {
+			for (int k = MAX_MONTHS-1; k>=0; k--) {
+				file->rdwr_longlong(financial_history[k][j], " ");
+			}
+		}
 		for (int k = MAX_MONTHS-1; k>=0; k--) {
-			file->rdwr_longlong(financial_history[k][j], " ");
+			financial_history[k][LINE_DISTANCE] = 0;
 		}
 	}
+	else {
+		for (int j = 0; j<MAX_LINE_COST; j++) {
+			for (int k = MAX_MONTHS-1; k>=0; k--) {
+				file->rdwr_longlong(financial_history[k][j], " ");
+			}
+		}
+	}
+
+	if(file->get_version()>=102002) {
+		file->rdwr_bool( withdraw, "" );
+	}
+
 	// otherwise inintialized to zero if loading ...
 	financial_history[0][LINE_CONVOIS] = count_convoys();
 }
@@ -248,7 +251,7 @@ void simline_t::prepare_for_update()
 
 void simline_t::init_financial_history()
 {
-	memset( financial_history, 0, sizeof(financial_history) );
+	MEMZERO(financial_history);
 }
 
 
@@ -262,6 +265,7 @@ void simline_t::recalc_status()
 	if(financial_history[0][LINE_CONVOIS]==0) {
 		// noconvois assigned to this line
 		state_color = COL_WHITE;
+		withdraw = false;
 	}
 	else if(financial_history[0][LINE_PROFIT]<0) {
 		// ok, not performing best
@@ -296,22 +300,18 @@ void simline_t::recalc_catg_index()
 		old_goods_catg_index.append( goods_catg_index[i] );
 	}
 	goods_catg_index.clear();
+	withdraw = line_managed_convoys.get_count()>0;
 	// then recreate current
 	for(unsigned i=0;  i<line_managed_convoys.get_count();  i++ ) {
 		// what goods can this line transport?
-//		const convoihandle_t cnv = line_managed_convoys[i];
+		// const convoihandle_t cnv = line_managed_convoys[i];
 		const convoi_t *cnv = line_managed_convoys[i].get_rep();
-		for(uint i=0;  i<cnv->get_vehikel_anzahl();  i++  ) {
-			// Only consider vehicles that really transport something
-			// this helps against routing errors through passenger
-			// trains pulling only freight wagons
-			if (cnv->get_vehikel(i)->get_fracht_max() == 0) {
-				continue;
-			}
-			const ware_besch_t *ware=cnv->get_vehikel(i)->get_fracht_typ();
-			if(ware!=warenbauer_t::nichts  ) {
-				goods_catg_index.append_unique( ware->get_catg_index(), 1 );
-			}
+		withdraw &= cnv->get_withdraw();
+
+		const minivec_tpl<uint8> &convoys_goods = cnv->get_goods_catg_index();
+		for(  uint8 i = 0;  i < convoys_goods.get_count();  i++  ) {
+			const uint8 catg_index = convoys_goods[i];
+			goods_catg_index.append_unique( catg_index, 1 );
 		}
 	}
 	// if different => schedule need recalculation
@@ -328,5 +328,17 @@ void simline_t::recalc_catg_index()
 				break;
 			}
 		}
+	}
+}
+
+
+
+void simline_t::set_withdraw( bool yes_no )
+{
+	withdraw = yes_no  &&  (line_managed_convoys.get_count()>0);
+	// convois in depots will be immeadiately destroyed, thus we go backwards
+	for( sint32 i=line_managed_convoys.get_count()-1;  i>=0;  i--  ) {
+		line_managed_convoys[i]->set_no_load(yes_no);	// must be first, since set withdraw might destroy convoi if in depot!
+		line_managed_convoys[i]->set_withdraw(yes_no);
 	}
 }

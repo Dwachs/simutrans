@@ -27,7 +27,7 @@ class schedule_list_gui_t : public gui_frame_t, public action_listener_t
 private:
 	spieler_t *sp;
 
-	button_t bt_new_line, bt_change_line, bt_delete_line;
+	button_t bt_new_line, bt_change_line, bt_delete_line, bt_withdraw_line;;
 	gui_container_t cont, cont_haltestellen;
 	gui_scrollpane_t scrolly, scrolly_haltestellen;
 	gui_scrolled_list_t scl;
@@ -37,12 +37,11 @@ private:
 	button_t filterButtons[MAX_LINE_COST];
 	gui_tab_panel_t tabs;
 
-	static const char cost_type[MAX_LINE_COST][64];
-	static const int cost_type_color[MAX_LINE_COST];
-	static uint8 statistic[MAX_LINE_COST];
-	static uint8 statistic_type[MAX_LINE_COST];
-
 	sint32 selection, capacity, load, loadfactor;
+
+	sint32 old_line_count;
+	sint32 last_schedule_count;
+	sint32 last_vehicle_count;
 
 	void display(koord pos);
 

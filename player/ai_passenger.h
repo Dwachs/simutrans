@@ -27,7 +27,7 @@ private:
 	};
 
 	// vars für die KI
-	enum zustand state;
+	zustand state;
 
 	/*
 	 * if this is false, this AI won't use rails
@@ -98,10 +98,9 @@ public:
 
 	virtual void bescheid_vehikel_problem(convoihandle_t cnv,const koord3d ziel);
 
-	void rdwr(loadsave_t *file);
+	virtual void rdwr(loadsave_t *file);
 
 	bool set_active( bool b );
 
 	void step();
 };
-

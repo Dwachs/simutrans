@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2001 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2001 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -11,22 +11,19 @@
 #include "../boden/wege/weg.h"
 #include "../tpl/vector_tpl.h"
 #include "../simtypes.h"
-#include "../simwerkz.h"
 
 
 class weg_besch_t;
-class kreuzung_besch_t;
 class bruecke_besch_t;
 class tunnel_besch_t;
 class karte_t;
 class spieler_t;
 class grund_t;
-
-class werkzeug_parameter_waehler_t;
+class werkzeug_waehler_t;
 
 
 /**
- * Diese Klasse übernimmt Wegsuche und Bau von Strassen, Schienen etc.
+ * way building class with its own route finding
  * @author Hj. Malthaner
  */
 class wegbauer_t
@@ -34,7 +31,7 @@ class wegbauer_t
 public:
 	static const weg_besch_t *leitung_besch;
 
-	static bool register_besch(const weg_besch_t *besch);
+	static bool register_besch(weg_besch_t *besch);
 	static bool alle_wege_geladen();
 
 	// generates timeline message
@@ -48,11 +45,13 @@ public:
 
 	static const weg_besch_t * get_besch(const char *way_name,const uint16 time=0);
 
+	static const weg_besch_t *get_earliest_way(const waytype_t wtyp);
+
 	/**
 	 * Fill menu with icons of given waytype
 	 * @author Hj. Malthaner
 	 */
-	static void fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const weg_t::system_type styp, karte_t *welt );
+	static void fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const weg_t::system_type styp, sint16 ok_sound, karte_t *welt );
 
 	enum bautyp_t {
 		strasse=road_wt,
@@ -82,16 +81,13 @@ private:
 	};
 	vector_tpl<next_gr_t> next_gr;
 
-	enum { unseen = 9999999 };
-	enum { max_route_laenge = 1024 };
-
 	spieler_t *sp;
 
 	/**
 	 * Type of building operation
 	 * @author Hj. Malthaner
 	 */
-	enum bautyp_t bautyp;
+	bautyp_t bautyp;
 
 	/**
 	 * Type of way to build
@@ -123,12 +119,7 @@ private:
 	karte_t *welt;
 	uint32 maximum;    // hoechste Suchtiefe
 
-	vector_tpl<koord3d> route;
-
-	koord3d position_bei(unsigned i) const { return route[i]; }
-
-	// allowed owner?
-	bool check_owner( const spieler_t *sp1, const spieler_t *sp2 ) const;
+	koord3d_vector_t route;
 
 	// allowed slope?
 	bool check_slope( const grund_t *from, const grund_t *to );
@@ -151,8 +142,6 @@ private:
 	// runways need to meet some special conditions enforced here
 	bool intern_calc_route_runways(koord3d start, const koord3d ziel);
 
-	ribi_t::ribi calc_ribi(int step);
-
 	void baue_tunnel_und_bruecken();
 
 	// adds the ground before underground construction (always called before the following construction routines)
@@ -169,9 +158,11 @@ private:
 	uint32 calc_distance( const koord3d &pos, const koord3d &mini, const koord3d &maxi );
 
 public:
-	koord3d get_route_bei(int i) const { return route[i]; }
+	const koord3d_vector_t &get_route() const { return route; }
 
-	sint32 n, max_n;
+	uint32 get_count() const { return route.get_count(); }
+
+	sint32 n;
 
 	/**
 	 * If a way is built on top of another way, should the type
@@ -191,7 +182,7 @@ public:
 	 */
 	void set_keep_city_roads(bool yesno) { keep_existing_city_roads = yesno; }
 
-	void route_fuer(enum bautyp_t wt, const weg_besch_t * besch, const tunnel_besch_t *tunnel_besch=NULL, const bruecke_besch_t *bruecke_besch=NULL);
+	void route_fuer(bautyp_t wt, const weg_besch_t * besch, const tunnel_besch_t *tunnel_besch=NULL, const bruecke_besch_t *bruecke_besch=NULL);
 
 	void set_maximum(uint32 n) { maximum = n; }
 
@@ -204,10 +195,12 @@ public:
 	/* returns the amount needed to built this way
 	* author prissi
 	*/
-	long calc_costs();
+	sint64 calc_costs();
 
 	bool check_crossing(const koord zv, const grund_t *bd,waytype_t wtyp, const spieler_t *sp) const;
 	bool check_for_leitung(const koord zv, const grund_t *bd) const;
+	// allowed owner?
+	bool check_owner( const spieler_t *sp1, const spieler_t *sp2 ) const;
 
 	void baue();
 };

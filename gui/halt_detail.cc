@@ -24,7 +24,7 @@
 
 
 halt_detail_t::halt_detail_t(halthandle_t halt_) :
-	gui_frame_t(translator::translate("Details"), halt_->get_besitzer()),
+	gui_frame_t("Details", halt_->get_besitzer()),
 	halt(halt_),
 	scrolly(&cont),
 	txt_info(" \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n"
@@ -45,7 +45,8 @@ halt_detail_t::halt_detail_t(halthandle_t halt_) :
 	const koord size = txt_info.get_groesse();
 	if (size.y < 400) {
 		set_fenstergroesse(koord(300, size.y + 32));
-	} else {
+	}
+	else {
 		set_fenstergroesse(koord(300, 400));
 	}
 
@@ -135,7 +136,8 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 				}
 			}
 		}
-	} else {
+	}
+	else {
 		buf.append(" ");
 		buf.append(translator::translate("keine"));
 		buf.append("\n");
@@ -149,18 +151,19 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 	buf.append(":\n");
 	offset_y += LINESPACE;
 
-	if (!nimmt_an.empty()) {
+	if (!nimmt_an.empty()  &&  halt->get_ware_enabled()) {
 		for(uint32 i=0; i<warenbauer_t::get_waren_anzahl(); i++) {
 			const ware_besch_t *ware = warenbauer_t::get_info(i);
 			if(nimmt_an.is_contained(ware)) {
 
-				buf.append(" ");
+				buf.append(" - ");
 				buf.append(translator::translate(ware->get_name()));
 				buf.append("\n");
 				offset_y += LINESPACE;
 			}
 		}
-	} else {
+	}
+	else {
 		buf.append(" ");
 		buf.append(translator::translate("keine"));
 		buf.append("\n");
@@ -256,6 +259,7 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 
 	// ok, we have now this counter for pending updates
 	destination_counter = halt->get_rebuild_destination_counter();
+	cached_line_count = halt->registered_lines.get_count();
 }
 
 
@@ -291,7 +295,7 @@ bool halt_detail_t::action_triggered( gui_action_creator_t *, value_t extra)
 void halt_detail_t::zeichnen(koord pos, koord gr)
 {
 	if(halt.is_bound()) {
-		if(halt->get_rebuild_destination_counter()!=destination_counter || cached_active_player!=halt->get_welt()->get_active_player()) {
+		if(  halt->get_rebuild_destination_counter()!=destination_counter  ||  cached_active_player!=halt->get_welt()->get_active_player()  ||  halt->registered_lines.get_count()!=cached_line_count  ) {
 			// fill buffer with halt detail
 			halt_detail_info(cb_info_buffer);
 			txt_info.set_text(cb_info_buffer);

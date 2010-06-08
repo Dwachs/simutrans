@@ -13,7 +13,7 @@ static void read_png(unsigned char** block, unsigned* width, unsigned* height, F
 	png_bytep* row_pointers;
 	unsigned row, x, y;
 	int rowbytes;
-	char* dst;
+	unsigned char* dst;
 
 	//png_uint_32 is 64 bit on some architectures!
 	png_uint_32 widthpu32,heightpu32;
@@ -65,20 +65,25 @@ static void read_png(unsigned char** block, unsigned* width, unsigned* height, F
 	// printf("read_png: width=%d, height=%d, bit_depth=%d\n", width, height, bit_depth);
 	// printf("read_png: color_type=%d, interlace_type=%d\n", color_type, interlace_type);
 
-
 	/* tell libpng to strip 16 bit/color files down to 8 bits/color */
 	png_set_strip_16(png_ptr);
-
 
 	/* Extract multiple pixels with bit depths of 1, 2, and 4 from a single
 	 * byte into separate bytes (useful for paletted and grayscale images).
 	 */
 	png_set_packing(png_ptr);
 
-
 	/* Expand paletted colors into true RGB triplets */
 	png_set_expand(png_ptr);
 
+	/* Don't output alpha channel */
+	png_set_strip_alpha(png_ptr);
+
+	if ((info_ptr->color_type & PNG_COLOR_MASK_ALPHA) == PNG_COLOR_MASK_ALPHA) {
+		printf("WARNING: ignoring alpha channel\n");
+		// author note: It might be that this won't catch files with format
+		// palette + transparency, which is a really rare but possible combination.
+	}
 
 	png_start_read_image(png_ptr);
 

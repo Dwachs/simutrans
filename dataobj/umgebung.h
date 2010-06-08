@@ -35,7 +35,18 @@ public:
 
 	static cstring_t objfilename;
 
-	// scrollrichtung
+	// true, if we are in networkmode
+	static bool networkmode;
+	static long server_frames_ahead;
+	static long server_ms_ahead;
+	static long network_frames_per_step;
+	// how often to synchronize
+	static uint32 server_sync_steps_between_checks;
+
+	// true, if we are the server
+	static bool server;
+
+// scrollrichtung
 	static sint16 scroll_multi;
 
 	/**
@@ -162,18 +173,19 @@ public:
 	static sint32 intercity_road_length;
 
 	/**
-	* Typ (Name) initiale Stadtverbindungen
-	*
-	* @author Hj. Malthaner
-	*/
-	static const char *intercity_road_type;
-
-	/**
 	 * Name of rivers; first the river with the lowest number
 	 * @author prissi
 	 */
 	static const char *river_type[10];
 	static uint8 river_types;
+
+	enum date_fmt {
+		DATE_FMT_SEASON   = 0,
+		DATE_FMT_MONTH    = 1,
+		DATE_FMT_JAPANESE = 2,
+		DATE_FMT_US       = 3,
+		DATE_FMT_GERMAN   = 4
+	};
 
 	/**
 	* show month in date?
@@ -221,7 +233,12 @@ public:
 	static sint16 global_volume, midi_volume;
 	static bool mute_sound, mute_midi, shuffle_midi;
 
+	static bool left_to_right_graphs;
+
 	static einstellungen_t default_einstellungen;
+
+	// init with default values
+	static void init();
 
 	// load/saving settings from file
 	static void rdwr(loadsave_t *file);

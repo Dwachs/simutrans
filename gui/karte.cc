@@ -20,7 +20,6 @@
 #include "../simgraph.h"
 
 
-sint32 reliefkarte_t::max_capacity=0;
 sint32 reliefkarte_t::max_departed=0;
 sint32 reliefkarte_t::max_arrived=0;
 sint32 reliefkarte_t::max_cargo=0;
@@ -116,16 +115,16 @@ reliefkarte_t::set_relief_farbe(koord k, const int color)
 
 	if(rotate45) {
 		// since isometric is distorted
-		const int xw = zoom_in>=2 ? 1 : 2*zoom_out;
-		for(  int x = max(0,k.x);  x < xw+k.x  &&  x < relief->get_width();  x++  ) {
-			for(  int y = max(0,k.y);  y < zoom_out+k.y  &&  y<relief->get_height();  y++  ) {
+		const sint32 xw = zoom_in>=2 ? 1 : 2*zoom_out;
+		for(  sint32 x = max(0,k.x);  x < xw+k.x  &&  x < relief->get_width();  x++  ) {
+			for(  sint32 y = max(0,k.y);  y < zoom_out+k.y  &&  y<relief->get_height();  y++  ) {
 				relief->at(x, y) = color;
 			}
 		}
 	}
 	else {
-		for(  int x = max(0,k.x);  x < zoom_out+k.x  &&  x<relief->get_width();  x++  ) {
-			for(  int y = max(0,k.y);  y < zoom_out+k.y  &&  y<relief->get_height();  y++  ) {
+		for(  sint32 x = max(0,k.x);  x < zoom_out+k.x  &&  x<relief->get_width();  x++  ) {
+			for(  sint32 y = max(0,k.y);  y < zoom_out+k.y  &&  y<relief->get_height();  y++  ) {
 				relief->at(x, y) = color;
 			}
 		}
@@ -516,19 +515,10 @@ reliefkarte_t::calc_map_pixel(const koord k)
 
 		// find power lines
 		case MAP_POWERLINES:
-			// need to init the maximum?
-			if(max_capacity==0) {
-				max_capacity = 1;
-				calc_map();
-			}
-			else {
+			{
 				const leitung_t* lt = gr->find<leitung_t>();
 				if(lt!=NULL) {
-					sint32 capacity=lt->get_net()->get_capacity();
-					if(capacity>max_capacity) {
-						max_capacity = capacity;
-					}
-					set_relief_farbe(k, calc_severity_color(capacity,max_capacity) );
+					set_relief_farbe(k, calc_severity_color(lt->get_net()->get_demand(),lt->get_net()->get_supply()) );
 				}
 			}
 			break;
@@ -578,7 +568,7 @@ void reliefkarte_t::calc_map()
 	koord relief_size = koord( min(size_x,new_size.x), min(size_y,new_size.y) );
 	// actually the following line should reduce new/deletes, but does not work properly
 	// if(  relief==NULL  ||  (sint16)relief->get_width()<relief_size.x  ||  relief->get_width()>size_x  ||  (sint16)relief->get_height()<relief_size.y  ||  relief->get_height()>size_y  ) {
-	if(  relief==NULL  ||  (sint16)relief->get_width()!=relief_size.x  ||  (sint16)relief->get_height()<relief_size.y  ) {
+	if(  relief==NULL  ||  (sint16)relief->get_width()!=relief_size.x  ||  (sint16)relief->get_height()!=relief_size.y  ) {
 		delete relief;
 		relief = new array2d_tpl<unsigned char> (relief_size.x,relief_size.y);
 	}
@@ -586,6 +576,7 @@ void reliefkarte_t::calc_map()
 	cur_off = new_off;
 	cur_size = new_size;
 	needs_redraw = false;
+	is_visible = true;
 
 	// redraw the map
 	if(  !rotate45  ) {
@@ -646,10 +637,12 @@ void reliefkarte_t::calc_map()
 	if(mode==MAP_DEPOT) {
 		slist_iterator_tpl <depot_t *> iter (depot_t::get_depot_list());
 		while(iter.next()) {
-			koord pos = iter.get_current()->get_pos().get_2d();
-			// offset of one to avoid
-			static uint8 depot_typ_to_color[12]={ COL_ORANGE, COL_YELLOW, COL_RED, 0, 0, 0, 0, 0, 0, COL_PURPLE, COL_DARK_RED, COL_DARK_ORANGE };
-			set_relief_farbe_area(pos, 3, depot_typ_to_color[iter.get_current()->get_typ()-ding_t::bahndepot] );
+			if(iter.get_current()->get_besitzer()==welt->get_active_player()) {
+				koord pos = iter.get_current()->get_pos().get_2d();
+				// offset of one to avoid
+				static uint8 depot_typ_to_color[19]={ COL_ORANGE, COL_YELLOW, COL_RED, 0, 0, 0, 0, 0, 0, COL_PURPLE, COL_DARK_RED, COL_DARK_ORANGE, 0, 0, 0, 0, 0, 0, COL_LIGHT_RED };
+				set_relief_farbe_area(pos, 7, depot_typ_to_color[iter.get_current()->get_typ()-ding_t::bahndepot] );
+			}
 		}
 		return;
 	}
@@ -688,8 +681,7 @@ reliefkarte_t::~reliefkarte_t()
 
 
 
-reliefkarte_t *
-reliefkarte_t::get_karte()
+reliefkarte_t *reliefkarte_t::get_karte()
 {
 	if(single_instance == NULL) {
 		single_instance = new reliefkarte_t();
@@ -699,8 +691,7 @@ reliefkarte_t::get_karte()
 
 
 
-void
-reliefkarte_t::set_welt(karte_t *welt)
+void reliefkarte_t::set_welt(karte_t *welt)
 {
 	this->welt = welt;			// Welt fuer display_win() merken
 	if(relief) {
@@ -709,10 +700,11 @@ reliefkarte_t::set_welt(karte_t *welt)
 	}
 	rotate45 = false;
 	needs_redraw = true;
+	is_visible = false;
 
 	if(welt) {
 		calc_map_groesse();
-		max_capacity = max_departed = max_arrived = max_cargo = max_convoi_arrived = max_passed = max_tourist_ziele = 0;
+		max_departed = max_arrived = max_cargo = max_convoi_arrived = max_passed = max_tourist_ziele = 0;
 	}
 }
 
@@ -793,7 +785,7 @@ const fabrik_t* reliefkarte_t::draw_fab_connections(const uint8 colour, const ko
 // draw current schedule
 void reliefkarte_t::draw_schedule(const koord pos) const
 {
-	assert(fpl!=NULL  ||  fpl->get_count()>0);
+	assert(fpl && !fpl->empty());
 
 	koord first_koord;
 	koord last_koord;
@@ -813,7 +805,7 @@ void reliefkarte_t::draw_schedule(const koord pos) const
 			first_koord = new_koord;
 		}
 		//check, if mouse is near coordinate
-		if(abs_distance(last_world_pos,fpl->eintrag[i].pos.get_2d())<=2) {
+		if(koord_distance(last_world_pos,fpl->eintrag[i].pos.get_2d())<=2) {
 			// draw stop name with an index
 			cbuffer_t buf(256);
 			buf.clear();
@@ -994,7 +986,7 @@ void reliefkarte_t::zeichnen(koord pos)
 
 	// draw a halt name, if it is under the cursor of a schedule
 	if(is_show_schedule  &&  fpl) {
-		if(fpl->get_count()<=0) {
+		if (fpl->empty()) {
 			fpl = NULL;
 		}
 		else {

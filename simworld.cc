@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2001 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2001 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -16,6 +16,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#ifdef _MSC_VER
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "simcity.h"
 #include "simcolor.h"
@@ -43,6 +49,7 @@
 
 
 #include "tpl/vector_tpl.h"
+#include "tpl/binary_heap_tpl.h"
 
 #include "boden/boden.h"
 #include "boden/wasser.h"
@@ -60,7 +67,9 @@
 #include "dings/wayobj.h"
 #include "dings/groundobj.h"
 #include "dings/gebaeude.h"
+#include "dings/leitung2.h"
 
+#include "gui/password_frame.h"
 #include "gui/messagebox.h"
 #include "gui/help_frame.h"
 #include "gui/karte.h"
@@ -72,6 +81,8 @@
 #include "dataobj/umgebung.h"
 #include "dataobj/tabfile.h"
 #include "dataobj/powernet.h"
+#include "dataobj/network.h"
+#include "dataobj/network_cmd.h"
 
 #include "utils/simstring.h"
 
@@ -105,16 +116,15 @@ static bool is_dragging = false;
 
 
 // changes the snowline height (for the seasons)
-bool
-karte_t::recalc_snowline()
+bool karte_t::recalc_snowline()
 {
 	static int mfactor[12] = { 99, 95, 80, 50, 25, 10, 0, 5, 20, 35, 65, 85 };
 	static uint8 month_to_season[12] = { 2, 2, 2, 3, 3, 0, 0, 0, 0, 1, 1, 2 };
 
 	// calculate snowline with day precicion
 	// use linear interpolation
-	const long ticks_this_month = get_zeit_ms() & (karte_t::ticks_per_tag-1);
-	const long faktor = mfactor[letzter_monat] + (  ( (mfactor[(letzter_monat+1)%12]-mfactor[letzter_monat])*(ticks_this_month>>12) ) >> (karte_t::ticks_bits_per_tag-12) );
+	const long ticks_this_month = get_zeit_ms() & (karte_t::ticks_per_world_month-1);
+	const long faktor = mfactor[letzter_monat] + (  ( (mfactor[(letzter_monat+1)%12]-mfactor[letzter_monat])*(ticks_this_month>>12) ) >> (karte_t::ticks_per_world_month_shift-12) );
 
 	// just remember them
 	const sint16 old_snowline = snowline;
@@ -154,24 +164,24 @@ bool karte_t::get_height_data_from_file( const char *filename, sint8 grundwasser
 			uint32 data_offset;
 			sint32 w, h, format, table;
 			sint16 bit_depth;
-#ifdef BIG_ENDIAN
+#ifdef SIM_BIG_ENDIAN
 			uint32 l;
 			uint16 s;
 			fread( &l, 4, 1, file );
-			data_offset = endian_uint32(&l);
+			data_offset = endian(l);
 			fseek( file, 18, SEEK_SET );
 			fread( &l, 4, 1, file );
-			w = (sint32)endian_uint32(&l);
+			w = endian(l);
 			fread( &l, 4, 1, file );
-			h = (sint32)endian_uint32(&l);
+			h = endian(l);
 			fseek( file, 28, SEEK_SET );
 			fread( &s, 2, 1, file );
-			bit_depth = (sint16)endian_uint16(&s);
+			bit_depth = endian(s);
 			fread( &l, 4, 1, file );
-			format = (sint32)endian_uint32(&l);
+			format = endian(l);
 			fseek( file, 46, SEEK_SET );
 			fread( &l, 4, 1, file );
-			table = (sint32)endian_uint32(&l);
+			table = endian(l);
 #else
 			fread( &data_offset, 4, 1, file );
 			fseek( file, 18, SEEK_SET );
@@ -309,7 +319,7 @@ bool karte_t::get_height_data_from_file( const char *filename, sint8 grundwasser
 				// usually, after P6 there comes a comment with the maker
 				// but comments can be anywhere
 				if(*c==0) {
-					read_line(buf, 255, file);
+					read_line(buf, sizeof(buf), file);
 					c = buf;
 					continue;
 				}
@@ -371,6 +381,14 @@ bool karte_t::get_height_data_from_file( const char *filename, sint8 grundwasser
  */
 sint32 karte_t::perlin_hoehe( einstellungen_t *sets, koord k, koord size )
 {
+	// Hajo: to Markus: replace the fixed values with your
+	// settings. Amplitude is the top highness of the
+	// montains, frequency is something like landscape 'roughness'
+	// amplitude may not be greater than 160.0 !!!
+	// please don't allow frequencies higher than 0.8 it'll
+	// break the AI's pathfinding. Frequency values of 0.5 .. 0.7
+	// seem to be ok, less is boring flat, more is too crumbled
+	// the old defaults are given here: f=0.6, a=160.0
 	switch( sets->get_rotation() ) {
 		// 0: do nothing
 		case 1: k = koord(k.y,size.x-k.x); break;
@@ -379,78 +397,9 @@ sint32 karte_t::perlin_hoehe( einstellungen_t *sets, koord k, koord size )
 	}
 //    double perlin_noise_2D(double x, double y, double persistence);
 //    return ((int)(perlin_noise_2D(x, y, 0.6)*160.0)) & 0xFFFFFFF0;
+	k = k + koord(sets->get_origin_x(), sets->get_origin_y());
 	return ((int)(perlin_noise_2D(k.x, k.y, sets->get_map_roughness())*(double)sets->get_max_mountain_height())) / 16;
 }
-
-
-
-void
-karte_t::calc_hoehe_mit_perlin()
-{
-	display_set_progress_text(translator::translate("Init map ..."));
-	const int display_total = 16 + get_einstellungen()->get_anzahl_staedte()*4 + get_einstellungen()->get_land_industry_chains();
-	for(int y=0; y<=get_groesse_y(); y++) {
-
-		for(int x=0; x<=get_groesse_x(); x++) {
-			// Hajo: to Markus: replace the fixed values with your
-			// settings. Amplitude is the top highness of the
-			// montains, frequency is something like landscape 'roughness'
-			// amplitude may not be greater than 160.0 !!!
-			// please don't allow frequencies higher than 0.8 it'll
-			// break the AI's pathfinding. Frequency values of 0.5 .. 0.7
-			// seem to be ok, less is boring flat, more is too crumbled
-			// the old defaults are given here: f=0.6, a=160.0
-			koord pos(x,y);
-			const int h = perlin_hoehe( einstellungen, pos, koord::invalid );
-			set_grid_hgt( pos, h*Z_TILE_STEP );
-			//	  DBG_MESSAGE("karte_t::calc_hoehe_mit_perlin()","%i",h);
-		}
-
-		if(is_display_init()) {
-			display_progress((y*16)/get_groesse_y(), display_total);
-		}
-		else {
-			printf("X");fflush(NULL);
-		}
-	}
-	print(" - ok\n");fflush(NULL);
-}
-
-
-void karte_t::raise_clean(sint16 x, sint16 y, sint16 h)
-{
-	if(ist_in_gittergrenzen(x, y)) {
-		const sint32 offset = x + y*(cached_groesse_gitter_x+1);
-
-		if(  grid_hgts[offset]*Z_TILE_STEP < h  ) {
-			grid_hgts[offset] = h/Z_TILE_STEP;
-			const koord k(x,y);
-
-#ifndef DOUBLE_GROUNDS
-			raise_clean(x-1, y-1, h-Z_TILE_STEP);
-			raise_clean(x  , y-1, h-Z_TILE_STEP);
-			raise_clean(x+1, y-1, h-Z_TILE_STEP);
-			raise_clean(x-1, y  , h-Z_TILE_STEP);
-			// Punkt selbst hat schon die neue Hoehe
-			raise_clean(x+1, y  , h-Z_TILE_STEP);
-			raise_clean(x-1, y+1, h-Z_TILE_STEP);
-			raise_clean(x  , y+1, h-Z_TILE_STEP);
-			raise_clean(x+1, y+1, h-Z_TILE_STEP);
-#else
-			raise_clean(x-1, y-1, h-Z_TILE_STEP*2);
-			raise_clean(x  , y-1, h-Z_TILE_STEP*2);
-			raise_clean(x+1, y-1, h-Z_TILE_STEP*2);
-			raise_clean(x-1, y  , h-Z_TILE_STEP*2);
-			// Punkt selbst hat schon die neue Hoehe
-			raise_clean(x+1, y  , h-Z_TILE_STEP*2);
-			raise_clean(x-1, y+1, h-Z_TILE_STEP*2);
-			raise_clean(x  , y+1, h-Z_TILE_STEP*2);
-			raise_clean(x+1, y+1, h-Z_TILE_STEP*2);
-#endif
-		}
-	}
-}
-
 
 void karte_t::cleanup_karte( int xoff, int yoff )
 {
@@ -463,7 +412,7 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 	sint32 i,j;
 	for(j=0; j<=get_groesse_y(); j++) {
 		for(i=j>=yoff?0:xoff; i<=get_groesse_x(); i++) {
-			raise_clean(i,j, (grid_hgts_cpy[i+j*(get_groesse_x()+1)]*Z_TILE_STEP)+Z_TILE_STEP );
+			raise_to(i,j, (grid_hgts_cpy[i+j*(get_groesse_x()+1)]*Z_TILE_STEP)+Z_TILE_STEP, false );
 		}
 	}
 	delete [] grid_hgts_cpy;
@@ -519,17 +468,14 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 
 
 
-// karte_t methoden
-
-void
-karte_t::destroy()
+void karte_t::destroy()
 {
 DBG_MESSAGE("karte_t::destroy()", "destroying world");
 
 	// rotate the map until it can be saved
+	nosave_warning = nosave = false;
 	for( int i=0;  i<4  &&  nosave;  i++  ) {
 DBG_MESSAGE("karte_t::destroy()", "rotating");
-		nosave = false;
 		rotate90();
 	}
 	if(nosave) {
@@ -545,7 +491,7 @@ DBG_MESSAGE("karte_t::destroy()", "label clear");
 		zeiger = NULL;
 	}
 
-	// alle convois aufräumen
+	// alle convois aufraeumen
 	while (!convoi_array.empty()) {
 		convoihandle_t cnv = convoi_array.back();
 		cnv->destroy();
@@ -553,13 +499,9 @@ DBG_MESSAGE("karte_t::destroy()", "label clear");
 	convoi_array.clear();
 DBG_MESSAGE("karte_t::destroy()", "convois destroyed");
 
-	// alle haltestellen aufräumen
+	// alle haltestellen aufraeumen
 	haltestelle_t::destroy_all(this);
 DBG_MESSAGE("karte_t::destroy()", "stops destroyed");
-
-	// entfernt alle synchronen objekte aus der liste
-	sync_list.clear();
-DBG_MESSAGE("karte_t::destroy()", "sync list cleared");
 
 	// delete towns first (will also delete all their houses)
 	// for the next game we need to remember the desired number ...
@@ -570,7 +512,15 @@ DBG_MESSAGE("karte_t::destroy()", "sync list cleared");
 	einstellungen->set_anzahl_staedte(no_of_cities);
 DBG_MESSAGE("karte_t::destroy()", "towns destroyed");
 
-	// dinge aufräumen
+	while(!sync_list.empty()) {
+		sync_steppable *ss = sync_list.remove_first();
+		delete ss;
+	}
+	// entfernt alle synchronen objekte aus der liste
+	sync_list.clear();
+DBG_MESSAGE("karte_t::destroy()", "sync list cleared");
+
+// dinge aufraeumen
 	cached_groesse_gitter_x = cached_groesse_gitter_y = 1;
 	cached_groesse_karte_x = cached_groesse_karte_y = 0;
 	if(plan) {
@@ -579,17 +529,17 @@ DBG_MESSAGE("karte_t::destroy()", "towns destroyed");
 	}
 	DBG_MESSAGE("karte_t::destroy()", "planquadrat destroyed");
 
-	// gitter aufräumen
+	// gitter aufraeumen
 	if(grid_hgts) {
 		delete [] grid_hgts;
 		grid_hgts = NULL;
 	}
 
-	// marker aufräumen
+	// marker aufraeumen
 	marker.init(0,0);
 DBG_MESSAGE("karte_t::destroy()", "marker destroyed");
 
-	// spieler aufräumen
+	// spieler aufraeumen
 	for(int i=0; i<MAX_PLAYER_COUNT; i++) {
 		if(spieler[i]) {
 			delete spieler[i];
@@ -602,7 +552,7 @@ DBG_MESSAGE("karte_t::destroy()", "player destroyed");
 	simlinemgmt_t::init_line_ids();
 DBG_MESSAGE("karte_t::destroy()", "lines destroyed");
 
-	// alle fabriken aufräumen
+	// alle fabriken aufraeumen
 	slist_iterator_tpl<fabrik_t*> fab_iter(fab_list);
 	while(fab_iter.next()) {
 		delete fab_iter.get_current();
@@ -610,7 +560,7 @@ DBG_MESSAGE("karte_t::destroy()", "lines destroyed");
 	fab_list.clear();
 DBG_MESSAGE("karte_t::destroy()", "factories destroyed");
 
-	// hier nur entfernen, aber nicht löschen
+	// hier nur entfernen, aber nicht loeschen
 	ausflugsziele.clear();
 DBG_MESSAGE("karte_t::destroy()", "attraction list destroyed");
 
@@ -643,7 +593,7 @@ void karte_t::rem_convoi(convoihandle_t& cnv)
 }
 
 /**
- * Zugriff auf das Städte Array.
+ * Zugriff auf das Staedte Array.
  * @author Hj. Malthaner
  */
 const stadt_t *karte_t::get_random_stadt() const
@@ -695,12 +645,13 @@ void karte_t::init_felder()
 {
 	assert(plan==0);
 
-	plan = new planquadrat_t[get_groesse_x()*get_groesse_y()];
-	grid_hgts = new sint8[(get_groesse_x()+1)*(get_groesse_y()+1)];
+	uint32 const x = get_groesse_x();
+	uint32 const y = get_groesse_y();
+	plan      = new planquadrat_t[x * y];
+	grid_hgts = new sint8[(x + 1) * (y + 1)];
+	MEMZERON(grid_hgts, (x + 1) * (y + 1));
 
-	memset(grid_hgts, 0, sizeof(sint8)*(get_groesse_x()+1)*(get_groesse_y()+1));
-
-	marker.init(get_groesse_x(),get_groesse_y());
+	marker.init(x, y);
 
 	simlinemgmt_t::init_line_ids();
 
@@ -748,14 +699,18 @@ void karte_t::init_felder()
 			finance_history_month[month][cost_type] = 0;
 		}
 	}
+	last_month_bev = 0;
+
+	tile_counter = 0;
 
 	convoihandle_t::init( 1024 );
 	linehandle_t::init( 1024 );
+
 	halthandle_t::init( 1024 );
 
 	scenario = new scenario_t(this);
 
-	nosave = false;
+	nosave_warning = nosave = false;
 }
 
 
@@ -788,7 +743,7 @@ void karte_t::create_rivers( sint16 number )
 				// may be good to start a river here
 				water_tiles.append(k);
 			}
-			else if(  h>=last_height  ||  abs_distance(last_koord,k)>simrand(max_dist)  ) {
+			else if(  h>=last_height  ||  koord_distance(last_koord,k)>simrand(max_dist)  ) {
 				// something worth to add here
 				if(  h>last_height  ) {
 					last_height = h;
@@ -808,14 +763,14 @@ void karte_t::create_rivers( sint16 number )
 	while(  number>0  &&  mountain_tiles.get_count()>0  &&  retrys++<100  ) {
 		koord start = mountain_tiles.at_weight( simrand(mountain_tiles.get_sum_weight()) );
 		koord end = water_tiles[ simrand(water_tiles.get_count()) ];
-		sint16 dist = abs_distance(start,end);
+		sint16 dist = koord_distance(start,end);
 		if(  dist > einstellungen->get_min_river_length()  &&  dist < einstellungen->get_max_river_length()  ) {
 			// should be at least of decent length
 			wegbauer_t riverbuilder(this, spieler[1]);
 			riverbuilder.route_fuer(wegbauer_t::river, river_besch);
 			riverbuilder.set_maximum( dist*50 );
 			riverbuilder.calc_route( lookup_kartenboden(end)->get_pos(), lookup_kartenboden(start)->get_pos() );
-			if(  riverbuilder.max_n >= einstellungen->get_min_river_length()  ) {
+			if(  riverbuilder.get_count() >= (uint32)einstellungen->get_min_river_length()  ) {
 				// do not built too short rivers
 				riverbuilder.baue();
 				number --;
@@ -861,12 +816,12 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","distributing groundobjs");
 		}
 	}
 
-print("Creating cities ...\n");
+printf("Creating cities ...\n");
 DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 	vector_tpl<koord> *pos = stadt_t::random_place(this, new_anzahl_staedte, old_x, old_y);
 
 	if(  !pos->empty()  ) {
-		const uint32 old_anzahl_staedte = stadt.get_count();
+		const sint32 old_anzahl_staedte = stadt.get_count();
 		new_anzahl_staedte = pos->get_count();
 
 		// prissi if we could not generate enough positions ...
@@ -880,13 +835,16 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 			change_world_position( koord3d((*pos)[0], min_hgt((*pos)[0])) );
 
 		// Loop only new cities:
+#ifdef DEBUG
+		uint32 tbegin = dr_time();
+#endif
 		for(  int i=0;  i<new_anzahl_staedte;  i++  ) {
 //			int citizens=(int)(einstellungen->get_mittlere_einwohnerzahl()*0.9);
 //			citizens = citizens/10+simrand(2*citizens+1);
 			int current_citicens = (2500l * einstellungen->get_mittlere_einwohnerzahl()) /(simrand(20000)+100);
 			stadt_t* s = new stadt_t(spieler[1], (*pos)[i], current_citicens);
 DBG_DEBUG("karte_t::distribute_groundobjs_cities()","Erzeuge stadt %i with %ld inhabitants",i,(s->get_city_history_month())[HIST_CITICENS] );
-			stadt.append(s, current_citicens, 64);
+			stadt.append(s, s->get_einwohner(), 64);
 			if(is_display_init()) {
 				old_progress ++;
 				display_progress(old_progress, max_display_progress);
@@ -895,6 +853,10 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","Erzeuge stadt %i with %ld i
 				printf("*");fflush(NULL);
 			}
 		}
+
+		delete pos;
+DBG_DEBUG("karte_t::distribute_groundobjs_cities()","took %lu ms for all towns", dr_time()-tbegin );
+
 		for(  uint32 i=old_anzahl_staedte;  i<stadt.get_count();  i++  ) {
 			// Hajo: do final init after world was loaded/created
 			stadt[i]->laden_abschliessen();
@@ -911,63 +873,234 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","Erzeuge stadt %i with %ld i
 		finance_history_year[0][WORLD_CITICENS] = finance_history_month[0][WORLD_CITICENS] = last_month_bev;
 
 		// Hajo: connect some cities with roads
-		const weg_besch_t* besch = umgebung_t::intercity_road_type ? wegbauer_t::get_besch(umgebung_t::intercity_road_type) : NULL;
+		const weg_besch_t* besch = einstellungen->get_intercity_road_type(get_timeline_year_month());
 		if(besch == 0) {
-			dbg->warning("karte_t::init()", "road type '%s' not found", umgebung_t::intercity_road_type);
 			// Hajo: try some default (might happen with timeline ... )
 			besch = wegbauer_t::weg_search(road_wt,80,get_timeline_year_month(),weg_t::type_flat);
 		}
 
 		wegbauer_t bauigel (this, spieler[1] );
-		bauigel.route_fuer(wegbauer_t::strasse, besch, NULL, brueckenbauer_t::find_bridge(road_wt,15,get_timeline_year_month()) );
+		bauigel.route_fuer(wegbauer_t::strasse, besch, tunnelbauer_t::find_tunnel(road_wt,15,get_timeline_year_month()), brueckenbauer_t::find_bridge(road_wt,15,get_timeline_year_month()) );
 		bauigel.set_keep_existing_ways(true);
 		bauigel.set_maximum(umgebung_t::intercity_road_length);
 
-		// Hajo: search for road offset
-		koord roff (0,1);
-		if (!lookup((*pos)[0] + roff)->get_kartenboden()->hat_weg(road_wt)) {
-			roff = koord(0,2);
-		}
-
+		// **** intercity road construction
+		// progress bar data
 		int old_progress_count = 16+2*new_anzahl_staedte;
 		int count = 0;
 		const int max_count=(einstellungen->get_anzahl_staedte()*(einstellungen->get_anzahl_staedte()-1))/2
 					- (old_anzahl_staedte*(old_anzahl_staedte-1))/2;
-
-		for(int i = 0; i < einstellungen->get_anzahl_staedte(); i++) {
-		// Only new cities must be connected:
-			for (int j = max(i + 1, old_anzahl_staedte); j < einstellungen->get_anzahl_staedte(); j++) {
-				const koord k1 = stadt[i]->get_pos() + roff;//(*pos)[i] + roff;
-				const koord k2 = stadt[j]->get_pos() + roff;//(*pos)[j] + roff;
-				const koord diff = k1-k2;
-				const int d = diff.x*diff.x + diff.y*diff.y;
-
-				if(d < umgebung_t::intercity_road_length) {
-//DBG_DEBUG("karte_t::distribute_groundobjs_cities()","built route fom city %d to %d", i, j);
-					bauigel.calc_route(lookup(k1)->get_kartenboden()->get_pos(), lookup(k2)->get_kartenboden()->get_pos());
-					if(bauigel.max_n >= 1) {
-						bauigel.baue();
-					}
-					else {
-//DBG_DEBUG("karte_t::distribute_groundobjs_cities()","no route found fom city %d to %d", i, j);
-					}
+		// something to do??
+		if(  max_count > 0  ) {
+			// print("Building intercity roads ...\n");
+			// find townhall of city i and road in front of it
+			vector_tpl<koord3d> k;
+			for(  int i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
+				koord k1(stadt[i]->get_townhall_road());
+				if (lookup_kartenboden(k1)  &&  lookup_kartenboden(k1)->hat_weg(road_wt)) {
+					k.append(lookup_kartenboden(k1)->get_pos());
 				}
 				else {
-//DBG_DEBUG("karte_t::distribute_groundobjs_cities()","cites %d and %d are too far away", i, j);
+					// look for a road near the townhall
+					const gebaeude_t* gb = dynamic_cast<gebaeude_t*>(lookup_kartenboden(stadt[i]->get_pos())->first_obj());
+					bool ok = false;
+					if(  gb  &&  gb->ist_rathaus()  ) {
+						koord pos = stadt[i]->get_pos() + koord(-1,-1);
+						const koord size = gb->get_tile()->get_besch()->get_groesse(gb->get_tile()->get_layout());
+						koord inc(1,0);
+						// scan all adjacent tiles, take the first that has a road
+						for(sint32 i=0; i<2*size.x+2*size.y+4  &&  !ok; i++) {
+							grund_t *gr = lookup_kartenboden(pos);
+							if (gr  &&  gr->hat_weg(road_wt)) {
+								k.append(gr->get_pos());
+								ok = true;
+							}
+							pos = pos + inc;
+							if (i==size.x+1) inc = koord(0,1);
+							else if (i==size.x+size.y+2) inc = koord(-1,0);
+							else if (i==2*size.x+size.y+3) inc = koord(0,-1);
+						}
+					}
+					if (!ok) {
+						k.append( koord3d::invalid );
+					}
 				}
-				count ++;
-				// how much we continued?
-				if(is_display_init()) {
+			}
+			// compute all distances
+			uint8 conn_comp=1; // current connection component for phase 0
+			vector_tpl<uint8> city_flag; // city already connected to the graph? >0 nr of connection component
+			array2d_tpl<sint32> city_dist(einstellungen->get_anzahl_staedte(), einstellungen->get_anzahl_staedte());
+			for(  sint32 i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
+				city_dist.at(i,i) = 0;
+				for(  sint32 j = i + 1;  j < einstellungen->get_anzahl_staedte();  j++  ) {
+					city_dist.at(i,j) = koord_distance(k[i], k[j]);
+					city_dist.at(j,i) = city_dist.at(i,j);
+					// count unbuildable connections to new cities
+					if(  j>=old_anzahl_staedte && city_dist.at(i,j) >= umgebung_t::intercity_road_length  ) {
+						count++;
+					}
+				}
+				city_flag.append( i < old_anzahl_staedte ? conn_comp : 0 );
+
+				// progress bar stuff
+				if(  is_display_init()  &&  count<=max_count  ) {
 					int progress_count = 16+ 2*new_anzahl_staedte+ (count*einstellungen->get_anzahl_staedte()*2)/max_count;
-					if(old_progress_count!=progress_count) {
+					if(  old_progress_count != progress_count  ) {
 						display_progress(progress_count, max_display_progress );
 						old_progress_count = progress_count;
 					}
 				}
 			}
-		}
+			// mark first town as connected
+			if (old_anzahl_staedte==0) {
+				city_flag[0]=conn_comp;
+			}
 
-		delete pos;
+			// get a default vehikel
+			route_t verbindung;
+			fahrer_t* test_driver;
+			vehikel_besch_t test_drive_besch(road_wt, 500, vehikel_besch_t::diesel );
+			test_driver = vehikelbauer_t::baue(koord3d(), spieler[1], NULL, &test_drive_besch);
+
+			bool ready=false;
+			uint8 phase=0;
+			// 0 - first phase: built minimum spanning tree (edge weights: city distance)
+			// 1 - second phase: try to complete the graph, avoid edges that
+			// == have similar length then already existing connection
+			// == lead to triangles with an angle >90 deg
+
+			while( phase < 2  ) {
+				ready = true;
+				koord conn = koord::invalid;
+				sint32 best = umgebung_t::intercity_road_length;
+
+				if(  phase == 0  ) {
+					// loop over all unconnected cities
+					for(  int i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
+						if(  city_flag[i] == conn_comp  ) {
+							// loop over all connections to connected cities
+							for(  int j = old_anzahl_staedte; j < einstellungen->get_anzahl_staedte(); j++) {
+								if(  city_flag[j] == 0  ) {
+									ready=false;
+									if(  city_dist.at(i,j) < best  ) {
+										best = city_dist.at(i,j);
+										conn = koord(i,j);
+									}
+								}
+							}
+						}
+					}
+					// did we completed a connection component?
+					if(  !ready  &&  best == umgebung_t::intercity_road_length  ) {
+						// next component
+						conn_comp++;
+						// try the first not connected city
+						ready = true;
+						for(  int i = old_anzahl_staedte;  i < einstellungen->get_anzahl_staedte();  i++  ) {
+							if(  city_flag[i] ==0 ) {
+								city_flag[i] = conn_comp;
+								ready=false;
+								break;
+							}
+						}
+					}
+				}
+				else {
+					// loop over all unconnected cities
+					for(  int i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
+						for(  int j = max(old_anzahl_staedte, i+1);  j < einstellungen->get_anzahl_staedte();  j++  ) {
+							if(  city_dist.at(i,j) < best  &&  city_flag[i] == city_flag[j]  ) {
+								bool ok = true;
+								// is there a connection i..l..j ? forbid stumpfe winkel
+								for(  int l = 0;  l < einstellungen->get_anzahl_staedte();  l++  ) {
+									if(  city_flag[i] == city_flag[l]  &&  city_dist.at(i,l) == umgebung_t::intercity_road_length  &&  city_dist.at(j,l) == umgebung_t::intercity_road_length  ) {
+										// cosine < 0 ?
+										koord3d d1 = k[i]-k[l];
+										koord3d d2 = k[j]-k[l];
+										if(  d1.x*d2.x + d1.y*d2.y < 0  ) {
+											city_dist.at(i,j) = umgebung_t::intercity_road_length+1;
+											city_dist.at(j,i) = umgebung_t::intercity_road_length+1;
+											ok = false;
+											count ++;
+											break;
+										}
+									}
+								}
+								if(ok) {
+									ready = false;
+									best = city_dist.at(i,j);
+									conn = koord(i,j);
+								}
+							}
+						}
+					}
+				}
+				// valid connection?
+				if(  conn.x >= 0  ) {
+					// is there a connection already
+					const bool connected = phase==1 && verbindung.calc_route(this,k[conn.x],k[conn.y],  test_driver, 0);
+					// build this connestion?
+					bool build = false;
+					// set appropriate max length for way builder
+					if(  connected  ) {
+						if(  2*verbindung.get_count() > (uint32)city_dist.at(conn)  ) {
+							bauigel.set_maximum(verbindung.get_count() / 2);
+							build = true;
+						}
+					}
+					else {
+						bauigel.set_maximum(umgebung_t::intercity_road_length);
+						build = true;
+					}
+
+					if(  build  ) {
+						bauigel.calc_route(k[conn.x],k[conn.y]);
+					}
+
+					if(  build  &&  bauigel.get_count() >= 2  ) {
+						bauigel.baue();
+						if (phase==0) {
+							city_flag[ conn.y ] = conn_comp;
+						}
+						// mark as built
+						city_dist.at(conn) =  umgebung_t::intercity_road_length;
+						city_dist.at(conn.y, conn.x) =  umgebung_t::intercity_road_length;
+						count ++;
+					}
+					else {
+						// do not try again
+						city_dist.at(conn) =  umgebung_t::intercity_road_length+1;
+						city_dist.at(conn.y, conn.x) =  umgebung_t::intercity_road_length+1;
+						count ++;
+
+						if (phase==0) {
+							// do not try to connect to this connected component again
+							for(  int i = 0;  i < einstellungen->get_anzahl_staedte();  i++  ) {
+								if (  city_flag[i] == conn_comp  && city_dist.at(i, conn.y)<umgebung_t::intercity_road_length) {
+									city_dist.at(i, conn.y) =  umgebung_t::intercity_road_length+1;
+									city_dist.at(conn.y, i) =  umgebung_t::intercity_road_length+1;
+									count++;
+								}
+							}
+						}
+					}
+				}
+				// progress bar stuff
+				if(  is_display_init()  &&  count<=max_count  ) {
+					int progress_count = 16+ 2*new_anzahl_staedte+ (count*einstellungen->get_anzahl_staedte()*2)/max_count;
+					if(  old_progress_count != progress_count  ) {
+						display_progress(progress_count, max_display_progress );
+						old_progress_count = progress_count;
+					}
+				}
+				// next phase?
+				if (ready) {
+					phase++;
+					ready = false;
+				}
+			}
+			delete test_driver;
+		}
 	}
 	else {
 		// could not generate any town
@@ -1007,6 +1140,7 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","distributing movingobjs");
 
 void karte_t::init(einstellungen_t* sets, sint8 *h_field)
 {
+	clear_random_mode( 7 );
 	mute_sound(true);
 
 	intr_disable();
@@ -1014,7 +1148,9 @@ void karte_t::init(einstellungen_t* sets, sint8 *h_field)
 		destroy();
 	}
 
-	werkzeug = werkzeug_t::general_tool[WKZ_ABFRAGE];
+	for(  uint i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+		werkzeug[i] = werkzeug_t::general_tool[WKZ_ABFRAGE];
+	}
 	if(is_display_init()) {
 		display_show_pointer(false);
 	}
@@ -1028,15 +1164,15 @@ void karte_t::init(einstellungen_t* sets, sint8 *h_field)
 	x_off = y_off = 0;
 
 	ticks = 0;
-	last_step_ticks = 0;
+	last_step_ticks = ticks;
 	schedule_counter = 0;
 	// ticks = 0x7FFFF800;  // Testing the 31->32 bit step
 
 	letzter_monat = 0;
 	letztes_jahr = einstellungen->get_starting_year();//umgebung_t::starting_year;
 	current_month = letzter_monat + (letztes_jahr*12);
-	set_ticks_bits_per_tag(einstellungen->get_bits_per_month());
-	next_month_ticks =  karte_t::ticks_per_tag;
+	set_ticks_per_world_month_shift(einstellungen->get_bits_per_month());
+	next_month_ticks =  karte_t::ticks_per_world_month;
 	season=(2+letzter_monat/3)&3; // summer always zero
 	snowline = sets->get_winter_snowline()*Z_TILE_STEP + grundwasser;
 	is_dragging = false;
@@ -1060,6 +1196,10 @@ void karte_t::init(einstellungen_t* sets, sint8 *h_field)
 
 	stadt.clear();
 
+DBG_DEBUG("karte_t::init()","hausbauer_t::neue_karte()");
+	// Call this before building cities
+	hausbauer_t::neue_karte();
+
 	cached_groesse_gitter_x = 0;
 	cached_groesse_gitter_y = 0;
 
@@ -1080,32 +1220,40 @@ DBG_DEBUG("karte_t::init()","distributing trees");
 DBG_DEBUG("karte_t::init()","built timeline");
 	stadtauto_t::built_timeline_liste(this);
 
-	nosave = false;
+	nosave_warning = nosave = false;
 
-DBG_DEBUG("karte_t::init()","hausbauer_t::neue_karte()");
-	hausbauer_t::neue_karte();
 	fabrikbauer_t::neue_karte(this);
 	// new system ...
 	const int max_display_progress=16+einstellungen->get_anzahl_staedte()*4+einstellungen->get_land_industry_chains();
+	int chains=0;
 	for(  sint32 i=0;  i<einstellungen->get_land_industry_chains();  i++  ) {
-		fabrikbauer_t::increase_industry_density( this, false );
+		if (fabrikbauer_t::increase_industry_density( this, false )==0) {
+			// building industry chain should fail max 10 times
+			if (i-chains > 10) {
+				break;
+			}
+		}
+		else {
+			chains++;
+		}
 		int progress_count = 16 + einstellungen->get_anzahl_staedte()*4 + i;
 		display_progress(progress_count, max_display_progress );
 	}
+	einstellungen->set_land_industry_chains(chains);
 	finance_history_year[0][WORLD_FACTORIES] = finance_history_month[0][WORLD_FACTORIES] = fab_list.get_count();
 
 	// tourist attractions
 	fabrikbauer_t::verteile_tourist(this, einstellungen->get_tourist_attractions());
 
-	print("Preparing startup ...\n");
+	printf("Preparing startup ...\n");
 	if(zeiger == 0) {
-		zeiger = new zeiger_t(this, koord3d::invalid, spieler[0]);
+		zeiger = new zeiger_t(this, koord3d::invalid, NULL );
 	}
 
 	// finishes the line preparation and sets id 0 to invalid ...
 	spieler[0]->simlinemgmt.laden_abschliessen();
 
-	set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+	set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], get_active_player() );
 
 	recalc_average_speed();
 
@@ -1121,9 +1269,7 @@ DBG_DEBUG("karte_t::init()","hausbauer_t::neue_karte()");
 	active_player = spieler[0];
 
 	set_dirty();
-
-	fast_forward = false;
-	pause = false;
+	step_mode = PAUSE_FLAG;
 	simloops = 60;
 	reset_timer();
 
@@ -1201,7 +1347,7 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 
 	display_progress(0,max_display_progress);
 	setsimrand( 0xFFFFFFFF, einstellungen->get_karte_nummer() );
-	if(  old_x == 0  &&  einstellungen->heightfield.len() > 0  ){
+	if(  old_x==0  &&  einstellungen->heightfield.len() > 0  ){
 		// init from file
 		const int display_total = 16 + get_einstellungen()->get_anzahl_staedte()*4 + get_einstellungen()->get_land_industry_chains();
 
@@ -1216,6 +1362,10 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 		display_progress(16, display_total);
 	}
 	else {
+		if(  sets->get_rotation()==0  ) {
+			// otherwise neagtive offsets may occur, so we cache only non-rotated maps
+			init_perlin_map(new_groesse_x,new_groesse_y);
+		}
 		int next_progress, old_progress = 0;
 		// loop only new tiles:
 		for(  sint16 x = 0;  x<=new_groesse_x;  x++  ) {
@@ -1230,7 +1380,7 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 				display_progress(old_progress, max_display_progress);
 			}
 		}
-
+		exit_perlin_map();
 		// now lower the corners and edge between new/old part to ground level
 		sint16 i;
 		for(  i=0;  i<=get_groesse_x();  i++  ) {
@@ -1258,7 +1408,7 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 	for (sint16 ix = 0; ix<new_groesse_x; ix++) {
 		for (sint16 iy = (ix>=old_x)?0:old_y; iy<new_groesse_y; iy++) {
 			koord k = koord(ix,iy);
-			access(k)->kartenboden_setzen(new boden_t(this, koord3d(ix,iy,0),0));
+			access(k)->kartenboden_setzen(new boden_t(this, koord3d(ix,iy,min_hgt(k)),0));
 			access(k)->abgesenkt(this);
 			grund_t *gr = lookup_kartenboden(k);
 			gr->set_grund_hang(calc_natural_slope(k));
@@ -1291,11 +1441,11 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 
 	// new recalc the images of the old map near the seam ...
 	for (sint16 x=0; x<old_x-20; x++) {
-		for (sint16 y=old_y-20; y<old_y; y++) {
+		for (sint16 y=max(old_y-20,0); y<old_y; y++) {
 			plan[x+y*cached_groesse_gitter_x].get_kartenboden()->calc_bild();
 		}
 	}
-	for (sint16 x=old_x-20; x<old_x; x++) {
+	for (sint16 x=max(old_x-20,0); x<old_x; x++) {
 		for (sint16 y=0; y<old_y; y++) {
 			plan[x+y*cached_groesse_gitter_x].get_kartenboden()->calc_bild();
 		}
@@ -1328,7 +1478,7 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 
 	// Refresh the haltlist for the affected tiles / stations.
 	// It is enough to check the tile just at the border ...
-	const sint8 cov = get_einstellungen()->get_station_coverage();
+	const uint16 cov = get_einstellungen()->get_station_coverage();
 	if(  old_y < new_groesse_y  ) {
 		for(  sint16 x=0;  x<old_x;  x++  ) {
 			for(  sint16 y=old_y-cov;  y<old_y;  y++  ) {
@@ -1370,15 +1520,7 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 		reliefkarte_t::get_karte()->set_mode( reliefkarte_t::get_karte()->get_mode() );
 
 		set_dirty();
-		simloops = 60;
 		reset_timer();
-
-		// make timer loop invalid
-		for( int i=0;  i<32;  i++ ) {
-			last_frame_ms[i] = 0x7FFFFFFFu;
-			last_step_nr[i] = 0xFFFFFFFFu;
-		}
-		last_frame_idx = 0;
 	}
 }
 
@@ -1387,18 +1529,17 @@ void karte_t::enlarge_map(einstellungen_t* sets, sint8 *h_field)
 karte_t::karte_t() : convoi_array(0), ausflugsziele(16), stadt(0), marker(0,0)
 {
 	// length of day and other time stuff
-	ticks_bits_per_tag = 20;
-	ticks_per_tag = (1 << ticks_bits_per_tag);
+	ticks_per_world_month_shift = 20;
+	ticks_per_world_month = (1 << ticks_per_world_month_shift);
 	last_step_ticks = 0;
 	last_interaction = dr_time();
-	fast_forward = false;
-	pause = false;
+	step_mode = PAUSE_FLAG;
 	time_multiplier = 16;
-	next_wait_time = this_wait_time = 30;
+	next_step_time = last_step_time = 0;
 
-	werkzeug = werkzeug_t::general_tool[WKZ_ABFRAGE];
-	werkzeug_last_pos = koord::invalid;
-	werkzeug_last_button = 0;
+	for(  uint i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+		werkzeug[i] = werkzeug_t::general_tool[WKZ_ABFRAGE];
+	}
 
 	follow_convoi = convoihandle_t();
 	set_dirty();
@@ -1417,10 +1558,11 @@ karte_t::karte_t() : convoi_array(0), ausflugsziele(16), stadt(0), marker(0,0)
 	grid_hgts = 0;
 	einstellungen = sets;
 	schedule_counter = 0;
-	nosave = false;
+	nosave_warning = nosave = false;
 
 	for(int i=0; i<MAX_PLAYER_COUNT ; i++) {
 		spieler[i] = NULL;
+		MEMZERO(player_password_hash[i]);
 	}
 
 	// no distance to show at first ...
@@ -1433,6 +1575,8 @@ karte_t::karte_t() : convoi_array(0), ausflugsziele(16), stadt(0), marker(0,0)
 
 karte_t::~karte_t()
 {
+	is_sound = false;
+
 	destroy();
 
 	if(einstellungen) {
@@ -1444,16 +1588,29 @@ karte_t::~karte_t()
 }
 
 
-bool karte_t::can_lower_plan_to(sint16 x, sint16 y, sint16 h) const
+bool karte_t::can_lower_plan_to(sint16 x, sint16 y, sint8 h) const
 {
 	const planquadrat_t *plan = lookup(koord(x,y));
 
-	if(plan == 0 || !is_plan_height_changeable(x, y)) {
+	if(  plan==NULL  ) {
 		return false;
 	}
 
-	int hmax = plan->get_kartenboden()->get_hoehe();
-	// irgendwo ein Tunnel vergraben?
+	const sint8 hmax = plan->get_kartenboden()->get_hoehe();
+	if(  hmax==h  &&  (plan->get_kartenboden()->get_grund_hang()==0 ||  is_plan_height_changeable(x, y))) {
+		return true;
+	}
+
+	if(  !is_plan_height_changeable(x, y)  ) {
+		return false;
+	}
+
+	// tunnel slope below?
+	grund_t *gr = plan->get_boden_in_hoehe(h-Z_TILE_STEP);
+	if (gr && gr->get_grund_hang()!=hang_t::flach) {
+		return false;
+	}
+	// tunnel below?
 	while(h < hmax) {
 		if(plan->get_boden_in_hoehe(h)) {
 			return false;
@@ -1464,14 +1621,14 @@ bool karte_t::can_lower_plan_to(sint16 x, sint16 y, sint16 h) const
 }
 
 
-bool karte_t::can_raise_plan_to(sint16 x, sint16 y, sint16 h) const
+bool karte_t::can_raise_plan_to(sint16 x, sint16 y, sint8 h) const
 {
 	const planquadrat_t *plan = lookup(koord(x,y));
 	if(plan == 0 || !is_plan_height_changeable(x, y)) {
 		return false;
 	}
 
-	// irgendwo eine Brücke im Weg?
+	// irgendwo eine Bruecke im Weg?
 	int hmin = plan->get_kartenboden()->get_hoehe();
 	while(h > hmin) {
 		if(plan->get_boden_in_hoehe(h)) {
@@ -1495,7 +1652,7 @@ bool karte_t::is_plan_height_changeable(sint16 x, sint16 y) const
 
 		for(  int i=0; ok  &&  i<gr->get_top(); i++  ) {
 			const ding_t *dt = gr->obj_bei(i);
-			if(dt != NULL) {
+			assert(dt != NULL);
 			ok =
 				dt->get_typ() == ding_t::baum  ||
 				dt->get_typ() == ding_t::zeiger  ||
@@ -1503,63 +1660,176 @@ bool karte_t::is_plan_height_changeable(sint16 x, sint16 y) const
 				dt->get_typ() == ding_t::sync_wolke  ||
 				dt->get_typ() == ding_t::async_wolke  ||
 				dt->get_typ() == ding_t::groundobj;
-			}
 		}
 	}
 
 	return ok;
 }
 
-
-bool karte_t::can_raise_to(sint16 x, sint16 y, sint16 h) const
+// raise plan
+// new heights for each corner given
+// only test corners in ctest to avoid infinite loops
+bool karte_t::can_raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest) const
 {
-	bool ok = false;		// annahme, es geht, pruefung ob nicht
-	if(ist_in_gittergrenzen(x,y)) {
-		const sint32 offset = x + y*(cached_groesse_gitter_x+1);
-		ok = true;
-		if(  grid_hgts[offset]*Z_TILE_STEP < h  ) {
-			ok =
-				// Nachbar-Planquadrate testen
-				can_raise_plan_to(x-1,y-1, h) &&
-				can_raise_plan_to(x,y-1, h)   &&
-				can_raise_plan_to(x-1,y, h)   &&
-				can_raise_plan_to(x,y, h)     &&
-#ifndef DOUBLE_GROUNDS
-				// Nachbar-Gridpunkte testen
-				can_raise_to(x-1, y-1, h-Z_TILE_STEP) &&
-				can_raise_to(x  , y-1, h-Z_TILE_STEP) &&
-				can_raise_to(x+1, y-1, h-Z_TILE_STEP) &&
-				can_raise_to(x-1, y  , h-Z_TILE_STEP) &&
-				can_raise_to(x+1, y  , h-Z_TILE_STEP) &&
-				can_raise_to(x-1, y+1, h-Z_TILE_STEP) &&
-				can_raise_to(x  , y+1, h-Z_TILE_STEP) &&
-				can_raise_to(x+1, y+1, h-Z_TILE_STEP);
-#else
-				// Nachbar-Gridpunkte testen
-				can_raise_to(x-1, y-1, h-Z_TILE_STEP*2) &&
-				can_raise_to(x  , y-1, h-Z_TILE_STEP*2) &&
-				can_raise_to(x+1, y-1, h-Z_TILE_STEP*2) &&
-				can_raise_to(x-1, y  , h-Z_TILE_STEP*2) &&
-				can_raise_to(x+1, y  , h-Z_TILE_STEP*2) &&
-				can_raise_to(x-1, y+1, h-Z_TILE_STEP*2) &&
-				can_raise_to(x  , y+1, h-Z_TILE_STEP*2) &&
-				can_raise_to(x+1, y+1, h-Z_TILE_STEP*2);
-#endif
+	bool ok;
+	if(ist_in_kartengrenzen(x,y)) {
+		grund_t *gr = lookup_kartenboden(koord(x,y));
+		const sint8 h0 = gr->get_hoehe();
+		// which corners have to be raised?
+		const sint8 h0_sw = corner1(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x,y+1))   : h0 + corner1(gr->get_grund_hang()) ) : hsw+1;
+		const sint8 h0_se = corner2(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x+1,y+1)) : h0 + corner2(gr->get_grund_hang()) ) : hse+1;
+		const sint8 h0_ne = corner3(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x+1,y))   : h0 + corner3(gr->get_grund_hang()) ) : hne+1;
+		const sint8 h0_nw = corner4(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x,y))     : h0 + corner4(gr->get_grund_hang()) ) : hnw+1;
+
+
+		ok = can_raise_plan_to(x,y, max(max(hsw,hse),max(hne,hnw)));
+		// sw
+		if (ok && h0_sw < hsw) {
+			ok = can_raise_to(x-1,y+1, hsw-1, hsw-1, hsw, hsw-1, 11);
 		}
+		// s
+		if (ok && (h0_se < hse || h0_sw < hsw) && ((ctest&3)==3)) {
+			const sint8 hs = max(hse, hsw) -1;
+			ok = can_raise_to(x,y+1, hs, hs, hse, hsw, 3);
+		}
+		// se
+		if (ok && h0_se < hse) {
+			ok = can_raise_to(x+1,y+1, hse-1, hse-1, hse-1, hse, 7);
+		}
+		// e
+		if (ok && (h0_se < hse || h0_ne < hne) && ((ctest&6)==6)) {
+			const sint8 he = max(hse, hne) -1;
+			ok = can_raise_to(x+1,y, hse, he, he, hne, 6);
+		}
+		// ne
+		if (ok && h0_ne < hne) {
+			ok = can_raise_to(x+1,y-1, hne, hne-1, hne-1, hne-1, 14);
+		}
+		// n
+		if (ok && (h0_nw < hnw || h0_ne < hne) && ((ctest&12)==12)) {
+			const sint8 hn = max(hnw, hne) -1;
+			ok = can_raise_to(x,y-1, hnw, hne, hn, hn, 12);
+		}
+		// nw
+		if (ok && h0_nw < hnw) {
+			ok = can_raise_to(x-1,y-1, hnw-1, hnw, hnw-1, hnw-1, 13);
+		}
+		// w
+		if (ok && (h0_nw < hnw || h0_sw < hsw) && ((ctest&9)==9)) {
+			const sint8 hw = max(hnw, hsw) -1;
+			ok = can_raise_to(x-1,y, hw, hsw, hnw, hw, 9);
+		}
+	}
+	else {
+		if (x<0) ok = hne <= grundwasser && hse <= grundwasser;
+		if (y<0) ok = hsw <= grundwasser && hse <= grundwasser;
+		if (x>=cached_groesse_karte_x) ok = hsw <= grundwasser && hnw <= grundwasser;
+		if (y>=cached_groesse_karte_y) ok = hnw <= grundwasser && hne <= grundwasser;
 	}
 	return ok;
 }
-
+// nw-ecke corner4 anheben
 bool karte_t::can_raise(sint16 x, sint16 y) const
 {
-	if(ist_in_gittergrenzen(x, y)) {
-		return can_raise_to(x, y, lookup_hgt(koord(x, y))+Z_TILE_STEP);
+	if(ist_in_kartengrenzen(x, y)) {
+		grund_t *gr = lookup_kartenboden(koord(x,y));
+		const sint8 hnew = gr->get_hoehe() + corner4(gr->get_grund_hang());
+
+		return can_raise_to(x, y, hnew, hnew, hnew, hnew+1, 15/*all corners*/ );
 	} else {
 		return true;
 	}
 }
 
-int karte_t::raise_to(sint16 x, sint16 y, sint16 h, bool set_slopes)
+
+// raise plan
+// new heights for each corner given
+// clear tile, reset water/land type, calc reliefkarte pixel
+int karte_t::raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw)
+{
+	int n=0;
+	if(ist_in_kartengrenzen(x,y)) {
+		grund_t *gr = lookup_kartenboden(koord(x,y));
+		const sint8 h0 = gr->get_hoehe();
+		// old height
+		const sint8 h0_sw = gr->ist_wasser() ? lookup_hgt(koord(x,y+1))   : h0 + corner1(gr->get_grund_hang());
+		const sint8 h0_se = gr->ist_wasser() ? lookup_hgt(koord(x+1,y+1)) : h0 + corner2(gr->get_grund_hang());
+		const sint8 h0_ne = gr->ist_wasser() ? lookup_hgt(koord(x+1,y))   : h0 + corner3(gr->get_grund_hang());
+		const sint8 h0_nw = gr->ist_wasser() ? lookup_hgt(koord(x,y))     : h0 + corner4(gr->get_grund_hang());
+
+		// new height
+		const sint8 hn_sw = max(hsw, h0_sw);
+		const sint8 hn_se = max(hse, h0_se);
+		const sint8 hn_ne = max(hne, h0_ne);
+		const sint8 hn_nw = max(hnw, h0_nw);
+		// nothing to do?
+		if (!gr->ist_wasser()  &&  h0_sw >= hsw  &&  h0_se >= hse  &&  h0_ne >= hne  &&  h0_nw >= hnw) return 0;
+		// calc new height and slope
+		const sint8 hneu = min(min(hn_sw,hn_se), min(hn_ne,hn_nw));
+		bool ok = ( (hn_sw-hneu<2) && (hn_se-hneu<2) && (hn_ne-hneu<2) && (hn_nw-hneu<2)); // may fail on water tiles since lookup_hgt might be modified from previous raise_to calls
+		if (!ok && !gr->ist_wasser()) {
+			assert(false);
+		}
+		const uint8 sneu = (hn_sw-hneu) | ((hn_se-hneu)<<1) | ((hn_ne-hneu)<<2) | ((hn_nw-hneu)<<3);
+		// change height and slope, for water tiles only if they will become land
+		if (!gr->ist_wasser() || (hneu + (sneu ? 1 : 0) > grundwasser)) {
+			gr->set_pos( koord3d(x,y,hneu));
+			gr->set_grund_hang( (hang_t::typ)sneu );
+			access(x,y)->angehoben(this);
+		}
+		set_grid_hgt(koord(x,y),hn_nw);
+
+		n += hn_sw-h0_sw + hn_se-h0_se + hn_ne-h0_ne + hn_nw-h0_nw;
+
+		// sw
+		if (h0_sw < hsw) {
+			n += raise_to(x-1,y+1, hsw-1, hsw-1, hsw, hsw-1);
+		}
+		// s
+		if (h0_sw < hsw  ||  h0_se < hse) {
+			const sint8 hs = max(hse, hsw) -1;
+			n += raise_to(x,y+1, hs, hs, hse, hsw);
+		}
+		// se
+		if (h0_se < hse) {
+			n += raise_to(x+1,y+1, hse-1, hse-1, hse-1, hse);
+		}
+		// e
+		if (h0_se < hse  ||  h0_ne < hne) {
+			const sint8 he = max(hse, hne) -1;
+			n += raise_to(x+1,y, hse, he, he, hne);
+		}
+		// ne
+		if (h0_ne < hne) {
+			n += raise_to(x+1,y-1, hne, hne-1, hne-1, hne-1);
+		}
+		// n
+		if (h0_nw < hnw  ||  h0_ne < hne) {
+			const sint8 hn = max(hnw, hne) -1;
+			n += raise_to(x,y-1, hnw, hne, hn, hn);
+		}
+		// nw
+		if (h0_nw < hnw) {
+			n += raise_to(x-1,y-1, hnw-1, hnw, hnw-1, hnw-1);
+		}
+		// w
+		if (h0_sw < hsw  ||  h0_nw < hnw) {
+			const sint8 hw = max(hnw, hsw) -1;
+			n += raise_to(x-1,y, hw, hsw, hnw, hw);
+		}
+		lookup_kartenboden(koord(x,y))->calc_bild();
+		if ((x+1)<cached_groesse_karte_x) {
+			lookup_kartenboden(koord(x+1,y))->calc_bild();
+		}
+		if ((y+1)<cached_groesse_karte_y) {
+			lookup_kartenboden(koord(x,y+1))->calc_bild();
+		}
+	}
+	return n;
+}
+
+// raise height in the hgt-array
+int karte_t::raise_to(sint16 x, sint16 y, sint8 h, bool set_slopes /*always false*/)
 {
 	int n = 0;
 	if(ist_in_gittergrenzen(x,y)) {
@@ -1594,25 +1864,6 @@ int karte_t::raise_to(sint16 x, sint16 y, sint16 h, bool set_slopes)
 			n += raise_to(x  , y+1, h-Z_TILE_STEP*2,set_slopes);
 			n += raise_to(x+1, y+1, h-Z_TILE_STEP*2,set_slopes);
 #endif
-			if(set_slopes) {
-				planquadrat_t *plan;
-				if((plan=access(x,y))) {
-					plan->angehoben( this );
-				}
-
-				if((plan = access(x-1,y))) {
-					plan->angehoben( this );
-				}
-
-				if((plan = access(x,y-1))) {
-					plan->angehoben( this );
-				}
-
-				if((plan = access(x-1,y-1))) {
-					plan->angehoben( this );
-				}
-			}
-
 		}
 	}
 
@@ -1624,66 +1875,190 @@ int karte_t::raise(koord pos)
 {
 	bool ok = can_raise(pos.x, pos.y);
 	int n = 0;
-	if(ok && ist_in_gittergrenzen(pos)) {
-		n = raise_to(pos.x, pos.y, lookup_hgt(pos)+Z_TILE_STEP,true);
+	if(ok && ist_in_kartengrenzen(pos)) {
+		grund_t *gr = lookup_kartenboden(pos);
+		const sint8 hnew = gr->get_hoehe() + corner4(gr->get_grund_hang());
+
+		n = raise_to(pos.x, pos.y, hnew, hnew, hnew, hnew+1);
 	}
-	return n;
+	return (n+3)>>2;
 }
 
 
-bool karte_t::can_lower_to(sint16 x, sint16 y, sint16 h) const
+// lower plan
+// new heights for each corner given
+// only test corners in ctest to avoid infinite loops
+bool karte_t::can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest) const
 {
-	bool ok = false;		// annahme, es geht, pruefung ob nicht
-	if(ist_in_gittergrenzen(x,y)) {
-		const sint32 offset = x + y*(cached_groesse_gitter_x+1);
-		ok = true;
-		if(  grid_hgts[offset]*Z_TILE_STEP > h  ) {
-			ok =
-				// Nachbar-Planquadrate testen
-				can_lower_plan_to(x-1,y-1, h) &&
-				can_lower_plan_to(x,y-1, h)   &&
-				can_lower_plan_to(x-1,y, h)   &&
-				can_lower_plan_to(x,y, h)     &&
-#ifndef DOUBLE_GROUNDS
-				// Nachbar-Gridpunkte testen
-				can_lower_to(x-1, y-1, h+Z_TILE_STEP) &&
-				can_lower_to(x  , y-1, h+Z_TILE_STEP) &&
-				can_lower_to(x+1, y-1, h+Z_TILE_STEP) &&
-				can_lower_to(x-1, y  , h+Z_TILE_STEP) &&
-				can_lower_to(x+1, y  , h+Z_TILE_STEP) &&
-				can_lower_to(x-1, y+1, h+Z_TILE_STEP) &&
-				can_lower_to(x  , y+1, h+Z_TILE_STEP) &&
-				can_lower_to(x+1, y+1, h+Z_TILE_STEP);
-#else
-				// Nachbar-Gridpunkte testen
-				can_lower_to(x-1, y-1, h+Z_TILE_STEP*2) &&
-				can_lower_to(x  , y-1, h+Z_TILE_STEP*2) &&
-				can_lower_to(x+1, y-1, h+Z_TILE_STEP*2) &&
-				can_lower_to(x-1, y  , h+Z_TILE_STEP*2) &&
-				can_lower_to(x+1, y  , h+Z_TILE_STEP*2) &&
-				can_lower_to(x-1, y+1, h+Z_TILE_STEP*2) &&
-				can_lower_to(x  , y+1, h+Z_TILE_STEP*2) &&
-				can_lower_to(x+1, y+1, h+Z_TILE_STEP*2);
-#endif
+	bool ok;
+	if(ist_in_kartengrenzen(x,y)) {
+		grund_t *gr = lookup_kartenboden(koord(x,y));
+		const sint8 h0 = gr->get_hoehe();
+		// which corners have to be raised?
+		const sint8 h0_sw = corner1(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x,y+1))   : h0 + corner1(gr->get_grund_hang()) ) : hsw-1;
+		const sint8 h0_se = corner2(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x+1,y+1)) : h0 + corner2(gr->get_grund_hang()) ) : hse-1;
+		const sint8 h0_ne = corner3(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x,y+1))   : h0 + corner3(gr->get_grund_hang()) ) : hne-1;
+		const sint8 h0_nw = corner4(ctest) ? (gr->ist_wasser() ? lookup_hgt(koord(x,y))     : h0 + corner4(gr->get_grund_hang()) ) : hnw-1;
+
+		ok = can_lower_plan_to(x,y, min(min(hsw,hse),min(hne,hnw)));
+		// sw
+		if (ok && h0_sw > hsw) {
+			ok = can_lower_to(x-1,y+1, hsw+1, hsw+1, hsw, hsw+1, 11);
+		}
+		// s
+		if (ok && (h0_se > hse || h0_sw > hsw) && ((ctest&3)==3)) {
+			const sint8 hs = min(hse, hsw) +1;
+			ok = can_lower_to(x,y+1, hs, hs, hse, hsw, 3);
+		}
+		// se
+		if (ok && h0_se > hse) {
+			ok = can_lower_to(x+1,y+1, hse+1, hse+1, hse+1, hse, 7);
+		}
+		// e
+		if (ok && (h0_se > hse || h0_ne > hne) && ((ctest&6)==6)) {
+			const sint8 he = max(hse, hne) +1;
+			ok = can_lower_to(x+1,y, hse, he, he, hne, 6);
+		}
+		// ne
+		if (ok && h0_ne > hne) {
+			ok = can_lower_to(x+1,y-1, hne, hne+1, hne+1, hne+1, 14);
+		}
+		// n
+		if (ok && (h0_nw > hnw || h0_ne > hne) && ((ctest&12)==12)) {
+			const sint8 hn = min(hnw, hne) +1;
+			ok = can_lower_to(x,y-1, hnw, hne, hn, hn, 12);
+		}
+		// nw
+		if (ok && h0_nw > hnw) {
+			ok = can_lower_to(x-1,y-1, hnw+1, hnw, hnw+1, hnw+1, 13);
+		}
+		// w
+		if (ok && (h0_nw > hnw || h0_sw > hsw) && ((ctest&9)==9)) {
+			const sint8 hw = min(hnw, hsw) +1;
+			ok = can_lower_to(x-1,y, hw, hsw, hnw, hw, 9);
 		}
 	}
-    return ok;
+	else {
+		if (x<0) ok = hne >= grundwasser && hse >= grundwasser;
+		if (y<0) ok = hsw >= grundwasser && hse >= grundwasser;
+		if (x>=cached_groesse_karte_x) ok = hsw >= grundwasser && hnw >= grundwasser;
+		if (y>=cached_groesse_karte_y) ok = hnw >= grundwasser && hne >= grundwasser;
+	}
+	return ok;
 }
 
 
-
+// nw-ecke corner4 absenken
 bool karte_t::can_lower(sint16 x, sint16 y) const
 {
-	if(ist_in_gittergrenzen(x, y)) {
-		return can_lower_to(x, y, lookup_hgt(koord(x, y))-Z_TILE_STEP);
+	if(ist_in_kartengrenzen(x, y)) {
+		grund_t *gr = lookup_kartenboden(koord(x,y));
+		const sint8 hnew = gr->get_hoehe() + corner4(gr->get_grund_hang());
+
+		return can_lower_to(x, y, hnew, hnew, hnew, hnew-1, 15/*all corners*/ );
 	} else {
 		return true;
 	}
 }
 
 
+// lower plan
+// new heights for each corner given
+// cleartile=true: clear tile, reset water/land type, calc reliefkarte pixel
+int karte_t::lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw)
+{
+	int n=0;
+	if(ist_in_kartengrenzen(x,y)) {
+		grund_t *gr = lookup_kartenboden(koord(x,y));
+		const sint8 h0 = gr->get_hoehe();
+		// old height
+		const sint8 h0_sw = gr->ist_wasser() ? lookup_hgt(koord(x,y+1))   : h0 + corner1(gr->get_grund_hang());
+		const sint8 h0_se = gr->ist_wasser() ? lookup_hgt(koord(x+1,y+1)) : h0 + corner2(gr->get_grund_hang());
+		const sint8 h0_ne = gr->ist_wasser() ? lookup_hgt(koord(x+1,y))   : h0 + corner3(gr->get_grund_hang());
+		const sint8 h0_nw = gr->ist_wasser() ? lookup_hgt(koord(x,y))     : h0 + corner4(gr->get_grund_hang());
+		// new height
+		const sint8 hn_sw = min(hsw, h0_sw);
+		const sint8 hn_se = min(hse, h0_se);
+		const sint8 hn_ne = min(hne, h0_ne);
+		const sint8 hn_nw = min(hnw, h0_nw);
+		// nothing to do?
+		if(  gr->ist_wasser()  ) {
+			if(  h0_nw <= hnw  ) {
+				return 0;
+			}
+		}
+		else {
+			if(  h0_sw <= hsw  &&  h0_se <= hse  &&  h0_ne <= hne  &&  h0_nw <= hnw  ) {
+				return 0;
+			}
+		}
+		// calc new height and slope
+		const sint8 hneu = min(min(hn_sw,hn_se), min(hn_ne,hn_nw));
+		bool ok = ( (hn_sw-hneu<2) && (hn_se-hneu<2) && (hn_ne-hneu<2) && (hn_nw-hneu<2)); // may fail on water tiles since lookup_hgt might be modified from previous lower_to calls
+		if(  !ok && !gr->ist_wasser()  ) {
+			assert(false);
+		}
+		const uint8 sneu = (hn_sw-hneu) | ((hn_se-hneu)<<1) | ((hn_ne-hneu)<<2) | ((hn_nw-hneu)<<3);
+		// change height and slope for land tiles only
+		if (!gr->ist_wasser()) {
+			gr->set_pos( koord3d(x,y,hneu));
+			gr->set_grund_hang( (hang_t::typ)sneu );
+			access(x,y)->abgesenkt(this);
+		}
+		set_grid_hgt(koord(x,y),hn_nw);
 
-int karte_t::lower_to(sint16 x, sint16 y, sint16 h, bool set_slopes)
+		n += h0_sw-hn_sw + h0_se-hn_se + h0_ne-hn_ne + h0_nw-hn_nw;
+
+		// sw
+		if (h0_sw > hsw) {
+			n += lower_to(x-1,y+1, hsw+1, hsw+1, hsw, hsw+1);
+		}
+		// s
+		if (h0_sw > hsw  ||  h0_se > hse) {
+			const sint8 hs = min(hse, hsw) +1;
+			n += lower_to(x,y+1, hs, hs, hse, hsw);
+		}
+		// se
+		if (h0_se > hse) {
+			n += lower_to(x+1,y+1, hse+1, hse+1, hse+1, hse);
+		}
+		// e
+		if (h0_se > hse  ||  h0_ne > hne) {
+			const sint8 he = min(hse, hne) +1;
+			n += lower_to(x+1,y, hse, he, he, hne);
+		}
+		// ne
+		if (h0_ne > hne) {
+			n += lower_to(x+1,y-1, hne, hne+1, hne+1, hne+1);
+		}
+		// n
+		if (h0_nw > hnw  ||  h0_ne > hne) {
+			const sint8 hn = min(hnw, hne) +1;
+			n += lower_to(x,y-1, hnw, hne, hn, hn);
+		}
+		// nw
+		if (h0_nw > hnw) {
+			n += lower_to(x-1,y-1, hnw+1, hnw, hnw+1, hnw+1);
+		}
+		// w
+		if (h0_sw > hsw  ||  h0_nw > hnw) {
+			const sint8 hw = min(hnw, hsw) +1;
+			n += lower_to(x-1,y, hw, hsw, hnw, hw);
+		}
+
+		lookup_kartenboden(koord(x,y))->calc_bild();
+		if(  (x+1)<cached_groesse_karte_x  ) {
+			lookup_kartenboden(koord(x+1,y))->calc_bild();
+		}
+		if(  (y+1)<cached_groesse_karte_y  ) {
+			lookup_kartenboden(koord(x,y+1))->calc_bild();
+		}
+	}
+	return n;
+}
+
+
+int karte_t::lower_to(sint16 x, sint16 y, sint8 h, bool set_slopes /*always false*/)
 {
 	int n = 0;
 	if(ist_in_gittergrenzen(x,y)) {
@@ -1718,24 +2093,6 @@ int karte_t::lower_to(sint16 x, sint16 y, sint16 h, bool set_slopes)
 			n += lower_to(x  , y+1, h+Z_TILE_STEP*2,set_slopes);
 			n += lower_to(x+1, y+1, h+Z_TILE_STEP*2,set_slopes);
 #endif
-			if(set_slopes) {
-				planquadrat_t *plan;
-				if((plan=access(x,y))) {
-					plan->abgesenkt( this );
-				}
-
-				if((plan = access(x-1,y))) {
-					plan->abgesenkt( this );
-				}
-
-				if((plan = access(x,y-1))) {
-					plan->abgesenkt( this );
-				}
-
-				if((plan = access(x-1,y-1))) {
-					plan->abgesenkt( this );
-				}
-			}
 		}
 	}
   return n;
@@ -1747,89 +2104,90 @@ int karte_t::lower(koord pos)
 {
 	bool ok = can_lower(pos.x, pos.y);
 	int n = 0;
-	if(ok && ist_in_gittergrenzen(pos.x, pos.y)) {
-		n = lower_to(pos.x, pos.y, lookup_hgt(pos)-Z_TILE_STEP,true);
+	if(ok && ist_in_kartengrenzen(pos)) {
+		grund_t *gr = lookup_kartenboden(pos);
+		const sint8 hnew = gr->ist_wasser() ? lookup_hgt(pos) : gr->get_hoehe() + corner4(gr->get_grund_hang());
+		n = lower_to(pos.x, pos.y, hnew, hnew, hnew, hnew-1);
 	}
-	return n;
+	return (n+3)>>2;
 }
 
 
 static koord ebene_offsets[] = {koord(0,0), koord(1,0), koord(0,1), koord(1,1)};
 
-bool karte_t::can_ebne_planquadrat(koord pos, sint16 hgt)
+bool karte_t::can_ebne_planquadrat(koord pos, sint8 hgt)
 {
-	for(int i=0; i<4; i++) {
-		koord p = pos + ebene_offsets[i];
-
-		if(lookup_hgt(p) > hgt) {
-
-			if(!can_lower_to(p.x, p.y, hgt)) {
-				return false;
-			}
-
-		} else if(lookup_hgt(p) < hgt) {
-
-			if(!can_raise_to(p.x, p.y, hgt)) {
-				return false;
-			}
-		}
+	if (lookup_kartenboden(pos)->get_hoehe()>=hgt) {
+		return can_lower_to(pos.x, pos.y, hgt, hgt, hgt, hgt);
 	}
-	return true;
+	else {
+		return can_raise_to(pos.x, pos.y, hgt, hgt, hgt, hgt);
+	}
 }
 
 
 
 // make a flat leve at this position (only used for AI at the moment)
-bool karte_t::ebne_planquadrat(spieler_t *sp, koord pos, sint16 hgt)
+bool karte_t::ebne_planquadrat(spieler_t *sp, koord pos, sint8 hgt)
 {
 	int n = 0;
-	bool ok = true;
-
-	for(int i=0; i<4; i++) {
-		koord p = pos + ebene_offsets[i];
-
-		if(lookup_hgt(p) > hgt) {
-
-			if(can_lower_to(p.x, p.y, hgt)) {
-				n += lower_to(p.x, p.y, hgt, true);
-			} else {
-				ok = false;
-				break;
-			}
-
-		} else if(lookup_hgt(p) < hgt) {
-
-			if(can_raise_to(p.x, p.y, hgt)) {
-				n += raise_to(p.x, p.y, hgt, true);
-			} else {
-				ok = false;
-				break;
-			}
+	bool ok = false;
+	const sint8 old_hgt = lookup_kartenboden(pos)->get_hoehe();
+	if(  old_hgt>=hgt  ) {
+		if(  can_lower_to(pos.x, pos.y, hgt, hgt, hgt, hgt)  ) {
+			n = lower_to(pos.x, pos.y, hgt, hgt, hgt, hgt);
+			ok = true;
 		}
 	}
-	// was changed => recalc + pay for it
-	if(n>0) {
-		// update image
-		for(int j=pos.y-n; j<=pos.y+n; j++) {
-			for(int i=pos.x-n; i<=pos.x+n; i++) {
-				grund_t *gr = lookup_kartenboden( koord(i,j) );
-				if(gr) gr->calc_bild();
-			}
+	else {
+		if(  can_raise_to(pos.x, pos.y, hgt, hgt, hgt, hgt)  ) {
+			n = raise_to(pos.x, pos.y, hgt, hgt, hgt, hgt);
+			ok = true;
 		}
+	}
+	// was changed => pay for it
+	if(n>0) {
+		n = (n+3) >> 2;
 		spieler_t::accounting(sp, n*get_einstellungen()->cst_alter_land, pos, COST_CONSTRUCTION );
 	}
 	return ok;
 }
 
 
+void karte_t::set_player_password_hash( uint8 player_nr, uint8 *hash )
+{
+	memcpy( player_password_hash[player_nr], hash, 20 );
+}
+
 
 // new tool definition
-void karte_t::set_werkzeug( werkzeug_t *w )
+void karte_t::set_werkzeug( werkzeug_t *w, spieler_t *sp )
 {
-	if(w->init(this,active_player)) {
+	if(  (!w->is_init_network_save()  ||  !w->is_work_network_save())  &&  sp  &&  sp->set_unlock(player_password_hash[sp->get_player_nr()])  ) {
+		// player is currently password protected => request unlock first
+		create_win( -1, -1, new password_frame_t(sp), w_info, (long)(player_password_hash[sp->get_player_nr()]) );
+		return;
+	}
+	w->flags = event_get_last_control_shift();
+	if(!umgebung_t::networkmode  ||  w->is_init_network_save()  ) {
+		local_set_werkzeug(w, sp);
+	}
+	else {
+		// queue tool for network
+		nwc_tool_t *nwc = new nwc_tool_t(sp, w, zeiger->get_pos(), steps, true);
+		network_send_server(nwc);
+	}
+}
+
+
+// set a new tool on our client, calls init
+void karte_t::local_set_werkzeug( werkzeug_t *w, spieler_t * sp )
+{
+	w->flags |= werkzeug_t::WFL_LOCAL;
+	if(w->init(this,sp)) {
 
 		set_dirty();
-		if(w!=werkzeug) {
+		if(w!=werkzeug[sp->get_player_nr()]) {
 
 			// reinit same tool => do not play sound twice
 			struct sound_info info;
@@ -1839,59 +2197,64 @@ void karte_t::set_werkzeug( werkzeug_t *w )
 			sound_play(info);
 
 			// only exit, if it is not the same tool again ...
-			werkzeug->exit(this,active_player);
+			werkzeug[sp->get_player_nr()]->exit(this,sp);
 		}
 
-		// reset pointer
-		koord3d zpos = zeiger->get_pos();
-		zeiger->set_bild( w->cursor );
-		zeiger->set_yoff( w->offset );
-		if(!zeiger->area_changed()) {
-			// reset to default 1,1 size
-			zeiger->set_area( koord(1,1), false );
+		if(  sp==active_player  ) {
+			// reset pointer
+			koord3d zpos = zeiger->get_pos();
+			zeiger->set_bild( w->cursor );
+			zeiger->set_yoff( w->offset );
+			if(!zeiger->area_changed()) {
+				// reset to default 1,1 size
+				zeiger->set_area( koord(1,1), false );
+			}
+			zeiger->change_pos( zpos );
 		}
-		zeiger->change_pos( zpos );
-		werkzeug = w;
-		werkzeug_last_pos = koord::invalid;
-		werkzeug_last_button = 0;
+		werkzeug[sp->get_player_nr()] = w;
 	}
+	w->flags = 0;
 }
 
 
-
-sint16 karte_t::min_hgt(const koord pos) const
+sint8 karte_t::min_hgt(const koord pos) const
 {
-	const int h1 = lookup_hgt(pos);
-	const int h2 = lookup_hgt(pos+koord(1, 0));
-	const int h3 = lookup_hgt(pos+koord(1, 1));
-	const int h4 = lookup_hgt(pos+koord(0, 1));
+	const sint8 h1 = lookup_hgt(pos);
+	const sint8 h2 = lookup_hgt(pos+koord(1, 0));
+	const sint8 h3 = lookup_hgt(pos+koord(1, 1));
+	const sint8 h4 = lookup_hgt(pos+koord(0, 1));
 
 	return min(min(h1,h2), min(h3,h4));
 }
 
 
-sint16 karte_t::max_hgt(const koord pos) const
+sint8 karte_t::max_hgt(const koord pos) const
 {
-	const int h1 = lookup_hgt(pos);
-	const int h2 = lookup_hgt(pos+koord(1, 0));
-	const int h3 = lookup_hgt(pos+koord(1, 1));
-	const int h4 = lookup_hgt(pos+koord(0, 1));
+	const sint8 h1 = lookup_hgt(pos);
+	const sint8 h2 = lookup_hgt(pos+koord(1, 0));
+	const sint8 h3 = lookup_hgt(pos+koord(1, 1));
+	const sint8 h4 = lookup_hgt(pos+koord(0, 1));
 
 	return max(max(h1,h2), max(h3,h4));
 }
 
 
-void
-karte_t::rotate90()
+void karte_t::rotate90()
 {
 	// asumme we can save this rotation
-	nosave = false;
+	nosave_warning = nosave = false;
 
 	//announce current target rotation
 	einstellungen->rotate90();
 
 	// clear marked region
 	zeiger->change_pos( koord3d::invalid );
+
+	// preprocessing, detach stops from factories to prevent crash
+	slist_iterator_tpl <halthandle_t> halt_pre_iter (haltestelle_t::get_alle_haltestellen());
+	while( halt_pre_iter.next() ) {
+		halt_pre_iter.get_current()->release_factory_links();
+	}
 
 	// first: rotate all things on the map
 	planquadrat_t *new_plan = new planquadrat_t[cached_groesse_gitter_y*cached_groesse_gitter_x];
@@ -1901,6 +2264,7 @@ karte_t::rotate90()
 			int new_nr = (cached_groesse_karte_y-y)+(x*cached_groesse_gitter_y);
 			new_plan[new_nr] = plan[nr];
 			plan[nr] = planquadrat_t();
+
 			// now rotate everything on the ground(s)
 			for(  uint i=0;  i<new_plan[new_nr].get_boden_count();  i++  ) {
 				new_plan[new_nr].get_boden_bei(i)->rotate90();
@@ -1967,10 +2331,7 @@ karte_t::rotate90()
 	ij_off.rotate90( cached_groesse_karte_x );
 
 	// rotate messages
-	uint max_message = msg->get_count();
-	for( uint i=0;  i<max_message;  i++  ) {
-		msg->get_node(i)->pos.rotate90( cached_groesse_karte_x );
-	}
+	msg->rotate90( cached_groesse_karte_x );
 
 	// rotate view in dialoge windows
 	win_rotate90( cached_groesse_karte_x );
@@ -2072,21 +2433,20 @@ karte_t::get_random_fab() const
 /*----------------------------------------------------------------------------------------------------------------------*/
 /* same procedure for tourist attractions */
 
-void
-karte_t::add_ausflugsziel(gebaeude_t *gb)
+
+void karte_t::add_ausflugsziel(gebaeude_t *gb)
 {
 	assert(gb != NULL);
 	ausflugsziele.append( gb, gb->get_tile()->get_besch()->get_level(), 16 );
 //DBG_MESSAGE("karte_t::add_ausflugsziel()","appended ausflugsziel at %i",ausflugsziele.get_count() );
 }
 
-void
-karte_t::remove_ausflugsziel(gebaeude_t *gb)
+
+void karte_t::remove_ausflugsziel(gebaeude_t *gb)
 {
 	assert(gb != NULL);
 	ausflugsziele.remove( gb );
 }
-
 
 
 /* select a random target for a tourist; targets are weighted by their importance */
@@ -2127,22 +2487,39 @@ stadt_t *karte_t::suche_naechste_stadt(const koord pos) const
 
 // -------- Verwaltung von synchronen Objekten ------------------
 
-bool
-karte_t::sync_add(sync_steppable *obj)
+static bool sync_step_running = false;
+
+bool karte_t::sync_add(sync_steppable *obj)
 {
-	assert(obj != NULL);
-	sync_add_list.insert( obj );
+	if(  sync_step_running  ) {
+		sync_add_list.insert( obj );
+	}
+	else {
+		sync_list.insert( obj );
+	}
 	return true;
 }
 
-bool
-karte_t::sync_remove(sync_steppable *obj)	// entfernt alle dinge == obj aus der Liste
+
+bool karte_t::sync_remove(sync_steppable *obj)	// entfernt alle dinge == obj aus der Liste
 {
-	assert(obj != NULL);
-	if(sync_add_list.remove(obj)) {
-		return true;
+	if(  sync_step_running  ) {
+		if(sync_add_list.remove(obj)) {
+			return true;
+		}
+		else {
+			sync_remove_list.append(obj);
+		}
 	}
-	return sync_list.remove( obj );
+	else {
+		if(sync_add_list.remove(obj)) {
+			return true;
+		}
+		else {
+			sync_list.remove(obj);
+		}
+	}
+	return false;
 }
 
 
@@ -2153,11 +2530,12 @@ karte_t::sync_remove(sync_steppable *obj)	// entfernt alle dinge == obj aus der 
  * only time consuming thing are done in step()
  * everything else is done here
  */
-void
-karte_t::sync_step(long delta_t, bool sync, bool display )
+void karte_t::sync_step(long delta_t, bool sync, bool display )
 {
+	set_random_mode( SYNC_STEP_RANDOM );
 	if(sync) {
 		// only omitted, when called to display a new frame during fast forward
+		sync_step_running = true;
 
 		// just for progress
 		ticks += delta_t;
@@ -2165,26 +2543,34 @@ karte_t::sync_step(long delta_t, bool sync, bool display )
 		// ingore calls by interrupt during fast forward ...
 		while(!sync_add_list.empty()) {
 			sync_steppable *ss = sync_add_list.remove_first();
-			sync_list.put( ss, ss );
+			sync_list.insert( ss );
 		}
 
-		ptrhashtable_iterator_tpl<sync_steppable*,sync_steppable*> iter (sync_list);
+		// now remove everything from last time
+		while(!sync_remove_list.empty()) {
+			sync_steppable *ss = sync_remove_list.remove_first();
+			sync_list.remove( ss );
+		}
 
-		// Hajo: we use a slight hack here to remove the current
-		// object from the list without wrecking the iterator
-		bool ok = iter.next();
-		while(ok) {
-			sync_steppable *ss = iter.get_current_value();
-
-			// Hajo: advance iterator, so that we can remove the current object
-			// safely
-			ok = iter.next();
-
-			if (!ss->sync_step(delta_t)) {
-				sync_list.remove(ss);
+		for(  slist_tpl<sync_steppable*>::iterator i=sync_list.begin();  i!=sync_list.end();  ) {
+			// if false, then remove
+			sync_steppable *ss = *i;
+			if(!ss->sync_step(delta_t)) {
+				i = sync_list.erase(i);
 				delete ss;
 			}
+			else {
+				++i;
+			}
 		}
+
+		// now remove everything from this time
+		while(!sync_remove_list.empty()) {
+			sync_steppable *ss = sync_remove_list.remove_first();
+			sync_list.remove( ss );
+		}
+
+		sync_step_running = false;
 	}
 
 	if(display) {
@@ -2198,14 +2584,15 @@ karte_t::sync_step(long delta_t, bool sync, bool display )
 
 		// change view due to following a convoi?
 		if(follow_convoi.is_bound()  &&  follow_convoi->get_vehikel_anzahl()>0) {
-			const koord3d new_pos=follow_convoi->get_vehikel(0)->get_pos();
+			vehikel_t const& v       = *follow_convoi->front();
+			koord3d   const  new_pos = v.get_pos();
 			if(new_pos!=koord3d::invalid) {
 				const sint16 rw = get_tile_raster_width();
 				int new_xoff = 0;
 				int new_yoff = 0;
-				follow_convoi->get_vehikel(0)->get_screen_offset( new_xoff, new_yoff );
-				new_xoff -= tile_raster_scale_x(-follow_convoi->get_vehikel(0)->get_xoff(),rw);
-				new_yoff -= tile_raster_scale_y(-follow_convoi->get_vehikel(0)->get_yoff(),rw) + tile_raster_scale_y(new_pos.z*TILE_HEIGHT_STEP/Z_TILE_STEP,rw);
+				v.get_screen_offset( new_xoff, new_yoff, get_tile_raster_width() );
+				new_xoff -= tile_raster_scale_x(-v.get_xoff(), rw);
+				new_yoff -= tile_raster_scale_y(-v.get_yoff(), rw) + tile_raster_scale_y(new_pos.z * TILE_HEIGHT_STEP / Z_TILE_STEP, rw);
 				change_world_position( new_pos.get_2d(), -new_xoff, -new_yoff );
 			}
 		}
@@ -2214,6 +2601,7 @@ karte_t::sync_step(long delta_t, bool sync, bool display )
 		intr_refresh_display( false );
 		update_frame_sleep_time(delta_t);
 	}
+	clear_random_mode( SYNC_STEP_RANDOM );
 }
 
 
@@ -2233,11 +2621,15 @@ void karte_t::update_frame_sleep_time(long /*delta*/)
 		simloops = 60;
 	}
 
-	if(pause) {
+	if(  step_mode&PAUSE_FLAG  ) {
 		// not changing pauses
-		next_wait_time = 50;
+		next_step_time = dr_time()+100;
+		idle_time = 100;
 	}
-	else if(!fast_forward) {
+	else if(  step_mode==FIX_RATIO) {
+		simloops = realFPS;
+	}
+	else if(step_mode==NORMAL) {
 		// calculate simloops
 		uint16 last_step = (steps+31)%32;
 		if(last_step_nr[last_step]>last_step_nr[steps%32]) {
@@ -2245,10 +2637,15 @@ void karte_t::update_frame_sleep_time(long /*delta*/)
 		}
 		// way too slow => try to increase time ...
 		if(  last_ms-last_interaction > 100  ) {
-			increase_frame_time();
-			increase_frame_time();
-			increase_frame_time();
-			increase_frame_time();
+			if(  last_ms-last_interaction > 500  ) {
+				set_frame_time( 1+get_frame_time() );
+			}
+			else {
+				increase_frame_time();
+				increase_frame_time();
+				increase_frame_time();
+				increase_frame_time();
+			}
 		}
 		else {
 			// change frame spacing ... (pause will be changed by step() directly)
@@ -2259,7 +2656,7 @@ void karte_t::update_frame_sleep_time(long /*delta*/)
 				if(  1000u/get_frame_time() < 2*realFPS  ) {
 					if(  realFPS < (umgebung_t::fps/2)  ) {
 						set_frame_time( get_frame_time()-1 );
-						next_wait_time = 0;
+						next_step_time = last_ms;
 					}
 					else {
 						reduce_frame_time();
@@ -2268,7 +2665,7 @@ void karte_t::update_frame_sleep_time(long /*delta*/)
 				else {
 					// do not set time too short!
 					set_frame_time( 500/max(1,realFPS) );
-					next_wait_time = 0;
+					next_step_time = last_ms;
 				}
 			}
 		}
@@ -2289,7 +2686,7 @@ void karte_t::update_frame_sleep_time(long /*delta*/)
 
 
 // add an amout to a subcategory
-void karte_t::buche(const sint64 betrag, enum player_cost type)
+void karte_t::buche(sint64 const betrag, player_cost const type)
 {
 	assert(type < MAX_WORLD_COST);
 	finance_history_year[0][type] += betrag;
@@ -2378,6 +2775,9 @@ void karte_t::neuer_monat()
 		halt_iter.get_current()->neuer_monat();
 		INT_CHECK("simworld 1877");
 	}
+
+	INT_CHECK("simworld 2522");
+	depot_t::neuer_monat();
 
 	// now switch year to get the right year for all timeline stuff ...
 	if(letzter_monat==0) {
@@ -2505,7 +2905,7 @@ void karte_t::recalc_average_speed()
 		}
 
 		// city road check
-		const weg_besch_t* city_road_test = wegbauer_t::get_besch(get_einstellungen()->get_city_road_type(), get_timeline_year_month());
+		const weg_besch_t* city_road_test = get_einstellungen()->get_city_road_type(get_timeline_year_month());
 		if(city_road_test) {
 			city_road = city_road_test;
 		}
@@ -2517,7 +2917,7 @@ void karte_t::recalc_average_speed()
 	}
 	else {
 		// defaults
-		city_road = wegbauer_t::get_besch(get_einstellungen()->get_city_road_type(), 0);
+		city_road = get_einstellungen()->get_city_road_type(0);
 		if(city_road==NULL) {
 			city_road = wegbauer_t::weg_search(road_wt,50,0,weg_t::type_flat);
 		}
@@ -2548,7 +2948,7 @@ sint32 karte_t::get_record_speed( waytype_t w ) const
 void karte_t::notify_record( convoihandle_t cnv, sint32 max_speed, koord pos )
 {
 	speed_record_t *sr = NULL;
-	switch(cnv->get_vehikel(0)->get_waytype()) {
+	switch (cnv->front()->get_waytype()) {
 		case road_wt: sr = &max_road_speed; break;
 		case track_wt:
 		case tram_wt: sr = &max_rail_speed; break;
@@ -2585,7 +2985,7 @@ void karte_t::notify_record( convoihandle_t cnv, sint32 max_speed, koord pos )
 			sr->speed = max_speed-1;
 			sr->besitzer = cnv->get_besitzer();
 			const char* msg;
-			switch(cnv->get_vehikel(0)->get_waytype()) {
+			switch (cnv->front()->get_waytype()) {
 				default: NOT_REACHED
 				case road_wt:     msg = "New world record for motorcars: %.1f km/h by %s."; break;
 				case track_wt:
@@ -2606,29 +3006,28 @@ void karte_t::notify_record( convoihandle_t cnv, sint32 max_speed, koord pos )
 
 
 
-void
-karte_t::step()
+void karte_t::step()
 {
-	static uint32 tile_counter = 0;
+	unsigned long time = dr_time();
 
 	// first: check for new month
 	if(ticks > next_month_ticks) {
 
-		next_month_ticks += karte_t::ticks_per_tag;
+		next_month_ticks += karte_t::ticks_per_world_month;
 
 		// avoid overflow here ...
 		if(ticks>next_month_ticks) {
-			ticks %= karte_t::ticks_per_tag;
-			ticks += karte_t::ticks_per_tag;
-			next_month_ticks = ticks+karte_t::ticks_per_tag;
-			last_step_ticks %= karte_t::ticks_per_tag;
+			ticks %= karte_t::ticks_per_world_month;
+			ticks += karte_t::ticks_per_world_month;
+			next_month_ticks = ticks+karte_t::ticks_per_world_month;
+			last_step_ticks %= karte_t::ticks_per_world_month;
 		}
 
 		neuer_monat();
 	}
 
 	const long delta_t = (long)ticks-(long)last_step_ticks;
-	if(!fast_forward) {
+	if(  step_mode==NORMAL  ) {
 		/* Try to maintain a decent pause, with a step every 170-250 ms (~5,5 simloops/s)
 		 * Also avoid too large or negative steps
 		 */
@@ -2636,27 +3035,14 @@ karte_t::step()
 		// needs plausibility check?!?
 		if(delta_t>10000  || delta_t<0) {
 			last_step_ticks = ticks;
+			next_step_time = time+10;
 			return;
 		}
-
-		if(delta_t<170) {
-			// to short pause
-			if(next_wait_time+1<(uint32)get_frame_time()) {
-				next_wait_time ++;
-			}
-			else {
-				next_wait_time = get_frame_time();
-			}
-			this_wait_time = next_wait_time;
-			return;
-		}
-		else if(delta_t>250  &&  next_wait_time>0) {
-			// too long pause
-			next_wait_time --;
-		}
+		idle_time = 0;
 		last_step_nr[steps%32] = ticks;
+		next_step_time = time+(3200/get_time_multiplier());
 	}
-	else {
+	else if(  step_mode==FAST_FORWARD  ) {
 		// fast forward first: get average simloops (i.e. calculate acceleration)
 		last_step_nr[steps%32] = dr_time();
 		int last_5_simloops = simloops;
@@ -2669,23 +3055,26 @@ karte_t::step()
 		}
 		// now try to approach the target speed
 		if(last_5_simloops<umgebung_t::max_acceleration) {
-			if(next_wait_time>0) {
-				next_wait_time --;
+			if(idle_time>0) {
+				idle_time --;
 			}
 		}
 		else if(simloops>8u*umgebung_t::max_acceleration) {
-			if(next_wait_time<get_frame_time()-10) {
-				next_wait_time ++;
+			if(idle_time<get_frame_time()-10) {
+				idle_time ++;
 			}
 		}
 		// cap it ...
-		if(next_wait_time>=get_frame_time()-10) {
-			next_wait_time = get_frame_time()-10;
+		if(idle_time>=get_frame_time()-10) {
+			idle_time = get_frame_time()-10;
 		}
+		next_step_time = time+idle_time;
+	}
+	else {
+		// network mode
 	}
 	// now do the step ...
 	last_step_ticks = ticks;
-	this_wait_time = next_wait_time;
 	steps ++;
 
 	// to make sure the tick counter will be updated
@@ -2711,7 +3100,8 @@ karte_t::step()
 	// to make sure the tick counter will be updated
 	INT_CHECK("karte_t::step");
 
-	for(unsigned i=0; i<convoi_array.get_count();  i++) {
+	// since convois will be deleted during stepping, we need to step backwards
+	for(sint32 i=convoi_array.get_count()-1;  i>=0;  i--  ) {
 		convoihandle_t cnv = convoi_array[i];
 		cnv->step();
 		if((i&7)==0) {
@@ -2735,13 +3125,19 @@ karte_t::step()
 	}
 	finance_history_year[0][WORLD_FACTORIES] = finance_history_month[0][WORLD_FACTORIES] = fab_list.get_count();
 
+	// step powerlines - required order: pumpe, senke, then powernet
+	pumpe_t::step_all( delta_t );
+	senke_t::step_all( delta_t );
+	powernet_t::step_all( delta_t );
+
 	// then step all players
 	for(  int i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
 		if(  spieler[i] != NULL  ) {
 			spieler[i]->step();
-			INT_CHECK("simworld 1975");
 		}
 	}
+
+	haltestelle_t::step_all();
 
 	// ok, next step
 	INT_CHECK("simworld 1975");
@@ -2909,8 +3305,8 @@ void karte_t::update_history()
 	sint64 transported_year = 0;
 	for(  uint i=0;  i<MAX_PLAYER_COUNT;  i++ ) {
 		if(  spieler[i]!=NULL  ) {
-			transported += spieler[i]->get_finance_history_month( 0, COST_ALL_TRANSPORTED );
-			transported_year += spieler[i]->get_finance_history_year( 0, COST_ALL_TRANSPORTED );
+			transported += spieler[i]->get_finance_history_month( 0, COST_TRANSPORTED_GOOD );
+			transported_year += spieler[i]->get_finance_history_year( 0, COST_TRANSPORTED_GOOD );
 		}
 	}
 	finance_history_month[0][WORLD_TRANSPORTED_GOODS] = transported;
@@ -2997,16 +3393,166 @@ void karte_t::blick_aendern(event_t *ev)
 }
 
 
-// nordhang = 3
-// suedhang = 12
+static sint8 median( sint8 a, sint8 b, sint8 c )
+{
+#if 0
+	if(  a==b  ||  a==c  ) {
+		return a;
+	}
+	else if(  b==c  ) {
+		return b;
+	}
+	else {
+		// noting matches
+//		return (3*128+1 + a+b+c)/3-128;
+		return -128;
+	}
+#elif 0
+	if(  a<=b  ) {
+		return b<=c ? b : max(a,c);
+	}
+	else {
+		return b>c ? b : min(a,c);
+	}
+#else
+		return (6*128+3 + a+a+b+b+c+c)/6-128;
+#endif
+}
+
+
 
 /**
- * returns the natural slope a a position
+ * returns the natural slope at a position using the actual slopes
+ * @author prissi
+ */
+uint8 karte_t::recalc_natural_slope( const koord pos, sint8 &new_height ) const
+{
+	grund_t *gr = lookup_kartenboden(pos);
+	if(!gr) {
+		return hang_t::flach;
+	}
+	else {
+		// now we check each four corners
+		grund_t *gr1, *gr2, *gr3;
+
+		// back right
+		gr1 = lookup_kartenboden(pos+koord(0,-1));
+		gr2 = lookup_kartenboden(pos+koord(1,-1));
+		gr3 = lookup_kartenboden(pos+koord(1,0));
+		// now get the correct height
+		sint16 height1 = median (
+			gr1 ? (sint16)gr1->get_hoehe()+corner2(gr1->get_grund_hang()) : grundwasser,
+			gr2 ? (sint16)gr2->get_hoehe()+corner1(gr2->get_grund_hang()) : grundwasser,
+			gr3 ? (sint16)gr3->get_hoehe()+corner4(gr3->get_grund_hang()) : grundwasser
+		);
+		// now we have height for corner one
+
+		// front right
+		gr1 = lookup_kartenboden(pos+koord(1,0));
+		gr2 = lookup_kartenboden(pos+koord(1,1));
+		gr3 = lookup_kartenboden(pos+koord(0,1));
+		// now get the correct height
+		sint16 height2 = median (
+			gr1 ? (sint16)gr1->get_hoehe()+corner1(gr1->get_grund_hang()) : grundwasser,
+			gr2 ? (sint16)gr2->get_hoehe()+corner4(gr2->get_grund_hang()) : grundwasser,
+			gr3 ? (sint16)gr3->get_hoehe()+corner3(gr3->get_grund_hang()) : grundwasser
+		);
+		// now we have height for corner two
+
+		// front left
+		gr1 = lookup_kartenboden(pos+koord(0,1));
+		gr2 = lookup_kartenboden(pos+koord(-1,1));
+		gr3 = lookup_kartenboden(pos+koord(-1,0));
+		// now get the correct height
+		sint16 height3 = median (
+			gr1 ? (sint16)gr1->get_hoehe()+corner4(gr1->get_grund_hang()) : grundwasser,
+			gr2 ? (sint16)gr2->get_hoehe()+corner3(gr2->get_grund_hang()) : grundwasser,
+			gr3 ? (sint16)gr3->get_hoehe()+corner2(gr3->get_grund_hang()) : grundwasser
+		);
+		// now we have height for corner three
+
+		// back left
+		gr1 = lookup_kartenboden(pos+koord(-1,0));
+		gr2 = lookup_kartenboden(pos+koord(-1,-1));
+		gr3 = lookup_kartenboden(pos+koord(0,-1));
+		// now get the correct height
+		sint16 height4 = median (
+			gr1 ? (sint16)gr1->get_hoehe()+corner3(gr1->get_grund_hang()) : grundwasser,
+			gr2 ? (sint16)gr2->get_hoehe()+corner2(gr2->get_grund_hang()) : grundwasser,
+			gr3 ? (sint16)gr3->get_hoehe()+corner1(gr3->get_grund_hang()) : grundwasser
+		);
+		// now we have height for corner four
+
+		// new height of that tile ...
+		sint8 min_height = min(min(height1,height2), min(height3,height4));
+		sint8 max_height = max(max(height1,height2), max(height3,height4));
+#ifndef DOUBLE_GROUNDS
+		/* check for an artificial slope on a steep sidewall */
+		bool not_ok = abs(max_height-min_height)>2  ||  min_height == -128;
+
+		sint8 old_height = gr->get_hoehe();
+		new_height = min_height;
+
+		// now we must make clear, that there is no ground above/below the slope
+		if(  old_height!=new_height  ) {
+			not_ok |= lookup(koord3d(pos,new_height))!=NULL;
+			if(  old_height > new_height  ) {
+				not_ok |= lookup(koord3d(pos,old_height-1))!=NULL;
+			}
+			if(  old_height < new_height  ) {
+				not_ok |= lookup(koord3d(pos,old_height+1))!=NULL;
+			}
+			not_ok |= lookup(koord3d(pos,new_height))!=NULL;
+		}
+
+		if(  not_ok  ) {
+			/* difference too high or ground above/below
+			 * we just keep it as it was ...
+			 */
+			new_height = old_height;
+			return gr->get_grund_hang();
+		}
+#if 0
+		// Since we have now the correct slopes, we update the grid:
+		sint8 *p = &grid_hgts[pos.x + pos.y*(get_groesse_x()+1)];
+		*p = height4;
+		*(p+1) = height3;
+		*(p+get_groesse_x()+2) = height2;
+		*(p+get_groesse_x()+1) = height1;
+#endif
+
+		// since slopes could be two unit height, we just return best effort ...
+		return (height4-new_height>0 ? 8 : 0) + (height1-new_height>0 ? 4 : 0) + (height2-new_height ? 2 : 0) + (height3-new_height>0 ? 1 : 0);
+#else
+		if(  max_height-min_height>2  ) {
+			/* this is an artificial slope on a steep sidewall
+			 * we just keep it as it was ...
+			 */
+			new_height = gr->get_hoehe();
+			return gr->get_grund_hang();
+		}
+		new_height = min_height;
+
+		const int d1=height1-mini;
+		const int d2=height2-mini;
+		const int d3=height3-mini;
+		const int d4=height4-mini;
+
+		return (d1*27) + (d2*9) + (d3*3) + d4;
+#endif
+	}
+	return 0;
+}
+
+
+
+/**
+ * returns the natural slope a a position using the grid
  * @author prissi
  */
 uint8 karte_t::calc_natural_slope( const koord pos ) const
 {
-	if(ist_in_kartengrenzen(pos.x, pos.y)) {
+	if(ist_in_gittergrenzen(pos.x, pos.y)) {
 
 		const sint8 * p = &grid_hgts[pos.x + pos.y*(get_groesse_x()+1)];
 
@@ -3023,19 +3569,17 @@ uint8 karte_t::calc_natural_slope( const koord pos ) const
 		const int d4=h4-mini;
 
 #ifndef DOUBLE_GROUNDS
-		const int slope = (d1<<3) + (d2<<2) + (d3<<1) + d4;
+		return (d1<<3) | (d2<<2) | (d3<<1) | d4;
 #else
-		const int slope = (d1*27) + (d2*9) + (d3*3) + d4;
+		return (d1*27) + (d2*9) + (d3*3) + d4;
 #endif
-		return slope;
 	}
 	return 0;
 }
 
 
 
-bool
-karte_t::ist_wasser(koord pos, koord dim) const
+bool karte_t::ist_wasser(koord pos, koord dim) const
 {
 	koord k;
 
@@ -3098,8 +3642,8 @@ DBG_DEBUG("karte_t::finde_plaetze()","for size (%i,%i) in map (%i,%i)",w,h,get_g
 				list->insert(start);
 			}
 			else {
-				// Optimiert für größere Felder, hehe!
-				// Die Idee: wenn bei 2x2 die untere Reihe nicht geht, können
+				// Optimiert fuer groessere Felder, hehe!
+				// Die Idee: wenn bei 2x2 die untere Reihe nicht geht, koennen
 				// wir gleich 2 tiefer weitermachen! V. Meyer
 				start.y = last_y;
 			}
@@ -3120,12 +3664,16 @@ bool
 karte_t::play_sound_area_clipped(koord pos, sound_info info)
 {
 	if(is_sound) {
-		const int center = display_get_width() >> 7;
-		const int dist = abs((pos.x-center) - ij_off.x) + abs((pos.y-center) - ij_off.y);
+		const int dist = koord_distance( pos, zeiger->get_pos() );
 
-		if(dist < 25) {
-			info.volume = 255-dist*9;
-			sound_play(info);
+		if(dist < 100) {
+			int xw = (2*display_get_width())/get_tile_raster_width();
+			int yw = (4*display_get_height())/get_tile_raster_width();
+
+			info.volume = (255l*(xw+yw))/(xw+yw+(64*dist));
+			if(  info.volume>8  ) {
+				sound_play(info);
+			}
 		}
 		return dist < 25;
 	}
@@ -3134,8 +3682,7 @@ karte_t::play_sound_area_clipped(koord pos, sound_info info)
 
 
 
-void
-karte_t::speichern(const char *filename,bool silent)
+void karte_t::speichern(const char *filename,bool silent)
 {
 #ifndef DEMO
 DBG_MESSAGE("karte_t::speichern()", "saving game to '%s'", filename);
@@ -3162,14 +3709,14 @@ DBG_MESSAGE("karte_t::speichern()", "saving game to '%s'", filename);
 				einstellungen->set_filename(filename);
 			}
 		}
+		reset_interaction();
 	}
 	display_show_load_pointer( false );
 #endif
 }
 
 
-void
-karte_t::speichern(loadsave_t *file,bool silent)
+void karte_t::speichern(loadsave_t *file,bool silent)
 {
 	bool needs_redraw = false;
 
@@ -3179,16 +3726,37 @@ DBG_MESSAGE("karte_t::speichern(loadsave_t *file)", "start");
 		display_progress(0,get_groesse_y());
 	}
 
-	// rotate the map until it can be saved
-	for( int i=0;  i<4  &&  nosave;  i++  ) {
-		nosave = false;
+	// rotate the map until it can be saved completely
+	nosave_warning = nosave = false;
+	for( int i=0;  i<4  &&  nosave_warning;  i++  ) {
 		rotate90();
 		needs_redraw = true;
 	}
-	if(nosave) {
-		dbg->error( "karte_t::speichern()","Map cannot be saved in any rotation!" );
-		create_win( new news_img("Map not saveable in any rotation!"), w_time_delete, magic_none);
-		return;
+	// seems not successful
+	if(nosave_warning) {
+		// but then we try to rotate until only warnings => some buildings may be broken, but factories should be fine
+		for( int i=0;  i<4  &&  nosave;  i++  ) {
+			rotate90();
+			needs_redraw = true;
+		}
+		if(  nosave  ) {
+			dbg->error( "karte_t::speichern()","Map cannot be saved in any rotation!" );
+			create_win( new news_img("Map may be not saveable in any rotation!"), w_info, magic_none);
+			// still broken, but we try anyway to save it ...
+		}
+	}
+	// only broken buildings => just warn
+	if(nosave_warning) {
+		dbg->error( "karte_t::speichern()","Some buildings may be broken by saving!" );
+	}
+
+	/* If the current tool is a two_click_werkzeug, call cleanup() in order to delete dummy grounds (tunnel + monorail preview)
+	 * THIS MUST NOT BE DONE IN NETWORK MODE!
+	 */
+	for(  uint8 sp_nr=0;  sp_nr<MAX_PLAYER_COUNT;  sp_nr++  ) {
+		if(  two_click_werkzeug_t* tool = dynamic_cast<two_click_werkzeug_t*>(werkzeug[sp_nr]) ) {
+			tool->cleanup( spieler[sp_nr], false );
+		}
 	}
 
 	// do not set value for empyt player
@@ -3229,10 +3797,13 @@ DBG_MESSAGE("karte_t::speichern(loadsave_t *file)", "saved cities ok");
 	}
 DBG_MESSAGE("karte_t::speichern(loadsave_t *file)", "saved tiles");
 
-	for(int j=0; j<(get_groesse_y()+1)*(get_groesse_x()+1); j++) {
-		file->rdwr_byte(grid_hgts[j], "\n");
+	if(  file->get_version()<=102001  ) {
+		// not needed any more
+		for(int j=0; j<(get_groesse_y()+1)*(get_groesse_x()+1); j++) {
+			file->rdwr_byte(grid_hgts[j], "\n");
+		}
+	DBG_MESSAGE("karte_t::speichern(loadsave_t *file)", "saved hgt");
 	}
-DBG_MESSAGE("karte_t::speichern(loadsave_t *file)", "saved hgt");
 
 	sint32 fabs = fab_list.get_count();
 	file->rdwr_long(fabs, "\n");
@@ -3325,9 +3896,9 @@ DBG_MESSAGE("karte_t::speichern(loadsave_t *file)", "saved players");
 
 
 // just the preliminaries, opens the file, checks the versions ...
-bool
-karte_t::laden(const char *filename)
+bool karte_t::laden(const char *filename)
 {
+	cbuffer_t name(1024);
 	bool ok=false;
 	mute_sound(true);
 	display_show_load_pointer(true);
@@ -3337,7 +3908,38 @@ karte_t::laden(const char *filename)
 
 	DBG_MESSAGE("karte_t::laden", "loading game from '%s'", filename);
 
-	if(!file.rd_open(filename)) {
+	if(  strstr(filename,"net:")==filename  ) {
+		chdir( umgebung_t::user_dir );
+		const char *err = network_connect(filename+4);
+		if(err) {
+			create_win( new news_img(err), w_info, magic_none );
+			display_show_load_pointer(false);
+			step_mode = NORMAL;
+			return false;
+		}
+		else {
+			umgebung_t::networkmode = true;
+			name.printf( "client%i-network.sve", network_get_client_id() );
+		}
+	}
+	else {
+		// probably finish network mode?
+		if(  umgebung_t::networkmode  &&  !umgebung_t::server  ) {
+			// ok, needs better check, since we reload also during sync
+			char fn[256];
+			sprintf( fn, "client%i-network.sve", network_get_client_id() );
+			if(  strcmp(filename,fn)!=0  ) {
+				// remain only in networkmode, if I am the server
+				dbg->warning("karte_t::laden","finished network mode");
+				umgebung_t::networkmode = false;
+				network_core_shutdown();
+				// closing the socket will tell the server, I am away too
+			}
+		}
+		name.append(filename);
+	}
+
+	if(!file.rd_open(name)) {
 
 		if(  (sint32)file.get_version()==-1  ||  file.get_version()>loadsave_t::int_version(SAVEGAME_VER_NR, NULL, NULL )  ) {
 			create_win( new news_img("WRONGSAVE"), w_info, magic_none );
@@ -3358,10 +3960,27 @@ karte_t::laden(const char *filename)
 DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 
 		laden(&file);
+
+		if(  umgebung_t::server  ) {
+			step_mode = FIX_RATIO;
+		}
+		else if(  umgebung_t::networkmode  ) {
+			step_mode = PAUSE_FLAG|FIX_RATIO;
+		}
+		else {
+			step_mode = NORMAL;
+		}
+
 		ok = true;
 		file.close();
 		create_win( new news_img("Spielstand wurde\ngeladen!\n"), w_time_delete, magic_none);
 		set_dirty();
+
+		reset_timer();
+		recalc_average_speed();
+		mute_sound(false);
+
+		set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], get_active_player() );
 	}
 #endif
 	einstellungen->set_filename(filename);
@@ -3376,26 +3995,39 @@ void karte_t::laden(loadsave_t *file)
 	char buf[80];
 
 	intr_disable();
-	werkzeug = werkzeug_t::general_tool[WKZ_ABFRAGE];
+	for(  uint i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+		werkzeug[i] = werkzeug_t::general_tool[WKZ_ABFRAGE];
+	}
 	destroy_all_win();
-
 
 	display_set_progress_text(translator::translate("Loading map ..."));
 	display_progress(0, 100);	// does not matter, since fixed width
 
 	destroy();
-	fast_forward = false;
+	tile_counter = 0;
+	simloops = 60;
 
-	// powernets zum laden vorbereiten -> tabelle loeschen
+	// zum laden vorbereiten -> tabelle loeschen
 	powernet_t::neue_karte();
+	pumpe_t::neue_karte();
+	senke_t::neue_karte();
 
 	// jetzt geht das laden los
 	DBG_MESSAGE("karte_t::laden", "Fileversion: %d, %p", file->get_version(), einstellungen);
 	einstellungen->rdwr(file);
-	if(einstellungen->get_allow_player_change()  &&  umgebung_t::default_einstellungen.get_use_timeline()!=2) {
-		// not locked => eventually switch off timeline settings, if explicitly stated
-		einstellungen->set_use_timeline( umgebung_t::default_einstellungen.get_use_timeline() );
-		DBG_DEBUG("karte_t::laden", "timeline: reset to %i", umgebung_t::default_einstellungen.get_use_timeline() );
+
+	if(  umgebung_t::networkmode  ) {
+		// to have games synchronized, transfer random counter too
+		setsimrand( einstellungen->get_random_counter(), 0xFFFFFFFFu );
+	}
+	set_random_mode(LOAD_RANDOM);
+
+	if(  !umgebung_t::networkmode  ||  umgebung_t::server  ) {
+		if(einstellungen->get_allow_player_change()  &&  umgebung_t::default_einstellungen.get_use_timeline()<2) {
+			// not locked => eventually switch off timeline settings, if explicitly stated
+			einstellungen->set_use_timeline( umgebung_t::default_einstellungen.get_use_timeline() );
+			DBG_DEBUG("karte_t::laden", "timeline: reset to %i", umgebung_t::default_einstellungen.get_use_timeline() );
+		}
 	}
 	if(einstellungen->get_beginner_mode()) {
 		warenbauer_t::set_multiplier( get_einstellungen()->get_starting_year() );
@@ -3431,7 +4063,7 @@ DBG_DEBUG("karte_t::laden()","grundwasser %i",grundwasser);
 	init_felder();
 
 	// reinit pointer with new pointer object and old values
-	zeiger = new zeiger_t(this, koord3d::invalid, spieler[0]);
+	zeiger = new zeiger_t(this, koord3d::invalid, NULL );
 
 	hausbauer_t::neue_karte();
 	fabrikbauer_t::neue_karte(this);
@@ -3446,12 +4078,14 @@ DBG_DEBUG("karte_t::laden", "init felder ok");
 	}
 	// old game might have wrong month
 	letzter_monat %= 12;
- 	// set the current month count
-	set_ticks_bits_per_tag(einstellungen->get_bits_per_month());
+	// set the current month count
+	set_ticks_per_world_month_shift(einstellungen->get_bits_per_month());
 	current_month = letzter_monat + (letztes_jahr*12);
 	season = (2+letzter_monat/3)&3; // summer always zero
-	next_month_ticks = 	( (ticks >> karte_t::ticks_bits_per_tag) + 1 ) << karte_t::ticks_bits_per_tag;
+	next_month_ticks = 	( (ticks >> karte_t::ticks_per_world_month_shift) + 1 ) << karte_t::ticks_per_world_month_shift;
+	last_step_ticks = ticks;
 	steps = 0;
+	step_mode = PAUSE_FLAG;
 
 DBG_MESSAGE("karte_t::laden()","savegame loading at tick count %i",ticks);
 	recalc_average_speed();	// resets timeline
@@ -3467,7 +4101,7 @@ DBG_MESSAGE("karte_t::laden()", "init player");
 		else if(i<8) {
 			// get the old player ...
 			if(  spieler[i]==NULL  ) {
-				spieler[i] = (i==3) ? (spieler_t*)(new ai_passenger_t(this, i)) : (spieler_t*)(new ai_goods_t(this, i));
+				new_spieler( i, (i==3) ? spieler_t::AI_PASSENGER : spieler_t::AI_GOODS );
 			}
 			einstellungen->spieler_type[i] = spieler[i]->get_ai_id();
 		}
@@ -3498,8 +4132,8 @@ DBG_DEBUG("karte_t::laden", "init %i cities",einstellungen->get_anzahl_staedte()
 		display_progress(y, get_groesse_y()+stadt.get_count()+256);
 	}
 
-DBG_MESSAGE("karte_t::laden()","loading grid");
 	if(file->get_version()<99005) {
+		DBG_MESSAGE("karte_t::laden()","loading grid for older versions");
 		for (int y = 0; y <= get_groesse_y(); y++) {
 			for (int x = 0; x <= get_groesse_x(); x++) {
 				sint32 hgt;
@@ -3509,10 +4143,21 @@ DBG_MESSAGE("karte_t::laden()","loading grid");
 			}
 		}
 	}
-	else {
+	else if(  file->get_version()<=102001  )  {
 		// hgt now bytes
+		DBG_MESSAGE("karte_t::laden()","loading grid for older versions");
 		for( sint32 i=0;  i<(get_groesse_y()+1)*(get_groesse_x()+1);  i++  ) {
 			file->rdwr_byte( grid_hgts[i], "\n" );
+		}
+	}
+	else {
+		// just restore the corners as ground level
+		DBG_MESSAGE("karte_t::laden()","calculating grid corners");
+		for( sint32 i=1;  i<get_groesse_x()+1;  i++  ) {
+			grid_hgts[i] = grundwasser;
+		}
+		for( sint32 j=0;  j<get_groesse_y()+1;  j++  ) {
+			grid_hgts[(get_groesse_x()+1)*j] = grundwasser;
 		}
 	}
 
@@ -3582,19 +4227,8 @@ DBG_MESSAGE("karte_t::laden()", "%d factories loaded", fab_list.get_count());
 		if(file->get_version()<99014) {
 			(*i)->verbinde_fabriken();
 		}
-		(*i)->laden_abschliessen();
 		display_progress(x++, get_groesse_y() + 256 + stadt.get_count());
 	}
-
-	// must resort them ...
-	weighted_vector_tpl<stadt_t*> new_weighted_stadt(stadt.get_count() + 1);
-	for (weighted_vector_tpl<stadt_t*>::const_iterator i = stadt.begin(), end = stadt.end(); i != end; ++i) {
-		stadt_t* s = *i;
-		new_weighted_stadt.append(s, s->get_einwohner(), 64);
-		INT_CHECK("simworld 1278");
-	}
-	swap(stadt, new_weighted_stadt);
-	DBG_MESSAGE("karte_t::laden()", "cities initialized");
 
 	// load linemanagement status (and lines)
 	// @author hsiegeln
@@ -3656,7 +4290,7 @@ DBG_MESSAGE("karte_t::laden()", "%d factories loaded", fab_list.get_count());
 	}
 DBG_MESSAGE("karte_t::laden()", "%d convois/trains loaded", convoi_array.get_count());
 
-	// jetzt können die spieler geladen werden
+	// jetzt koennen die spieler geladen werden
 	display_progress(get_groesse_y()+24+stadt.get_count(), get_groesse_y()+256+stadt.get_count());
 	for(int i=0; i<MAX_PLAYER_COUNT; i++) {
 		if(  spieler[i]  ) {
@@ -3665,13 +4299,12 @@ DBG_MESSAGE("karte_t::laden()", "%d convois/trains loaded", convoi_array.get_cou
 		}
 		else {
 			einstellungen->automaten[i] = false;
-			einstellungen->password[i][0] = 0;
 		}
 		display_progress(get_groesse_y()+24+stadt.get_count()+(i*3), get_groesse_y()+256+stadt.get_count());
 	}
 DBG_MESSAGE("karte_t::laden()", "players loaded");
 
-	// nachdem die welt jetzt geladen ist können die Blockstrecken neu
+	// nachdem die welt jetzt geladen ist koennen die Blockstrecken neu
 	// angelegt werden
 	old_blockmanager_t::laden_abschliessen(this);
 	DBG_MESSAGE("karte_t::laden()", "blocks loaded");
@@ -3739,22 +4372,42 @@ DBG_MESSAGE("karte_t::laden()", "%d ways loaded",weg_t::get_alle_wege().get_coun
 		}
 	}
 
+	// must resort them ...
+	weighted_vector_tpl<stadt_t*> new_weighted_stadt(stadt.get_count() + 1);
+	for (weighted_vector_tpl<stadt_t*>::const_iterator i = stadt.begin(), end = stadt.end(); i != end; ++i) {
+		stadt_t* s = *i;
+		s->laden_abschliessen();
+		new_weighted_stadt.append(s, s->get_einwohner(), 64);
+		INT_CHECK("simworld 1278");
+	}
+	swap(stadt, new_weighted_stadt);
+	DBG_MESSAGE("karte_t::laden()", "cities initialized");
+
+#ifdef DEBUG
+	long dt = dr_time();
+#endif
 	// recalculate halt connections
-	slist_iterator_tpl<halthandle_t>iter(haltestelle_t::get_alle_haltestellen());
+	set_schedule_counter();
 	int hnr=0, hmax=haltestelle_t::get_alle_haltestellen().get_count();
-	while(iter.next()) {
-		if((hnr++%32)==0) {
+	for(  slist_tpl<halthandle_t>::const_iterator i=haltestelle_t::get_alle_haltestellen().begin(); i!=haltestelle_t::get_alle_haltestellen().end();  ++i  ) {
+		if((hnr++%64)==0) {
 			display_progress(get_groesse_y()+48+stadt.get_count()+128+(hnr*80)/hmax, get_groesse_y()+256+stadt.get_count());
 		}
-		iter.get_current()->rebuild_destinations();
+		(*i)->rebuild_destinations();
 	}
+#ifdef DEBUG
+	DBG_MESSAGE("rebuild_destinations()","for all haltstellen_t took %ld ms", dr_time()-dt );
+#endif
 
 #if 0
 	// reroute goods for benchmarking
-	long dt = dr_time();
-	iter.begin();
-	while(iter.next()) {
-		iter.get_current()->reroute_goods();
+	dt = dr_time();
+	for(  slist_tpl<halthandle_t>::const_iterator i=haltestelle_t::get_alle_haltestellen().begin(); i!=haltestelle_t::get_alle_haltestellen().end();  ++i  ) {
+		sint16 dummy = 0x7FFF;
+		if((hnr++%64)==0) {
+			display_progress(get_groesse_y()+48+stadt.get_count()+128+(hnr*40)/hmax, get_groesse_y()+256+stadt.get_count());
+		}
+		(*i)->reroute_goods(dummy);
 	}
 	DBG_MESSAGE("reroute_goods()","for all haltstellen_t took %ld ms", dr_time()-dt );
 #endif
@@ -3780,8 +4433,8 @@ DBG_MESSAGE("karte_t::laden()", "%d ways loaded",weg_t::get_alle_wege().get_coun
 
 #if 0
 	// preserve tick counter ...
-	ticks = ticks % karte_t::ticks_per_tag;
-	next_month_ticks = karte_t::ticks_per_tag;
+	ticks = ticks % karte_t::ticks_per_world_month;
+	next_month_ticks = karte_t::ticks_per_world_month;
 	letzter_monat %= 12;
 #endif
 
@@ -3789,16 +4442,8 @@ DBG_MESSAGE("karte_t::laden()", "%d ways loaded",weg_t::get_alle_wege().get_coun
 	if(file->get_version()>=99018) {
 		scenario->rdwr(file);
 	}
-
-	DBG_MESSAGE("karte_t::laden()","savegame from %i/%i, next month=%i, ticks=%i (per month=1<<%i)",letzter_monat,letztes_jahr,next_month_ticks,ticks,karte_t::ticks_bits_per_tag);
-
-	pause = false;
-	reset_timer();
-	recalc_average_speed();
-	set_dirty();
-	mute_sound(false);
-
-	set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+	clear_random_mode(LOAD_RANDOM);
+	DBG_MESSAGE("karte_t::laden()","savegame from %i/%i, next month=%i, ticks=%i (per month=1<<%i)",letzter_monat,letztes_jahr,next_month_ticks,ticks,karte_t::ticks_per_world_month_shift);
 }
 
 
@@ -3818,8 +4463,7 @@ void karte_t::update_map()
 
 // return an index to a halt (or creates a new one)
 // only used during loading
-halthandle_t
-karte_t::get_halt_koord_index(koord k)
+halthandle_t karte_t::get_halt_koord_index(koord k)
 {
 	if(!ist_in_kartengrenzen(k)) {
 		return halthandle_t();
@@ -3854,7 +4498,7 @@ uint8 karte_t::sp2num(spieler_t *sp)
 /**
  * Creates a map from a heightfield
  * @param sets game settings
- * @author Hansjörg Malthaner
+ * @author Hj. Malthaner
  */
 void karte_t::load_heightfield(einstellungen_t *sets)
 {
@@ -3886,8 +4530,7 @@ static void warte_auf_mausklick_oder_taste(event_t *ev)
  * marks an area using the grund_t mark flag
  * @author prissi
  */
-void
-karte_t::mark_area( const koord3d pos, const koord size, const bool mark )
+void karte_t::mark_area( const koord3d pos, const koord size, const bool mark )
 {
 	for( sint16 y=pos.y;  y<pos.y+size.y;  y++  ) {
 		for( sint16 x=pos.x;  x<pos.x+size.x;  x++  ) {
@@ -3910,22 +4553,65 @@ karte_t::mark_area( const koord3d pos, const koord size, const bool mark )
 
 
 
-void
-karte_t::reset_timer()
+void karte_t::reset_timer()
 {
 	DBG_MESSAGE("karte_t::reset_timer()","called");
 	// Reset timers
-	uint32 last_tick_sync = dr_time();
+	long last_tick_sync = dr_time();
+	mouse_rest_time = last_tick_sync;
+	sound_wait_time = AMBIENT_SOUND_INTERVALL;
 	intr_set_last_time(last_tick_sync);
-	intr_enable();
 
-	if(fast_forward) {
+	if(  umgebung_t::networkmode  &&  (step_mode&PAUSE_FLAG)==0  ) {
+		step_mode = FIX_RATIO;
+	}
+
+	last_step_time = last_interaction = last_tick_sync;
+	last_step_ticks = ticks;
+
+	// reinit simloop counter
+	for(  int i=0;  i<32;  i++  ) {
+		last_step_nr[i] = steps;
+	}
+
+	if(  step_mode&PAUSE_FLAG  ) {
+		intr_disable();
+	}
+	else if(step_mode==FAST_FORWARD) {
+		next_step_time = last_tick_sync+1;
 		set_frame_time( 100 );
 		time_multiplier = 16;
+		intr_enable();
+	}
+	else if(step_mode==FIX_RATIO) {
+		last_frame_idx = 0;
+		next_step_time = last_tick_sync+( 1000/clamp(einstellungen->get_frames_per_second(),5,100) );
+		set_frame_time( 1000/clamp(einstellungen->get_frames_per_second(),5,100) );
+		intr_disable();
+		// other stuff needed to synchronize
+		tile_counter = 0;
+		pending_season_change = 1;
 	}
 	else {
+		// make timer loop invalid
+		for( int i=0;  i<32;  i++ ) {
+			last_frame_ms[i] = 0x7FFFFFFFu;
+			last_step_nr[i] = 0xFFFFFFFFu;
+		}
+		last_frame_idx = 0;
+		simloops = 60;
+
 		set_frame_time( 1000/umgebung_t::fps );
+		next_step_time = last_tick_sync+(3200/get_time_multiplier() );
+		intr_enable();
 	}
+}
+
+
+
+void karte_t::reset_interaction()
+{
+	last_interaction = dr_time();
 }
 
 
@@ -3935,8 +4621,8 @@ karte_t::reset_timer()
 void karte_t::step_year()
 {
 	DBG_MESSAGE("karte_t::step_year()","called");
-//	ticks += 12*karte_t::ticks_per_tag;
-//	next_month_ticks += 12*karte_t::ticks_per_tag;
+//	ticks += 12*karte_t::ticks_per_world_month;
+//	next_month_ticks += 12*karte_t::ticks_per_world_month;
 	current_month += 12;
 	letztes_jahr ++;
 	reset_timer();
@@ -3958,13 +4644,15 @@ void karte_t::step_month( sint16 months )
 
 void karte_t::change_time_multiplier(sint32 delta)
 {
-	time_multiplier += delta;
-	if(time_multiplier<=0) {
-		time_multiplier = 1;
-	}
-	if(fast_forward) {
-		fast_forward = false;
-		reset_timer();
+	if(  !umgebung_t::networkmode  ) {
+		time_multiplier += delta;
+		if(time_multiplier<=0) {
+			time_multiplier = 1;
+		}
+		if(step_mode!=NORMAL) {
+			step_mode = NORMAL;
+			reset_timer();
+		}
 	}
 }
 
@@ -3979,7 +4667,7 @@ void karte_t::do_freeze()
 	display_ddd_box(display_get_width()/2-92, display_get_height()/2-42, 200-16,100-16, MN_GREY0, MN_GREY4);
 	display_proportional(display_get_width()/2, display_get_height()/2-5, translator::translate("GAME PAUSED"), ALIGN_MIDDLE, COL_BLACK, false);
 
-	// Pause: warten auf die nächste Taste
+	// Pause: warten auf die naechste Taste
 	event_t ev;
 	dr_flush();
 	warte_auf_mausklick_oder_taste(&ev);
@@ -3990,18 +4678,37 @@ void karte_t::do_freeze()
 
 void karte_t::set_pause(bool p)
 {
+	bool pause = step_mode&PAUSE_FLAG;
 	if(p!=pause) {
-		pause = p;
+		step_mode ^= PAUSE_FLAG;
 		if(p) {
 			intr_disable();
 		}
 		else {
 			reset_timer();
-			intr_enable();
 		}
 	}
 }
 
+
+
+void karte_t::set_fast_forward(bool ff)
+{
+	if(  !umgebung_t::networkmode  ) {
+		if(  ff  ) {
+			if(  step_mode==NORMAL  ) {
+				step_mode = FAST_FORWARD;
+				reset_timer();
+			}
+		}
+		else {
+			if(  step_mode==FAST_FORWARD  ) {
+				step_mode = NORMAL;
+				reset_timer();
+			}
+		}
+	}
+}
 
 
 void karte_t::bewege_zeiger(const event_t *ev)
@@ -4045,10 +4752,16 @@ void karte_t::bewege_zeiger(const event_t *ev)
 		//bool select_karten_boden = event_get_last_control_shift()==2;
 
 		sint8 hgt; // trial height
+		sint8 groff; // offset for lower raise tool
 		// fallback: take kartenboden if nothing else found
 		const grund_t *bd = NULL;
+		// for the calculation of hmin/hmax see simview.cc
+		// for the definition of underground_level see grund_t::set_underground_mode
+		const sint8 hmin = grund_t::underground_mode!=grund_t::ugm_all ? min(grundwasser, grund_t::underground_level) : grundwasser-10;
+		const sint8 hmax = grund_t::underground_mode==grund_t::ugm_all ? 32 : min(grund_t::underground_level, 32);
+
 		// find matching and visible grund
-		for(hgt = 32; hgt>=grundwasser; hgt-=Z_TILE_STEP) {
+		for(hgt = hmax; hgt>=hmin; hgt-=Z_TILE_STEP) {
 
 			const int base_i = (screen_x+screen_y + tile_raster_scale_y((hgt*TILE_HEIGHT_STEP)/Z_TILE_STEP,rw1) )/2;
 			const int base_j = (screen_y-screen_x + tile_raster_scale_y((hgt*TILE_HEIGHT_STEP)/Z_TILE_STEP,rw1))/2;
@@ -4059,20 +4772,30 @@ void karte_t::bewege_zeiger(const event_t *ev)
 			const grund_t *gr = lookup(koord3d(mi,mj,hgt));
 			if(gr != NULL) {
 				found = /*select_karten_boden ? gr->ist_karten_boden() :*/ gr->is_visible();
+				if( ( gr->get_typ() == grund_t::tunnelboden || gr->get_typ() == grund_t::monorailboden ) && gr->get_weg_nr(0) == NULL ) {
+					// This is only a dummy ground placed by wkz_tunnelbau_t or wkz_wegebau_t as a preview.
+					found = false;
+				}
 				if (found) {
+					groff = corner4(gr->get_grund_hang());
 					break;
 				}
 
-				if (gr->ist_karten_boden() && bd==NULL) {
+				if (bd==NULL && gr->ist_karten_boden()) {
 					bd = gr;
 				}
+			}
+			else if (grund_t::underground_mode==grund_t::ugm_level && hgt==hmax) {
+				// fallback in sliced mode, if no ground is under cursor
+				bd = lookup_kartenboden(koord(mi,mj));
 			}
 		}
 		// try kartenboden?
 		if (!found && bd!=NULL) {
 			mi = bd->get_pos().x;
 			mj = bd->get_pos().y;
-			hgt= bd->get_pos().z;
+			hgt= bd->get_disp_height();
+			groff = bd->is_visible() ? corner4(bd->get_grund_hang()) : 0;
 			found = true;
 		}
 		// no suitable location found (outside map, ...)
@@ -4080,14 +4803,14 @@ void karte_t::bewege_zeiger(const event_t *ev)
 			return;
 		}
 
-		// the new position
-		const koord3d pos = koord3d(mi,mj,hgt);
+		// the new position - extra logic for raise / lower tool
+		const koord3d pos = koord3d(mi,mj, hgt + (zeiger->get_yoff()==Z_GRID ? groff : 0));
 
 		// rueckwaerttransformation um die zielkoordinaten
 		// mit den mauskoordinaten zu vergleichen
 		int neu_x = ((mi-i_off) - (mj-j_off))*rw2 + display_get_width()/2 + rw2;
 
-		// prüfe richtung d.h. welches nachbarfeld ist am naechsten
+		// pruefe richtung d.h. welches nachbarfeld ist am naechsten
 		if(ev->mx-x_off < neu_x) {
 			zeiger->set_richtung(ribi_t::west);
 		}
@@ -4097,43 +4820,55 @@ void karte_t::bewege_zeiger(const event_t *ev)
 
 		// zeiger bewegen
 		const koord3d prev_pos = zeiger->get_pos();
-		if(prev_pos != pos ||  ev->button_state != mb_alt) {
+		if(  (prev_pos != pos ||  ev->button_state != mb_alt)  ) {
 
 			mb_alt = ev->button_state;
 
 			zeiger->change_pos(pos);
-			// resend init message, if mouse button pressed to enable dragging
-			if(is_dragging  &&  ev->button_state==0) {
-				is_dragging = false;
-				werkzeug->move( this, get_active_player(), 0, prev_pos );
-			}
-			else if(ev->ev_class==EVENT_DRAG  &&  werkzeug_last_pos!=pos.get_2d()) {
-				if(!is_dragging  &&  ist_in_kartengrenzen(prev_pos.get_2d())) {
-					werkzeug->move( this, get_active_player(), 1, prev_pos );
+			werkzeug_t *wkz = werkzeug[get_active_player_nr()];
+			if(  !umgebung_t::networkmode  ||  wkz->is_move_network_save(get_active_player())) {
+				wkz->flags = event_get_last_control_shift() | werkzeug_t::WFL_LOCAL;
+				if(wkz->check( this, get_active_player(), zeiger->get_pos() )==NULL) {
+					if(  ev->button_state == 0  ) {
+						is_dragging = false;
+					}
+					else if(ev->ev_class==EVENT_DRAG) {
+						if(!is_dragging  &&  wkz->check( this, get_active_player(), prev_pos )==NULL) {
+							wkz->move( this, get_active_player(), 1, prev_pos );
+							is_dragging = true;
+						}
+					}
+					wkz->move( this, get_active_player(), is_dragging, pos );
 				}
-				is_dragging = true;
-				werkzeug->move( this, get_active_player(), 1, pos );
+				wkz->flags = 0;
+			}
+
+			if(  (ev->button_state&7)==0  ) {
+				// time, since mouse got here
+				mouse_rest_time = dr_time();
+				sound_wait_time = AMBIENT_SOUND_INTERVALL;	// 13s no movement: play sound
 			}
 		}
 	}
 }
 
 
-
 /* creates a new player with this type */
-void karte_t::new_spieler(uint8 new_player, uint8 type)
+const char *karte_t::new_spieler(uint8 new_player, uint8 type)
 {
-	assert(  spieler[new_player]==NULL  );
+	if(  new_player>=PLAYER_UNOWNED  ||  get_spieler(new_player)!=NULL  ) {
+		return "Id invalid/already in use!";
+	}
 	switch( type ) {
 		case spieler_t::EMPTY: break;
 		case spieler_t::HUMAN: spieler[new_player] = new spieler_t(this,new_player); break;
 		case spieler_t::AI_GOODS: spieler[new_player] = new ai_goods_t(this,new_player); break;
 		case spieler_t::AI_PASSENGER: spieler[new_player] = new ai_passenger_t(this,new_player); break;
-		default: dbg->fatal( "karte_t::new_spieler()","Unknow AI type %i!",type );
+		default: return "Unknow AI type!";
 	}
+	get_einstellungen()->set_player_type( new_player, type );
+	return NULL;
 }
-
-
 
 
 /* goes to next active player */
@@ -4158,28 +4893,33 @@ void karte_t::switch_active_player(uint8 new_player)
 		}
 	}
 	else {
+		koord3d old_zeiger_pos = zeiger->get_pos();
+		zeiger->set_bild( IMG_LEER );	// unmarks also area
+		zeiger->set_pos( koord3d::invalid );
+		if (two_click_werkzeug_t* const tool = dynamic_cast<two_click_werkzeug_t*>(werkzeug[active_player_nr])) {
+			tool->cleanup(active_player, false);
+		}
 		renew_menu = (active_player_nr==1  ||  new_player==1);
 		active_player_nr = new_player;
 		active_player = spieler[new_player];
 		char buf[512];
 		sprintf(buf, translator::translate("Now active as %s.\n"), get_active_player()->get_name() );
 		msg->add_message(buf, koord::invalid, message_t::warnings, PLAYER_FLAG|get_active_player()->get_player_nr(), IMG_LEER);
+		zeiger->set_area( koord(1,1), false );
+		zeiger->set_pos( old_zeiger_pos );
 	}
 
 	// update menue entries (we do not want player1 to run anything)
 	if(renew_menu) {
-		for (vector_tpl<toolbar_t *>::const_iterator i = werkzeug_t::toolbar_tool.begin(), end = werkzeug_t::toolbar_tool.end();  i != end;  ++i  ) {
-			(*i)->update(this, active_player);
-		}
+		werkzeug_t::update_toolbars(this);
 		set_dirty();
 	}
-	set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+
+	zeiger->set_bild( werkzeug[active_player_nr]->cursor );
 }
 
 
-
-void
-karte_t::interactive_event(event_t &ev)
+void karte_t::interactive_event(event_t &ev)
 {
 	struct sound_info click_sound;
 	click_sound.index = SFX_SELECT;
@@ -4235,26 +4975,35 @@ karte_t::interactive_event(event_t &ev)
 				// close topmost win
 				destroy_win( win_get_top() );
 				break;
-			case 8:
-				sound_play(click_sound);
-				destroy_all_win();
-				break;
 
 			case SIM_KEY_F1:
-				set_werkzeug( werkzeug_t::dialog_tool[WKZ_HELP] );
+				set_werkzeug( werkzeug_t::dialog_tool[WKZ_HELP], get_active_player() );
 				break;
 
 			// just ignore the key
 			case 0:
-			case 13:
 				break;
+
+			// distinguish between backspace and ctrl-H (both keycode==8), and enter and ctrl-M (both keycode==13)
+			case 8:
+			case 13:
+				if(  (ev.ev_key_mod & 2) == 0  ) {
+					// Control is _not_ pressed => Backspace or Enter pressed.
+					if(  ev.ev_code == 8  ) {
+						// Backspace
+						sound_play(click_sound);
+						destroy_all_win();
+					}
+					// Ignore Enter and Backspace but not Ctrl-H and Ctrl-M
+					break;
+				}
 
 			default:
 				{
 					bool ok=false;
 					for (vector_tpl<werkzeug_t *>::const_iterator iter = werkzeug_t::char_to_tool.begin(), end = werkzeug_t::char_to_tool.end(); iter != end; ++iter) {
 						if(  (*iter)->command_key==ev.ev_code  ) {
-							set_werkzeug( *iter );
+							set_werkzeug( *iter, get_active_player() );
 							ok = true;
 							break;
 						}
@@ -4271,29 +5020,32 @@ karte_t::interactive_event(event_t &ev)
 	if(IS_LEFTRELEASE(&ev)) {
 DBG_MESSAGE("karte_t::interactive_event(event_t &ev)", "calling a tool");
 
-		const char *err = NULL;
-		if(werkzeug_last_pos!=koord(mi,mj)) {
-			err = werkzeug->work( this, get_active_player(), zeiger->get_pos() );
-		}
-
-		/* tools can return three kinds of messages
-		 * NULL = success
-		 * "" = failure, but just do not try again
-		 * "bla" error message, which should be shown
-		 */
-		if(err==NULL) {
-			if(werkzeug->ok_sound!=NO_SOUND) {
-				struct sound_info info = {werkzeug->ok_sound,255,0};
-				sound_play(info);
+		if(ist_in_kartengrenzen(zeiger->get_pos().get_2d())) {
+			const char *err = NULL;
+			bool result = true;
+			werkzeug_t *wkz = werkzeug[get_active_player_nr()];
+			// first check for visibility etc
+			err = wkz->check( this, get_active_player(), zeiger->get_pos() );
+			if (err==NULL) {
+				wkz->flags = event_get_last_control_shift();
+				if (!umgebung_t::networkmode  ||  wkz->is_work_network_save()) {
+					// do the work
+					wkz->flags |= werkzeug_t::WFL_LOCAL;
+					err = wkz->work( this, get_active_player(), zeiger->get_pos() );
+				}
+				else {
+					// queue tool for network
+					nwc_tool_t *nwc = new nwc_tool_t(get_active_player(), wkz, zeiger->get_pos(), steps, false);
+					network_send_server(nwc);
+					result = false;
+				}
 			}
+			if (result) {
+				// play sound / error message
+				get_active_player()->tell_tool_result(wkz, zeiger->get_pos(), err, true);
+			}
+			wkz->flags = 0;
 		}
-		else if(*err!=0) {
-			// something went really wrong
-			struct sound_info info = {SFX_FAILURE,255,0};
-			sound_play(info);
-			create_win( new news_img(err), w_time_delete, magic_none);
-		}
-		werkzeug_last_pos = koord::invalid;
 	}
 
 	// mouse wheel scrolled -> rezoom
@@ -4313,28 +5065,121 @@ DBG_MESSAGE("karte_t::interactive_event(event_t &ev)", "calling a tool");
 }
 
 
-
-void
-karte_t::beenden(bool b)
+void karte_t::beenden(bool b)
 {
-	finish_loop=false;
+	finish_loop = true;
 	umgebung_t::quit_simutrans = b;
 }
 
 
+void karte_t::network_game_set_pause(bool pause_, uint32 syncsteps_)
+{
+	if (umgebung_t::networkmode) {
+		sync_steps = syncsteps_;
+		steps = sync_steps/einstellungen->get_frames_per_step();
+		network_frame_count = sync_steps % einstellungen->get_frames_per_step();
+		dbg->warning("karte_t::network_game_set_pause", "steps=%d sync_steps=%d pause=%d", steps, sync_steps, pause_);
+		if (pause_) {
+			if (!umgebung_t::server) {
+				reset_timer();
+				step_mode = PAUSE_FLAG|FIX_RATIO;
+			}
+			else {
+				// TODO
+			}
+		}
+		else {
+			step_mode = FIX_RATIO;
+			if (!umgebung_t::server) {
+				/* make sure, the server is really that far ahead
+				 * Sleep() on windows often returns before!
+				 */
+				unsigned long ms = dr_time()+umgebung_t::server_ms_ahead;
+				while(  dr_time()<ms  ) {
+					dr_sleep ( 10 );
+				}
+				reset_timer();
+			}
+		}
+	}
+	else {
+		set_pause(pause_);
+	}
+}
 
-bool
-karte_t::interactive()
+
+static slist_tpl<network_world_command_t*> command_queue;
+
+void karte_t::command_queue_append(network_world_command_t* nwc)
+{
+	slist_tpl<network_world_command_t*>::iterator i = command_queue.begin();
+	slist_tpl<network_world_command_t*>::iterator end = command_queue.end();
+	while(i != end  &&  network_world_command_t::cmp(*i, nwc)) {
+		++i;
+	}
+	command_queue.insert(i, nwc);
+}
+
+
+bool karte_t::interactive(uint32 quit_month)
 {
 	event_t ev;
-	finish_loop = true;
+	finish_loop = false;
 	bool swallowed = false;
 	bool cursor_hidden = false;
+	sync_steps = 0;
+
+	uint32 last_randoms[16];
+	network_frame_count = 0;
+	vector_tpl<uint16>hashes_ok;	// bit set: this client can do something with this player
+
+	// only needed for network
+	uint32 next_command_step=-1;
+	const uint32 frame_time = 1000/clamp(einstellungen->get_frames_per_second(),5,100);
+	sint32 ms_difference = 0;
+	reset_timer();
+
+	if(  umgebung_t::server  ) {
+		step_mode |= FIX_RATIO;
+		reset_timer();
+	}
 
 	do {
 		// check for too much time eaten by frame updates ...
-		if(!fast_forward  &&  !pause) {
+		if(  step_mode==NORMAL  ) {
 			last_interaction = dr_time();
+			if(  mouse_rest_time+sound_wait_time < last_interaction  ) {
+				// we play an ambient sound, if enabled
+				grund_t *gr = lookup(zeiger->get_pos());
+				if(  gr  ) {
+					sint16 id = NO_SOUND;
+					if(  gr->ist_natur()  ||  gr->ist_wasser()  ) {
+						if(  gr->get_pos().z >= get_snowline()  ) {
+							id = sound_besch_t::climate_sounds[ arctic_climate ];
+						}
+						else {
+							id = sound_besch_t::climate_sounds[ get_climate(zeiger->get_pos().z) ];
+						}
+						if(  id==NO_SOUND  ) {
+							// try, if there is another sound ready
+							if(  zeiger->get_pos().z==grundwasser  &&  !gr->ist_wasser()  ) {
+								id = sound_besch_t::beach_sound;
+							}
+							else if(  gr->get_top()>0  &&  gr->obj_bei(0)->get_typ()==ding_t::baum  ) {
+								id = sound_besch_t::forest_sound;
+							}
+						}
+					}
+					if(  id!=NO_SOUND  ) {
+						struct sound_info ambient_sound;
+						ambient_sound.index = id;
+						ambient_sound.volume = 255;
+						ambient_sound.pri = 0;
+						sound_play( ambient_sound );
+					}
+				}
+				sound_wait_time *= 2;
+			}
 		}
 
 		// get an event
@@ -4348,6 +5193,10 @@ karte_t::interactive()
 		}
 
 		if(ev.ev_class!=EVENT_NONE &&  ev.ev_class!=IGNORE_EVENT) {
+
+			if(  umgebung_t::networkmode  ) {
+				set_random_mode( INTERACTIVE_RANDOM );
+			}
 
 			swallowed = check_pos_win(&ev);
 
@@ -4374,42 +5223,182 @@ karte_t::interactive()
 			if((!swallowed  &&  (ev.ev_class==EVENT_DRAG  &&  ev.ev_code==MOUSE_LEFTBUTTON))  ||  (ev.button_state==0  &&  ev.ev_class==EVENT_MOVE)  ||  ev.ev_class==EVENT_RELEASE) {
 				bewege_zeiger(&ev);
 			}
+
+			if(  umgebung_t::networkmode  ) {
+				clear_random_mode( INTERACTIVE_RANDOM );
+			}
 		}
 
-		INT_CHECK( "karte_t::interactive()" );
-		if(this_wait_time==0) {
-			if(!pause  &&  fast_forward) {
-				sync_step( MAGIC_STEP, true, false );
-				step();
+		if(  umgebung_t::networkmode  ) {
+			// did we recieved a new command?
+			network_command_t *nwc = network_check_activity( min(5u,next_step_time-dr_time()) );
+			if(  nwc==NULL  &&  !network_check_server_connection()  ) {
+				network_disconnect();
 			}
-			else if(pause) {
+
+			if(  nwc  ) {
+				// check timing
+				if (nwc->get_id()==NWC_CHECK) {
+					// checking for synchronisation
+					nwc_check_t* nwcheck = (nwc_check_t*)nwc;
+					// are we on time?
+					ms_difference = 0;
+					sint64 difftime = ((sint64)next_step_time-(sint64)(dr_time())) + ((sint64)(nwcheck->server_sync_step)-(sint64)sync_steps-umgebung_t::server_frames_ahead)*frame_time - umgebung_t::server_ms_ahead;
+					if(  difftime < 0) {
+						// running ahead
+						next_step_time -= difftime;
+					}
+					else {
+						// more gentle catching up
+						ms_difference = (sint32 )difftime;
+					}
+					dbg->message("NWC_CHECK","time difference to server %lli",difftime);
+				}
+				if (nwc->execute(this)) {
+					delete nwc;
+				}
+				// when execute next command?
+				if(  !command_queue.empty()  ) {
+					next_command_step = command_queue.front()->get_sync_step();
+				}
+				else {
+					next_command_step = -1;
+				}
+			}
+		}
+		else {
+			// we wait here for maximum 9ms
+			// average is 5 ms, so we usually
+			// are quite responsive
+			INT_CHECK( "karte_t::interactive()" );
+			const sint32 wait_time = (sint32)(next_step_time-dr_time());
+			if(wait_time>0) {
+				if(wait_time<10  ) {
+					dr_sleep( wait_time );
+				}
+				else {
+					dr_sleep( 9 );
+				}
+					INT_CHECK( "karte_t::interactive()" );
+			}
+		}
+
+		while(  !command_queue.empty()  &&  (next_command_step<=sync_steps/*  ||  step_mode&PAUSE_FLAG*/)  ) {
+			network_world_command_t *nwc = command_queue.remove_first();
+			if (nwc) {
+				// want to execute something in the past?
+				if (nwc->get_sync_step() < sync_steps) {
+					dbg->warning("karte_t::interactive", "wanted to do_command(%d) in the past", nwc->get_id());
+					network_disconnect();
+				}
+				// check random counter?
+				else if (nwc->get_id()==NWC_CHECK) {
+					nwc_check_t* nwcheck = (nwc_check_t*)nwc;
+					// this was the random number at the previous sync step on the server
+					uint32 server_random = nwcheck->server_random_seed;
+					uint32 server_syncst = nwcheck->server_sync_step;
+					dbg->warning("karte_t::interactive", "client: sync=%d  rand=%d, server: sync=%d  rand=%d", sync_steps, last_randoms[server_syncst&15], server_syncst, server_random);
+					if (last_randoms[server_syncst&15]!=server_random) {
+						network_disconnect();
+					}
+				}
+				else {
+					nwc->do_command(this);
+				}
+				delete nwc;
+			}
+			// when execute next command?
+			if(  !command_queue.empty()  ) {
+				next_command_step = command_queue.front()->get_sync_step();
+			}
+			else {
+				next_command_step = -1;
+			}
+		}
+
+		// time for the next step?
+		uint32 time = dr_time(); // - (umgebung_t::server ? 0 : 5000);
+		if(  next_step_time<=time  ) {
+			if(  step_mode&PAUSE_FLAG  ) {
+				// only update display
 				sync_step( 0, false, true );
-				this_wait_time = 50;
+				idle_time = 100;
 			}
 			else {
-				step();
+				if(  step_mode==FAST_FORWARD  ) {
+					sync_step( 100, true, false );
+					set_random_mode( STEP_RANDOM );
+					step();
+					clear_random_mode( STEP_RANDOM );
+				}
+				else if(  step_mode==FIX_RATIO  ) {
+					next_step_time += frame_time;
+					if(  ms_difference>5  ) {
+						next_step_time -= 5;
+						ms_difference -= 5;
+					}
+					else if(  ms_difference<-5  ) {
+						next_step_time += 5;
+						ms_difference += 5;
+					}
+					sync_step( frame_time, true, true );
+					if(  ++network_frame_count==einstellungen->get_frames_per_step()  ) {
+						// ever fourth frame
+						set_random_mode( STEP_RANDOM );
+						step();
+						clear_random_mode( STEP_RANDOM );
+						network_frame_count = 0;
+					}
+					sync_steps = (steps*einstellungen->get_frames_per_step()+network_frame_count);
+					last_randoms[sync_steps&15] = get_random_seed();
+					// broadcast sync info
+					if(  umgebung_t::networkmode  &&  umgebung_t::server  &&  (sync_steps % umgebung_t::server_sync_steps_between_checks)==0) {
+						nwc_check_t* nwc = new nwc_check_t(sync_steps + umgebung_t::server_frames_ahead, last_randoms[sync_steps&15], sync_steps);
+						network_send_all(nwc, true);
+					}
+					if( umgebung_t::networkmode  &&  (sync_steps & 7)==0) {
+						dbg->message("karte_t::interactive", "time=%lu sync=%d  rand=%d", dr_time(), sync_steps, last_randoms[sync_steps&15]);
+					}
+				}
+				else {
+					INT_CHECK( "karte_t::interactive()" );
+					set_random_mode( STEP_RANDOM );
+					step();
+					clear_random_mode( STEP_RANDOM );
+					idle_time = ((idle_time*7) + next_step_time - dr_time())/8;
+					INT_CHECK( "karte_t::interactive()" );
+				}
 			}
 		}
 
-		// we wait here for maximum 9ms
-		// average is 5 ms, so we usually
-		// are quite responsive
-		if(this_wait_time>0) {
-			if(this_wait_time<10  ||  fast_forward  ||  pause) {
-				dr_sleep( this_wait_time );
-				this_wait_time = 0;
-			}
-			else {
-				this_wait_time -= 5;
-				dr_sleep( 5 );
-			}
-		}
 
 		if (!swallowed) {
 			interactive_event(ev);
 		}
 
-	} while(ev.button_state != 0);
+		//dbg->warning("karte_t::interactive", "steps=%d sync_steps=%d", steps, sync_steps);
+	} while(!finish_loop  &&  get_current_month()<quit_month);
+
+	if(  get_current_month() >= quit_month  ) {
+		umgebung_t::quit_simutrans = true;
+	}
 
 	return finish_loop;
+}
+
+
+void karte_t::network_disconnect()
+{
+	// force disconnect
+	dbg->warning("karte_t::network_disconnect()", "Lost synchronisation with server.");
+	network_core_shutdown();
+	umgebung_t::networkmode = false;
+	step_mode = NORMAL;
+	reset_timer();
+	while(  !command_queue.empty()  ) {
+		network_world_command_t *cmd = command_queue.remove_first();
+		delete cmd;
+	}
+	create_win(280, 40, new news_img("Lost synchronisation\nwith server."), w_info, magic_none);
+	beenden(false);
 }

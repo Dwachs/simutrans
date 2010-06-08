@@ -55,9 +55,7 @@ private:
 public:
 	gui_combobox_t();
 
-	~gui_combobox_t();
-
-	  /**
+	/**
 	 * Events werden hiermit an die GUI-Komponenten
 	 * gemeldet
 	 * @author Hj. Malthaner
@@ -92,7 +90,13 @@ public:
 	 * remove all elements from droplist
 	 * @author hsiegeln
 	 */
-	int count_elements() { return droplist.get_count(); }
+	int count_elements() const { return droplist.get_count(); }
+
+	/**
+	 * remove all elements from droplist
+	 * @author hsiegeln
+	 */
+	gui_scrolled_list_t::scrollitem_t *get_element(sint32 idx) const { return droplist.get_element(idx); }
 
 	/**
 	 * sets the highlight color for the droplist
@@ -131,6 +135,8 @@ public:
 	 * @author hsiegeln
 	 */
 	void close_box();
+
+	gui_komponente_t *get_focus() const { return (gui_komponente_t *)this; }
 };
 
 #endif

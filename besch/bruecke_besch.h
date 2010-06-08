@@ -23,6 +23,8 @@
 
 #include "../dataobj/ribi.h"
 
+class werkzeug_t;
+
 
 class bruecke_besch_t : public obj_besch_std_name_t {
     friend class bridge_writer_t;
@@ -53,6 +55,9 @@ private:
 	/* number of seasons (0 = none, 1 = no snow/snow
 	*/
 	sint8 number_seasons;
+
+	werkzeug_t *builder;
+
 public:
 	/*
 	 * Nummerierung all der verschiedenen Schienstücke
@@ -67,15 +72,15 @@ public:
 	const char *get_name() const { return get_cursor()->get_name(); }
 	const char *get_copyright() const { return get_cursor()->get_copyright(); }
 
-	const skin_besch_t *get_cursor() const { return static_cast<const skin_besch_t *>(get_child(2+offset)); }
+	skin_besch_t const* get_cursor() const { return get_child<skin_besch_t>(2 + offset); }
 
 	image_id get_hintergrund(img_t img, uint8 season) const 	{
 		const bild_besch_t *bild = NULL;
 		if(season && number_seasons == 1) {
-			bild = static_cast<const bildliste_besch_t *>(get_child(3+offset))->get_bild(img);
+			bild = get_child<bildliste_besch_t>(3 + offset)->get_bild(img);
 		}
 		if(bild == NULL) {
-			bild = static_cast<const bildliste_besch_t *>(get_child(0+offset))->get_bild(img);
+			bild = get_child<bildliste_besch_t>(0 + offset)->get_bild(img);
 		}
 		return bild != NULL ? bild->get_nummer() : IMG_LEER;
 	}
@@ -83,10 +88,10 @@ public:
 	image_id get_vordergrund(img_t img, uint8 season) const {
 		const bild_besch_t *bild = NULL;
 		if(season && number_seasons == 1) {
-			bild = static_cast<const bildliste_besch_t *>(get_child(4+offset))->get_bild(img);
+			bild = get_child<bildliste_besch_t>(4 + offset)->get_bild(img);
 		}
 		if(bild == NULL) {
-			bild = static_cast<const bildliste_besch_t *>(get_child(1+offset))->get_bild(img);
+			bild = get_child<bildliste_besch_t>(1 + offset)->get_bild(img);
 		}
 		return bild != NULL ? bild->get_nummer() : IMG_LEER;
 	}
@@ -143,6 +148,14 @@ public:
 	 * @author prissi
 	 */
 	int get_retire_year_month() const { return obsolete_date; }
+
+	// default tool for building
+	werkzeug_t *get_builder() const {
+		return builder;
+	}
+	void set_builder( werkzeug_t *w )  {
+		builder = w;
+	}
 };
 
 #endif

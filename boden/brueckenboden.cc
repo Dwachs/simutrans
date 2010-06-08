@@ -12,9 +12,11 @@
 #include "../besch/bruecke_besch.h"
 
 #include "../dataobj/loadsave.h"
+#include "../dataobj/translator.h"
 
 #include "../gui/ground_info.h"
 #include "../tpl/ptrhashtable_tpl.h"
+#include "../utils/cbuffer_t.h"
 
 #include "brueckenboden.h"
 #include "wege/weg.h"
@@ -29,8 +31,13 @@ brueckenboden_t::brueckenboden_t(karte_t *welt, koord3d pos, int grund_hang, int
 
 void brueckenboden_t::calc_bild_internal()
 {
-	if(ist_tunnel()) {
-		clear_back_bild();
+	if(!is_visible()) {
+		if (ist_karten_boden()) {
+			grund_t::calc_back_bild(get_disp_height()/Z_TILE_STEP, 0);
+		}
+		else {
+			clear_back_bild();
+		}
 		set_bild(IMG_LEER);
 	}
 	else {
@@ -53,8 +60,7 @@ void brueckenboden_t::calc_bild_internal()
 }
 
 
-void
-brueckenboden_t::rdwr(loadsave_t *file)
+void brueckenboden_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t t( file, "brueckenboden_t" );
 
@@ -68,21 +74,23 @@ brueckenboden_t::rdwr(loadsave_t *file)
 	file->rdwr_byte(weg_hang, "\n");
 
 	if(!find<bruecke_t>()) {
-		dbg->error( "brueckenboden_t::rdwr()","no bridge on bridgebround at (%s); try repalcement", pos.get_str()  );
+		dbg->error( "brueckenboden_t::rdwr()","no bridge on bridge ground at (%s); try replacement", pos.get_str() );
 		weg_t *w = get_weg_nr(0);
-		const bruecke_besch_t *br_besch = brueckenbauer_t::find_bridge( w->get_waytype(), w->get_max_speed(), 0 );
-		bruecke_t *br = new bruecke_t(
-			welt,
-			get_pos(),
-			welt->get_spieler(1),
-			br_besch,
-			ist_karten_boden() ?
-				(slope==hang_t::flach ?
-					br_besch->get_rampe(ribi_typ(get_weg_hang())) :
-					br_besch->get_start(ribi_typ(get_grund_hang()))) :
-				br_besch->get_simple(w->get_ribi_unmasked())
-		);
-		obj_add( br );
+		if(w) {
+			const bruecke_besch_t *br_besch = brueckenbauer_t::find_bridge( w->get_waytype(), w->get_max_speed(), 0 );
+			bruecke_t *br = new bruecke_t(
+				welt,
+				get_pos(),
+				welt->get_spieler(1),
+				br_besch,
+				ist_karten_boden() ?
+					(slope==hang_t::flach ?
+						br_besch->get_rampe(ribi_typ(get_weg_hang())) :
+						br_besch->get_start(ribi_typ(get_grund_hang()))) :
+					br_besch->get_simple(w->get_ribi_unmasked())
+			);
+			obj_add( br );
+		}
 	}
 }
 
@@ -104,17 +112,13 @@ sint8 brueckenboden_t::get_weg_yoff() const
 	}
 }
 
-
-bool
-brueckenboden_t::zeige_info()
+void brueckenboden_t::info(cbuffer_t & buf) const
 {
-	if(get_halt().is_bound()) {
-		get_halt()->zeige_info();
-		return true;
+	const bruecke_t *bridge = find<bruecke_t>();
+	if(bridge  &&  bridge->get_besch()) {
+		const bruecke_besch_t *besch = bridge->get_besch();
+		buf.append(translator::translate(besch->get_name()));
+		buf.append("\n");
 	}
-	else {
-		create_win(new grund_info_t(this), w_info, (long)this);
-		return true;
-	}
-	return false;
+	grund_t::info(buf);
 }

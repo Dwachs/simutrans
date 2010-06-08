@@ -30,8 +30,9 @@ obj_besch_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	//DBG_MESSAGE("bild_besch_t::read_node()","version %i",version);
 
 	if(version==0) {
-		besch = new(node.size - 12) bild_besch_t();
+		besch = new(node.size-12) bild_besch_t();
 		besch->node_info = new obj_besch_t*[node.children];
+//DBG_MESSAGE("sizeof(struct bild_t)","%li", );
 
 		besch->pic.x = decode_uint8(p);
 		besch->pic.w = decode_uint8(p);
@@ -58,16 +59,36 @@ obj_besch_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 			}
 		}
 	}
-	else if(version==1) {
-		besch = new(node.size - 10) bild_besch_t();
+	else if(version<=2) {
+		besch = new(node.size-10) bild_besch_t();
 		besch->node_info = new obj_besch_t*[node.children];
 
-		besch->pic.x = decode_uint16(p);
-		besch->pic.y = decode_uint16(p);
+		besch->pic.x = decode_sint16(p);
+		besch->pic.y = decode_sint16(p);
 		besch->pic.w = decode_uint8(p);
 		besch->pic.h = decode_uint8(p);
 		p++; // skip version information
 		besch->pic.len = decode_uint16(p);
+		besch->pic.zoomable = decode_uint8(p);
+		besch->pic.bild_nr = IMG_LEER;
+
+		uint16* dest = besch->pic.data;
+		if (besch->pic.h > 0) {
+			for (uint i = 0; i < besch->pic.len; i++) {
+				*dest++ = decode_uint16(p);
+			}
+		}
+	}
+	else if(version==3) {
+		besch = new(node.size-10) bild_besch_t();
+		besch->node_info = new obj_besch_t*[node.children];
+
+		besch->pic.x = decode_sint16(p);
+		besch->pic.y = decode_sint16(p);
+		besch->pic.w = decode_sint16(p);
+		p++; // skip version information
+		besch->pic.h = decode_sint16(p);
+		besch->pic.len = (node.size-10)/2;
 		besch->pic.zoomable = decode_uint8(p);
 		besch->pic.bild_nr = IMG_LEER;
 
@@ -123,10 +144,18 @@ obj_besch_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		adler = adler32(adler, (const Bytef *)(besch->pic.data), besch->pic.len*2 );
 		static inthashtable_tpl<uint32, bild_besch_t *> images_adlers;
 		bild_besch_t *same = images_adlers.get(adler);
-		if(  same  &&  same->pic.len==besch->pic.len  ) {
+		if (same) {
 			// same checksum => if same then skip!
-			besch->pic.bild_nr = same->pic.bild_nr;
-			do_register_image = memcmp( besch->get_pic(), same->get_pic(), sizeof(bild_t)+(besch->pic.len*2) )!=0;
+			bild_t const& a = *besch->get_pic();
+			bild_t const& b = *same->get_pic();
+			do_register_image =
+				a.x        != b.x        ||
+				a.y        != b.y        ||
+				a.w        != b.w        ||
+				a.h        != b.h        ||
+				a.zoomable != b.zoomable ||
+				a.len      != b.len      ||
+				memcmp(a.data, b.data, sizeof(*a.data) * a.len) != 0;
 		}
 		// unique image here
 		if(  do_register_image  ) {
@@ -141,7 +170,7 @@ obj_besch_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 			delete besch;
 			besch = same;
 		}
-    }
+	}
 
 	return besch;
 }

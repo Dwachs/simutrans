@@ -164,8 +164,8 @@ vehikel_t* vehikelbauer_t::baue(koord3d k, spieler_t* sp, convoi_t* cnv, const v
 			dbg->fatal("vehikelbauer_t::baue()", "cannot built a vehicle with waytype %i", vb->get_waytype());
 	}
 
-	sp->buche(-(sint32)vb->get_preis(), k.get_2d(), COST_NEW_VEHICLE );
-	sp->buche( (sint32)vb->get_preis(), COST_ASSETS );
+	sp->buche(-(sint64)vb->get_preis(), k.get_2d(), COST_NEW_VEHICLE );
+	sp->buche( (sint64)vb->get_preis(), COST_ASSETS );
 
 	return v;
 }
@@ -176,6 +176,11 @@ bool vehikelbauer_t::register_besch(const vehikel_besch_t *besch)
 {
 	// printf("N=%s T=%d V=%d P=%d\n", besch->get_name(), besch->get_typ(), besch->get_geschw(), besch->get_leistung());
 
+	const vehikel_besch_t *old_besch = name_fahrzeuge.get( besch->get_name() );
+	if(  old_besch  ) {
+		dbg->warning( "vehikelbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+		name_fahrzeuge.remove( besch->get_name() );
+	}
 	name_fahrzeuge.put(besch->get_name(), besch);
 
 	// register waytype liste
@@ -185,6 +190,7 @@ bool vehikelbauer_t::register_besch(const vehikel_besch_t *besch)
 		typ_fahrzeuge.put(typ, slist_tpl<const vehikel_besch_t *>());
 		typ_liste = typ_fahrzeuge.access(typ);
 	}
+	typ_liste->remove(old_besch);
 	typ_liste->append(besch);
 
 	// correct for driving on left side
@@ -203,7 +209,7 @@ bool vehikelbauer_t::register_besch(const vehikel_besch_t *besch)
 		display_set_base_image_offset( besch->get_bild_nr(7,NULL), -XOFF-YOFF, 0 );
 
 		if(besch->freight_image_type>0) {
-			const bildliste2d_besch_t *liste2d = static_cast<const bildliste2d_besch_t *>(besch->get_child(5));
+			bildliste2d_besch_t const* const liste2d = besch->get_child<bildliste2d_besch_t>(5);
 			for(int i=0; i<besch->freight_image_type; i++) {
 				display_set_base_image_offset(liste2d->get_bild(0, i)->get_nummer(),        +XOFF, +YOFF);
 				display_set_base_image_offset(liste2d->get_bild(1, i)->get_nummer(),        -XOFF, +YOFF);
@@ -214,21 +220,16 @@ bool vehikelbauer_t::register_besch(const vehikel_besch_t *besch)
 				display_set_base_image_offset(liste2d->get_bild(6, i)->get_nummer(),            0, -YOFF);
 				display_set_base_image_offset(liste2d->get_bild(7, i)->get_nummer(), -XOFF - YOFF,     0);
 			}
+		} else if (bildliste_besch_t const* const liste = besch->get_child<bildliste_besch_t>(5)) {
+			display_set_base_image_offset(liste->get_bild(0)->get_nummer(),        +XOFF, +YOFF);
+			display_set_base_image_offset(liste->get_bild(1)->get_nummer(),        -XOFF, +YOFF);
+			display_set_base_image_offset(liste->get_bild(2)->get_nummer(),            0, +YOFF);
+			display_set_base_image_offset(liste->get_bild(3)->get_nummer(),        +XOFF,     0);
+			display_set_base_image_offset(liste->get_bild(4)->get_nummer(),        -XOFF, -YOFF);
+			display_set_base_image_offset(liste->get_bild(5)->get_nummer(),        +XOFF, -YOFF);
+			display_set_base_image_offset(liste->get_bild(6)->get_nummer(),            0, -YOFF);
+			display_set_base_image_offset(liste->get_bild(7)->get_nummer(), -XOFF - YOFF,     0);
 		}
-		else {
-			const bildliste_besch_t *liste = static_cast<const bildliste_besch_t *>(besch->get_child(5));
-			if(liste) {
-				display_set_base_image_offset(liste->get_bild(0)->get_nummer(),        +XOFF, +YOFF);
-				display_set_base_image_offset(liste->get_bild(1)->get_nummer(),        -XOFF, +YOFF);
-				display_set_base_image_offset(liste->get_bild(2)->get_nummer(),            0, +YOFF);
-				display_set_base_image_offset(liste->get_bild(3)->get_nummer(),        +XOFF,     0);
-				display_set_base_image_offset(liste->get_bild(4)->get_nummer(),        -XOFF, -YOFF);
-				display_set_base_image_offset(liste->get_bild(5)->get_nummer(),        +XOFF, -YOFF);
-				display_set_base_image_offset(liste->get_bild(6)->get_nummer(),            0, -YOFF);
-				display_set_base_image_offset(liste->get_bild(7)->get_nummer(), -XOFF - YOFF,     0);
-			}
-		}
-
 	}
 
 	return true;
@@ -287,7 +288,9 @@ bool vehikelbauer_t::alles_geladen()
 	while (typ_iter.next()) {
 		slist_tpl<const vehikel_besch_t*>& typ_liste = typ_iter.access_current_value();
 		uint count = typ_liste.get_count();
-		if (count == 0) continue;
+		if (count == 0) {
+			continue;
+		}
 		const vehikel_besch_t** const tmp     = new const vehikel_besch_t*[count];
 		const vehikel_besch_t** const tmp_end = tmp + count;
 		for (const vehikel_besch_t** i = tmp; i != tmp_end; i++) {
@@ -340,6 +343,10 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
 
 			// no constricts allow for rail vehicles concerning following engines
 			if(wt==track_wt  &&  !test_besch->can_follow_any()  ) {
+				continue;
+			}
+			// do not buy incomplete vehicles
+			if(wt==road_wt && !test_besch->can_lead(NULL)) {
 				continue;
 			}
 
@@ -436,7 +443,7 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
  * if prev_besch==NULL, then the convoi must be able to lead a convoi
  * @author prissi
  */
-const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const uint16 month_now, const uint32 target_weight, const uint32 target_power, const uint32 target_speed, const ware_besch_t * target_freight, bool include_electric, bool not_obsolete, const vehikel_besch_t *prev_veh, bool is_last )
+const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const uint16 month_now, const uint32 target_weight, const uint32 target_power, const uint32 target_speed, const ware_besch_t * target_freight, bool not_obsolete, const vehikel_besch_t *prev_veh, bool is_last )
 {
 	const vehikel_besch_t *besch = NULL;
 	long besch_index=-100000;
@@ -467,6 +474,11 @@ const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const ui
 
 			// check for wegetype/too new
 			if(test_besch->get_waytype()!=wt  ||  test_besch->is_future(month_now)  ) {
+				continue;
+			}
+
+			// ignore vehicles that need electrification
+			if(test_besch->get_leistung()>0  &&  test_besch->get_engine_type()==vehikel_besch_t::electric) {
 				continue;
 			}
 

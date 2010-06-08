@@ -86,7 +86,7 @@ protected:
 	// cached image
 	image_id bild;
 
-	sint16 calc_height();		// Offset Bergauf/Bergab
+	sint8 calc_height();		// Offset Bergauf/Bergab
 
 	virtual bool hop_check() = 0;
 	virtual void hop() = 0;
@@ -102,6 +102,8 @@ protected:
 public:
 	// only called during load time: set some offsets
 	static void set_diagonal_multiplier( uint32 multiplier, uint32 old_multiplier );
+	static uint16 get_diagonal_multiplier() { return diagonal_multiplier; }
+
 	static void set_overtaking_offsets( bool driving_on_the_left );
 
 	// if true, this convoi needs to restart for correct alignment
@@ -112,10 +114,10 @@ public:
 	inline void set_bild( image_id b ) { bild = b; }
 	virtual image_id get_bild() const {return bild;}
 
-	sint16 get_hoff() const {return hoff;}
+	sint8 get_hoff() const {return hoff;}
 
 	// to make smaller steps than the tile granularity, we have to calculate our offsets ourselves!
-	virtual void get_screen_offset( int &xoff, int &yoff ) const;
+	virtual void get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const;
 
 	virtual void rotate90();
 
@@ -139,6 +141,18 @@ public:
 
 	vehikel_basis_t(karte_t *welt, koord3d pos);
 };
+
+
+template<> inline vehikel_basis_t* ding_cast<vehikel_basis_t>(ding_t* const d)
+{
+	return d->is_moving() ? static_cast<vehikel_basis_t*>(d) : 0;
+}
+
+
+template<> inline vehikel_basis_t const* ding_cast<vehikel_basis_t>(ding_t const* const d)
+{
+	return d->is_moving() ? static_cast<vehikel_basis_t const*>(d) : 0;
+}
 
 
 /**
@@ -333,6 +347,10 @@ public:
 	*/
 	inline int get_gesamtgewicht() const { return sum_weight; }
 
+	// returns speedlimit of ways (and if convoi enters station etc)
+	// the convoi takes care of the max_speed of the vehicle
+	uint32 get_speed_limit() const { return speed_limit; }
+
 	const slist_tpl<ware_t> & get_fracht() const { return fracht;}   // liste der gerade transportierten güter
 
 	/**
@@ -463,13 +481,13 @@ public:
 	virtual bool ist_ziel(const grund_t *,const grund_t *) const;
 
 	// since we must consider overtaking, we use this for offset calculation
-	virtual void get_screen_offset( int &xoff, int &yoff ) const;
+	virtual void get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const;
 
 	ding_t::typ get_typ() const { return automobil; }
 
 	schedule_t * erzeuge_neuen_fahrplan() const;
 
-	virtual overtaker_t *get_overtaker() { return cnv ? static_cast<overtaker_t *>(cnv) : NULL; }
+	virtual overtaker_t* get_overtaker() { return cnv; }
 };
 
 
@@ -508,11 +526,11 @@ public:
 	// reserves or unreserves all blocks and returns the handle to the next block (if there)
 	// if count is larger than 1, maximum 64 tiles will be checked (freeing or reserving a choose signal path)
 	// return the last checked block
-	uint16 block_reserver(const route_t *route,uint16 start_index,int count, bool reserve) const;
+	uint16 block_reserver(const route_t *route, uint16 start_index, int count, bool reserve ) const;
 
 	void verlasse_feld();
 
-	enum ding_t::typ get_typ() const { return waggon; }
+	typ get_typ() const { return waggon; }
 
 	waggon_t(karte_t *welt, loadsave_t *file, bool is_first, bool is_last);
 	waggon_t(koord3d pos, const vehikel_besch_t* besch, spieler_t* sp, convoi_t *cnv); // start und fahrplan
@@ -539,7 +557,7 @@ public:
 	monorail_waggon_t(karte_t *welt, loadsave_t *file, bool is_first, bool is_last) : waggon_t(welt, file,is_first, is_last) {}
 	monorail_waggon_t(koord3d pos, const vehikel_besch_t* besch, spieler_t* sp, convoi_t* cnv) : waggon_t(pos, besch, sp, cnv) {}
 
-	enum ding_t::typ get_typ() const { return monorailwaggon; }
+	typ get_typ() const { return monorailwaggon; }
 
 	schedule_t * erzeuge_neuen_fahrplan() const;
 };
@@ -560,7 +578,7 @@ public:
 	maglev_waggon_t(karte_t *welt, loadsave_t *file, bool is_first, bool is_last) : waggon_t(welt, file, is_first, is_last) {}
 	maglev_waggon_t(koord3d pos, const vehikel_besch_t* besch, spieler_t* sp, convoi_t* cnv) : waggon_t(pos, besch, sp, cnv) {}
 
-	enum ding_t::typ get_typ() const { return maglevwaggon; }
+	typ get_typ() const { return maglevwaggon; }
 
 	schedule_t * erzeuge_neuen_fahrplan() const;
 };
@@ -581,7 +599,7 @@ public:
 	narrowgauge_waggon_t(karte_t *welt, loadsave_t *file, bool is_first, bool is_last) : waggon_t(welt, file, is_first, is_last) {}
 	narrowgauge_waggon_t(koord3d pos, const vehikel_besch_t* besch, spieler_t* sp, convoi_t* cnv) : waggon_t(pos, besch, sp, cnv) {}
 
-	enum ding_t::typ get_typ() const { return narrowgaugewaggon; }
+	typ get_typ() const { return narrowgaugewaggon; }
 
 	schedule_t * erzeuge_neuen_fahrplan() const;
 };
@@ -647,7 +665,7 @@ private:
 
 	enum flight_state { taxiing=0, departing=1, flying=2, landing=3, looking_for_parking=4, flying2=5, taxiing_to_halt=6  };
 
-	enum flight_state state;	// functions needed for the search without destination from find_route
+	flight_state state;	// functions needed for the search without destination from find_route
 
 	sint16 flughoehe;
 	sint16 target_height;
@@ -690,7 +708,7 @@ public:
 
 	bool calc_route(koord3d start, koord3d ziel, uint32 max_speed, route_t* route);
 
-	enum ding_t::typ get_typ() const { return aircraft; }
+	typ get_typ() const { return aircraft; }
 
 	schedule_t * erzeuge_neuen_fahrplan() const;
 
@@ -698,20 +716,22 @@ public:
 
 	int get_flyingheight() const {return flughoehe-hoff-2;}
 
-	// since our image is the shadow ...
-	virtual image_id get_bild() const {return IMG_LEER;}
+	// image: when flying empty, on ground the plane
+	virtual image_id get_bild() const {return !is_on_ground() ? IMG_LEER : bild;}
 
-	// outline is the planes shadow
-	virtual PLAYER_COLOR_VAL get_outline_bild() const {return bild;}
+	// image: when flying the shadow, on ground empty
+	virtual PLAYER_COLOR_VAL get_outline_bild() const {return !is_on_ground() ? bild : IMG_LEER;}
 
-	// shadow has black color
-	virtual PLAYER_COLOR_VAL get_outline_colour() const {return TRANSPARENT75_FLAG | OUTLINE_FLAG | COL_BLACK;}
+	// shadow has black color (when flying)
+	virtual PLAYER_COLOR_VAL get_outline_colour() const {return !is_on_ground() ? TRANSPARENT75_FLAG | OUTLINE_FLAG | COL_BLACK : 0;}
 
-	// this draws the "real" aircrafts!
+	// this draws the "real" aircrafts (when flying)
 	virtual void display_after(int xpos, int ypos, bool dirty) const;
 
 	// the speed calculation happens it calc_height
 	void calc_akt_speed(const grund_t*) {}
+
+	bool is_on_ground() const { return flughoehe==0  &&  state!=flying; }
 };
 
 #endif

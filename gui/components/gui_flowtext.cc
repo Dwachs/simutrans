@@ -53,7 +53,8 @@ void gui_flowtext_t::set_text(const char *text)
 				if (!endtag) {
 					att = ATT_A_START;
 					param = word;
-				} else {
+				}
+				else {
 					att = ATT_A_END;
 					links.append(hyperlink_t(param.substr(8, param.len() - 1)));
 				}
@@ -85,7 +86,8 @@ void gui_flowtext_t::set_text(const char *text)
 					lead++;
 				}
 				att = ATT_UNKNOWN;
-			} else {
+			}
+			else {
 				// ignore all unknown
 				att = ATT_UNKNOWN;
 			}
@@ -205,21 +207,24 @@ koord gui_flowtext_t::output(koord offset, bool doit)
 
 			case ATT_A_START:
 				color = COL_BLUE;
-				link->tl.x = xpos;
-				link->tl.y = ypos;
+				// link == links.end() if there is an endtag </a> is missing
+				if (link!=links.end()) {
+					link->tl.x = xpos;
+					link->tl.y = ypos;
+				}
 				break;
 
 			case ATT_A_END:
-				link->br.x = xpos;
-				link->br.y = ypos + 14;
+				link->br.x = xpos - 4;
+				link->br.y = ypos + LINESPACE;
 
 				if (link->br.x < link->tl.x) {
 					link->tl.x = 0;
-					link->tl.y = link->br.y - 14;
+					link->tl.y = ypos;
 				}
 
 				if (doit) {
-					display_fillbox_wh_clip(link->tl.x + offset.x, link->tl.y + offset.y + 10, link->br.x - link->tl.x - 4, 1, color, false);
+					display_fillbox_wh_clip(link->tl.x + offset.x, link->tl.y + offset.y + 10, link->br.x - link->tl.x, 1, color, false);
 				}
 
 				++link;
@@ -288,8 +293,8 @@ void gui_flowtext_t::infowin_event(const event_t* ev)
 	if (IS_LEFTCLICK(ev)) {
 		// scan links for hit
 		for (slist_tpl<hyperlink_t>::const_iterator i = links.begin(), end = links.end(); i != end; ++i) {
-			if (i->tl.x <= ev->cx && ev->cx <= i->br.x &&
-					i->tl.y <= ev->cy && ev->cy <= i->br.y) {
+			if (i->tl.x <= ev->cx && ev->cx < i->br.x &&
+					i->tl.y <= ev->cy && ev->cy < i->br.y) {
 				call_listeners((const void*)i->param);
 			}
 		}

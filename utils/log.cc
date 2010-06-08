@@ -14,8 +14,6 @@
 #include "../simsys.h"
 
 
-static int make_this_a_division_by_zero = 0;
-
 #ifdef MAKEOBJ
 #define debuglevel (3)
 
@@ -235,7 +233,8 @@ void log_t::fatal(const char *who, const char *format, ...)
 #ifdef DEBUG
 	if(old_level>4) {
 		// generate a division be zero error, if the user request it
-		printf("%i",15/make_this_a_division_by_zero);
+		static int make_this_a_division_by_zero = 0;
+		printf("%i", 15 / make_this_a_division_by_zero);
 		make_this_a_division_by_zero &= 0xFF;
 	}
 #endif
@@ -246,7 +245,7 @@ void log_t::fatal(const char *who, const char *format, ...)
 
 
 // create a logfile for log_debug=true
-log_t::log_t(const char *logfilename, bool force_flush, bool log_debug)
+log_t::log_t(const char *logfilename, bool force_flush, bool log_debug, bool log_console)
 {
 	log = NULL;
 	this->force_flush = force_flush;    /* wenn true wird jedesmal geflusht */
@@ -254,7 +253,7 @@ log_t::log_t(const char *logfilename, bool force_flush, bool log_debug)
 	this->log_debug = log_debug;
 
 	if(logfilename == NULL) {
-		log=NULL;                       /* kein log */
+		log = NULL;                       /* kein log */
 		tee = NULL;
 	} else if(strcmp(logfilename,"stdio") == 0) {
 		log = stdout;
@@ -269,6 +268,9 @@ log_t::log_t(const char *logfilename, bool force_flush, bool log_debug)
 			fprintf(stderr,"log_t::log_t: can't open file '%s' for writing\n", logfilename);
 		}
 		tee = stderr;
+	}
+	if (!log_console) {
+	    tee = NULL;
 	}
 //	message("log_t::log_t","Starting logging to %s", logfilename);
 }

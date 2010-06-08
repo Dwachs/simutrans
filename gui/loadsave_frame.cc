@@ -33,15 +33,18 @@ void loadsave_frame_t::action(const char *filename)
 {
 	if(do_load) {
 		welt->laden(filename);
-	} else {
+	}
+	else {
 		welt->speichern(filename,false);
 		welt->set_dirty();
+		welt->reset_timer();
 	}
 }
 
-void loadsave_frame_t::del_action(const char *filename)
+bool loadsave_frame_t::del_action(const char *filename)
 {
 	remove(filename);
+	return false;
 }
 
 
@@ -52,7 +55,8 @@ loadsave_frame_t::loadsave_frame_t(karte_t *welt, bool do_load) : savegame_frame
 
 	if(do_load) {
 		set_name("Laden");
-	} else {
+	}
+	else {
 		set_filename(welt->get_einstellungen()->get_filename());
 		set_name("Speichern");
 	}
@@ -98,12 +102,8 @@ const char *loadsave_frame_t::get_info(const char *fname)
 			strftime(date+n, 18, "%Y-%m-%d %H:%M", tm);
 		}
 		else {
-			tstrncpy(date, "??.??.???? ??:??", 15);
+			tstrncpy(date, "??.??.???? ??:??", lengthof(date));
 		}
 	}
 	return date;
 }
-
-
-
-

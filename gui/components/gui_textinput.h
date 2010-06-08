@@ -11,6 +11,7 @@
 #include "../../ifc/gui_action_creator.h"
 #include "../../ifc/gui_komponente.h"
 #include "../../simcolor.h"
+#include "../../simgraph.h"
 
 
 /**
@@ -38,19 +39,19 @@ protected:
 	 * Maximallänge des Stringbuffers
 	 * @author Hj. Malthaner
 	 */
-	long max;
+	size_t max;
 
 	/**
 	 * position of text cursor
 	 * @author hsiegeln
 	 */
-	long cursor_pos;
+	size_t cursor_pos;
 
 	/**
 	  * offset for drawing the cursor
 	  * Dwachs: made private to check for mouse induced cursor moves
 	  */
-	long cursor_offset;
+	KOORD_VAL cursor_offset;
 
 	/**
 	 * text alignment
@@ -63,14 +64,12 @@ protected:
 public:
 	gui_textinput_t();
 
-	~gui_textinput_t();
-
 	/**
 	 * Setzt den Textpuffer
 	 *
 	 * @author Hj. Malthaner
 	 */
-	void set_text(char *text, int max);
+	void set_text(char *text, size_t max);
 
 	/**
 	 * Holt den Textpuffer
@@ -84,19 +83,34 @@ public:
 	 * gemeldet
 	 * @author Hj. Malthaner
 	 */
-	void infowin_event(const event_t *);
+	virtual void infowin_event(const event_t *);
 
 	/**
 	 * Zeichnet die Komponente
 	 * @author Hj. Malthaner
 	 */
-	void zeichnen(koord offset);
+	virtual void zeichnen(koord offset);
+
+	void zeichnen_mit_cursor( koord offset, bool show_cursor );
 
 	// to allow for right-aligned text
 	void set_alignment(uint8 _align){ align = _align;}
 
 	// to allow for right-aligned text
 	void set_color(COLOR_VAL col){ textcol = col;}
+
+	gui_komponente_t *get_focus() const { return (gui_komponente_t *)this; }
 };
+
+
+class gui_hidden_textinput_t : public gui_textinput_t
+{
+	// and set the cursor right when clicking with the mouse
+	virtual void infowin_event(const event_t *);
+
+	// just draw with stars ...
+	virtual void zeichnen(koord offset);
+};
+
 
 #endif

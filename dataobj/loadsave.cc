@@ -16,11 +16,15 @@
 
 #include <zlib.h>
 
-loadsave_t::mode_t loadsave_t::save_mode = zipped;	// default to use for saving
+loadsave_t::mode_t loadsave_t::save_mode = bzip2;	// default to use for saving
 
 loadsave_t::loadsave_t() : filename()
 {
+	mode = 0;
+	saving = false;
 	fp = NULL;
+	bzfp = NULL;
+	bse = BZ_OK+1;
 }
 
 loadsave_t::~loadsave_t()
@@ -33,15 +37,54 @@ bool loadsave_t::rd_open(const char *filename)
 	close();
 
 	version = 0;
-	fp = (FILE *)gzopen(filename, "rb");
-	if(!fp) {
+	mode = zipped;
+	fp = fopen(filename, "rb");
+	if(  fp==NULL  ) {
+		// most likely not existing
 		return false;
 	}
-	saving = false;
-
+	// now check for BZ2 format
 	char buf[80];
-	gzgets(fp, buf, 80);
-	mode = zipped;
+	if(  fread( buf, 1, 80, fp )==80  ) {
+		if(  buf[0]=='B'  &&  buf[1]=='Z'  ) {
+			mode = bzip2;
+		}
+		fseek(fp,0,SEEK_SET);
+	}
+
+	if(  mode==bzip2  ) {
+		bse = BZ_OK+1;
+		bzfp = NULL;
+		bzfp = BZ2_bzReadOpen( &bse, fp, 0, 0, NULL, 0 );
+		bool ok = false;
+		if(  bse==BZ_OK  ) {
+			// else: use zlib
+			MEMZERO(buf);
+			if(  BZ2_bzRead( &bse, bzfp, buf, sizeof(SAVEGAME_PREFIX) )==sizeof(SAVEGAME_PREFIX)  &&  bse==BZ_OK  ) {
+				// get the rest of the string
+				for(  int i=sizeof(SAVEGAME_PREFIX);  buf[i-1]>=32  &&  i<79;  i++  ) {
+					buf[i] = lsgetc();
+				}
+				ok = bse==BZ_OK;
+			}
+		}
+		// BZ-Header but wrong data ...
+		if(  !ok  ) {
+			close();
+			return false;
+		}
+	}
+
+	if(  mode!=bzip2  ) {
+		fclose(fp);
+		// and now with zlib ...
+		fp = (FILE *)gzopen(filename, "rb");
+		if(fp==NULL) {
+			return false;
+		}
+		gzgets(fp, buf, 80);
+	}
+	saving = false;
 
 	if(strncmp(buf, SAVEGAME_PREFIX, sizeof(SAVEGAME_PREFIX) - 1)) {
 		if(strncmp(buf, XML_SAVEGAME_PREFIX, sizeof(XML_SAVEGAME_PREFIX)-1)!=0) {
@@ -82,7 +125,7 @@ bool loadsave_t::rd_open(const char *filename)
 				*s++ = c;
 			}
 			*s = 0;
-			while(  lsgetc()!='>'  );
+			while(  lsgetc()!='>'  )  ;
 		}
 	}
 	else {
@@ -93,15 +136,7 @@ bool loadsave_t::rd_open(const char *filename)
 		dbg->error("loadsave_t::rd_open()","text mode no longer supported." );
 		return false;
 	}
-	mode |= zipped;
 
-	/*
-	if(mode != zipped) {
-		gzclose(fp);
-		fp = fopen(filename, "rb");
-		fgets(buf, 80, fp);
-	}
-	*/
 	if(*pak_extension==0) {
 		strcpy( pak_extension, "(unknown)" );
 	}
@@ -116,14 +151,31 @@ bool loadsave_t::wr_open(const char *filename, mode_t m, const char *pak_extensi
 	mode = m;
 	close();
 
-	if(  mode & zipped  ) {
+	if(  is_zipped()  ) {
+		// using zlib
 		fp = (FILE *)gzopen(filename, "wb");
 	}
-	else if(  mode & binary ) {
+	else if(  mode==binary  ) {
+		// no compression
 		fp = fopen(filename, "wb");
 	}
+	else if(  is_bzip2()  ) {
+		// XML or bzip ...
+		fp = fopen(filename, "wb");
+		// the additional magic for bzip2
+		bse = BZ_OK+1;
+		bzfp = NULL;
+		if(  fp  ) {
+			bzfp = BZ2_bzWriteOpen( &bse, fp, 9, 0, 30 /* default is 30 */ );
+			if(  bse!=BZ_OK  ) {
+				return false;
+			}
+		}
+	}
 	else {
-		fp = fopen(filename, "w");
+		// uncompressed xml should be here ...
+		assert(  mode==xml  );
+		fp = fopen(filename, "wb");
 	}
 
 	if(!fp) {
@@ -147,13 +199,18 @@ bool loadsave_t::wr_open(const char *filename, mode_t m, const char *pak_extensi
 	// delete trailing path seperator
 	this->pak_extension[strlen(this->pak_extension)-1] = 0;
 
+	version = int_version(SAVEGAME_VER_NR, NULL, NULL );
+
 	if(  !is_xml()  ) {
-		if(is_zipped()) {
-			gzprintf(fp, "%s%s%s\n", SAVEGAME_VERSION, "zip", this->pak_extension);
+		char str[4096];
+		size_t len;
+		if(  version<=102002  ) {
+			len = sprintf( str, "%s%s%s\n", SAVEGAME_VERSION, "zip", this->pak_extension );
 		}
 		else {
-			fprintf(fp, "%s%s%s\n", SAVEGAME_VERSION, mode == binary ? "bin" : "", this->pak_extension);
+			len = sprintf( str, "%s-%s\n", SAVEGAME_VERSION, this->pak_extension );
 		}
+		write( str, len );
 	}
 	else {
 		char str[4096];
@@ -162,7 +219,6 @@ bool loadsave_t::wr_open(const char *filename, mode_t m, const char *pak_extensi
 		ident = 1;
 	}
 
-	version = int_version(SAVEGAME_VER_NR, NULL, NULL );
 	this->mode = mode;
 	this->filename = filename;
 
@@ -174,7 +230,8 @@ const char *loadsave_t::close()
 {
 	const char *success = NULL;
 	if(fp != NULL) {
-		if(  is_xml()  ) {
+		if(  is_xml()  &&  saving  &&  fp!=NULL  &&  (!is_bzip2()  ||  bse==BZ_OK)  ) {
+			// only write when close and no error occurred
 			const char *end = "\n</Simutrans>\n";
 			write( end, strlen(end) );
 		}
@@ -185,6 +242,17 @@ const char *loadsave_t::close()
 				success =  err_no==Z_ERRNO ? strerror(errno) : err_str;
 			}
 			gzclose(fp);
+		}
+		else if(  is_bzip2()  ) {
+			if(   saving  ) {
+				BZ2_bzWriteClose( &bse, bzfp, 0, NULL, NULL );
+			}
+			else {
+				BZ2_bzReadClose( &bse, bzfp );
+			}
+			fclose( fp );
+			bzfp = fp = NULL;
+			bse = BZ_STREAM_END;
 		}
 		else {
 			int err_no = ferror(fp);
@@ -199,59 +267,88 @@ const char *loadsave_t::close()
 }
 
 
+/************* from here on the actual data in/out routines ****************/
+
 /**
  * Checks end-of-file
  * @author Hj. Malthaner
  */
 bool loadsave_t::is_eof()
 {
-	if(is_zipped()) {
-		return gzeof(fp) != 0;
+	if(is_bzip2()) {
+		// any error is EOF ...
+		return bse!=BZ_OK;
 	}
 	else {
-		return feof(fp) != 0;
+		return gzeof(fp) != 0;
 	}
 }
 
 
-int loadsave_t::lsputc(int c)
+void loadsave_t::lsputc(int c)
 {
 	if(is_zipped()) {
-		return gzputc(fp, c);
-	} else {
-		return fputc(c, fp);
+		gzputc(fp, c);
+	}
+	else if(is_bzip2()) {
+		uint8 ch = c;
+		write( &ch, 1 );
+	}
+	else {
+		fputc(c, fp);
 	}
 }
 
 int loadsave_t::lsgetc()
 {
-	if(is_zipped()) {
+	if(is_bzip2()) {
+		uint8 c[2];
+		if(  bse==BZ_OK  ) {
+			BZ2_bzRead( &bse, bzfp, c, 1);
+		}
+		return bse==BZ_OK ? c[0] : -1;
+	}
+	else {
 		return gzgetc(fp);
-	} else {
-		return fgetc(fp);
 	}
 }
 
-long loadsave_t::write(const void *buf, unsigned long len)
+long loadsave_t::write(const void *buf, size_t len)
 {
 	if(is_zipped()) {
 		return gzwrite(fp, const_cast<void *>(buf), len);
-	} else {
+	}
+	else if(is_bzip2()) {
+		BZ2_bzWrite( &bse, bzfp, const_cast<void *>(buf), len);
+		assert(bse==BZ_OK);
+		return (long)len;
+	}
+	else {
 		return (long)fwrite(buf, 1, len, fp);
 	}
 }
 
-long loadsave_t::read(void *buf, unsigned long len)
+long loadsave_t::read(void *buf, size_t len)
 {
-	if(is_zipped()) {
+	if(is_bzip2()) {
+		if(  bse==BZ_OK  ) {
+			BZ2_bzRead( &bse, bzfp, const_cast<void *>(buf), len);
+		}
+		// little trick: zero if not ok ...
+		return (long)len&~(bse-BZ_OK);
+	}
+	else {
 		return gzread(fp, buf, len);
-	} else {
-		return (long)fread(buf, 1, len, fp);
 	}
 }
 
 
-/* read data types (should check also for Intel/Motorola) etc */
+/*************** High level routines to read/write data types *************
+ * (check also for Intel/Motorola) etc
+ */
+
+
+
 void loadsave_t::rdwr_byte(sint8 &c, const char *)
 {
 	if(!is_xml()) {
@@ -277,26 +374,25 @@ void loadsave_t::rdwr_byte(uint8 &c, const char *)
 }
 
 
-/* shorts */
 void loadsave_t::rdwr_short(sint16 &i, const char *)
 {
 	if(!is_xml()) {
-#ifdef BIG_ENDIAN
-		if(saving) {
-			sint16 ii = (sint16)endian_uint16((uint16 *)&i);
+		if (saving) {
+#ifdef SIM_BIG_ENDIAN
+			sint16 ii = endian(i);
 			write(&ii, sizeof(sint16));
+#else
+			write(&i, sizeof(sint16));
+#endif
 		} else {
+#ifdef SIM_BIG_ENDIAN
 			uint16 ii;
 			read(&ii, sizeof(sint16));
-			i = (sint16)endian_uint16(&ii);
-		}
+			i = endian(ii);
 #else
-		if(saving) {
-			write(&i, sizeof(sint16));
-		} else {
 			read(&i, sizeof(sint16));
-		}
 #endif
+		}
 	}
 	else {
 		sint64 ll = i;
@@ -313,26 +409,25 @@ void loadsave_t::rdwr_short(uint16 &i, const char *)
 }
 
 
-/* long words*/
 void loadsave_t::rdwr_long(sint32 &l, const char *)
 {
 	if(!is_xml()) {
-#ifdef BIG_ENDIAN
-		if(saving) {
-			uint32 ii = (sint32)endian_uint32((uint32 *)&l);
+		if (saving) {
+#ifdef SIM_BIG_ENDIAN
+			uint32 ii = endian(l);
 			write(&ii, sizeof(uint32));
+#else
+			write(&l, sizeof(sint32));
+#endif
 		} else {
+#ifdef SIM_BIG_ENDIAN
 			uint32 ii;
 			read(&ii, sizeof(uint32));
-			l = (sint32)endian_uint32(&ii);
-		}
+			l = endian(ii);
 #else
-		if(saving) {
-			write(&l, sizeof(sint32));
-		} else {
 			read(&l, sizeof(sint32));
-		}
 #endif
+		}
 	}
 	else {
 		sint64 ll = l;
@@ -348,40 +443,39 @@ void loadsave_t::rdwr_long(uint32 &l, const char *)
 	l = (uint32)ll;
 }
 
-/* long long (64 Bit) */
+
 void loadsave_t::rdwr_longlong(sint64 &ll, const char *)
 {
 	if(!is_xml()) {
-#ifdef BIG_ENDIAN
-		if(saving) {
-			sint64 ii = (sint64)endian_uint64((uint64 *)&ll);
+		if (saving) {
+#ifdef SIM_BIG_ENDIAN
+			sint64 ii = endian(ll);
 			write(&ii, sizeof(sint64));
+#else
+			write(&ll, sizeof(sint64));
+#endif
 		} else {
+#ifdef SIM_BIG_ENDIAN
 			uint64 ii;
 			read(&ii, sizeof(sint64));
-			ll = (sint64)endian_uint64(&ii);
-		}
+			ll = endian(ii);
 #else
-		if(saving) {
-			write(&ll, sizeof(sint64));
-		} else {
 			read(&ll, sizeof(sint64));
-		}
 #endif
+		}
 	}
 	else {
 		rdwr_xml_number( ll, "i64" );
 	}
 }
 
-
-
 void loadsave_t::rdwr_double(double &dbl)
 {
 	if(!is_xml()) {
 		if(saving) {
 			write(&dbl, sizeof(double));
-		} else {
+		}
+		else {
 			read(&dbl, sizeof(double));
 		}
 	}
@@ -392,7 +486,6 @@ void loadsave_t::rdwr_double(double &dbl)
 		dbl = (((double)ll)+0.000001)/1000.0;
 	}
 }
-
 
 
 void loadsave_t::rdwr_bool(bool &i, const char *)
@@ -406,12 +499,14 @@ void loadsave_t::rdwr_bool(bool &i, const char *)
 		}
 	}
 	else {
-		// boll xml
+		// bool xml
 		if(saving) {
-			if(is_zipped()) {
-				gzprintf(fp, "%*s<bool>%s</bool>\n", ident, "", i ? "true" : "false" );
-			} else {
-				fprintf(fp, "%*s<bool>%s</bool>\n", ident, "", i ? "true" : "false" );
+			write( "                                                                ", min(64,ident) );
+			if(  i  ) {
+				write( "<bool>true</bool>\n", sizeof("<bool>true</bool>\n")-1 );
+			}
+			else {
+				write( "<bool>false</bool>\n", sizeof("<bool>false</bool>\n")-1 );
 			}
 		}
 		else {
@@ -438,13 +533,12 @@ void loadsave_t::rdwr_bool(bool &i, const char *)
 }
 
 
-
 void loadsave_t::rdwr_xml_number(sint64 &s, const char *typ)
 {
 	if(saving) {
 		static char nr[256];
-		sprintf( nr, "%*s<%s>%.0lf</%s>\n", ident, "", typ, (double)s, typ );
-		this->write( nr, strlen(nr) );
+		size_t len = sprintf( nr, "%*s<%s>%.0f</%s>\n", ident, "", typ, (double)s, typ );
+		write( nr, len );
 	}
 	else {
 		const int len = (int)strlen(typ);
@@ -458,7 +552,7 @@ void loadsave_t::rdwr_xml_number(sint64 &s, const char *typ)
 		if(  strcmp(typ,buffer)!=0  ) {
 			dbg->fatal( "loadsave_t::rdwr_str()","expected \"<%s>\", got \"<%s>\"", typ, buffer );
 		}
-		while(  lsgetc()!='>'  );
+		while(  lsgetc()!='>'  )  ;
 		// read number;
 		s = 0;
 		bool minus = false;
@@ -501,11 +595,9 @@ void loadsave_t::rdwr_xml_number(sint64 &s, const char *typ)
 		if(  strcmp(typ,buffer)!=0  ) {
 			dbg->fatal( "loadsave_t::rdwr_str()","expected \"</%s>\", got \"</%s>\"", typ, buffer );
 		}
-		while(  lsgetc()!='>'  );
+		while(  lsgetc()!='>'  )  ;
 	}
 }
-
-
 
 
 // s is a malloc-ed string (will be freed and newly allocated on load time!)
@@ -514,10 +606,10 @@ void loadsave_t::rdwr_str(const char *&s)
 	if(!is_xml()) {
 		sint16 size;
 		if(saving) {
-			size = s ? strlen(s) : 0;
-#ifdef BIG_ENDIAN
+			size = s ? (sint16)min(32767,strlen(s)) : 0;
+#ifdef SIM_BIG_ENDIAN
 			{
-				uint16 ii = endian_uint16((uint16 *)&size);
+				uint16 ii = endian(size);
 				write(&ii, sizeof(sint16));
 			}
 #else
@@ -528,11 +620,11 @@ void loadsave_t::rdwr_str(const char *&s)
 			}
 		}
 		else {
-#ifdef BIG_ENDIAN
+#ifdef SIM_BIG_ENDIAN
 			{
 				uint16 ii;
 				read(&ii, sizeof(uint16));
-				size = (sint16)endian_uint16(&ii);
+				size = endian(ii);
 			}
 #else
 			read(&size, sizeof(sint16));
@@ -552,12 +644,12 @@ void loadsave_t::rdwr_str(const char *&s)
 	else {
 		// use CDATA tag: <![CDATA[%s]]>
 		if(saving) {
-			const char *str = s ? s: "";
-			if(is_zipped()) {
-				gzprintf(fp, "%*s<![CDATA[%s]]>\n", ident, "", str );
-			} else {
-				fprintf(fp, "%*s<![CDATA[%s]]>\n", ident, "", str );
+			write( "                                                                ", min(64,ident) );
+			write( "<![CDATA[", 9 );
+			if(s) {
+				write( s, strlen(s) );
 			}
+			write( "]]>\n", 4 );
 		}
 		else {
 			char buffer[4096];
@@ -571,30 +663,27 @@ void loadsave_t::rdwr_str(const char *&s)
 }
 
 
-
 // read a string into a preallocated buffer
-void loadsave_t::rdwr_str(char *s, int size)
+void loadsave_t::rdwr_str(char* s, size_t const size)
 {
 	if(!is_xml()) {
 		sint16 len;
 		if(saving) {
-			len = strlen(s);
-#ifdef BIG_ENDIAN
+			len = (sint16)min(32767,strlen(s));
+#ifdef SIM_BIG_ENDIAN
 			{
-				sint16 ii = (sint16)endian_uint16((uint16 *)&len);
+				sint16 ii = endian(len);
 				write(&ii, sizeof(sint16));
 			}
 #else
-			write(&len, sizeof(short));
+			write(&len, sizeof(sint16));
 #endif
 			write(s, len);
 		}
 		else {
-			read(&len, sizeof(short));
-#ifdef BIG_ENDIAN
-			len = (sint16)endian_uint16((uint16 *)&len);
-#endif
-			if(len>size) {
+			read(&len, sizeof(sint16));
+			len = endian(len);
+			if (len >= size) {
 				dbg->fatal( "loadsave_t::rdwr_str()","string longer (%i) than allowed size (%i)", len, size );
 			}
 			read(s, len);
@@ -604,12 +693,12 @@ void loadsave_t::rdwr_str(char *s, int size)
 	else {
 		// use CDATA tag: <![CDATA[%s]]>
 		if(saving) {
-			const char *str = s ? s: "";
-			if(is_zipped()) {
-				gzprintf(fp, "%*s<![CDATA[%s]]>\n", ident, "", str );
-			} else {
-				fprintf(fp, "%*s<![CDATA[%s]]>\n", ident, "", str );
+			write( "                                                                ", min(64,ident) );
+			write( "<![CDATA[", 9 );
+			if(s) {
+				write( s, strlen(s) );
 			}
+			write( "]]>\n", 4 );
 		}
 		else {
 			// find start of tag
@@ -645,7 +734,7 @@ void loadsave_t::rdwr_str(char *s, int size)
 				*s = 0;
 				// go until closing
 				if(  ptr==0  ||  *ptr!=0  ) {
-					while(  lsgetc()!='>'  );
+					while(  lsgetc()!='>'  )  ;
 				}
 			}
 			else {
@@ -681,12 +770,57 @@ void loadsave_t::rdwr_str(char *s, int size)
 }
 
 
+void loadsave_t::start_tag(const char *tag)
+{
+	if(  is_xml()  ) {
+		if(saving) {
+			write( "                                                                ", min(64,ident) );
+			write( "<", 1 );
+			write( tag, strlen(tag) );
+			write( ">\n", 2 );
+			ident ++;
+		}
+		else {
+			char buf[256];
+			const size_t len = strlen(tag);
+			// find start of tag
+			while(  lsgetc()!='<'  ) { /* nothing */ }
+			read( buf, len );
+			if(  strncmp(buf,tag,len)!=0  ) {
+				dbg->fatal( "loadsave_t::start_tag()","expected \"%s\", got \"%s\"", tag, buf );
+			}
+			while(  lsgetc()!='>'  )  ;
+		}
+	}
+}
+
+
+void loadsave_t::end_tag(const char *tag)
+{
+	if(  is_xml()  ) {
+		if(saving) {
+			ident --;
+			write( "                                                                ", min(64,ident) );
+			write( "</", 2 );
+			write( tag, strlen(tag) );
+			write( ">\n", 2 );
+		}
+		else {
+			// just use start tag with the end character ...
+			char buf[256];
+			tstrncpy( buf+1, tag, 254 );
+			buf[0] = '/';
+			start_tag(buf);
+		}
+	}
+}
+
+
 void loadsave_t::wr_obj_id(sint16 id)
 {
 	if(saving) {
 		if(!is_xml()) {
-			uint8 idc = (uint8)id;
-			write(&idc, sizeof(uint8));
+			lsputc( id );
 		}
 		else {
 			sint64 ll=id;
@@ -719,18 +853,13 @@ void loadsave_t::wr_obj_id(const char *id_text)
 {
 	if(saving) {
 		if(  !is_xml()  ) {
-			if(is_zipped()) {
-				gzprintf(fp, "%s\n", id_text);
-			} else {
-				fprintf(fp, "%s\n", id_text);
-			}
+			write( id_text, strlen(id_text) );
+			lsputc( 10 );
 		}
 		else {
-			if(is_zipped()) {
-				gzprintf(fp, "<id=\"%s\"/>\n", id_text);
-			} else {
-				fprintf(fp, "<id=\"%s\"/>\n", id_text);
-			}
+			write( "<id=\"", 5 );
+			write( id_text, strlen(id_text) );
+			write( "\">\n", 3 );
 		}
 	}
 }
@@ -740,13 +869,12 @@ void loadsave_t::rd_obj_id(char *id_buf, int size)
 {
 	if(!saving) {
 		if(  !is_xml()  ) {
-			if(is_zipped()) {
-				gzgets(fp, id_buf, size);
+			int i=0;
+			*id_buf = 0;
+			while(  i<size  &&  id_buf[i-1]!=10  ) {
+				id_buf[i++] = lsgetc();
 			}
-			else {
-				fgets(id_buf, size, fp);
-			}
-			id_buf[strlen(id_buf) - 1] = '\0';
+			id_buf[i-1] = 0;
 		}
 		else {
 			char buf[6];
@@ -777,7 +905,8 @@ void loadsave_t::rd_obj_id(char *id_buf, int size)
 }
 
 
-uint32 loadsave_t::int_version(const char *version_text, int *mode, char *pak_extension)
+
+uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *pak_extension_str)
 {
 	// major number (0..)
 	uint32 v0 = atoi(version_text);
@@ -801,80 +930,47 @@ uint32 loadsave_t::int_version(const char *version_text, int *mode, char *pak_ex
 	uint32 v2 = atoi(version_text);
 	uint32 version = v0 * 1000000 + v1 * 1000 + v2;
 
-	if(mode) {
-		while(*version_text && *version_text != 'b' && *version_text != 'z') {
+	while(  isdigit(*version_text)  ) {
+		version_text++;
+	}
+
+	if(  version<=102002  ) {
+		/* the compression and the mode we determined already ourselves (otherwise we cannot read this
+		 * => leave the mode alone but for unknown modes!
+		 */
+		if(!strncmp(version_text, "bin", 3)) {
+			//*mode = binary;
+			version_text += 3;
+		}
+		else if(!strncmp(version_text, "zip", 3)) {
+			//*mode = zipped;
+			version_text += 3;
+		}
+		else if(  *version_text  ) {
+			// illegal version ...
+			version = 999999999;
+		}
+	}
+	else {
+		// skip the minus sign
+		if (*version_text=='-') {
 			version_text++;
 		}
-		if(!strncmp(version_text, "bin", 3)) {
-			*mode = binary;
-		} else if(!strncmp(version_text, "zip", 3)) {
-			*mode = zipped;
-		} else {
-			*mode = text;
-		}
+	}
 
-		// also pak extension was saved
-		if(version>=99008) {
-			if(*mode!=text) {
-				version_text += 3;
-			}
-			while(*version_text && *version_text>=32) {
-				*pak_extension++ = *version_text++;
+	if(  pak_extension_str  ) {
+		if(  *version_text  )  {
+			// also pak extension was saved
+			if(version>=99008) {
+				while(  *version_text>=32  ) {
+					*pak_extension_str = *version_text;
+					pak_extension_str++;
+					version_text++;
+				}
 			}
 		}
-		*pak_extension = 0;
+		*pak_extension_str = 0;
 	}
 
 	return version;
 }
-
-
-
-void loadsave_t::start_tag(const char *tag)
-{
-	if(  is_xml()  ) {
-		if(saving) {
-			if(is_zipped()) {
-				gzprintf(fp, "%*s<%s>\n", ident, "", tag);
-			} else {
-				fprintf(fp, "%*s<%s>\n", ident, "", tag);
-			}
-			ident ++;
-		}
-		else {
-			char buf[256];
-			const int len = strlen(tag);
-			// find start of tag
-			while(  lsgetc()!='<'  ) { /* nothing */ }
-			read( buf, len );
-			if(  strncmp(buf,tag,len)!=0  ) {
-				dbg->fatal( "loadsave_t::start_tag()","expected \"%s\", got \"%s\"", tag, buf );
-			}
-			while(  lsgetc()!='>'  );
-		}
-	}
-}
-
-
-void loadsave_t::end_tag(const char *tag)
-{
-	if(  is_xml()  ) {
-		if(saving) {
-			ident --;
-			if(is_zipped()) {
-				gzprintf(fp, "%*s</%s>\n", ident, "", tag);
-			} else {
-				fprintf(fp, "%*s</%s>\n", ident, "", tag);
-			}
-		}
-		else {
-			// just use start tag with the end character ...
-			char buf[256];
-			tstrncpy( buf+1, tag, 254 );
-			buf[0] = '/';
-			start_tag(buf);
-		}
-	}
-}
-
-

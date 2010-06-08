@@ -2,6 +2,7 @@
 #define __OBJ_READER_H
 
 #include <stdio.h>
+#include <string.h>
 
 #include "../obj_besch.h"
 #include "../objversion.h"
@@ -37,8 +38,8 @@ inline uint8 decode_uint8(char * &data)
  */
 inline uint16 decode_uint16(char * &data)
 {
-	const uint16 v = endian_uint16((uint16 *)data);
-	data += 2;
+	uint16 const v = (uint16)(uint8)data[0] | (uint16)(uint8)data[1] << 8;
+	data += sizeof(v);
 	return v;
 }
 
@@ -51,8 +52,8 @@ inline uint16 decode_uint16(char * &data)
  */
 inline uint32 decode_uint32(char * &data)
 {
-	const uint32 v = endian_uint32((uint32 *)data);
-	data += 4;
+	uint32 const v = (uint32)(uint8)data[0] | (uint32)(uint8)data[1] << 8 | (uint32)(uint8)data[2] << 16 | (uint32)(uint8)data[3] << 24;
+	data += sizeof(v);
 	return v;
 }
 
@@ -75,8 +76,8 @@ class obj_reader_t
 	static ptrhashtable_tpl<obj_besch_t **, int>  fatals;
 
 	static void read_file(const char *name);
-	static void read_nodes(FILE* fp, obj_besch_t*& data, int register_nodes);
-	static void skip_nodes(FILE *fp);
+	static void read_nodes(FILE* fp, obj_besch_t*& data, int register_nodes,uint32 version);
+	static void skip_nodes(FILE *fp,uint32 version);
 
 protected:
 	static void delete_node(obj_besch_t *node);
@@ -104,9 +105,9 @@ public:
 	virtual obj_type get_type() const = 0;
 	virtual const char *get_type_name() const = 0;
 
-	static bool init(const char *liste);
-
-	static bool has_been_init;
+	static bool init();
+	static bool laden_abschliessen();
+	static bool load(const char *liste, const char *message);
 };
 
 #endif

@@ -100,7 +100,7 @@ static PIXVAL pixrgb_to_pixval(int rgb)
 	for (int i = 0; i < SPECIAL; i++) {
 		if (rgbtab[i] == (PIXRGB)rgb) {
 			pix = 0x8000 + i;
-			return endian_uint16(&pix);
+			return endian(pix);
 		}
 	}
 
@@ -110,7 +110,7 @@ static PIXVAL pixrgb_to_pixval(int rgb)
 
 	// RGB 555
 	pix = ((r & 0xF8) << 7) | ((g & 0xF8) << 2) | ((b & 0xF8) >> 3);
-	return endian_uint16(&pix);
+	return endian(pix);
 }
 
 
@@ -153,37 +153,54 @@ PIXVAL* image_writer_t::encode_image(int x, int y, dimension* dim, int* len)
 	int line;
 	PIXVAL* dest;
 	PIXVAL* dest_base = new PIXVAL[img_size * img_size * 2];
-	PIXVAL* run_counter;
+	PIXVAL* colored_run_counter;
 
-	y += dim->ymin;
 	dest = dest_base;
 
-	for (line = 0; line < dim->ymax-dim->ymin + 1; line++) {
-		int   row = 0;
+	x += dim->xmin;
+	y += dim->ymin;
+	const int width = dim->xmax - dim->xmin + 1;
+	const int height = dim->ymax - dim->ymin + 1;
+
+	for (line = 0; line < height; line++) {
+		int row_px_count = 0;
 		PIXRGB pix = block_getpix(x, y + line);
 		uint16 count = 0;
+		uint16 clear_colored_run_pair_count = 0;
 
 		do {
 			count = 0;
-			while (pix == TRANSPARENT && row < img_size) {
+			while (pix == TRANSPARENT && row_px_count < width) {
 				count++;
-				row++;
-				pix = block_getpix(x + row, y + line);
+				row_px_count++;
+				pix = block_getpix(x + row_px_count, y + line);
 			}
 
-			*dest++ = endian_uint16(&count);
+			*dest++ = endian(count);
 
-			run_counter = dest++;
+			colored_run_counter = dest++;
 			count = 0;
 
-			while (pix != TRANSPARENT && row < img_size) {
+			while (pix != TRANSPARENT && row_px_count < width) {
 				*dest++ = pixrgb_to_pixval(pix);
-				count ++;
-				row ++;
-				pix = block_getpix(x + row, y + line);
+				count++;
+				row_px_count++;
+				pix = block_getpix(x + row_px_count, y + line);
 			}
-			*run_counter = endian_uint16(&count);
-		} while (row < img_size);
+
+			/* Knightly:
+			 *		If it is not the first clear-colored-run pair and its colored run is empty
+			 *		--> it is superfluous and can be removed by rolling back the pointer
+			 */
+			if(  clear_colored_run_pair_count>0  &&  count==0  ) {
+				dest -= 2;
+				// this only happens at the end of a line, so no need to increment clear_colored_run_pair_count
+			}
+			else {
+				*colored_run_counter = endian(count);
+				clear_colored_run_pair_count++;
+			}
+		} while (row_px_count < width);
 
 		*dest++ = 0;
 	}
@@ -222,7 +239,7 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, cstring_t an_ima
 	PIXVAL* pixdata = NULL;
 	cstring_t imagekey;
 
-	memset(&bild, 0, sizeof(bild));
+	MEMZERO(bild);
 
 	// Hajo: if first char is a '>' then this image is not zoomeable
 	if (an_imagekey.len() > 2 && an_imagekey[0] == '>') {
@@ -323,7 +340,7 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, cstring_t an_ima
 	}
 
 #ifdef IMG_VERSION0
-	// ok, need to be changed to hand mode ...
+	// version 0
 	obj_node_t node(this, 12 + (bild.len * sizeof(uint16)), &parent);
 
 	// to avoid any problems due to structure changes, we write manually the data
@@ -341,8 +358,8 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, cstring_t an_ima
 		node.write_data_at(outfp, pixdata, 12, bild.len * sizeof(PIXVAL));
 		free(pixdata);
 	}
-#else
-	// ok, need to be changed to hand mode ...
+#elif IMG_VERSION2
+	// version 1 or 2
 	obj_node_t node(this, 10 + (bild.len * sizeof(uint16)), &parent);
 
 	// to avoid any problems due to structure changes, we write manually the data
@@ -350,8 +367,26 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, cstring_t an_ima
 	node.write_uint16(outfp, bild.y,        2);
 	node.write_uint8 (outfp, bild.w,        4);
 	node.write_uint8 (outfp, bild.h,        5);
-	node.write_uint8 (outfp, 1,             6); // version
+	node.write_uint8 (outfp, 2,             6); // version
 	node.write_uint16(outfp, bild.len,      7);
+	node.write_uint8 (outfp, bild.zoomable, 9);
+
+	if (bild.len) {
+		// only called, if there is something to store
+		node.write_data_at(outfp, pixdata, 10, bild.len * sizeof(PIXVAL));
+		free(pixdata);
+	}
+#else
+	// version 3
+	obj_node_t node(this, 10 + (bild.len * sizeof(uint16)), &parent);
+
+	// to avoid any problems due to structure changes, we write manually the data
+	node.write_uint16(outfp, bild.x,        0);
+	node.write_uint16(outfp, bild.y,        2);
+	node.write_uint16 (outfp, bild.w,        4);
+	node.write_uint8 (outfp, 3,             6); // version, always at position 6!
+	node.write_uint16 (outfp, bild.h,        7);
+	// len is now automatically calculated
 	node.write_uint8 (outfp, bild.zoomable, 9);
 
 	if (bild.len) {

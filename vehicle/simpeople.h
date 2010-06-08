@@ -16,9 +16,6 @@ class fussgaenger_t : public verkehrsteilnehmer_t
 private:
 	static stringhashtable_tpl<const fussgaenger_besch_t *> table;
 
-public:
-	static int count;
-
 private:
 	static uint32 strecke[8];
 
@@ -36,7 +33,7 @@ public:
 	const fussgaenger_besch_t *get_besch() const { return besch; }
 
 	const char *get_name() const {return "Fussgaenger";}
-	enum ding_t::typ get_typ() const {return fussgaenger;}
+	typ get_typ() const { return fussgaenger; }
 
 	bool sync_step(long delta_t);
 
@@ -46,7 +43,7 @@ public:
 
 	// class register functions
 	static bool register_besch(const fussgaenger_besch_t *besch);
-	static bool laden_erfolgreich();
+	static bool alles_geladen();
 
 	static void erzeuge_fussgaenger_an(karte_t *welt, koord3d k, int &anzahl);
 };

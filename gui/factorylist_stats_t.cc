@@ -5,7 +5,6 @@
  * (see licence.txt)
  */
 
-#include <algorithm>
 #include "factorylist_stats_t.h"
 
 #include "../simgraph.h"
@@ -87,6 +86,11 @@ void factorylist_stats_t::zeichnen(koord offset)
 	int xoff = offset.x+16;
 	int yoff = offset.y;
 
+	if(  fab_list.get_count()!=welt->get_fab_list().get_count()  ) {
+		// some deleted/ added => resort
+		sort( sortby, sortreverse );
+	}
+
 	for (uint32 i=0; i<fab_list.get_count()  &&  yoff<end; i++) {
 
 		// skip invisible lines
@@ -107,7 +111,7 @@ void factorylist_stats_t::zeichnen(koord offset)
 			buf.append(" (");
 
 			if (!fab->get_eingang().empty()) {
-				buf.append(fab->get_total_in());
+				buf.append(fab->get_total_in(),0);
 			}
 			else {
 				buf.append("-");
@@ -115,14 +119,14 @@ void factorylist_stats_t::zeichnen(koord offset)
 			buf.append(", ");
 
 			if (!fab->get_ausgang().empty()) {
-				buf.append(fab->get_total_out());
+				buf.append(fab->get_total_out(),0);
 			}
 			else {
 				buf.append("-");
 			}
 			buf.append(", ");
 
-			buf.append(fab->get_current_production());
+			buf.append(fab->get_current_production(),0);
 			buf.append(") ");
 
 
@@ -207,13 +211,15 @@ class compare_factories
 };
 
 
-void factorylist_stats_t::sort(factorylist::sort_mode_t sortby, bool sortreverse)
+void factorylist_stats_t::sort(factorylist::sort_mode_t sb, bool sr)
 {
+	sortby = sb;
+	sortreverse = sr;
+
 	fab_list.clear();
 	fab_list.resize(welt->get_fab_list().get_count());
 	for (slist_iterator_tpl<fabrik_t*> i(welt->get_fab_list()); i.next();) {
-		fab_list.append(i.get_current());
+		fab_list.insert_ordered( i.get_current(), compare_factories(sortby, sortreverse) );
 	}
-	std::sort(fab_list.begin(), fab_list.end(), compare_factories(sortby, sortreverse));
 	set_groesse(koord(210, welt->get_fab_list().get_count()*(LINESPACE+1)-10));
 }

@@ -48,6 +48,7 @@
 #include "simsys.h"
 #include "simevent.h"
 #include "simdebug.h"
+#include "macros.h"
 
 static HWND hwnd;
 static bool is_fullscreen = false;
@@ -154,7 +155,7 @@ int dr_os_open(int w, int h, int bpp, int fullscreen)
 		// try to force display mode and size
 		DEVMODE settings;
 
-		memset(&settings, 0, sizeof(settings));
+		MEMZERO(settings);
 		settings.dmSize = sizeof(settings);
 		settings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 #ifdef USE_16BIT_DIB
@@ -261,9 +262,10 @@ int dr_textur_resize(unsigned short **textur, int w, int h, int bpp)
 
 unsigned short *dr_textur_init()
 {
-	AllDibData = MALLOCN(unsigned short, MaxSize.right * MaxSize.bottom );
+	size_t const n = MaxSize.right * MaxSize.bottom;
+	AllDibData = MALLOCN(unsigned short, n);
 	// start with black
-	memset( AllDibData, 0, MaxSize.right * MaxSize.bottom * sizeof(unsigned short) );
+	MEMZERON(AllDibData, n);
 	return AllDibData;
 }
 
@@ -379,7 +381,6 @@ int dr_screenshot(const char *filename)
 		FILE *fBmp = fopen(filename, "wb");
 		if (fBmp) {
 			BITMAPFILEHEADER bf;
-			unsigned i;
 
 			AllDib->biHeight = WindowSize.bottom + 1;
 
@@ -391,7 +392,7 @@ int dr_screenshot(const char *filename)
 			fwrite(&bf, sizeof(BITMAPFILEHEADER), 1, fBmp);
 			fwrite(AllDib, sizeof(BITMAPINFOHEADER) + sizeof(DWORD) * 3, 1, fBmp);
 
-			for (i = 0; i < AllDib->biHeight; i++) {
+			for(  LONG i = 0; i < AllDib->biHeight; i++) {
 				fwrite(AllDibData + (AllDib->biHeight - 1 - i) * AllDib->biWidth, AllDib->biWidth, 2, fBmp);
 			}
 
@@ -408,6 +409,13 @@ int dr_screenshot(const char *filename)
 /*
  * Hier sind die Funktionen zur Messageverarbeitung
  */
+
+static inline unsigned int ModifierKeys()
+{
+	return
+		(GetKeyState(VK_SHIFT)   < 0  ? 1 : 0) |
+		(GetKeyState(VK_CONTROL) < 0  ? 2 : 0); // highest bit set or return value<0 -> key is pressed
+}
 
 struct sys_event sys_event;
 
@@ -430,7 +438,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 					// try to force display mode and size
 					DEVMODE settings;
 
-					memset(&settings, 0, sizeof(settings));
+					MEMZERO(settings);
 					settings.dmSize = sizeof(settings);
 					settings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 #ifdef USE_16BIT_DIB
@@ -484,7 +492,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		case WM_LBUTTONDOWN: /* originally ButtonPress */
 			sys_event.type    = SIM_MOUSE_BUTTONS;
 			sys_event.code    = SIM_MOUSE_LEFTBUTTON;
-			sys_event.key_mod = wParam>>2;
+			sys_event.key_mod = ModifierKeys();
 			sys_event.mb = last_mb = (wParam&3);
 			sys_event.mx      = LOWORD(lParam);
 			sys_event.my      = HIWORD(lParam);
@@ -493,7 +501,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		case WM_LBUTTONUP: /* originally ButtonRelease */
 			sys_event.type    = SIM_MOUSE_BUTTONS;
 			sys_event.code    = SIM_MOUSE_LEFTUP;
-			sys_event.key_mod = wParam>>2;
+			sys_event.key_mod = ModifierKeys();
 			sys_event.mb = last_mb = (wParam&3);
 			sys_event.mx      = LOWORD(lParam);
 			sys_event.my      = HIWORD(lParam);
@@ -502,7 +510,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		case WM_RBUTTONDOWN: /* originally ButtonPress */
 			sys_event.type    = SIM_MOUSE_BUTTONS;
 			sys_event.code    = SIM_MOUSE_RIGHTBUTTON;
-			sys_event.key_mod = wParam>>2;
+			sys_event.key_mod = ModifierKeys();
 			sys_event.mb = last_mb = (wParam&3);
 			sys_event.mx      = LOWORD(lParam);
 			sys_event.my      = HIWORD(lParam);
@@ -511,7 +519,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		case WM_RBUTTONUP: /* originally ButtonRelease */
 			sys_event.type    = SIM_MOUSE_BUTTONS;
 			sys_event.code    = SIM_MOUSE_RIGHTUP;
-			sys_event.key_mod = wParam>>2;
+			sys_event.key_mod = ModifierKeys();
 			sys_event.mb = last_mb = (wParam&3);
 			sys_event.mx      = LOWORD(lParam);
 			sys_event.my      = HIWORD(lParam);
@@ -520,7 +528,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		case WM_MOUSEMOVE:
 			sys_event.type    = SIM_MOUSE_MOVE;
 			sys_event.code    = SIM_MOUSE_MOVED;
-			sys_event.key_mod = wParam>>2;
+			sys_event.key_mod = ModifierKeys();
 			sys_event.mb = last_mb = (wParam&3);
 			sys_event.mx      = LOWORD(lParam);
 			sys_event.my      = HIWORD(lParam);
@@ -573,6 +581,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 
 			sys_event.type = SIM_KEYBOARD;
 			sys_event.code = 0;
+			sys_event.key_mod = ModifierKeys();
 
 			if (numlock) {
 				// do low level special stuff here
@@ -608,7 +617,6 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 			// check for F-Keys!
 			if (sys_event.code == 0 && wParam >= VK_F1 && wParam <= VK_F15) {
 				sys_event.code = wParam - VK_F1 + SIM_KEY_F1;
-				sys_event.key_mod = (GetKeyState(VK_CONTROL) != 0) * 2; // control state
 				//printf("WindowsEvent: Key %i, (state %i)\n", sys_event.code, sys_event.key_mod);
 			}
 			// some result?
@@ -638,6 +646,7 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 			else {
 				sys_event.type = SIM_KEYBOARD;
 				sys_event.code = wParam;
+				sys_event.key_mod = ModifierKeys();
 			}
 			break;
 
@@ -772,7 +781,17 @@ BOOL APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	GetWindowRect(GetDesktopWindow(), &MaxSize);
 
+	// maybe set timer to 1ms intervall on Win2k upwards ...
+	{
+		OSVERSIONINFO osinfo;
+		osinfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		if (GetVersionEx(&osinfo)  &&  osinfo.dwPlatformId==VER_PLATFORM_WIN32_NT) {
+			timeBeginPeriod(1);
+		}
+	}
+
 	simu_main(argc, argv);
+	timeEndPeriod(1);
 
 #ifdef MULTI_THREAD
 	if(	hFlushThread ) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2001 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2001 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -37,7 +37,6 @@
 struct event_t;
 struct sound_info;
 class stadt_t;
-class ding_t;
 class fabrik_t;
 class gebaeude_t;
 class zeiger_t;
@@ -45,11 +44,11 @@ class grund_t;
 class planquadrat_t;
 class karte_ansicht_t;
 class sync_steppable;
-class cstring_t;
 class werkzeug_t;
 class scenario_t;
 class message_t;
 class weg_besch_t;
+class network_world_command_t;
 
 
 /**
@@ -89,6 +88,8 @@ public:
 	#define MAX_WORLD_HISTORY_YEARS  (12) // number of years to keep history
 	#define MAX_WORLD_HISTORY_MONTHS  (12) // number of months to keep history
 
+	enum { NORMAL=0, PAUSE_FLAG = 0x01, FAST_FORWARD=0x02, FIX_RATIO=0x04 };
+
 private:
 	// die Einstellungen
 	einstellungen_t *einstellungen;
@@ -96,7 +97,7 @@ private:
 	// aus performancegruenden werden einige Einstellungen local gecached
 	sint16 cached_groesse_gitter_x;
 	sint16 cached_groesse_gitter_y;
-	// diese Werte sind um ein kleiner als die Werte für das Gitter
+	// diese Werte sind um eins kleiner als die Werte fuer das Gitter
 	sint16 cached_groesse_karte_x;
 	sint16 cached_groesse_karte_y;
 	// maximum size for waitng bars etc.
@@ -105,9 +106,7 @@ private:
 	// all cursor interaction goes via this function
 	// it will call save_mouse_funk first with init, then with the position and with exit, when another tool is selected without click
 	// see simwerkz.cc for practical examples of such functions
-	werkzeug_t *werkzeug;
-	koord werkzeug_last_pos;	// last position a tool was called
-	uint8 werkzeug_last_button;
+	werkzeug_t *werkzeug[MAX_PLAYER_COUNT];
 
 	/**
 	 * redraw whole map
@@ -131,6 +130,10 @@ private:
 	 */
 	sint32 mi, mj;
 
+	/* time when last mouse moved to check for ambient sound events */
+	uint32 mouse_rest_time;
+	uint32 sound_wait_time;	// waiting time before next event
+
 	/**
 	 * If this is true, the map will not be scrolled
 	 * on right-drag
@@ -140,6 +143,7 @@ private:
 
 	// if true, this map cannot be saved
 	bool nosave;
+	bool nosave_warning;
 
 	/*
 	* the current convoi to follow
@@ -179,7 +183,8 @@ private:
 	zeiger_t *zeiger;
 
 	slist_tpl<sync_steppable *> sync_add_list;	// these objects are move to the sync_list (but before next sync step, so they do not interfere!)
-	ptrhashtable_tpl<sync_steppable *, sync_steppable *> sync_list;
+	slist_tpl<sync_steppable *> sync_list;
+	slist_tpl<sync_steppable *> sync_remove_list;
 
 	vector_tpl<convoihandle_t> convoi_array;
 
@@ -220,29 +225,24 @@ private:
 	karte_ansicht_t *view;
 
 	/**
-	 * Fraktale, rekursive Landschaftserzeugung
-	 * @author Hj. Malthaner
+	 * Raise tile (x,y): height of each corner is given
 	 */
-	void calc_hoehe(int x1, int y1, int x2, int y2);
+	bool can_raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest=15) const;
+	int  raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw);
+	/**
+	 * Raise grid point (x,y), used during map creation/enlargement
+	 */
+	int  raise_to(sint16 x, sint16 y, sint8 h, bool set_slopes);
 
 	/**
-	 * Landschafterzeugung mit "perlin noise"
-	 * @author Hj. Malthaner
+	 * Lower tile (x,y): height of each corner is given
 	 */
-	void calc_hoehe_mit_perlin();
-
+	bool can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest=15) const;
+	int  lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw);
 	/**
-	 * Helferroutine fuer cleanup_karte()
-	 * @see karte_t::cleanup_karte
-	 * @author Hj. Malthaner
+	 * Lwer grid point (x,y), used during map creation/enlargement
 	 */
-	void raise_clean(sint16 x, sint16 y, sint16 h);
-
-	bool can_raise_to(sint16 x, sint16 y, sint16 h) const;
-	int  raise_to(sint16 x, sint16 y, sint16 h,bool set_slopes);
-
-	bool can_lower_to(sint16 x, sint16 y, sint16 h) const;
-	int  lower_to(sint16 x, sint16 y, sint16 h,bool set_slopes);
+	int  lower_to(sint16 x, sint16 y, sint8 h, bool set_slopes);
 
 	/**
 	 * Die fraktale Erzugung der Karte ist nicht perfekt.
@@ -272,8 +272,9 @@ private:
 	 * Die Spieler
 	 * @author Hj. Malthaner
 	 */
-	spieler_t *spieler[MAX_PLAYER_COUNT];                   // Mensch ist spieler Nr. 0
-	spieler_t	*active_player;
+	spieler_t *spieler[MAX_PLAYER_COUNT];   // Mensch ist spieler Nr. 0
+	uint8 player_password_hash[MAX_PLAYER_COUNT][20];
+	spieler_t *active_player;
 	uint8 active_player_nr;
 
 	/*
@@ -295,9 +296,11 @@ private:
 	// default time stretching factor
 	uint32 time_multiplier;
 
-	// true, if fast forward
-	bool fast_forward;
-	bool pause;
+	uint8 step_mode;
+
+	// Variables used in interactive()
+	uint32 sync_steps;
+	uint8  network_frame_count;
 
 	/**
 	 * fuer performancevergleiche
@@ -311,17 +314,19 @@ private:
 	uint32 last_step_nr[32];
 	uint8 last_frame_idx;
 	uint32 last_interaction;	// ms, when the last time events were handled
-	uint32 next_wait_time;	// contains a wait executed in the interactive loop
-	uint32 this_wait_time;
+	uint32 last_step_time;	// ms, when the last step was done
+	uint32 next_step_time;	// ms, when the next steps is to be done
+//	sint32 time_budget;	// takes care of how many ms I am lagging or are in front of
+	uint32 idle_time;
 
-	sint32 current_month;	// monat+12*jahr
+	sint32 current_month;  // monat+12*jahr
 	sint32 letzter_monat;  // Absoluter Monat 0..12
 	sint32 letztes_jahr;   // Absolutes Jahr
 
 	uint8 season;	// current season
 
 	long steps;          // Anzahl steps seit Erzeugung
-	bool is_sound;	// flag, that now no sound will play
+	bool is_sound;       // flag, that now no sound will play
 	bool finish_loop;    // flag fuer simulationsabbruch (false == abbruch)
 
 	// may change due to timeline
@@ -333,6 +338,8 @@ private:
 	message_t *msg;
 
 	int average_speed[8];
+
+	uint32 tile_counter;
 
 	// recalculated speed boni for different vehicles
 	void recalc_average_speed();
@@ -397,7 +404,7 @@ public:
 	bool ist_dirty() const {return dirty;}
 
 	// do the internal accounting
-	void buche(sint64 betrag, enum player_cost type);
+	void buche(sint64 betrag, player_cost type);
 
 	// calculates the various entries
 	void update_history();
@@ -471,13 +478,15 @@ public:
 	void notify_record( convoihandle_t cnv, sint32 max_speed, koord pos );
 
 	// time lapse mode ...
-	bool is_paused() const { return pause; }
-	// stop the game and all interaction
-	void do_freeze();
-	void set_pause( bool );
+	bool is_paused() const { return step_mode&PAUSE_FLAG; }
+	void set_pause( bool );	// stops the game with interaction
+	void do_freeze();	// stops the game and all interaction
 
-	bool is_fast_forward() const { return fast_forward; }
-	void set_fast_forward(bool ff) { fast_forward = ff; reset_timer(); }
+	bool is_fast_forward() const { return step_mode == FAST_FORWARD; }
+	void set_fast_forward(bool ff);
+
+	// (un)pause for network games
+	void network_game_set_pause(bool pause_, uint32 syncsteps_);
 
 	zeiger_t * get_zeiger() const { return zeiger; }
 
@@ -494,8 +503,10 @@ public:
 	spieler_t * get_spieler(uint8 n) const { return spieler[n&15]; }
 	spieler_t* get_active_player() const { return active_player; }
 	uint8 get_active_player_nr() const { return active_player_nr; }
+	void set_player_password_hash( uint8 player_nr, uint8 *hash );
+	const uint8 *get_player_password_hash( uint8 player_nr ) const { return player_password_hash[player_nr]; }
 	void switch_active_player(uint8 nr);
-	void new_spieler( uint8 nr, uint8 type );
+	const char *new_spieler( uint8 nr, uint8 type );
 
 	// if a schedule is changed, it will increment the schedule counter
 	// every step the haltstelle will check and reroute the goods if needed
@@ -506,6 +517,7 @@ public:
 	bool use_timeline() const { return einstellungen->get_use_timeline(); }
 
 	void reset_timer();
+	void reset_interaction();
 	void step_year();
 
 	// jump one or more months ahead
@@ -517,18 +529,18 @@ public:
 
 	/**
 	* anzahl ticks pro tag in bits
-	* @see ticks_per_tag
+	* @see ticks_per_world_month
 	* @author Hj. Malthaner
 	*/
-	uint32 ticks_bits_per_tag;
+	uint32 ticks_per_world_month_shift;
 
 	/**
 	* anzahl ticks pro MONTH!
 	* @author Hj. Malthaner
 	*/
-	uint32 ticks_per_tag;
+	uint32 ticks_per_world_month;
 
-	void set_ticks_bits_per_tag(uint32 bits) {ticks_bits_per_tag = bits; ticks_per_tag = (1 << ticks_bits_per_tag); }
+	void set_ticks_per_world_month_shift(uint32 bits) {ticks_per_world_month_shift = bits; ticks_per_world_month = (1 << ticks_per_world_month_shift); }
 
 	sint32 get_time_multiplier() const { return time_multiplier; }
 	void change_time_multiplier( sint32 delta );
@@ -565,7 +577,7 @@ public:
 	 * Idle time. Nur zur Anzeige verwenden!
 	 * @author Hj. Malthaner
 	 */
-	uint32 get_schlaf_zeit() const { return next_wait_time; }
+	uint32 get_schlaf_zeit() const { return idle_time; }
 
 	/**
 	 * Anzahl frames in der letzten Sekunde Realzeit
@@ -607,8 +619,11 @@ public:
 		return (climate)height_to_climate[h];
 	}
 
-	void set_werkzeug( werkzeug_t *w );
-	werkzeug_t *get_werkzeug() const { return werkzeug; }
+	// set a new tool as current: calls local_set_werkzeug or sends to server
+	void set_werkzeug( werkzeug_t *w, spieler_t * sp );
+	// set a new tool on our client, calls init
+	void local_set_werkzeug( werkzeug_t *w, spieler_t * sp );
+	werkzeug_t *get_werkzeug(uint8 nr) const { return werkzeug[nr]; }
 
 	// all stuf concerning map size
 	inline int get_groesse_x() const { return cached_groesse_gitter_x; }
@@ -682,8 +697,12 @@ public:
 
 	/**
 	 * returns the natural slope a a position
+	 * uses the corner height for the best slope
 	 * @author prissi
 	 */
+	uint8	recalc_natural_slope( const koord pos, sint8 &new_height ) const;
+
+	// no checking, and only using the grind for calculation
 	uint8	calc_natural_slope( const koord pos ) const;
 
 	/**
@@ -739,14 +758,14 @@ public:
 	 * erniedrigt werden kann
 	 * @author V. Meyer
 	 */
-	bool can_lower_plan_to(sint16 x, sint16 y, sint16 h) const;
+	bool can_lower_plan_to(sint16 x, sint16 y, sint8 h) const;
 
 	/**
 	 * Prueft, ob das Planquadrat an Koordinate (x,y)
-	 * erhöht werden kann
+	 * erhoeht werden kann
 	 * @author V. Meyer
 	 */
-	bool can_raise_plan_to(sint16 x, sint16 y, sint16 h) const;
+	bool can_raise_plan_to(sint16 x, sint16 y, sint8 h) const;
 
 	/**
 	 * Prueft, ob das Planquadrat an Koordinate (x,y)
@@ -788,19 +807,8 @@ public:
 	int lower(koord pos);
 
 	// mostly used by AI: Ask to flatten a tile
-	bool can_ebne_planquadrat(koord pos, sint16 hgt);
-	bool ebne_planquadrat(spieler_t *sp, koord pos, sint16 hgt);
-
-	/**
-	 * Erzeugt einen Berg oder ein Tal
-	 * @param x x-Koordinate
-	 * @param y y-Koordinate
-	 * @param w Breite
-	 * @param h Hoehe
-	 * @param t Hoehe des Berges/Tiefe des Tales
-	 * @author Hj. Malthaner
-	 */
-	void new_mountain(int x, int y, int w, int h, int t);
+	bool can_ebne_planquadrat(koord pos, sint8 hgt);
+	bool ebne_planquadrat(spieler_t *sp, koord pos, sint8 hgt);
 
 	// the convois are also handled each steps => thus we keep track of them too
 	void add_convoi(convoihandle_t &cnv);
@@ -811,7 +819,7 @@ public:
 	vector_tpl<convoihandle_t>::const_iterator convois_end()   const { return convoi_array.end();   }
 
 	/**
-	 * Zugriff auf das Städte Array.
+	 * Zugriff auf das Staedte Array.
 	 * @author Hj. Malthaner
 	 */
 	const weighted_vector_tpl<stadt_t*>& get_staedte() const { return stadt; }
@@ -844,10 +852,11 @@ public:
 	 * sucht naechstgelegene Stadt an Position i,j
 	 * @author Hj. Malthaner
 	 */
-	stadt_t * suche_naechste_stadt(koord pos) const;
+	stadt_t *suche_naechste_stadt(koord pos) const;
 
 	bool cannot_save() const { return nosave; }
 	void set_nosave() { nosave = true; }
+	void set_nosave_warning() { nosave_warning = true; }
 
 	// rotate map view by 90 degree
 	void rotate90();
@@ -871,7 +880,7 @@ public:
 	 * @return Hoehe am Gitterpunkt i,j
 	 * @author Hj. Malthaner
 	 */
-	inline sint16 lookup_hgt(koord k) const {
+	inline sint8 lookup_hgt(koord k) const {
 		return ist_in_gittergrenzen(k.x, k.y) ? grid_hgts[k.x + k.y*(cached_groesse_gitter_x+1)]*Z_TILE_STEP : grundwasser;
 	}
 
@@ -886,13 +895,13 @@ public:
 	 * @return Minimale Hoehe des Planquadrates i,j
 	 * @author Hj. Malthaner
 	 */
-	sint16 min_hgt(koord pos) const;
+	sint8 min_hgt(koord pos) const;
 
 	/**
 	 * @return Maximale Hoehe des Planquadrates i,j
 	 * @author Hj. Malthaner
 	 */
-	sint16 max_hgt(koord pos) const;
+	sint8 max_hgt(koord pos) const;
 
 	/**
 	 * @return true, wenn Platz an Stelle pos mit Groesse dim Wasser ist
@@ -923,26 +932,24 @@ public:
 
 	void mute_sound( bool state ) { is_sound = !state; }
 
-	bool set_hoehe(int x,int y,int h,int &n);
-
 	/**
 	 * Saves the map to a file
 	 * @param filename name of the file to write
-	 * @author Hansjörg Malthaner
+	 * @author Hj. Malthaner
 	 */
 	void speichern(const char *filename,bool silent);
 
 	/**
 	 * Loads a map from a file
 	 * @param filename name of the file to read
-	 * @author Hansjörg Malthaner
+	 * @author Hj. Malthaner
 	 */
 	bool laden(const char *filename);
 
 	/**
 	 * Creates a map from a heightfield
 	 * @param sets game settings
-	 * @author Hansjörg Malthaner
+	 * @author Hj. Malthaner
 	 */
 	void load_heightfield(einstellungen_t *sets);
 
@@ -951,9 +958,15 @@ public:
 	/**
 	 * main loop with even handling;
 	 * returns false to exit
-	 * @author Hansjörg Malthaner
+	 * @author Hj. Malthaner
 	 */
-	bool interactive();
+	bool interactive(uint32 quit_month);
+
+	uint32 get_sync_steps() const { return sync_steps; }
+
+	void command_queue_append(network_world_command_t*);
+
+	void network_disconnect();
 };
 
 #endif

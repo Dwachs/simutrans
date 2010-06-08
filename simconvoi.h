@@ -14,23 +14,23 @@
 #include "dataobj/route.h"
 #include "vehicle/overtaker.h"
 #include "tpl/array_tpl.h"
+#include "tpl/minivec_tpl.h"
 
 #include "convoihandle_t.h"
 #include "halthandle_t.h"
 
-#define MAX_CONVOI_COST   5 // Total number of cost items
+#define MAX_CONVOI_COST   6 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
-#define MAX_CONVOI_NON_MONEY_TYPES 2 // number of non money types in convoi's financial statistic
 #define CONVOI_CAPACITY   0 // the amount of ware that could be transported, theoretically
 #define CONVOI_TRANSPORTED_GOODS 1 // the amount of ware that has been transported
 #define CONVOI_REVENUE		2 // the income this CONVOI generated
 #define CONVOI_OPERATIONS         3 // the cost of operations this CONVOI generated
 #define CONVOI_PROFIT             4 // total profit of this convoi
+#define CONVOI_DISTANCE           5 // total distance traveld this month
 
 class depot_t;
 class karte_t;
 class spieler_t;
-class convoi_info_t;
 class vehikel_t;
 class vehikel_besch_t;
 class schedule_t;
@@ -102,12 +102,6 @@ private:
 	char name_and_id[128];
 
 	/**
-	* Information window for ourselves.
-	* @author Hj. Malthaner
-	*/
-	convoi_info_t *convoi_info;
-
-	/**
 	* Alle vehikel-fahrplanzeiger zeigen hierauf
 	* @author Hj. Malthaner
 	*/
@@ -135,6 +129,11 @@ private:
 	* @author Hj. Malthaner
 	*/
 	array_tpl<vehikel_t*> fahr;
+
+	/*
+	 * a list of all catg_index, which can be transported by this convoy.
+	 */
+	minivec_tpl<uint8> goods_catg_index;
 
 	/**
 	* Convoi owner
@@ -212,6 +211,14 @@ private:
 	sint32 sum_gewicht;
 	sint32 sum_gesamtgewicht;
 
+	// cached values
+	// will be recalculated if
+	// recalc_data is true
+	bool recalc_data;
+	sint32 sum_friction_weight;
+	uint32 speed_limit;
+
+
 	/**
 	* Lowest top speed of all vehicles. Doesn't get saved, but calculated
 	* from the vehicles data
@@ -246,6 +253,9 @@ private:
 	*/
 	sint64 jahresgewinn;
 
+	/* the odometer */
+	sint64 total_distance_traveled;
+
 	/**
 	* Set, when there was a income calculation (avoids some cheats)
 	* Since 99.15 it will stored directly in the vehikel_t
@@ -258,14 +268,14 @@ private:
 	koord record_pos;
 
 	// needed for speed control/calculation
-	sint32 akt_speed_soll;	// should go this
-	sint32 akt_speed;			// goes this at the moment
-	sint32 sp_soll;					// steps to go
-	sint32 previous_delta_v;		// Stores the previous delta_v value; otherwise these digits are lost during calculation and vehicle do not accelrate
+	sint32 akt_speed_soll;    // target speed
+	sint32 akt_speed;	        // current speed
+	sint32 sp_soll;           // steps to go
+	sint32 previous_delta_v;  // Stores the previous delta_v value; otherwise these digits are lost during calculation and vehicle do not accelrate
 
 	uint32 next_wolke;	// time to next smoke
 
-	enum states state;
+	states state;
 
 	ribi_t::ribi alte_richtung;
 
@@ -280,7 +290,7 @@ private:
 	* Berechne route von Start- zu Zielkoordinate
 	* @author Hanjsörg Malthaner
 	*/
-	int drive_to(koord3d s, koord3d z);
+	bool drive_to();
 
 	/**
 	* Setup vehicles for moving in same direction than before
@@ -343,6 +353,16 @@ private:
 	*/
 	koord3d home_depot;
 
+	/**
+	* unset line -> remove cnv from line
+	* @author hsiegeln
+	*/
+	void unset_line();
+
+	void check_pending_updates();
+
+	uint32 move_to(karte_t const&, koord3d const& k, uint16 start_index);
+
 public:
 	route_t* get_route() { return &route; }
 
@@ -350,7 +370,7 @@ public:
 	* Checks if this convoi has a driveable route
 	* @author Hanjsörg Malthaner
 	*/
-	bool hat_keine_route() const;
+	bool hat_keine_route() const { return (state==NO_ROUTE); }
 
 	/**
 	* get line
@@ -367,24 +387,16 @@ public:
 	*/
 	void set_line(linehandle_t );
 
-	/**
-	* registers the convoy with a line, but does not apply the line's fahrplan!
-	* used only during convoi restoration from savegame!
-	* @author hsiegeln
-	*/
-	void register_with_line(uint16 line_id);
-
-	/**
-	* unset line -> remove cnv from line
-	* @author hsiegeln
-	*/
-	void unset_line();
+	/* changes the state of a convoi via werkzeug_t; mandatory for networkmode! *
+	 * for list of commands and parameter see werkzeug_t::wkz_change_convoi_t
+	 */
+	void call_convoi_tool( const char function, const char *extra ) const;
 
 	/**
 	* get state
 	* @author hsiegeln
 	*/
-	int get_state() { return state; }
+	int get_state() const { return state; }
 
 	/**
 	* true if in waiting state (maybe also due to starting)
@@ -406,15 +418,17 @@ public:
 	convoihandle_t self;
 
 	/**
-	* Der Gewinn in diesem Jahr
-	* @author Hanjsörg Malthaner
-	*/
+	 * Der Gewinn in diesem Jahr
+	 * @author Hanjsörg Malthaner
+	 */
 	const sint64 & get_jahresgewinn() const {return jahresgewinn;}
 
+	const sint64 & get_total_distance_traveled() const { return total_distance_traveled; }
+
 	/**
-	* returns the total running cost for all vehicles in convoi
-	* @author hsiegeln
-	*/
+	 * returns the total running cost for all vehicles in convoi
+	 * @author hsiegeln
+	 */
 	sint32 get_running_cost() const;
 
 	/**
@@ -484,13 +498,6 @@ public:
 	koord3d get_pos() const;
 
 	/**
-	 * sets the current target speed
-	 * set from the first vehicle, and takes into account all speed limits, brakes at stations etc.
-	 * @author Hj. Malthaner
-	 */
-	void set_akt_speed_soll(sint32 set_akt_speed) { akt_speed_soll = min( set_akt_speed, min_top_speed ); }
-
-	/**
 	 * @return current speed, this might be different from topspeed
 	 *         actual currently set speed.
 	 * @author Hj. Malthaner
@@ -509,11 +516,10 @@ public:
 	uint32 get_length() const;
 
 	/**
-	 * Vehicles of the convoi add their running cost by using this
-	 * method
+	 * Add the costs for traveling one tile
 	 * @author Hj. Malthaner
 	 */
-	void add_running_cost(sint32 cost);
+	void add_running_cost();
 
 	/**
 	 * moving the veicles of a convoi and acceleration/deacceleration
@@ -567,6 +573,10 @@ public:
 	 */
 	vehikel_t* get_vehikel(uint16 i) const { return fahr[i]; }
 
+	vehikel_t* front() const { return fahr[0]; }
+
+	vehikel_t* back() const { return fahr[anz_vehikel - 1]; }
+
 	/**
 	* Adds a vehicel at the start or end of the convoi.
 	* @author Hj. Malthaner
@@ -578,6 +588,11 @@ public:
 	* @author Hj. Malthaner
 	*/
 	vehikel_t * remove_vehikel_bei(unsigned short i);
+
+	const minivec_tpl<uint8> &get_goods_catg_index() const { return goods_catg_index; }
+
+	// recalculates the good transported by this convoy and (in case of changes) will start schedule recalculation
+	void recalc_catg_index();
 
 	/**
 	* Sets a schedule
@@ -602,7 +617,7 @@ public:
 	* @return Owner of this convoi
 	* @author Hj. Malthaner
 	*/
-	spieler_t * get_besitzer() { return besitzer_p; }
+	spieler_t * get_besitzer() const { return besitzer_p; }
 
 	/**
 	* Opens an information window
@@ -633,7 +648,7 @@ public:
 	* @author Hj. Malthaner
 	* @see simwin
 	*/
-	void open_schedule_window();
+	void open_schedule_window( bool show );
 
 	static bool pruefe_vorgaenger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter);
 	static bool pruefe_nachfolger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter);
@@ -710,12 +725,6 @@ public:
 	void dump() const;
 
 	/**
-	* prepares the convoi to receive a new schedule
-	* @author hsiegeln
-	*/
-	void prepare_for_new_schedule(schedule_t *);
-
-	/**
 	* book a certain amount into the convois financial history
 	* is called from vehicle during un/load
 	* @author hsiegeln
@@ -748,8 +757,6 @@ public:
 
 	void set_update_line(linehandle_t l) { line_update_pending = l; }
 
-	void check_pending_updates();
-
 	void set_home_depot(koord3d hd) { home_depot = hd; }
 
 	koord3d get_home_depot() { return home_depot; }
@@ -773,11 +780,13 @@ public:
 
 	bool get_withdraw() const { return withdraw; }
 
-	void set_withdraw(bool new_withdraw) { withdraw = new_withdraw; }
+	void set_withdraw(bool new_withdraw);
 
 	bool get_no_load() const { return no_load; }
 
 	void set_no_load(bool new_no_load) { no_load = new_no_load; }
+
+	void must_recalc_data() { recalc_data = true; }
 
 	// Overtaking for convois
 	virtual bool can_overtake(overtaker_t *other_overtaker, int other_speed, int steps_other, int diagonal_length);

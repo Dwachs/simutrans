@@ -119,10 +119,10 @@ bool ai_t::is_connected( const koord start_pos, const koord dest_pos, const ware
 // prepares a general tool just like a player work do
 bool ai_t::init_general_tool( int tool, const char *param )
 {
-	const char *old_param = werkzeug_t::general_tool[tool]->default_param;
-	werkzeug_t::general_tool[tool]->default_param = param;
+	const char *old_param = werkzeug_t::general_tool[tool]->get_default_param();
+	werkzeug_t::general_tool[tool]->set_default_param(param);
 	bool ok = werkzeug_t::general_tool[tool]->init( welt, this );
-	werkzeug_t::general_tool[tool]->default_param = old_param;
+	werkzeug_t::general_tool[tool]->set_default_param(old_param);
 	return ok;
 }
 
@@ -133,8 +133,8 @@ bool ai_t::call_general_tool( int tool, koord k, const char *param )
 {
 	grund_t *gr = welt->lookup_kartenboden(k);
 	koord3d pos = gr ? gr->get_pos() : koord3d::invalid;
-	const char *old_param = werkzeug_t::general_tool[tool]->default_param;
-	werkzeug_t::general_tool[tool]->default_param = param;
+	const char *old_param = werkzeug_t::general_tool[tool]->get_default_param();
+	werkzeug_t::general_tool[tool]->set_default_param(param);
 	const char * err = werkzeug_t::general_tool[tool]->work( welt, this, pos );
 	if(err) {
 		if(*err) {
@@ -144,7 +144,7 @@ bool ai_t::call_general_tool( int tool, koord k, const char *param )
 			dbg->message("ai_t::call_general_tool()","not succesful for tool %i at (%s)", tool, pos.get_str() );
 		}
 	}
-	werkzeug_t::general_tool[tool]->default_param = old_param;
+	werkzeug_t::general_tool[tool]->set_default_param(old_param);
 	return err==0;
 }
 
@@ -162,7 +162,7 @@ bool ai_t::suche_platz(koord pos, koord &size, koord *dirs) const
 		return false;
 	}
 
-	sint16 start_z = gr->get_hoehe();
+	sint8 start_z = gr->get_hoehe();
 	int max_dir = length==0 ? 1 : 2;
 	// two rotations
 	for(  int dir=0;  dir<max_dir;  dir++  ) {
@@ -215,11 +215,11 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 				continue;
 			}
 			// thus now check them
-			int current_dist = abs_distance(platz,target);
+			int current_dist = koord_distance(platz,target);
 			if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
 				// we will take the shortest route found
 				start = platz;
-				dist = abs_distance(platz,target);
+				dist = koord_distance(platz,target);
 			}
 			else {
 				koord test(x,y);
@@ -229,7 +229,7 @@ DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 					// we are on a station that belongs to us
 					int xneu=x-1, yneu=y-1;
 					platz = koord(xneu,y);
-					current_dist = abs_distance(platz,target);
+					current_dist = koord_distance(platz,target);
 					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
 						// we will take the shortest route found
 						start = platz;
@@ -237,7 +237,7 @@ DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 					}
 
 					platz = koord(x,yneu);
-					current_dist = abs_distance(platz,target);
+					current_dist = koord_distance(platz,target);
 					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
 						// we will take the shortest route found
 						start = platz;
@@ -248,7 +248,7 @@ DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 					xneu = x+1;
 					yneu = y+1;
 					platz = koord(xneu,y);
-					current_dist = abs_distance(platz,target);
+					current_dist = koord_distance(platz,target);
 					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
 						// we will take the shortest route found
 						start = platz;
@@ -256,7 +256,7 @@ DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 					}
 
 					platz = koord(x,yneu);
-					current_dist = abs_distance(platz,target);
+					current_dist = koord_distance(platz,target);
 					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
 						// we will take the shortest route found
 						start = platz;
@@ -337,7 +337,7 @@ bool ai_t::built_update_headquarter()
 	if(besch!=NULL) {
 		// cost is negative!
 		sint64 cost = welt->get_einstellungen()->cst_multiply_headquarter*besch->get_level()*besch->get_b()*besch->get_h();
-		if(  konto+cost > welt->get_einstellungen()->get_starting_money()  ) {
+		if(  konto+cost > starting_money ) {
 			// and enough money left ...
 			koord place = get_headquarter_pos();
 			if(place!=koord::invalid) {
@@ -346,9 +346,12 @@ bool ai_t::built_update_headquarter()
 				gebaeude_t *prev_hq = gr->find<gebaeude_t>();
 				// other size?
 				if(  besch->get_groesse()!=prev_hq->get_tile()->get_besch()->get_groesse()  ) {
-//					hausbauer_t::remove( welt, this, prev_hq );
 					// needs new place
 					place = koord::invalid;
+				}
+				else {
+					// old positions false after rotation => correct it
+					place = prev_hq->get_pos().get_2d() - prev_hq->get_tile()->get_offset();
 				}
 			}
 			// needs new place?
@@ -360,14 +363,18 @@ bool ai_t::built_update_headquarter()
 				}
 			}
 			const char *err=NULL;
-			if(  place!=koord::invalid  &&  (err=werkzeug_t::general_tool[WKZ_HEADQUARTER]->work( welt, this, welt->lookup_kartenboden(place)->get_pos() ))!=NULL  ) {
+			if(  place!=koord::invalid  ) {
+				err = werkzeug_t::general_tool[WKZ_HEADQUARTER]->work( welt, this, welt->lookup_kartenboden(place)->get_pos() );
+			}
+			// cathcing more errors
+			if(  err==NULL  ) {
 				// tell the player
 				char buf[256];
 				sprintf(buf, translator::translate("%s s\nheadquarter now\nat (%i,%i)."), get_name(), place.x, place.y );
 				welt->get_message()->add_message(buf, place, message_t::ai, PLAYER_FLAG|player_nr, welt->lookup_kartenboden(place)->find<gebaeude_t>()->get_tile()->get_hintergrund(0,0,0) );
 			}
 			else {
-				if(  place==koord::invalid  ) {
+				if(  place==koord::invalid  ||  err!=NULL  ) {
 					add_headquarter( 0, koord::invalid );
 				}
 				dbg->warning( "ai_t::built_update_headquarter()", "HQ failed with : %s", translator::translate(err) );
@@ -441,7 +448,7 @@ bool ai_t::find_harbour(koord &start, koord &size, koord target)
 					// next place is also water
 					koord dir[2] = { zv, koord(zv.y,zv.x) };
 					koord platz = k+zv;
-					int current_dist = abs_distance(k,target);
+					int current_dist = koord_distance(k,target);
 					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
 						// we will take the shortest route found
 						start = k;
@@ -473,16 +480,14 @@ bool ai_t::create_simple_road_transport(koord platz1, koord size1, koord platz2,
 		return false;
 	}
 
-	INT_CHECK( "simplay 1742" );
-
 	// is there already a connection?
 	// get a default vehikel
 	vehikel_besch_t test_besch(road_wt, 25, vehikel_besch_t::diesel );
 	vehikel_t* test_driver = vehikelbauer_t::baue(welt->lookup_kartenboden(platz1)->get_pos(), this, NULL, &test_besch);
 	route_t verbindung;
 	if (verbindung.calc_route(welt, welt->lookup_kartenboden(platz1)->get_pos(), welt->lookup_kartenboden(platz2)->get_pos(), test_driver, 0)  &&
-		verbindung.get_max_n()<2u*abs_distance(platz1,platz2))  {
-DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection between %d,%d to %d,%d is only %i",platz1.x, platz1.y, platz2.x, platz2.y, verbindung.get_max_n() );
+		verbindung.get_count()<2u*koord_distance(platz1,platz2))  {
+DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection between %d,%d to %d,%d is only %i",platz1.x, platz1.y, platz2.x, platz2.y, verbindung.get_count() );
 		// found something with the nearly same lenght
 		delete test_driver;
 		return true;
@@ -501,7 +506,7 @@ DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection
 	INT_CHECK("simplay 846");
 
 	bauigel.calc_route(welt->lookup_kartenboden(platz1)->get_pos(),welt->lookup_kartenboden(platz2)->get_pos());
-	if(bauigel.max_n > 1) {
+	if(bauigel.get_count()-1 > 1) {
 DBG_MESSAGE("ai_t::create_simple_road_transport()","building simple road from %d,%d to %d,%d",platz1.x, platz1.y, platz2.x, platz2.y);
 		bauigel.baue();
 		return true;
@@ -512,4 +517,10 @@ DBG_MESSAGE("ai_t::create_simple_road_transport()","building simple road from %d
 }
 
 
+void ai_t::tell_tool_result(werkzeug_t *tool, koord3d pos, const char *err, bool local)
+{
+	// necessary to show error message if a human helps us poor AI
+	spieler_t::tell_tool_result(tool, pos, err, local);
 
+	// TODO: process the result...
+}

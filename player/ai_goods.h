@@ -29,7 +29,7 @@ private:
 	};
 
 	// vars für die KI
-	enum zustand state;
+	zustand state;
 
 	/*
 	 * if this is false, this AI won't use roads
@@ -84,6 +84,7 @@ private:
 
 	// KI helper class
 	class fabconnection_t{
+		friend class ai_goods_t;
 		fabrik_t *fab1;
 		fabrik_t *fab2;	// koord1 must be always "smaller" than koord2
 		const ware_besch_t *ware;
@@ -97,12 +98,10 @@ private:
 //		const bool operator < (const fabconnection_t & k) { return (abs(fab1.x)+abs(fab1.y)) - (abs(k.fab1.x)+abs(k.fab1.y)) < 0; }
 	};
 
-	slist_tpl<fabconnection_t> forbidden_conections;
+	slist_tpl<fabconnection_t*> forbidden_connections;
 
 	// return true, if this a route to avoid (i.e. we did a construction without sucess here ...)
-	bool is_forbidden( fabrik_t *fab1, fabrik_t *fab2, const ware_besch_t *w ) const {
-		return forbidden_conections.is_contained( fabconnection_t( fab1, fab2, w ) );
-	}
+	bool is_forbidden( fabrik_t *fab1, fabrik_t *fab2, const ware_besch_t *w ) const;
 
 	/* recursive lookup of a factory tree:
 	 * sets start and ziel to the next needed supplier
@@ -111,7 +110,7 @@ private:
 	bool get_factory_tree_lowest_missing( fabrik_t *fab );
 
 	/* recursive lookup of a tree and how many factories must be at least connected
-	 * returns -1, if this tree is incomplete
+	 * returns -1, if this tree is can't be completed
 	 */
 	int get_factory_tree_missing_count( fabrik_t *fab );
 
@@ -127,7 +126,6 @@ private:
 	void create_rail_transport_vehikel(const koord pos1,const koord pos2, int anz_vehikel, int ladegrad);
 
 public:
-public:
 	ai_goods_t(karte_t *wl, uint8 nr);
 
 	virtual ~ai_goods_t() {}
@@ -135,7 +133,7 @@ public:
 	// this type of AIs identifier
 	virtual uint8 get_ai_id() { return AI_GOODS; }
 
-	void rdwr(loadsave_t *file);
+	virtual void rdwr(loadsave_t *file);
 
 	virtual void bescheid_vehikel_problem(convoihandle_t cnv,const koord3d ziel);
 
@@ -146,4 +144,6 @@ public:
 	void neues_jahr();
 
 	virtual void rotate90( const sint16 y_size );
+
+	virtual void notify_factory(notification_factory_t flag, const fabrik_t*);
 };

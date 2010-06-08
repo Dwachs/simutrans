@@ -23,9 +23,6 @@
 // for chdir
 #ifdef WIN32
 #include <direct.h>
-#ifdef __MINGW32CE__
-#define _chdir(i) chdir(i)
-#endif
 #else
 #include <unistd.h>
 #endif
@@ -35,7 +32,7 @@ void help_frame_t::set_text(const char * buf)
 {
 	flow.set_text(buf);
 
-	flow.set_pos(koord(10, 6));
+	flow.set_pos(koord(10, 10));
 	flow.set_groesse(koord(220, 0));
 
 	// try to get the following sizes
@@ -92,9 +89,11 @@ help_frame_t::help_frame_t(cstring_t filename) :
 				case '<': c = "&lt;"; break;
 				case '>': c = "&gt;"; break;
 				case 27:  c = "ESC"; break;
+				case SIM_KEY_HOME:	c=translator::translate( "[HOME]" ); break;
+				case SIM_KEY_END:	c=translator::translate( "[END]" ); break;
 				default:
 					if((*iter)->command_key<32) {
-						sprintf( str, "^%C", (*iter)->command_key+64 );
+						sprintf( str, "%s + %C", translator::translate( "[CTRL]" ),  (*iter)->command_key+64 );
 					}
 					else if((*iter)->command_key<256) {
 						sprintf( str, "%C", (*iter)->command_key );

@@ -65,7 +65,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib $(NOINHERIT)"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib wsock32.lib libbz2.lib $(NOINHERIT)"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreAllDefaultLibraries="false"
@@ -144,7 +144,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib $(NOINHERIT)"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib winmm.lib zlibstat.lib advapi32.lib wsock32.lib libbz2.lib $(NOINHERIT)"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;G:\Program Files\PlatformSDK\Lib&quot;;G:\Projects\zlib\lib"
 				IgnoreDefaultLibraryNames="libcmt.lib"
@@ -453,6 +453,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\components\gui_fixedwidth_textarea.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\components\gui_flowtext.cc"
 				>
 			</File>
@@ -589,10 +593,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\dings\lagerhaus.cc"
-				>
-			</File>
-			<File
 				RelativePath=".\dings\leitung2.cc"
 				>
 			</File>
@@ -626,6 +626,10 @@
 			</File>
 			<File
 				RelativePath=".\dataobj\marker.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\memory_rw.cc"
 				>
 			</File>
 			<File
@@ -665,6 +669,18 @@
 				>
 			</File>
 			<File
+				RelativePath=".\dataobj\network.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_cmd.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_packet.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\obj_reader.cc"
 				>
 			</File>
@@ -678,6 +694,10 @@
 			</File>
 			<File
 				RelativePath=".\gui\pakselector.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\gui\password_frame.cc"
 				>
 			</File>
 			<File
@@ -746,6 +766,18 @@
 			</File>
 			<File
 				RelativePath=".\utils\searchfolder.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\gui\settings_frame.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\gui\settings_stats.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\sha1.cc"
 				>
 			</File>
 			<File
@@ -955,6 +987,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\trafficlight_info.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\translator.cc"
 				>
 			</File>
@@ -1074,6 +1110,10 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+			<File
+				RelativePath=".\simres.rc"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

@@ -43,14 +43,20 @@ vector_tpl<const groundobj_besch_t *> groundobj_t::groundobj_typen(0);
 /*
  * Diese Tabelle ermöglicht das Auffinden einer Beschreibung durch ihren Namen
  */
-stringhashtable_tpl<uint32> groundobj_t::besch_names;
+stringhashtable_tpl<groundobj_besch_t *> groundobj_t::besch_names;
 
 
 bool groundobj_t::alles_geladen()
 {
-	if (besch_names.empty()) {
+	groundobj_typen.resize(besch_names.get_count());
+	stringhashtable_iterator_tpl<groundobj_besch_t *>iter(besch_names);
+	while(  iter.next()  ) {
+		iter.access_current_value()->index = groundobj_typen.get_count();
+		groundobj_typen.append( iter.get_current_value() );
+	}
+	if(besch_names.empty()) {
+		groundobj_typen.append( NULL );
 		DBG_MESSAGE("groundobj_t", "No groundobj found - feature disabled");
-		groundobj_typen.append(NULL);
 	}
 	return true;
 }
@@ -59,13 +65,12 @@ bool groundobj_t::alles_geladen()
 
 bool groundobj_t::register_besch(groundobj_besch_t *besch)
 {
-	if(groundobj_typen.get_count()==0) {
-		// NULL for empty object
-		groundobj_typen.append(NULL);
-	}
 	assert(besch->get_speed()==0);
-	besch_names.put(besch->get_name(), groundobj_typen.get_count() );
-	groundobj_typen.append(besch);
+	// remove duplicates
+	if(  besch_names.remove( besch->get_name() )  ) {
+		dbg->warning( "groundobj_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+	}
+	besch_names.put(besch->get_name(), besch );
 	return true;
 }
 
@@ -77,19 +82,23 @@ bool groundobj_t::register_besch(groundobj_besch_t *besch)
  */
 const groundobj_besch_t *groundobj_t::random_groundobj_for_climate(climate cl, hang_t::typ slope  )
 {
-	int weight = 0;
+	// none there
+	if(  besch_names.empty()  ) {
+		return NULL;
+	}
 
-	for( unsigned i=1;  i<groundobj_typen.get_count();  i++  ) {
+	int weight = 0;
+	for(  unsigned i=0;  i<groundobj_typen.get_count();  i++  ) {
 		if(  groundobj_typen[i]->is_allowed_climate(cl)  &&  (slope==hang_t::flach  ||  groundobj_typen[i]->get_phases()==16)  ) {
 			weight += groundobj_typen[i]->get_distribution_weight();
 		}
 	}
 
 	// now weight their distribution
-	if (weight > 0) {
+	if(  weight > 0  ) {
 		const int w=simrand(weight);
 		weight = 0;
-		for( unsigned i=1; i<groundobj_typen.get_count();  i++  ) {
+		for(  unsigned i=0;  i<groundobj_typen.get_count();  i++  ) {
 			if(  groundobj_typen[i]->is_allowed_climate(cl)  &&  (slope==hang_t::flach  ||  groundobj_typen[i]->get_phases()==16)  ) {
 				weight += groundobj_typen[i]->get_distribution_weight();
 				if(weight>=w) {
@@ -131,7 +140,7 @@ void groundobj_t::calc_bild()
 				}
 				else {
 					// resolution 1/8th month (0..95)
-					const uint32 yearsteps = (welt->get_current_month()%12)*8 + ((welt->get_zeit_ms()>>(welt->ticks_bits_per_tag-3))&7) + 1;
+					const uint32 yearsteps = (welt->get_current_month()%12)*8 + ((welt->get_zeit_ms()>>(welt->ticks_per_world_month_shift-3))&7) + 1;
 					season = (seasons*yearsteps-1)/96;
 				}
 				break;
@@ -187,8 +196,14 @@ void groundobj_t::rdwr(loadsave_t *file)
 	}
 	else {
 		char bname[128];
-		file->rdwr_str(bname,128);
-		groundobjtype = besch_names.get(bname);
+		file->rdwr_str(bname, lengthof(bname));
+		groundobj_besch_t *besch = besch_names.get(bname);
+		if(  besch_names.empty()  ||  besch==NULL  ) {
+			groundobjtype = simrand(groundobj_typen.get_count());
+		}
+		else {
+			groundobjtype = besch->get_index();
+		}
 		// if not there, besch will be zero
 	}
 }
@@ -217,7 +232,6 @@ void groundobj_t::info(cbuffer_t & buf) const
 {
 	ding_t::info(buf);
 
-	buf.append("\n");
 	buf.append(translator::translate(get_besch()->get_name()));
 	const char *maker=get_besch()->get_copyright();
 	if(maker!=NULL  && maker[0]!=0) {
@@ -233,8 +247,7 @@ void groundobj_t::info(cbuffer_t & buf) const
 
 
 
-void
-groundobj_t::entferne(spieler_t *sp)
+void groundobj_t::entferne(spieler_t *sp)
 {
 	spieler_t::accounting(sp, -get_besch()->get_preis(), get_pos().get_2d(), COST_CONSTRUCTION);
 	mark_image_dirty( get_bild(), 0 );
@@ -242,16 +255,14 @@ groundobj_t::entferne(spieler_t *sp)
 
 
 
-void *
-groundobj_t::operator new(size_t /*s*/)
+void *groundobj_t::operator new(size_t /*s*/)
 {
 	return freelist_t::gimme_node(sizeof(groundobj_t));
 }
 
 
 
-void
-groundobj_t::operator delete(void *p)
+void groundobj_t::operator delete(void *p)
 {
 	freelist_t::putback_node(sizeof(groundobj_t),p);
 }

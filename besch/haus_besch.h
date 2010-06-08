@@ -10,11 +10,12 @@
 #include <assert.h>
 #include "bildliste2d_besch.h"
 #include "obj_besch_std_name.h"
+#include "skin_besch.h"
 #include "../dings/gebaeude.h"
 
 
 class haus_besch_t;
-class skin_besch_t;
+class werkzeug_t;
 
 /*
  *  Autor:
@@ -59,14 +60,14 @@ public:
 	image_id get_hintergrund(int phase, int hoehe,int season) const
 	{
 		season &= (seasons-1);
+		bildliste2d_besch_t const* const bl = get_child<bildliste2d_besch_t>(0 + 2 * season);
 		if(phase>0 && phase<phasen) {
-			const bild_besch_t *bild = static_cast<const bildliste2d_besch_t *>(get_child(0+2*season))->get_bild(hoehe, phase);
-			if (bild != NULL) {
+			if (bild_besch_t const* const bild = bl->get_bild(hoehe, phase)) {
 				return bild->get_nummer();
 			}
 		}
 		// here if this phase does not exists ...
-		const bild_besch_t *bild = static_cast<const bildliste2d_besch_t *>(get_child(0+2*season))->get_bild(hoehe, 0);
+		bild_besch_t const* const bild = bl->get_bild(hoehe, 0);
 		return bild != NULL ? bild->get_nummer() : IMG_LEER;
 	}
 
@@ -75,7 +76,7 @@ public:
 	{
 		season &= (seasons-1);
 		for(  uint8 phase=1;  phase<phasen;  phase++  ) {
-			if(  static_cast<const bildliste2d_besch_t *>(get_child(0+2*season))->get_bild(0, phase)  ) {
+			if (get_child<bildliste2d_besch_t>(0+2*season)->get_bild(0, phase)) {
 				return true;
 			}
 		}
@@ -85,14 +86,14 @@ public:
 	image_id get_vordergrund(int phase,int season) const
 	{
 		season &= (seasons-1);
+		bildliste2d_besch_t const* const bl = get_child<bildliste2d_besch_t>(1 + 2 * season);
 		if(phase>0 && phase<phasen) {
-			const bild_besch_t *bild = static_cast<const bildliste2d_besch_t *>(get_child(1+2*season))->get_bild(0, phase);
-			if (bild != NULL) {
+			if (bild_besch_t const* const bild = bl->get_bild(0, phase)) {
 				return bild->get_nummer();
 			}
 		}
 		// here if this phase does not exists ...
-		const bild_besch_t *bild = static_cast<const bildliste2d_besch_t *>(get_child(1+2*season))->get_bild(0, 0);
+		bild_besch_t const* const bild = bl->get_bild(0, 0);
 		return bild != NULL ? bild->get_nummer() : IMG_LEER;
 	}
 
@@ -161,9 +162,10 @@ class haus_besch_t : public obj_besch_std_name_t { // Daten für ein ganzes Gebäu
 	private:
 	enum flag_t {
 		FLAG_NULL = 0,
-		FLAG_KEINE_INFO = 1,       // was flag FLAG_ZEIGE_INFO
-		FLAG_KEINE_GRUBE = 2 ,      // Baugrube oder nicht?
-		FLAG_NEED_GROUND = 4	// draw ground below
+		FLAG_KEINE_INFO = 1,    // was flag FLAG_ZEIGE_INFO
+		FLAG_KEINE_GRUBE = 2,   // Baugrube oder nicht?
+		FLAG_NEED_GROUND = 4,   // draw ground below
+		FLAG_HAS_CURSOR = 8     // there is cursor/icon for this
 	};
 
 	gebaeude_t::typ     gtyp;      // Hajo: this is the type of the building
@@ -174,7 +176,7 @@ class haus_besch_t : public obj_besch_std_name_t { // Daten für ein ganzes Gebäu
 	koord  groesse;
 	flag_t flags;
 	uint16 level;          // or passengers;
-	uint8  layouts;        // 1 2 oder 4
+	uint8  layouts;        // 1 2, 4, 8  or 16
 	uint8  enables;		// if it is a stop, what is enabled ...
 	uint8  chance;         // Hajo: chance to build, special buildings, only other is weight factor
 
@@ -187,6 +189,8 @@ class haus_besch_t : public obj_besch_std_name_t { // Daten für ein ganzes Gebäu
 	bool ist_utyp(utyp u) const {
 		return gtyp == gebaeude_t::unbekannt && utype == u;
 	}
+
+	werkzeug_t *builder;
 
 public:
 
@@ -244,7 +248,7 @@ public:
 
 	const haus_tile_besch_t *get_tile(int index) const {
 		assert(0<=index  &&  index < layouts * groesse.x * groesse.y);
-		return static_cast<const haus_tile_besch_t*>(get_child(index + 2));
+		return get_child<haus_tile_besch_t>(index + 2);
 	}
 
 	const haus_tile_besch_t *get_tile(int layout, int x, int y) const;
@@ -272,7 +276,9 @@ public:
 	* Skin: cursor (index 0) and icon (index 1)
 	* @author Hj. Malthaner
 	*/
-	const skin_besch_t * get_cursor() const { return (const skin_besch_t *)(get_child(2+groesse.x*groesse.y*layouts)); }
+	const skin_besch_t * get_cursor() const {
+		return flags & FLAG_HAS_CURSOR ? get_child<skin_besch_t>(2 + groesse.x * groesse.y * layouts) : 0;
+	}
 
 	/**
 	* @return introduction month
@@ -287,14 +293,12 @@ public:
 	uint32 get_retire_year_month() const { return obsolete_date; }
 
 	// true if future
-	bool is_future (const uint16 month_now) const
-	{
+	bool is_future (const uint16 month_now) const {
 		return month_now  &&  (intro_date > month_now);
 	}
 
 	// true if obsolete
-	bool is_retired (const uint16 month_now) const
-	{
+	bool is_retired (const uint16 month_now) const {
 		return month_now  &&  (obsolete_date <= month_now);
 	}
 
@@ -318,6 +322,14 @@ public:
 	* @author prissi
 	*/
 	uint16 get_animation_time() const { return animation_time; }
+
+	// default tool for building
+	werkzeug_t *get_builder() const {
+		return builder;
+	}
+	void set_builder( werkzeug_t *w )  {
+		builder = w;
+	}
 };
 
 #endif

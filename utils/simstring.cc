@@ -10,6 +10,7 @@ static char thousand_sep = ',';
 static char fraction_sep = '.';
 static const char *large_number_string = "M";
 static double large_number_factor = 1e99;	// off
+static int thousand_sep_exponent = 3;
 
 
 
@@ -45,6 +46,17 @@ void set_thousand_sep(char c)
 
 
 /**
+ * Set thousand exponent (3=1000, 4=10000), used in money_to_string and
+ * number_to_string
+ * @author prissi
+ */
+void set_thousand_sep_exponent(int new_thousand_sep_exponent)
+{
+	thousand_sep_exponent = new_thousand_sep_exponent>0 ? thousand_sep_exponent : 3;
+}
+
+
+/**
  * Set fraction seperator, used in money_to_string and
  * number_to_string
  * @author Hj. Malthaner
@@ -60,6 +72,17 @@ char get_fraction_sep(void)
 	return fraction_sep;
 }
 
+const char *get_large_money_string(void)
+{
+	return large_number_string;
+}
+
+
+/**
+ * Set large money abreviator, used in money_to_string and
+ * number_to_string
+ * @author prissi
+ */
 void set_large_amout(const char *s, const double v)
 {
 	large_number_string = s;
@@ -80,7 +103,7 @@ void money_to_string(char * p, double f)
 	int    i,l;
 
 	if(  f>1000.0*large_number_factor  ) {
-		sprintf( tp, "%.1f%s", f/large_number_factor, large_number_string );
+		sprintf( tp, "%.1f", f/large_number_factor );
 	}
 	else {
 		sprintf( tp, "%.2f", f );
@@ -92,9 +115,9 @@ void money_to_string(char * p, double f)
 	}
 
 	// Hajo: format string
-	l = strchr(tp,'.') - tp;
+	l = (long)(size_t)(strchr(tp,'.') - tp);
 
-	i = l % 3;
+	i = l % thousand_sep_exponent;
 
 	if(i != 0) {
 		memcpy(p, tp, i);
@@ -103,58 +126,84 @@ void money_to_string(char * p, double f)
 	}
 
 	while(i < l) {
-		*p++ = tp[i++];
-		*p++ = tp[i++];
-		*p++ = tp[i++];
+		for(  int j=0;  j<thousand_sep_exponent;  j++  ) {
+			*p++ = tp[i++];
+		}
 		*p++ = thousand_sep;
 	}
 	--p;
-	i = l+1;
 
-	*p++ = fraction_sep;
-	// since it might be longer due to unicode characters
-	while(  tp[i]!=0  ) {
-		*p++ = tp[i++];
+	if(  f>1000.0*large_number_factor  ) {
+		// only decimals for smaller numbers; add large number string instead
+		for(  i=0;  large_number_string[i]!=0;  i++  ) {
+			*p++ = large_number_string[i];
+		}
+	}
+	else {
+		i = l+1;
+		// only decimals for smaller numbers
+		*p++ = fraction_sep;
+		// since it might be longer due to unicode characters
+		while(  tp[i]!=0  ) {
+			*p++ = tp[i++];
+		}
 	}
 	*p++ = '$';
 	*p = 0;
 }
 
 
-void number_to_string(char * p, double f)
+int number_to_string(char * p, double f, int decimals  )
 {
-  char   tmp[128];
-  char   *tp = tmp;
-  int    i,l;
+	char  tmp[128];
+	char  *tp = tmp;
+	long  i,l;
+	bool  has_decimals;
 
-  sprintf(tp,"%.2f",f);
+	if(  decimals>0  ) {
+		sprintf(tp,"%.*f",decimals,f);
+		has_decimals = true;
+	}
+	else {
+		sprintf(tp,"%.0f", f);
+		// some compilers produce trailing dots then ...
+		has_decimals = strchr(tp,'.')!=NULL;
+	}
 
-  // Hajo: skip sign
-  if(*tp == '-') {
-    *p ++ = *tp++;
-  }
+	// Hajo: skip sign
+	if(*tp == '-') {
+		*p ++ = *tp++;
+	}
 
-  // Hajo: format string
-  l = strchr(tp,'.') - tp;
+	// Hajo: format string
+	l = has_decimals ? (long)(size_t)(strchr(tp,'.') - tp) : strlen(tp);
 
-  i = l % 3;
+	i = l % thousand_sep_exponent;
 
-  if(i != 0) {
-    memcpy(p, tp, i);
-    p += i;
-    *p++ = thousand_sep;
-  }
+	if(i != 0) {
+		memcpy(p, tp, i);
+		p += i;
+		*p++ = thousand_sep;
+	}
 
-  while(i < l) {
-    *p++ = tp[i++];
-    *p++ = tp[i++];
-    *p++ = tp[i++];
-    *p++ = thousand_sep;
-  }
-  --p;
-  i = l+1;
+	while(i < l) {
+		for(  int j=0;  j<thousand_sep_exponent;  j++  ) {
+			*p++ = tp[i++];
+		}
+		*p++ = thousand_sep;
+	}
+	p--;
 
-  *p = 0;
+	if(  has_decimals  ) {
+		i++;
+		*p++ = fraction_sep;
+		while(  tp[i]!=0  ) {
+			*p++ = tp[i++];
+		}
+	}
+	*p = 0;
+
+	return (int)(p-tmp);
 }
 
 
@@ -220,11 +269,10 @@ char *tstrncpy(char *dest, const char *src, size_t n)
  */
 void rtrim(char * buf)
 {
-  int l = strlen(buf) - 1;
-
-  while(l >= 0 && buf[l] > 0 && buf[l] <= 32) {
-    buf[l--] = '\0';
-  }
+	long l = (long)strlen(buf) - 1;
+	while(  l >= 0  &&  buf[l] > 0  &&  buf[l] <= 32  ) {
+		buf[l--] = '\0';
+	}
 }
 
 
@@ -235,17 +283,18 @@ void rtrim(char * buf)
  */
 const char * ltrim(const char *p)
 {
-  while(*p != '\0' && *p > 0 && *p <= 32) {
-    p ++;
-  }
-
-  return p;
+	while(*p != '\0' && *p > 0 && *p <= 32) {
+		p ++;
+	}
+	return p;
 }
 
 
 int count_char(const char* str, const char c)
 {
 	int count = 0;
-	while (*str != '\0') count += (*str++ == c);
+	while (*str != '\0') {
+		count += (*str++ == c);
+	}
 	return count;
 }

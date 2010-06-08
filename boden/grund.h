@@ -21,7 +21,6 @@
 class spieler_t;
 class depot_t;
 class karte_t;
-class grund_info_t;
 class cbuffer_t;
 
 
@@ -69,7 +68,19 @@ template<> struct map_ding<stadtauto_t>   { static const ding_t::typ code = ding
 template<> struct map_ding<automobil_t>   { static const ding_t::typ code = ding_t::automobil;   };
 template<> struct map_ding<tunnel_t>      { static const ding_t::typ code = ding_t::tunnel;      };
 template<> struct map_ding<wayobj_t>      { static const ding_t::typ code = ding_t::wayobj;      };
+template<> struct map_ding<weg_t>         { static const ding_t::typ code = ding_t::way;         };
 template<> struct map_ding<zeiger_t>      { static const ding_t::typ code = ding_t::zeiger;      };
+
+
+template<typename T> static inline T const* ding_cast(ding_t const* const d)
+{
+	return d->get_typ() == map_ding<T>::code ? static_cast<T const*>(d) : 0;
+}
+
+template<typename T> static inline T* ding_cast(ding_t* const d)
+{
+	return d->get_typ() == map_ding<T>::code ? static_cast<T*>(d) : 0;
+}
 
 
 
@@ -114,10 +125,16 @@ public:
 	 */
 	static bool show_grid;
 
-	/* true, when only underground should be visible
-	 * @author kierongreen
-	 */
-	static bool underground_mode;
+	/* underground modes */
+	/* @author Dwachs    */
+	enum _underground_modes {
+		ugm_none = 0,	// normal view
+		ugm_all  = 1,   // everything underground visible, grid for grounds
+		ugm_level= 2	// overground things visible if their height  <= underground_level
+						// underground things visible if their height == underground_level
+	};
+	static uint8 underground_mode;
+	static sint8 underground_level;
 
 protected:
 	/**
@@ -213,9 +230,9 @@ public:
 	static void toggle_grid() { grund_t::show_grid = !grund_t::show_grid; }
 
 	/**
-	 * Toggle underground display (now only a flag)
+	 * Sets the undergroundmode & level
 	 */
-	static void toggle_underground_mode() { grund_t::underground_mode = !grund_t::underground_mode; }
+	static void set_underground_mode(const uint8 ugm, const sint8 level);
 
 	karte_t *get_welt() const {return welt;}
 
@@ -223,12 +240,10 @@ public:
 	* Setzt Flags für das neuzeichnen geänderter Untergründe
 	* @author Hj. Malthaner
 	*/
-	inline void set_flag(enum flag_values flag) {flags |= flag;}
+	inline void set_flag(flag_values flag) {flags |= flag;}
 
-	inline void clear_flag(enum flag_values flag) {flags &= ~flag;}
-	inline bool get_flag(enum flag_values flag) const {return (flags & flag) != 0;}
-
-	void entferne_grund_info() const;
+	inline void clear_flag(flag_values flag) {flags &= ~flag;}
+	inline bool get_flag(flag_values flag) const {return (flags & flag) != 0;}
 
 	/**
 	* start a new month (and toggle the seasons)
@@ -269,7 +284,7 @@ public:
 	* @return Der Typ des Untergrundes.
 	* @author Hj. Malthaner
 	*/
-	virtual enum grund_t::typ get_typ() const {return grund;}
+	virtual typ get_typ() const { return grund; }
 
 	/**
 	* Gibt eine Beschreibung des Untergrundes (informell) zurueck.
@@ -289,7 +304,7 @@ public:
 	* Oeffnet standardmaessig kein Infofenster.
 	* @author Hj. Malthaner
 	*/
-	bool zeige_info();
+	void zeige_info();
 
 	/**
 	* Gibt die Farbe des Beschreibungstexthintergrundes zuurck
@@ -315,18 +330,20 @@ public:
 	inline bool ist_bruecke() const {return get_typ()==brueckenboden;}
 
 	/**
-	* This is called very often, it must be inlined and therefore
-	* cannot be virtual - subclasses must set the flags appropriately!
-	* @author Hj. Malthaner
+	* true if tunnelboden (hence true also for tunnel mouths)
+	* check for visibility in is_visible()
 	*/
-	inline bool ist_tunnel() const {return ((get_typ()==tunnelboden)^grund_t::underground_mode);}
+	inline bool ist_tunnel() const {
+		return ( (get_typ()==tunnelboden) );
+	}
 
 	/**
-	* This is called very often, it must be inlined and therefore
-	* cannot be virtual - subclasses must set the flags appropriately!
-	* @author Hj. Malthaner
+	* gives true for grounds inside tunnel (not tunnel mouths)
+	* check for visibility in is_visible()
 	*/
-	inline bool ist_im_tunnel() const {return (get_typ()==tunnelboden  &&  ist_karten_boden()==0)^grund_t::underground_mode;}
+	inline bool ist_im_tunnel() const {
+		return ( get_typ()==tunnelboden && (!ist_karten_boden())) ;
+	}
 
 	/* this will be stored locally, since it is called many, many times */
 	inline uint8 ist_karten_boden() const {return (flags&is_kartenboden);}
@@ -380,21 +397,110 @@ public:
 
 	void set_hoehe(int h) { pos.z = h;}
 
+	// Helper functions for underground modes
+	//
+	// returns the height for the use in underground-mode,
+	// heights above underground_level are cutted
+	inline sint8 get_disp_height() const {
+		return (underground_mode & ugm_level )
+			? (pos.z > underground_level ? underground_level : pos.z)
+			: pos.z ;
+	}
+
+	// returns slope
+	// if tile is not visible, 'flat' is returned
+	// special care has to be taken of tunnel mouths
+	inline hang_t::typ get_disp_slope() const {
+		return (  (underground_mode & ugm_level)  &&  (pos.z > underground_level  ||  (get_typ()==tunnelboden  &&  ist_karten_boden()  &&  pos.z == underground_level))
+							? (hang_t::typ)hang_t::flach
+							: get_grund_hang() );
+
+		/*switch(underground_mode) {// long version of the return statement above
+			case ugm_none: return(get_grund_hang());
+			case ugm_all:  return(get_grund_hang()); // get_typ()==tunnelboden && !ist_karten? hang_t::flach : get_grund_hang());
+			case ugm_level:return((pos.z > underground_level || (get_typ()==tunnelboden && ist_karten_boden() && pos.z == underground_level))
+							? hang_t::flach
+							: get_grund_hang());
+		}*/
+	}
+
+	inline bool is_visible() const {
+		if(get_typ()==tunnelboden) {
+			switch(underground_mode) {
+				case ugm_none: return ist_karten_boden();
+				case ugm_all:  return true;
+				case ugm_level:return  pos.z == underground_level  ||  (ist_karten_boden()  &&  pos.z <= underground_level);
+			}
+		}
+		else {
+			switch(underground_mode) {
+				case ugm_none: return true;
+				case ugm_all:  return false;
+				case ugm_level:return pos.z <= underground_level;
+			}
+		}
+		return(false);
+	}
+
+	// the same as above but specialized for kartenboden
+	inline bool is_karten_boden_visible() const {
+		switch(underground_mode) {
+			case ugm_none: return true;
+			case ugm_all:  return get_typ()==tunnelboden;
+			case ugm_level:return pos.z <= underground_level;
+		}
+		return(false);
+	}
 	/**
-	* Zeichnet Bodenbild des Grundes
+	 * returns slope of ways as displayed (special cases: bridge ramps, tunnel mouths, undergroundmode etc)
+	 */
+	hang_t::typ get_disp_way_slope() const;
+	/**
+	* displays the ground images (including foundations, fences and ways)
 	* @author Hj. Malthaner
 	*/
-	void display_boden(const sint16 xpos, sint16 ypos) const;
+	void display_boden(const sint16 xpos, const sint16 ypos, const sint16 raster_tile_width) const;
 
-	/* displays everything that is on a tile;
+	void display_if_visible(sint16 xpos, sint16 ypos, sint16 raster_tile_width) const;
+
+	/**
+	 * displays everything that is on a tile - the main display routine for objects on tiles
 	 * @param is_global set to true, if this is called during the whole screen update
+	 * @author dwachs
 	 */
-	void display_dinge(const sint16 xpos, sint16 ypos, const bool called_from_simview) const;
+	void display_dinge_all(const sint16 xpos, const sint16 ypos, const sint16 raster_tile_width, const bool is_global) const;
 
+	/**
+	 * displays background images of all non-moving objects on the tile
+	 * @param is_global set to true, if this is called during the whole screen update
+	 * @param draw_ways if true then draw images of ways
+	 * @param visible if false then draw only grids and markers
+	 * @returns index of first vehicle on the tile
+	 * @author dwachs
+	 */
+	uint8 display_dinge_bg(const sint16 xpos, const sint16 ypos, const bool is_global, const bool draw_ways, const bool visible) const;
+
+	/**
+	 * displays vehicle (background) images
+	 * @param is_global set to true, if this is called during the whole screen update
+	 * @param start_offset start with object at this index
+	 * @param ribi draws only vehicles driving in this direction (or against this)
+	 * @param ontile is true if we are on the tile that defines the clipping
+	 * @author dwachs
+	 */
+	uint8 display_dinge_vh(const sint16 xpos, const sint16 ypos, const bool is_global, const uint8 start_offset, const ribi_t::ribi ribi, const bool ontile) const;
+
+	/**
+	 *  displays all foreground images
+	 * @param is_global set to true, if this is called during the whole screen update
+	 * @author dwachs
+	 */
+	void display_dinge_fg(const sint16 xpos, const sint16 ypos, const bool is_global, const uint8 start_offset) const;
 	/* overlayer with signs, good levels and station coverage
 	 * resets the dirty flag
 	 * @author kierongreen
 	 */
+
 	void display_overlay(sint16 xpos, sint16 ypos);
 
 	inline ding_t *first_obj() const { return dinge.bei(offsets[flags/has_way1]); }
@@ -450,14 +556,12 @@ public:
 	* @author Hj. Malthaner
 	*/
 	weg_t *get_weg(waytype_t typ) const {
-		if(flags&has_way1) {
-			weg_t *w=(weg_t *)obj_bei(0);
+		if (weg_t* const w = get_weg_nr(0)) {
 			if(w->get_waytype()==typ) {
 				return w;
 			}
 		}
-		if(flags&has_way2) {
-			weg_t *w=(weg_t *)obj_bei(1);
+		if (weg_t* const w = get_weg_nr(1)) {
 			if(w->get_waytype()==typ) {
 				return w;
 			}
@@ -535,10 +639,22 @@ public:
 
 	virtual hang_t::typ get_weg_hang() const { return get_grund_hang(); }
 
+	/*
+	 * Search a matching wayobj
+	 */
+	wayobj_t *get_wayobj( waytype_t wt ) const;
+
 	/**
 	* Interface zur Bauen der Wege
 	* =============================
 	*/
+
+	/**
+	 * remove trees and groundobjs on this tile
+	 * called before building way or powerline
+	 * @returns costs
+	 */
+	sint64 remove_trees();
 
 	/**
 	 * Bauhilfsfunktion - ein neuer weg wird mit den vorgegebenen ribis
@@ -550,7 +666,7 @@ public:
 	 *
 	 * @author V. Meyer
 	 */
-	long neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp);
+	sint64 neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp);
 
 	/**
 	 * Bauhilfsfunktion - die ribis eines vorhandenen weges werden erweitert
@@ -620,7 +736,7 @@ public:
 	 * @author: Volker Meyer
 	 * @date: 21.05.2003
 	 */
-	sint16 get_vmove(koord dir) const;
+	sint8 get_vmove(koord dir) const;
 
 	/* removes everything from a tile, including a halt but i.e. leave a
 	 * powerline ond other stuff
@@ -630,17 +746,6 @@ public:
 
 	void* operator new(size_t s);
 	void  operator delete(void* p, size_t s);
-
-	// anticipating new undergroundmode
-	inline bool is_visible() const {
-		if (get_typ()==tunnelboden) {
-			return underground_mode ? true : ist_karten_boden();
-		}
-		else {
-			return !underground_mode;
-		}
-		return(false);
-	}
 
 };
 

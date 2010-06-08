@@ -7,7 +7,6 @@
  * (see licence.txt)
  */
 
-#include <algorithm>
 #include <stdio.h>
 
 #include "../simcolor.h"
@@ -61,39 +60,40 @@ curiosity_edit_frame_t::curiosity_edit_frame_t(spieler_t* sp_,karte_t* welt) :
 	lb_rotation_info( translator::translate("Rotation"), COL_BLACK, gui_label_t::left )
 {
 	rot_str[0] = 0;
+	rotation = 255;
 	besch = NULL;
-	haus_tool.default_param = NULL;
+	haus_tool.set_default_param(NULL);
 	haus_tool.cursor = werkzeug_t::general_tool[WKZ_BUILD_HAUS]->cursor;
 
-	bt_city_attraction.init( button_t::square_state, "City attraction", koord(NAME_COLUMN_WIDTH+11, offset_of_comp-4 ) );
+	bt_city_attraction.init( button_t::square_state, "City attraction", koord(get_tab_panel_width()+2*MARGIN, offset_of_comp-4 ) );
 	bt_city_attraction.add_listener(this);
 	bt_city_attraction.pressed = true;
 	add_komponente(&bt_city_attraction);
 	offset_of_comp += BUTTON_HEIGHT;
 
-	bt_land_attraction.init( button_t::square_state, "Land attraction", koord(NAME_COLUMN_WIDTH+11, offset_of_comp-4 ) );
+	bt_land_attraction.init( button_t::square_state, "Land attraction", koord(get_tab_panel_width()+2*MARGIN, offset_of_comp-4 ) );
 	bt_land_attraction.add_listener(this);
 	bt_land_attraction.pressed = true;
 	add_komponente(&bt_land_attraction);
 	offset_of_comp += BUTTON_HEIGHT;
 
-	bt_monuments.init( button_t::square_state, "Monument", koord(NAME_COLUMN_WIDTH+11, offset_of_comp-4 ) );
+	bt_monuments.init( button_t::square_state, "Monument", koord(get_tab_panel_width()+2*MARGIN, offset_of_comp-4 ) );
 	bt_monuments.add_listener(this);
 	add_komponente(&bt_monuments);
 	offset_of_comp += BUTTON_HEIGHT;
 
-	lb_rotation_info.set_pos( koord( NAME_COLUMN_WIDTH+11, offset_of_comp-4 ) );
+	lb_rotation_info.set_pos( koord( get_tab_panel_width()+2*MARGIN, offset_of_comp-4 ) );
 	add_komponente(&lb_rotation_info);
 
-	bt_left_rotate.init( button_t::repeatarrowleft, NULL, koord(NAME_COLUMN_WIDTH+11+NAME_COLUMN_WIDTH/2-16,	offset_of_comp-4 ) );
+	bt_left_rotate.init( button_t::repeatarrowleft, NULL, koord(get_tab_panel_width()+2*MARGIN+COLUMN_WIDTH/2-16, offset_of_comp-4 ) );
 	bt_left_rotate.add_listener(this);
 	add_komponente(&bt_left_rotate);
 
-	bt_right_rotate.init( button_t::repeatarrowright, NULL, koord(NAME_COLUMN_WIDTH+11+NAME_COLUMN_WIDTH/2+50, offset_of_comp-4 ) );
+	bt_right_rotate.init( button_t::repeatarrowright, NULL, koord(get_tab_panel_width()+2*MARGIN+COLUMN_WIDTH/2+50, offset_of_comp-4 ) );
 	bt_right_rotate.add_listener(this);
 	add_komponente(&bt_right_rotate);
 
-	lb_rotation.set_pos( koord( NAME_COLUMN_WIDTH+11+NAME_COLUMN_WIDTH/2+44, offset_of_comp-4 ) );
+	lb_rotation.set_pos( koord( get_tab_panel_width()+2*MARGIN+COLUMN_WIDTH/2+44, offset_of_comp-4 ) );
 	add_komponente(&lb_rotation);
 	offset_of_comp += BUTTON_HEIGHT;
 
@@ -120,7 +120,7 @@ void curiosity_edit_frame_t::fill_list( bool translate )
 			const haus_besch_t *besch = (*i);
 			if(!use_timeline  ||  (!besch->is_future(month_now)  &&  (!besch->is_retired(month_now)  ||  allow_obsolete))  ) {
 				// timeline allows for this
-				hauslist.append(besch);
+				hauslist.insert_ordered(besch,compare_haus_besch);
 			}
 		}
 	}
@@ -132,7 +132,7 @@ void curiosity_edit_frame_t::fill_list( bool translate )
 			const haus_besch_t *besch = (*i);
 			if(!use_timeline  ||  (!besch->is_future(month_now)  &&  (!besch->is_retired(month_now)  ||  allow_obsolete))  ) {
 				// timeline allows for this
-				hauslist.append(besch);
+				hauslist.insert_ordered(besch,compare_haus_besch);
 			}
 		}
 	}
@@ -144,12 +144,10 @@ void curiosity_edit_frame_t::fill_list( bool translate )
 			const haus_besch_t *besch = (*i);
 			if(!use_timeline  ||  (!besch->is_future(month_now)  &&  (!besch->is_retired(month_now)  ||  allow_obsolete))  ) {
 				// timeline allows for this
-				hauslist.append(besch);
+				hauslist.insert_ordered(besch,compare_haus_besch);
 			}
 		}
 	}
-
-	std::sort(hauslist.begin(), hauslist.end(), compare_haus_besch);
 
 	// now buil scrolled list
 	scl.clear_elements();
@@ -234,7 +232,7 @@ void curiosity_edit_frame_t::change_item_info(sint32 entry)
 			buf.append("\n\n");
 			buf.append( translator::translate( besch->get_name() ) );
 
-			buf.printf("\n%s: %i\n",translator::translate("Passagierrate"),besch->get_level());
+			buf.printf("\n\n%s: %i\n",translator::translate("Passagierrate"),besch->get_level());
 			buf.printf("%s: %i\n",translator::translate("Postrate"),besch->get_post_level());
 
 			buf.append(translator::translate("\nBauzeit von"));
@@ -253,7 +251,7 @@ void curiosity_edit_frame_t::change_item_info(sint32 entry)
 			}
 
 			info_text.recalc_size();
-			cont.set_groesse( info_text.get_groesse() );
+			cont.set_groesse( info_text.get_groesse() + koord(0, 20) );
 
 			// orientation (255=random)
 			if(besch->get_all_layouts()>1) {
@@ -266,7 +264,7 @@ void curiosity_edit_frame_t::change_item_info(sint32 entry)
 
 		// change lable numbers
 		if(rotation == 255) {
-			tstrncpy( rot_str, translator::translate("random"), 16 );
+			tstrncpy(rot_str, translator::translate("random"), lengthof(rot_str));
 		}
 		else {
 			sprintf( rot_str, "%i", rotation );
@@ -303,19 +301,21 @@ void curiosity_edit_frame_t::change_item_info(sint32 entry)
 
 		// the tools will be always updated, even though the data up there might be still current
 		sprintf( param_str, "%i%c%s", bt_climates.pressed, rotation==255 ? '#' : '0'+rotation, besch->get_name() );
-		haus_tool.default_param = param_str;
-		welt->set_werkzeug( &haus_tool );
+		haus_tool.set_default_param(param_str);
+		welt->set_werkzeug( &haus_tool, sp );
 	}
-	else if(welt->get_werkzeug()==&haus_tool) {
+	else if(welt->get_werkzeug(sp->get_player_nr())==&haus_tool) {
 		for(int i=0;  i<4;  i++  ) {
 			img[i].set_image( IMG_LEER );
 		}
-		tstrncpy( rot_str, translator::translate("random"), 16 );
+		tstrncpy(rot_str, translator::translate("random"), lengthof(rot_str));
 		uint8 rot = (rotation==255) ? 0 : rotation;
-		img[3].set_image( besch->get_tile(rot,0,0)->get_hintergrund(0,0,0) );
+		if (besch) {
+			img[3].set_image( besch->get_tile(rot,0,0)->get_hintergrund(0,0,0) );
+		}
 
 		besch = NULL;
-		welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+		welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], sp );
 	}
 }
 

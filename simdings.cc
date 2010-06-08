@@ -31,6 +31,7 @@
 #include "boden/grund.h"
 #include "gui/thing_info.h"
 #include "utils/cbuffer_t.h"
+#include "utils/simstring.h"
 
 
 
@@ -146,31 +147,38 @@ void ding_t::set_besitzer(spieler_t *sp)
  * wenn das Objekt niemand gehört.
  * @author Hj. Malthaner
  */
-spieler_t *ding_t::get_besitzer() const {
+spieler_t *ding_t::get_besitzer() const
+{
 	return welt->get_spieler(besitzer_n);
 }
 
 
 
+/* the only general info we can give is the name
+ * we want to format it nicely,
+ * with two linebreaks at the end => thus the little extra effort
+ */
 void ding_t::info(cbuffer_t & buf) const
 {
-	if(besitzer_n==1  ||  besitzer_n==PLAYER_UNOWNED) {
-		buf.append(translator::translate("Eigenbesitz\n"));
+	char              translation[256];
+	char const* const owner =
+		besitzer_n == 1              ? translator::translate("Eigenbesitz\n")   :
+		besitzer_n == PLAYER_UNOWNED ? translator::translate("Kein Besitzer\n") :
+		get_besitzer()->get_name();
+	tstrncpy(translation, owner, lengthof(translation));
+	// remove trailing linebreaks etc.
+	for(  int i=strlen(translation);  i>0  &&  ' '>(uint8)translation[i-1];  i--  ) {
+		translation[i-1] = 0;
 	}
-	else {
-		buf.append(translator::translate("Spieler"));
-		buf.append(" ");
-		buf.append(besitzer_n);
-		buf.append("\n");
+	buf.append( translation );
+	// only append linebreaks if not empty
+	if(  buf.len()>0  ) {
+		buf.append( "\n\n" );
 	}
-//	else {
-//		buf.append(translator::translate("Kein Besitzer\n"));
-//	}
 }
 
 
-void
-ding_t::zeige_info()
+void ding_t::zeige_info()
 {
 	create_win( new ding_infowin_t(this), w_info, (long)this);
 }
@@ -180,7 +188,7 @@ ding_t::zeige_info()
 // returns NULL, if removal is allowed
 const char *ding_t::ist_entfernbar(const spieler_t *sp)
 {
-	if(besitzer_n==PLAYER_UNOWNED  ||  welt->get_spieler(besitzer_n) == sp) {
+	if(besitzer_n==PLAYER_UNOWNED  ||  welt->get_spieler(besitzer_n) == sp  ||  welt->get_spieler(1) == sp) {
 		return NULL;
 	}
 	else {
@@ -219,12 +227,11 @@ ding_t::rdwr(loadsave_t *file)
 void
 ding_t::display(int xpos, int ypos, bool /*reset_dirty*/) const
 {
-	const int raster_width = get_tile_raster_width();
+	const int raster_width = get_current_tile_raster_width();
 
-	if(is_moving()) {
-		// vehicles needs finer steps to appear smoother
-		const vehikel_basis_t* const v = (const vehikel_basis_t*)this;
-		v->get_screen_offset( xpos, ypos );
+	if (vehikel_basis_t const* const v = ding_cast<vehikel_basis_t>(this)) {
+		// vehicles need finer steps to appear smoother
+		v->get_screen_offset( xpos, ypos, raster_width );
 	}
 	xpos += tile_raster_scale_x(get_xoff(), raster_width);
 	ypos += tile_raster_scale_y(get_yoff(), raster_width);
@@ -238,10 +245,10 @@ ding_t::display(int xpos, int ypos, bool /*reset_dirty*/) const
 	while(bild!=IMG_LEER) {
 
 		if(besitzer_n!=PLAYER_UNOWNED) {
-			display_color_img(bild, xpos, ypos, besitzer_n, true, dirty);
+			display_color(bild, xpos, ypos, besitzer_n, true, dirty);
 		}
 		else {
-			display_img(bild, xpos, ypos, dirty);
+			display_normal(bild, xpos, ypos, 0, true, dirty);
 		}
 		// this ding has another image on top (e.g. skyscraper)
 		ypos -= raster_width;
@@ -252,7 +259,7 @@ ding_t::display(int xpos, int ypos, bool /*reset_dirty*/) const
 	const PLAYER_COLOR_VAL transparent = get_outline_colour();
 	if(TRANSPARENT_FLAGS&transparent) {
 		// only transparent outline
-		display_img_blend(get_outline_bild(), xpos, start_ypos, transparent, 0, dirty);
+		display_blend(get_outline_bild(), xpos, start_ypos, besitzer_n, transparent, 0, dirty);
 	}
 }
 
@@ -277,18 +284,17 @@ ding_t::display_after(int xpos, int ypos, bool /*is_global*/ ) const
 {
 	image_id bild = get_after_bild();
 	if(bild != IMG_LEER) {
-		const int raster_width = get_tile_raster_width();
+		const int raster_width = get_current_tile_raster_width();
+		const bool dirty = get_flag(ding_t::dirty);
 
 		xpos += tile_raster_scale_x(get_xoff(), raster_width);
 		ypos += tile_raster_scale_y(get_yoff(), raster_width);
 
-		// unfourtunately the dirty flag is already cleared, when we reach here ...
-		// thus we assume we need redraw
 		if(besitzer_n!=PLAYER_UNOWNED) {
-			display_color_img(bild, xpos, ypos, besitzer_n, true, false );
+			display_color(bild, xpos, ypos, besitzer_n, true, dirty );
 		}
 		else {
-			display_img(bild, xpos, ypos, false );
+			display_normal(bild, xpos, ypos, 0, true, dirty );
 		}
 	}
 }
@@ -305,10 +311,9 @@ ding_t::mark_image_dirty(image_id bild,sint8 yoff) const
 {
 	if(bild!=IMG_LEER) {
 		int xpos=0, ypos=0;
-		if(is_moving()) {
-			// vehicles needs finer steps to appear smoother
-			const vehikel_basis_t* const v = (const vehikel_basis_t*)this;
-			v->get_screen_offset( xpos, ypos );
+		if (vehikel_basis_t const* const v = ding_cast<vehikel_basis_t>(this)) {
+			// vehicles need finer steps to appear smoother
+			v->get_screen_offset( xpos, ypos, get_tile_raster_width() );
 		}
 		// better not try to twist your brain to follow the retransformation ...
 		const sint16 rasterweite=get_tile_raster_width();

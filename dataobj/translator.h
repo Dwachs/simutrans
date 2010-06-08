@@ -11,7 +11,6 @@
 #include "../tpl/stringhashtable_tpl.h"
 
 
-class loadsave_t;
 class cstring_t;
 
 
@@ -29,7 +28,6 @@ class translator
 	private:
 		//cannot be instantiated outside translator
 		translator() { current_lang = -1; }
-		~translator() {}
 
 		int current_lang;
 		int lang_count;
@@ -100,6 +98,11 @@ class translator
 		 * or the string if the translation is not found
 		 */
 		static const char *translate(const char* str);
+		static const char *translate(const char* str, int lang);
+
+		/**
+		 * @return replacement info for almost any object within the game
+		 */
 		static const char *compatibility_name(const char* str);
 
 		// return the name of the month

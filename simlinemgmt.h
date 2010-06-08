@@ -37,7 +37,7 @@ public:
 	 * delete a line
 	 * @author hsiegeln
 	 */
-	bool delete_line(linehandle_t line);
+	void delete_line(linehandle_t line);
 
 	/*
 	 * update a line -> apply updated fahrplan to all convoys
@@ -99,6 +99,8 @@ public:
 	 * type == simline_t::line will return all lines
 	 */
 	void get_lines(int type, vector_tpl<linehandle_t>* lines) const;
+
+	uint32 get_line_count() const { return all_managed_lines.get_count(); }
 
 	karte_t* get_welt() const { return welt; }
 

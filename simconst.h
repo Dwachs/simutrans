@@ -11,7 +11,6 @@
 
 /* Flag for Intel byte order
  * SET THIS IN YOUR COMPILER COMMAND LINE!
- * big endian also not completely supported yet
  */
 //#define LITTLE_ENDIAN
 
@@ -23,9 +22,6 @@
 
 /* single height is only 8 pixel (default 16) */
 //#define HALF_HEIGHT
-
-/* normal ground can be covered by other ground (building does not work correctly yet ...) */
-//#define COVER_TILES
 
 /* construct automatic bridges also as active player */
 //#define AUTOMATIC_BRIDGES
@@ -55,24 +51,16 @@
 // define this for automaticcally joining stations next to a public stop with it
 //#define AUTOJOIN_PUBLIC
 
-/******************************* obsolete stuf ******************************/
-
-/* storage shed (old implementation) LIKELY NOT WORKING */
-//#define LAGER_NOT_IN_USE
-
 /*********************** Useful things for debugging ... ********************/
 
 /* will highlite marked areas and convoi will leave traces */
 //#define DEBUG_ROUTES
 
-/* shows which tiles are grown as dings (used in boden/grund.cc) */
-//#define SHOW_FORE_GRUND 1
+/* shows which tiles are drawn as dings (used in boden/grund.cc) */
+//#define SHOW_FORE_GRUND
 
 /* shows with block needed update and which not */
 //#define DEBUG_FLUSH_BUFFER
-
-/* shows reserved tiles */
-//#define DEBUG_PDS
 
 /**************************** automatic stuff ********************************/
 
@@ -157,12 +145,9 @@
 #define Z_GRID (0)
 
 
-
-
-#ifdef OTTD_LIKE
-#define DEFAULT_OBJPATH "pak.ttd/"
-#else
-#define DEFAULT_OBJPATH "pak/"
+// sanity check: USE_C if not GCC and not intel 32bit
+#if !defined USE_C && (!defined __GNUC__ || !defined __i386__)
+#	define USE_C
 #endif
 
 #endif

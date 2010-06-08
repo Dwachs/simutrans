@@ -9,6 +9,7 @@
 #define loadsave_h
 
 #include <stdio.h>
+#include <bzlib.h>
 
 #include "../utils/cstring_t.h"
 #include "../simtypes.h"
@@ -31,7 +32,7 @@
 
 class loadsave_t {
 public:
-	enum mode_t { text=8, xml=2, binary=1, zipped=4, xml_zipped=6 };
+	enum mode_t { text=1, xml=2, binary=0, zipped=4, xml_zipped=6, bzip2=8, xml_bzip2=10 };
 
 private:
 	int mode;
@@ -43,14 +44,16 @@ private:
 	cstring_t filename;	// the current name ...
 
 	FILE *fp;
+	BZFILE *bzfp;
+	int bse;
 
 	// Hajo: putc got a name clash on my system
-	int lsputc(int c);
+	void lsputc(int c);
 
 	// Hajo: getc got a name clash on my system
 	int lsgetc();
-	long write(const void * buf, unsigned long len);
-	long read (void *buf, unsigned long len);
+	long write(const void * buf, size_t len);
+	long read(void *buf, size_t len);
 
 	void rdwr_xml_number(sint64 &s, const char *typ);
 
@@ -72,10 +75,10 @@ public:
 	 */
 	bool is_eof();
 
-	void* get_file() { return fp; }
 	bool is_loading() const { return !saving; }
 	bool is_saving() const { return saving; }
 	bool is_zipped() const { return mode&zipped; }
+	bool is_bzip2() const { return mode&bzip2; }
 	bool is_xml() const { return mode&xml; }
 	uint32 get_version() const { return version; }
 	const char *get_pak_extension() const { return pak_extension; }
@@ -99,7 +102,7 @@ public:
 	void rdwr_str(const char *&s);
 
 	// s is a buf of size given
-	void rdwr_str(char *s, int size);
+	void rdwr_str(char* s, size_t size);
 
 	// only meaningful for XML
 	void start_tag( const char *tag );

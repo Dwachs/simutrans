@@ -19,7 +19,7 @@ class vehikel_basis_t;
  * road sign for traffic (one way minimum speed, traffic lights)
  * @author Hj. Malthaner
  */
-class crossing_t : public ding_t
+class crossing_t : public ding_no_info_t
 {
 protected:
 	image_id after_bild, bild;
@@ -29,7 +29,7 @@ protected:
 	const kreuzung_besch_t *besch;
 
 public:
-	enum ding_t::typ get_typ() const { return crossing; }
+	typ get_typ() const { return crossing; }
 	const char* get_name() const { return "Kreuzung"; }
 
 	crossing_t(karte_t *welt, loadsave_t *file);
@@ -47,8 +47,11 @@ public:
 	 */
 	void info(cbuffer_t & buf) const { logic->info(buf); }
 
-	// no info
-	void zeige_info() {}
+	/**
+	 * @returns NULL wenn OK, ansonsten eine Fehlermeldung
+	 * @author Hj. Malthaner
+	 */
+	virtual const char *ist_entfernbar(const spieler_t *sp);
 
 	// returns true, if the crossing can be passed by this vehicle
 	bool request_crossing( const vehikel_basis_t *v ) { return logic->request_crossing( v ); }

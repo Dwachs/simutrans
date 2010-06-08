@@ -81,7 +81,7 @@ const uint8 map_frame_t::map_type_color[MAX_BUTTON_TYPE] =
 };
 
 
-map_frame_t::map_frame_t(const karte_t *welt) :
+map_frame_t::map_frame_t(karte_t *welt) :
 	gui_frame_t("Reliefkarte"),
 	scrolly(reliefkarte_t::get_karte()),
 	zoom_label("map zoom")
@@ -99,18 +99,18 @@ map_frame_t::map_frame_t(const karte_t *welt) :
 	add_komponente( &zoom_label );
 
 	// rotate map 45°
-	b_rotate45.init(button_t::square, "isometric map", koord(BUTTON_WIDTH+40,BUTTON_HEIGHT+4), koord(BUTTON_WIDTH,BUTTON_HEIGHT));
+	b_rotate45.init(button_t::square, "isometric map", koord(BUTTON_WIDTH+40,BUTTON_HEIGHT+4));
 	b_rotate45.add_listener(this);
 	add_komponente(&b_rotate45);
 
 	// show/hide schedule
-	b_show_schedule.init(button_t::square, "Show schedules", koord(BUTTON_WIDTH+40,BUTTON_HEIGHT*2+4), koord(BUTTON_WIDTH,BUTTON_HEIGHT)); // right align
+	b_show_schedule.init(button_t::square, "Show schedules", koord(BUTTON_WIDTH+40,BUTTON_HEIGHT*2+4)); // right align
 	b_show_schedule.set_tooltip("Shows the currently selected schedule");
 	b_show_schedule.add_listener(this);
 	add_komponente( &b_show_schedule );
 
 	// show/hide schedule
-	b_show_fab_connections.init(button_t::square, "factory details", koord(2,BUTTON_HEIGHT*2+4), koord(BUTTON_WIDTH,BUTTON_HEIGHT)); // right align
+	b_show_fab_connections.init(button_t::square, "factory details", koord(2,BUTTON_HEIGHT*2+4)); // right align
 	b_show_fab_connections.set_tooltip("Shows consumer/suppliers for factories");
 	b_show_fab_connections.add_listener(this);
 	add_komponente( &b_show_fab_connections );
@@ -175,8 +175,9 @@ map_frame_t::map_frame_t(const karte_t *welt) :
 	set_fenstergroesse(size);
 	resize( koord(0,0) );
 
-	// Clipping geändert - max. 250 war zu knapp für grosse Karten - V.Meyer
 	reliefkarte_t *karte = reliefkarte_t::get_karte();
+	karte->set_welt( welt );
+
 	const koord gr = karte->get_groesse();
 	const koord s_gr=scrolly.get_groesse();
 	const koord ij = welt->get_world_position();
@@ -279,6 +280,30 @@ map_frame_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 	return true;
 }
 
+void map_frame_t::zoom(bool zoom_out)
+{
+	if (zoom_out) {
+		// zoom out
+		if(reliefkarte_t::get_karte()->zoom_in>1) {
+			reliefkarte_t::get_karte()->zoom_in--;
+		}
+		else if(reliefkarte_t::get_karte()->zoom_out<4  ) {
+			reliefkarte_t::get_karte()->zoom_out++;
+		}
+	}
+	else {
+		// zoom in
+		if(reliefkarte_t::get_karte()->zoom_out>1) {
+			reliefkarte_t::get_karte()->zoom_out--;
+		}
+		else if(reliefkarte_t::get_karte()->zoom_in<8  ) {
+			reliefkarte_t::get_karte()->zoom_in++;
+		}
+	}
+	// recalc sliders
+	reliefkarte_t::get_karte()->calc_map_groesse();
+	scrolly.set_groesse( scrolly.get_groesse() );
+}
 
 
 /**
@@ -290,7 +315,6 @@ void map_frame_t::infowin_event(const event_t *ev)
 {
 	if(ev->ev_class == INFOWIN) {
 		if(ev->ev_code == WIN_OPEN) {
-			reliefkarte_t::get_karte()->is_visible = true;
 			reliefkarte_t::get_karte()->set_xy_offset_size( koord(0,0), koord(0,0) );
 		}
 		else if(ev->ev_code == WIN_CLOSE) {
@@ -298,9 +322,9 @@ void map_frame_t::infowin_event(const event_t *ev)
 		}
 	}
 
-	if(  (IS_WHEELUP(ev) || IS_WHEELDOWN(ev))  &&  reliefkarte_t::get_karte()->getroffen(ev->mx,ev->my)) {
+	if(  (IS_WHEELUP(ev) || IS_WHEELDOWN(ev))  &&  reliefkarte_t::get_karte()->getroffen(ev->mx-scrolly.get_pos().x,ev->my-scrolly.get_pos().y-16)) {
 		// otherwise these would go to the vertical scroll bar
-		reliefkarte_t::get_karte()->infowin_event(ev);
+		zoom(IS_WHEELUP(ev));
 		return;
 	}
 
@@ -326,9 +350,10 @@ void map_frame_t::infowin_event(const event_t *ev)
 	if(reliefkarte_t::get_karte()->getroffen(ev->mx,ev->my)  &&  IS_RIGHTDRAG(ev)) {
 		int x = scrolly.get_scroll_x();
 		int y = scrolly.get_scroll_y();
+		const int scroll_direction = ( umgebung_t::scroll_multi>0 ? 1 : -1 );
 
-		x += (ev->mx - ev->cx)*2;
-		y += (ev->my - ev->cy)*2;
+		x += (ev->mx - ev->cx)*scroll_direction*2;
+		y += (ev->my - ev->cy)*scroll_direction*2;
 
 		is_dragging = true;
 		reliefkarte_t::get_karte()->get_welt()->set_scroll_lock(true);
@@ -366,7 +391,7 @@ DBG_MESSAGE("map_frame_t::set_fenstergroesse()","gr.x=%i, gr.y=%i",size.x,size.y
  */
 void map_frame_t::resize(const koord delta)
 {
-	karte_t *welt=reliefkarte_t::get_karte()->get_welt();
+	karte_t *welt = reliefkarte_t::get_karte()->get_welt();
 
 	koord groesse = get_fenstergroesse()+delta;
 

@@ -303,10 +303,13 @@ public:
 		node_t* succ = pos.ptr->next;
 		if (pred == NULL) {
 			head = succ;
-		} else {
+		}
+		else {
 			pred->next = succ;
 		}
-		if (succ == NULL) tail = pred;
+		if (succ == NULL) {
+			tail = pred;
+		}
 		delete pos.ptr;
 		--node_count;
 		return iterator(succ, pred);
@@ -375,22 +378,6 @@ public:
 			current_node = iter.current_node;
 		}
 		return *this;
-	}
-
-	/**
-	 * start iteration
-	 * @author Hj. Malthaner
-	 */
-	void begin()
-	{
-		current_node = &lead;
-	}
-
-
-	void begin(const slist_tpl<T> *list)
-	{
-		current_node = &lead;
-		lead.next = list->head;
 	}
 
 	/**

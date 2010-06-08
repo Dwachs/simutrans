@@ -3,7 +3,7 @@
  *
  * This file is part of the Simutrans project under the artistic licence.
  *
- *  Modulbeschreibung:
+ *  Module description:
  *      signs on roads and other ways
  */
 
@@ -12,23 +12,24 @@
 
 #include "obj_besch_std_name.h"
 #include "bildliste_besch.h"
+#include "skin_besch.h"
 #include "../dataobj/ribi.h"
 #include "../simtypes.h"
 
 
-class skin_besch_t;
+class werkzeug_t;
 
 /*
  *  Autor:
  *      prissi
  *
- *  Beschreibung:
- *	Straﬂenschildere
+ *  Description:
+ *	Road signs
  *
- *  Kindknoten:
+ *  Child nodes:
  *	0   Name
  *	1   Copyright
- *	2   Bildliste
+ *	2   Image list (Bildliste)
  */
 class roadsign_besch_t : public obj_besch_std_name_t {
 	friend class roadsign_writer_t;
@@ -55,18 +56,20 @@ private:
 	uint16 intro_date;
 	uint16 obsolete_date;
 
+	werkzeug_t *builder;
+
 public:
-	enum types {ONE_WAY=1, FREE_ROUTE=2, PRIVATE_ROAD=4, SIGN_SIGNAL=8, SIGN_PRE_SIGNAL=16, ONLY_BACKIMAGE=32, SIGN_LONGBLOCK_SIGNAL=64, END_OF_CHOOSE_AREA=128 };
+	enum types {ONE_WAY=1, CHOOSE_SIGN=2, PRIVATE_ROAD=4, SIGN_SIGNAL=8, SIGN_PRE_SIGNAL=16, ONLY_BACKIMAGE=32, SIGN_LONGBLOCK_SIGNAL=64, END_OF_CHOOSE_AREA=128 };
 
 	int get_bild_nr(ribi_t::dir dir) const
 	{
-		const bild_besch_t *bild = static_cast<const bildliste_besch_t *>(get_child(2))->get_bild(dir);
+		bild_besch_t const* const bild = get_child<bildliste_besch_t>(2)->get_bild(dir);
 		return bild != NULL ? bild->get_nummer() : IMG_LEER;
 	}
 
-	int get_bild_anzahl() const { return static_cast<const bildliste_besch_t *>(get_child(2))->get_anzahl(); }
+	int get_bild_anzahl() const { return get_child<bildliste_besch_t>(2)->get_anzahl(); }
 
-	const skin_besch_t *get_cursor() const { return (const skin_besch_t *)get_child(3); }
+	skin_besch_t const* get_cursor() const { return get_child<skin_besch_t>(3); }
 
 	/**
 	 * get way type
@@ -86,7 +89,7 @@ public:
 	//  return true for a traffic light
 	bool is_traffic_light() const { return (get_bild_anzahl()>4); }
 
-	bool is_free_route() const { return flags&FREE_ROUTE; }
+	bool is_choose_sign() const { return flags&CHOOSE_SIGN; }
 
 	//  return true for signal
 	bool is_signal() const { return flags&SIGN_SIGNAL; }
@@ -97,7 +100,12 @@ public:
 	//  return true for single track section signal
 	bool is_longblock_signal() const { return flags&SIGN_LONGBLOCK_SIGNAL; }
 
-	bool is_signal_type() const { return (flags&(SIGN_SIGNAL|SIGN_PRE_SIGNAL|SIGN_LONGBLOCK_SIGNAL))!=0; }
+	bool is_end_choose_signal() const { return flags&END_OF_CHOOSE_AREA; }
+
+	bool is_signal_type() const
+	{
+		return (flags&(SIGN_SIGNAL|SIGN_PRE_SIGNAL|SIGN_LONGBLOCK_SIGNAL))!=0;
+	}
 
 	uint8 get_flags() const { return flags; }
 
@@ -112,6 +120,14 @@ public:
 	* @author prissi
 	*/
 	uint16 get_retire_year_month() const { return obsolete_date; }
+
+	// default tool for building
+	werkzeug_t *get_builder() const {
+		return builder;
+	}
+	void set_builder( werkzeug_t *w )  {
+		builder = w;
+	}
 };
 
 #endif

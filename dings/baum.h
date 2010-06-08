@@ -10,6 +10,7 @@
 
 #include "../tpl/stringhashtable_tpl.h"
 #include "../tpl/vector_tpl.h"
+#include "../tpl/weighted_vector_tpl.h"
 #include "../besch/baum_besch.h"
 #include "../simcolor.h"
 #include "../dataobj/umgebung.h"
@@ -30,8 +31,9 @@ private:
 	uint32 season:3;
 
 	// static for administration
-	static stringhashtable_tpl<uint32> besch_names;
+	static stringhashtable_tpl<const baum_besch_t *> besch_names;
 	static vector_tpl<const baum_besch_t *> baum_typen;
+	static vector_tpl<weighted_vector_tpl<uint32> > baum_typen_per_climate;
 
 	// static for the forest rule set
 	static uint8 forest_base_size;
@@ -44,7 +46,7 @@ private:
 	static uint16 tree_climates;
 	static uint16 no_tree_climates;
 
-	void saee_baum();
+	bool saee_baum();
 
 	/**
 	 * Berechnet offsets für gepflanzte Bäume
@@ -53,6 +55,7 @@ private:
 
 	static uint16 random_tree_for_climate_intern(climate cl);
 
+	static uint8 plant_tree_on_coordinate(karte_t *welt, koord pos, const uint8 maximum_count, const uint8 count=1);
 public:
 	// only the load save constructor should be called outside
 	// otherwise I suggest use the plant tree function (see below)
@@ -76,7 +79,7 @@ public:
 	void calc_bild();
 
 	const char *get_name() const {return "Baum";}
-	enum ding_t::typ get_typ() const {return baum;}
+	typ get_typ() const { return baum; }
 
 	bool check_season(const long delta_t);
 
@@ -99,7 +102,6 @@ public:
 	// distributes trees on a map
 	static void distribute_trees(karte_t *welt, int dichte);
 
-	static bool plant_tree_on_coordinate(karte_t *welt, koord pos, const uint8 maximum_count);
 	static bool plant_tree_on_coordinate(karte_t *welt, koord pos, const baum_besch_t *besch, const bool check_climate, const bool random_age );
 
 	static bool register_besch(baum_besch_t *besch);
@@ -114,7 +116,7 @@ public:
 
 	static const baum_besch_t *random_tree_for_climate(climate cl) { uint16 b = random_tree_for_climate_intern(cl);  return b!=0xFFFF ? baum_typen[b] : NULL; }
 
-	static const baum_besch_t *find_tree( const char *tree_name ) { return baum_typen.empty() ? NULL : baum_typen[besch_names.get(tree_name)]; }
+	static const baum_besch_t *find_tree( const char *tree_name ) { return baum_typen.empty() ? NULL : besch_names.get(tree_name); }
 
 	static int get_anzahl_besch() { return baum_typen.get_count(); }
 	static int get_anzahl_besch(climate cl);

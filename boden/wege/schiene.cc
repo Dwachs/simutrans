@@ -62,6 +62,7 @@ schiene_t::entferne(spieler_t *)
 void schiene_t::info(cbuffer_t & buf) const
 {
 	weg_t::info(buf);
+
 	if(reserved.is_bound()) {
 		buf.append(translator::translate("\nis reserved by:"));
 		buf.append(reserved->get_name());
@@ -77,12 +78,21 @@ void schiene_t::info(cbuffer_t & buf) const
  * true, if this rail can be reserved
  * @author prissi
  */
-bool
-schiene_t::reserve(convoihandle_t c) {
+bool schiene_t::reserve(convoihandle_t c, ribi_t::ribi dir  )
+{
 	if(can_reserve(c)) {
 		reserved = c;
+		/* for threeway and forway switches we may need to alter graphic, if
+		 * direction is a diagonal (i.e. on the switching part)
+		 * and there are switching graphics
+		 */
+		if(  ribi_t::is_threeway(get_ribi_unmasked())  &&  ribi_t::ist_kurve(dir)  &&  get_besch()->has_switch_bild()  ) {
+			image_id bild = get_besch()->get_bild_nr_switch( get_ribi_unmasked(), is_snow(), (dir==ribi_t::nordost  ||  dir==ribi_t::suedwest) );
+			set_bild( bild );
+			mark_image_dirty( bild, 0 );
+		}
 		if(schiene_t::show_reservations) {
-			mark_image_dirty(get_bild(),0);
+			set_flag( ding_t::dirty );
 		}
 		return true;
 	}
@@ -104,7 +114,7 @@ schiene_t::unreserve(convoihandle_t c)
 	if(reserved.is_bound()  &&  reserved==c) {
 		reserved = convoihandle_t();
 		if(schiene_t::show_reservations) {
-			mark_image_dirty(get_bild(),0);
+			set_flag( ding_t::dirty );
 		}
 		return true;
 	}
@@ -128,7 +138,7 @@ schiene_t::unreserve(vehikel_t *)
 //	if(!welt->lookup(get_pos())->suche_obj(v->get_typ())) {
 		reserved = convoihandle_t();
 		if(schiene_t::show_reservations) {
-			mark_image_dirty(get_bild(),0);
+			set_flag( ding_t::dirty );
 		}
 		return true;
 //	}
@@ -162,7 +172,7 @@ schiene_t::rdwr(loadsave_t *file)
 	}
 	else {
 		char bname[128];
-		file->rdwr_str(bname, 128 );
+		file->rdwr_str(bname, lengthof(bname));
 
 		int old_max_speed=get_max_speed();
 		const weg_besch_t *besch = wegbauer_t::get_besch(bname);

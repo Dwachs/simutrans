@@ -25,8 +25,9 @@ gui_textarea_t::set_text(const char *text)
 {
 	if(text) {
 		this->text = text;
-	} else {
-		text = "";
+	}
+	else {
+		this->text = "";
 	}
 }
 
@@ -46,7 +47,7 @@ void gui_textarea_t::recalc_size()
 
 		do {
 			next = strchr(buf, '\n');
-			const long len = next != NULL ? next - buf : -1;
+			const size_t len = next != NULL ? next - buf : -1;
 			int px_len = display_calc_proportional_string_len_width(buf, len);
 			if(px_len>x_size) {
 				x_size = px_len;
@@ -81,7 +82,7 @@ void gui_textarea_t::zeichnen(koord offset)
 		do {
 			next = strchr(buf, '\n');
 			if(pos.y+new_lines>=0) {
-				const long len = next != NULL ? next - buf : -1;
+				const int len = next != NULL ? (long)(size_t)(next - buf) : -1;
 				int px_len = display_text_proportional_len_clip(x, y + new_lines, buf, ALIGN_LEFT | DT_DIRTY | DT_CLIP, COL_BLACK, len);
 				if(px_len>x_size) {
 					x_size = px_len;

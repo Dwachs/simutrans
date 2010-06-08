@@ -28,10 +28,28 @@
 #include "../tpl/vector_tpl.h"
 
 
-const char* translator::lang_info::translate(const char* text) const
+// allow all kinds of line feeds
+static char *fgets_line(char *buffer, int max_len, FILE *file)
 {
-	if (text    == NULL) return "(null)";
-	if (text[0] == '\0') return text;
+	char *result = fgets(buffer, max_len, file);
+	size_t len = strlen(buffer);
+	// remove all trailing junk
+	while(  len>1  &&  (buffer[len-1]==13  ||  buffer[len-1]==10)  ) {
+		buffer[len-1] = 0;
+		len--;
+	}
+	return result;
+}
+
+
+const char *translator::lang_info::translate(const char* text) const
+{
+	if (text    == NULL) {
+		return "(null)";
+	}
+	if (text[0] == '\0') {
+		return text;
+	}
 	const char* trans = texts.get(text);
 	return trans != NULL ? trans : text;
 }
@@ -58,7 +76,7 @@ const translator::lang_info* translator::get_langs()
 }
 
 
-#ifdef DEBUG
+#ifdef need_dump_hashtable
 // diagnosis
 static void dump_hashtable(stringhashtable_tpl<const char*>* tbl)
 {
@@ -136,15 +154,19 @@ static char* recode(const char* src, bool translate_from_utf, bool translate_to_
 					dst += c = utf16_to_utf8((unsigned char)*src++, (utf8*)dst);
 				} else if (translate_from_utf) {
 					// make latin from UTF8 (ignore overflows!)
-					int len = 0;
+					size_t len = 0;
 					*dst++ = c = (uint8)utf8_to_utf16((const utf8*)src, &len);
 					src += len;
 				}
 			}
-			else {
+			else if(c>=13) {
 				// just copy
 				src ++;
 				*dst++ = c;
+			}
+			else {
+				// ignore this character
+				src ++;
 			}
 		}
 	} while (c != '\0');
@@ -228,11 +250,13 @@ static void init_city_names(bool is_utf_language)
 		// ok, could open file
 		char buf[256];
 		bool file_is_utf = is_unicode_file(file);
-		while (!feof(file)) {
-			if (fgets(buf, 128, file)) {
+		while(  !feof(file)  ) {
+			if (fgets_line(buf, sizeof(buf), file)) {
 				rtrim(buf);
-				char* c = recode(buf, file_is_utf, is_utf_language);
-				namen_liste.append(c);
+				char *c = recode(buf, file_is_utf, is_utf_language);
+				if(  *c!=0  &&  *c!='#'  ) {
+					namen_liste.append(c);
+				}
 			}
 		}
 		fclose(file);
@@ -280,20 +304,17 @@ static void load_language_file_body(FILE* file, stringhashtable_tpl<const char*>
 	bool convert_to_unicode = language_is_utf && !file_is_utf;
 
 	do {
-		fgets(buffer1, 4095, file);
+		fgets_line(buffer1, sizeof(buffer1), file);
 		if (buffer1[0] == '#') {
 			// ignore comments
 			continue;
 		}
-		fgets(buffer2, 4095, file);
-
-		buffer1[4095] = 0;
-		buffer2[4095] = 0;
+		fgets_line(buffer2, sizeof(buffer2), file);
 
 		if (!feof(file)) {
 			// "\n" etc umsetzen
-			buffer1[strlen(buffer1) - 1] = '\0';
-			buffer2[strlen(buffer2) - 1] = '\0';
+			//buffer1[strlen(buffer1) - 1] = '\0';
+			//buffer2[strlen(buffer2) - 1] = '\0';
 			table->set(recode(buffer1, file_is_utf, false), recode(buffer2, false, convert_to_unicode));
 		}
 	} while (!feof(file));
@@ -305,8 +326,7 @@ void translator::load_language_file(FILE* file)
 	char buffer1 [256];
 	bool file_is_utf = is_unicode_file(file);
 	// Read language name
-	fgets(buffer1, 255, file);
-	buffer1[strlen(buffer1) - 1] = '\0';
+	fgets_line(buffer1, sizeof(buffer1), file);
 
 	langs[single_instance.lang_count].name = strdup(buffer1);
 	// if the language file is utf, all language strings are assumed to be unicode
@@ -332,6 +352,7 @@ static translator::lang_info* get_lang_by_iso(const char* iso)
 
 bool translator::load(const cstring_t& scenario_path)
 {
+	chdir( umgebung_t::program_dir );
 	tstrncpy(szenario_path, scenario_path, lengthof(szenario_path));
 
 	//initialize these values to 0(ie. nothing loaded)
@@ -394,6 +415,35 @@ bool translator::load(const cstring_t& scenario_path)
 		}
 	}
 
+	if(  umgebung_t::program_dir!=umgebung_t::user_dir  &&  umgebung_t::default_einstellungen.get_with_private_paks()  ) {
+		chdir( umgebung_t::user_dir );
+		// now read the scenario specific text
+		// there can be more than one file per language, provided it is name like iso_xyz.tab
+		cstring_t folderName(scenario_path + "text/");
+		folder.search(folderName, "tab");
+		//read now the basic language infos
+		for (searchfolder_t::const_iterator i = folder.begin(), end = folder.end(); i != end; ++i) {
+			cstring_t fileName(*i);
+			cstring_t iso = fileName.substr(fileName.find_back('/') + 1, fileName.len() - 4);
+
+			lang_info* lang = get_lang_by_iso(iso);
+			if (lang != NULL) {
+				DBG_MESSAGE("translator::load()", "loading pak addon translations from %s for language %s", (const char*)fileName, lang->iso_base);
+				FILE* file = fopen(fileName, "rb");
+				if (file != NULL) {
+					bool file_is_utf = is_unicode_file(file);
+					load_language_file_body(file, &lang->texts, lang->utf_encoded, file_is_utf);
+					fclose(file);
+				} else {
+					dbg->warning("translator::load()", "cannot open '%s'", (const char*)fileName);
+				}
+			} else {
+				dbg->warning("translator::load()", "no addon texts for language '%s'", (const char*)iso);
+			}
+		}
+		chdir( umgebung_t::program_dir );
+	}
+
 	//if NO languages were loaded then game cannot continue
 	if (single_instance.lang_count < 1) {
 		return false;
@@ -405,10 +455,24 @@ bool translator::load(const cstring_t& scenario_path)
 		load_language_file_body(file, &compatibility, false, false);
 		DBG_MESSAGE("translator::load()", "scenario compatibilty texts loaded.");
 		fclose(file);
-//		dump_hashtable(&compatibility);
-	} else {
-		DBG_MESSAGE("translator::load()", "no scenario compatibilty texts");
 	}
+	else {
+		DBG_MESSAGE("translator::load()", "no scenario compatibility texts");
+	}
+
+	// also addon compatibility ...
+	if(  umgebung_t::program_dir!=umgebung_t::user_dir  &&  umgebung_t::default_einstellungen.get_with_private_paks()  ) {
+		chdir( umgebung_t::user_dir );
+		FILE* file = fopen(scenario_path + "compat.tab", "rb");
+		if (file != NULL) {
+			load_language_file_body(file, &compatibility, false, false);
+			DBG_MESSAGE("translator::load()", "scenario addon compatibility texts loaded.");
+			fclose(file);
+		}
+		chdir( umgebung_t::program_dir );
+	}
+
+//	dump_hashtable(&compatibility);
 
 	// use english if available
 	current_langinfo = get_lang_by_iso("en");
@@ -462,6 +526,12 @@ void translator::set_language(const char* iso)
 const char* translator::translate(const char* str)
 {
 	return get_lang()->translate(str);
+}
+
+
+const char* translator::translate(const char* str, int lang)
+{
+	return langs[lang].translate(str);
 }
 
 

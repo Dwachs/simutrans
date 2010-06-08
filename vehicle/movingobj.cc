@@ -42,15 +42,21 @@ vector_tpl<const groundobj_besch_t *> movingobj_t::movingobj_typen(0);
 /*
  * Diese Tabelle ermöglicht das Auffinden einer Beschreibung durch ihren Namen
  */
-stringhashtable_tpl<uint32> movingobj_t::besch_names;
+stringhashtable_tpl<groundobj_besch_t *> movingobj_t::besch_names;
 
 
 bool movingobj_t::alles_geladen()
 {
-	if (besch_names.empty()) {
+	movingobj_typen.resize(besch_names.get_count());
+	stringhashtable_iterator_tpl<groundobj_besch_t *>iter(besch_names);
+	while(  iter.next()  ) {
+		iter.access_current_value()->index = movingobj_typen.get_count();
+		movingobj_typen.append( iter.get_current_value() );
+	}
+
+	if(besch_names.empty()) {
+		movingobj_typen.append( NULL );
 		DBG_MESSAGE("movingobj_t", "No movingobj found - feature disabled");
-		// NULL for empty object
-		movingobj_typen.append(NULL);
 	}
 	return true;
 }
@@ -59,12 +65,11 @@ bool movingobj_t::alles_geladen()
 
 bool movingobj_t::register_besch(groundobj_besch_t *besch)
 {
-	if(movingobj_typen.get_count()==0) {
-		// NULL for empty object
-		movingobj_typen.append(NULL);
+	// remove duplicates
+	if(  besch_names.remove( besch->get_name() )  ) {
+		dbg->warning( "movingobj_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
 	}
-	besch_names.put(besch->get_name(), movingobj_typen.get_count() );
-	movingobj_typen.append(besch);
+	besch_names.put(besch->get_name(), besch );
 	return true;
 }
 
@@ -76,9 +81,14 @@ bool movingobj_t::register_besch(groundobj_besch_t *besch)
  */
 const groundobj_besch_t *movingobj_t::random_movingobj_for_climate(climate cl)
 {
+	// none there
+	if(  besch_names.empty()  ) {
+		return NULL;
+	}
+
 	int weight = 0;
 
-	for( unsigned i=1;  i<movingobj_typen.get_count();  i++  ) {
+	for( unsigned i=0;  i<movingobj_typen.get_count();  i++  ) {
 		if(  movingobj_typen[i]->is_allowed_climate(cl)   ) {
 			weight += movingobj_typen[i]->get_distribution_weight();
 		}
@@ -88,7 +98,7 @@ const groundobj_besch_t *movingobj_t::random_movingobj_for_climate(climate cl)
 	if (weight > 0) {
 		const int w=simrand(weight);
 		weight = 0;
-		for( unsigned i=1; i<movingobj_typen.get_count();  i++  ) {
+		for( unsigned i=0; i<movingobj_typen.get_count();  i++  ) {
 			if(  movingobj_typen[i]->is_allowed_climate(cl) ) {
 				weight += movingobj_typen[i]->get_distribution_weight();
 				if(weight>=w) {
@@ -111,7 +121,7 @@ void movingobj_t::calc_bild()
 {
 	// alter/2048 is the age of the tree
 	const groundobj_besch_t *besch=get_besch();
-	const sint16 seasons = besch->get_seasons()-1;
+	const uint8 seasons = besch->get_seasons()-1;
 	season=0;
 
 	// two possibilities
@@ -130,7 +140,7 @@ void movingobj_t::calc_bild()
 				}
 				else {
 					// resolution 1/8th month (0..95)
-					const uint32 yearsteps = (welt->get_current_month()%12)*8 + ((welt->get_zeit_ms()>>(welt->ticks_bits_per_tag-3))&7) + 1;
+					const uint32 yearsteps = (welt->get_current_month()%12)*8 + ((welt->get_zeit_ms()>>(welt->ticks_per_world_month_shift-3))&7) + 1;
 					season = (seasons*yearsteps-1)/96;
 				}
 				break;
@@ -162,6 +172,10 @@ movingobj_t::movingobj_t(karte_t *welt, koord3d pos, const groundobj_besch_t *b 
 	welt->sync_add( this );
 }
 
+movingobj_t::~movingobj_t()
+{
+	welt->sync_remove( this );
+}
 
 
 bool movingobj_t::check_season(long /*month*/)
@@ -204,8 +218,14 @@ void movingobj_t::rdwr(loadsave_t *file)
 	}
 	else {
 		char bname[128];
-		file->rdwr_str(bname, 128);
-		groundobjtype = besch_names.get(bname);
+		file->rdwr_str(bname, lengthof(bname));
+		groundobj_besch_t *besch = besch_names.get(bname);
+		if(  besch_names.empty()  ||  besch==NULL  ) {
+			groundobjtype = simrand(movingobj_typen.get_count());
+		}
+		else {
+			groundobjtype = besch->get_index();
+		}
 		// if not there, besch will be zero
 		use_calc_height = true;
 	}
@@ -236,7 +256,6 @@ void movingobj_t::info(cbuffer_t & buf) const
 {
 	ding_t::info(buf);
 
-	buf.append("\n");
 	buf.append(translator::translate(get_besch()->get_name()));
 	const char *maker=get_besch()->get_copyright();
 	if(maker!=NULL  && maker[0]!=0) {
@@ -252,8 +271,7 @@ void movingobj_t::info(cbuffer_t & buf) const
 
 
 
-void
-movingobj_t::entferne(spieler_t *sp)
+void movingobj_t::entferne(spieler_t *sp)
 {
 	spieler_t::accounting(sp, -get_besch()->get_preis(), get_pos().get_2d(), COST_CONSTRUCTION);
 	mark_image_dirty( get_bild(), 0 );
@@ -400,16 +418,14 @@ void movingobj_t::hop()
 
 
 
-void *
-movingobj_t::operator new(size_t /*s*/)
+void *movingobj_t::operator new(size_t /*s*/)
 {
 	return freelist_t::gimme_node(sizeof(movingobj_t));
 }
 
 
 
-void
-movingobj_t::operator delete(void *p)
+void movingobj_t::operator delete(void *p)
 {
 	freelist_t::putback_node(sizeof(movingobj_t),p);
 }

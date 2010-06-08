@@ -7,7 +7,6 @@
 
 #include "../../simdebug.h"
 #include "gui_tab_panel.h"
-#include "../../dataobj/translator.h"
 #include "../../simevent.h"
 #include "../../simgraph.h"
 #include "../../simcolor.h"
@@ -147,4 +146,9 @@ void gui_tab_panel_t::zeichnen(koord parent_pos)
 			text_x += width + 8;
 		}
 	}
+}
+
+void gui_tab_panel_t::clear() {
+	tabs.clear();
+	active_tab = 0;
 }

@@ -38,11 +38,10 @@
 
 
 
-void
-route_t::kopiere(const route_t *r)
+void route_t::kopiere(const route_t *r)
 {
 	assert(r != NULL);
-	const unsigned int hops = r->get_max_n();
+	const unsigned int hops = r->get_count()-1;
 	route.clear();
 	route.resize(hops + 1);
 	for( unsigned int i=0;  i<=hops;  i++ ) {
@@ -53,12 +52,12 @@ route_t::kopiere(const route_t *r)
 void route_t::append(const route_t *r)
 {
 	assert(r != NULL);
-	const uint32 hops = r->get_max_n();
+	const uint32 hops = r->get_count()-1;
 	route.resize(hops+1+route.get_count());
 
-	while(get_max_n()>0  &&  route[get_max_n()] == r->position_bei(0)) {
+	while (get_count() != 0 && back() == r->front()) {
 		// skip identical end tiles
-		route.remove_at(get_max_n());
+		route.remove_at(get_count()-1);
 	}
 	// then append
 	for( unsigned int i=0;  i<=hops;  i++ ) {
@@ -73,23 +72,10 @@ void route_t::insert(koord3d k)
 }
 
 
-void route_t::append(koord3d k)
-{
-	while(  route.get_count()>1  &&  route[route.get_count()-1] == route[route.get_count()-2]  ) {
-		route.remove_at(route.get_count()-1);
-	}
-	if(  route.empty()  ||  k != route.back()  ) {
-		route.append(k);
-	}
-	route.append(k);	// the last is always double
-}
-
-
 void route_t::remove_koord_from(uint32 i) {
-	while(  i<get_max_n()  ) {
-		route.remove_at(get_max_n());
+	while(  i+1 < get_count()  ) {
+		route.remove_at(get_count()-1);
 	}
-	route.append(route[get_max_n()]); // the last is always double
 }
 
 
@@ -101,18 +87,14 @@ void route_t::remove_koord_from(uint32 i) {
  */
 bool route_t::append_straight_route(karte_t *welt, koord3d dest )
 {
-	if(route.get_count()<=1u  ||  !welt->ist_in_kartengrenzen(dest.get_2d())) {
+	if(  !welt->ist_in_kartengrenzen(dest.get_2d())  ) {
 		return false;
 	}
 
-	while(  route.get_count() > 1u  &&  route[route.get_count()-2] == route[route.get_count()-1]  ) {
-		route.remove_at(route.get_count()-1);
-	}
-
 	// then try to calculate direct route
-	koord pos = route[get_max_n()].get_2d();
+	koord pos = back().get_2d();
 	const koord ziel=dest.get_2d();
-	route.resize( route.get_count()+abs_distance(pos,ziel)+2 );
+	route.resize( route.get_count()+koord_distance(pos,ziel)+2 );
 DBG_MESSAGE("route_t::append_straight_route()","start from (%i,%i) to (%i,%i)",pos.x,pos.y,dest.x,dest.y);
 	while(pos!=ziel) {
 		// shortest way
@@ -127,7 +109,6 @@ DBG_MESSAGE("route_t::append_straight_route()","start from (%i,%i) to (%i,%i)",p
 		}
 		route.append(welt->lookup(pos)->get_kartenboden()->get_pos());
 	}
-	route.append(route.back());
 	DBG_MESSAGE("route_t::append_straight_route()","to (%i,%i) found.",ziel.x,ziel.y);
 
 	return pos==ziel;
@@ -144,8 +125,7 @@ bool route_t::node_in_use=false;
 /* find the route to an unknow location
  * @author prissi
  */
-bool
-route_t::find_route(karte_t *welt,
+bool route_t::find_route(karte_t *welt,
                     const koord3d start,
                     fahrer_t *fahr, const uint32 /*max_khm*/, uint8 start_dir, uint32 max_depth )
 {
@@ -221,7 +201,7 @@ route_t::find_route(karte_t *welt,
 			// a way goes here, and it is not marked (i.e. in the closed list)
 			grund_t* to;
 			if(  (ribi & ribi_t::nsow[r] & start_dir)!=0  // allowed dir (we can restrict the first step by start_dir)
-				&& abs_distance(start.get_2d(),gr->get_pos().get_2d()+koord::nsow[r])<max_depth	// not too far away
+				&& koord_distance(start.get_2d(),gr->get_pos().get_2d()+koord::nsow[r])<max_depth	// not too far away
 				&& gr->get_neighbour(to, wegtyp, koord::nsow[r])  // is connected
 				&& fahr->ist_befahrbar(to)	// can be driven on
 			) {
@@ -293,8 +273,7 @@ route_t::find_route(karte_t *welt,
 
 
 
-ribi_t::ribi *
-get_next_dirs(const koord gr_pos, const koord ziel)
+ribi_t::ribi *get_next_dirs(const koord gr_pos, const koord ziel)
 {
 	static ribi_t::ribi next_ribi[4];
 	if( abs(gr_pos.x-ziel.x)>abs(gr_pos.y-ziel.y) ) {
@@ -526,7 +505,7 @@ bool route_t::calc_route(karte_t *welt, const koord3d ziel, const koord3d start,
 #endif
 	bool ok = intern_calc_route(welt, start, ziel, fahr, max_khm,max_cost);
 #ifdef DEBUG_ROUTES
-	if(fahr->get_waytype()==water_wt) {DBG_DEBUG("route_t::calc_route()","route from %d,%d to %d,%d with %i steps in %u ms found.",start.x, start.y, ziel.x, ziel.y, route.get_count()-2, dr_time()-ms );}
+	if(fahr->get_waytype()==water_wt) {DBG_DEBUG("route_t::calc_route()","route from %d,%d to %d,%d with %i steps in %u ms found.",start.x, start.y, ziel.x, ziel.y, route.get_count()-1, dr_time()-ms );}
 #endif
 
 	INT_CHECK("route 343");

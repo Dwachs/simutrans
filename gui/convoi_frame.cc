@@ -24,8 +24,6 @@
 #include "../besch/ware_besch.h"
 #include "../bauer/warenbauer.h"
 
-#include "../dataobj/translator.h"
-
 #include "../utils/simstring.h"
 
 #include "../vehicle/simvehikel.h"
@@ -61,7 +59,7 @@ bool convoi_frame_t::passes_filter(convoihandle_t cnv)
 		return false;
 	}
 
-	vehikel_t *fahr = cnv->get_vehikel(0);
+	vehikel_t const* const fahr = cnv->front();
 	if(get_filter(typ_filter)) {
 		switch(fahr->get_typ()) {
 			case ding_t::automobil:
@@ -70,7 +68,13 @@ bool convoi_frame_t::passes_filter(convoihandle_t cnv)
 				}
 				break;
 			case ding_t::waggon:
-				if(!get_filter(zuege_filter)) {
+				// filter trams: a convoi is considered tram if the first vehicle is a tram vehicle
+				if(fahr->get_besch()->get_waytype()==tram_wt) {
+					if (!get_filter(tram_filter)) {
+						return false;
+					}
+				}
+				else if (!get_filter(zuege_filter)) {
 					return false;
 				}
 				break;
@@ -132,12 +136,9 @@ bool convoi_frame_t::passes_filter(convoihandle_t cnv)
 
 
 
-int convoi_frame_t::compare_convois(const void *a, const void *b)
+bool convoi_frame_t::compare_convois(convoihandle_t const cnv1, convoihandle_t const cnv2)
 {
 	long result=0;
-
-	convoihandle_t cnv1 = *(const convoihandle_t *)a;
-	convoihandle_t cnv2 = *(const convoihandle_t *)b;
 
 	switch (sortby) {
 		default:
@@ -149,8 +150,8 @@ int convoi_frame_t::compare_convois(const void *a, const void *b)
 			break;
 		case nach_typ:
 			if(cnv1->get_vehikel_anzahl()*cnv2->get_vehikel_anzahl()>0) {
-				vehikel_t *fahr1 = cnv1->get_vehikel(0);
-				vehikel_t *fahr2 = cnv2->get_vehikel(0);
+				vehikel_t const* const fahr1 = cnv1->front();
+				vehikel_t const* const fahr2 = cnv2->front();
 
 				result = fahr1->get_typ() - fahr2->get_typ();
 				if(result == 0) {
@@ -165,7 +166,7 @@ int convoi_frame_t::compare_convois(const void *a, const void *b)
 			result = cnv1.get_id()-cnv2.get_id();
 			break;
 	}
-	return sortreverse ? -result : result;
+	return sortreverse ? result > 0 : result < 0;
 }
 
 
@@ -183,7 +184,7 @@ void convoi_frame_t::sort_list()
 			convois.append(cnv);
 		}
 	}
-	qsort(convois.begin(), convois.get_count(), sizeof(convoihandle_t), compare_convois);
+	std::sort(convois.begin(), convois.end(), compare_convois);
 
 	sortedby.set_text(sort_text[get_sortierung()]);
 	sorteddir.set_text( get_reverse() ? "cl_btn_sort_desc" : "cl_btn_sort_asc");
@@ -355,7 +356,8 @@ void convoi_frame_t::set_ware_filter(const ware_besch_t *ware, int mode)
 			if(mode != 1) {
 				waren_filter.remove(ware);
 			}
-		} else {
+		}
+		else {
 			if(mode != 0) {
 				waren_filter.append(ware);
 			}

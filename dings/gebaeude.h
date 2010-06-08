@@ -77,6 +77,10 @@ private:
 	 * @author Hj. Malthaner
 	 */
 	uint8 is_factory:1;
+	/**
+	 * if true show snow image
+	 */
+	bool snow:1;
 
 	/**
 	 * Initializes all variables with save, usable values
@@ -111,7 +115,7 @@ public:
 	fabrik_t* get_fabrik() const { return is_factory ? ptr.fab : NULL; }
 	stadt_t* get_stadt() const { return is_factory ? NULL : ptr.stadt; }
 
-	enum ding_t::typ get_typ() const {return ding_t::gebaeude;}
+	ding_t::typ get_typ() const { return ding_t::gebaeude; }
 
 	// snowline height may have been changed
 	bool check_season(const long /*month*/) { calc_bild(); return true; }

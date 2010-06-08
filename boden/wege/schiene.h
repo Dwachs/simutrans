@@ -74,7 +74,7 @@ public:
 	* true, then this rail was reserved
 	* @author prissi
 	*/
-	bool reserve(convoihandle_t c);
+	bool reserve(convoihandle_t c, ribi_t::ribi dir);
 
 	/**
 	* releases previous reservation
@@ -107,6 +107,11 @@ public:
 	 * @author kierongreen
 	 */
 	virtual PLAYER_COLOR_VAL get_outline_colour() const { return (show_reservations  &&  reserved.is_bound()) ? TRANSPARENT75_FLAG | OUTLINE_FLAG | COL_RED : 0;}
+
+	/*
+	 * to show reservations if needed
+	 */
+	virtual PLAYER_COLOR_VAL get_outline_bild() const {return weg_t::get_bild();}
 };
 
 #endif

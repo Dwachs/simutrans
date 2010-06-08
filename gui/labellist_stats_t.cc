@@ -5,7 +5,6 @@
  * (see licence.txt)
  */
 
-#include <algorithm>
 #include "labellist_stats_t.h"
 
 #include "../simgraph.h"
@@ -21,8 +20,6 @@
 
 #include "../besch/haus_besch.h"
 #include "../besch/skin_besch.h"
-
-#include "../dataobj/translator.h"
 
 #include "../utils/simstring.h"
 #include "../utils/cbuffer_t.h"
@@ -106,10 +103,9 @@ void labellist_stats_t::get_unique_labels(labellist::sort_mode_t sortby, bool so
 		// some old version games don't have label nor name.
 		// Check them to avoid crashes.
 		if(label  &&  name  &&  (!filter  ||  (label  &&  (label->get_besitzer() == welt->get_active_player())))) {
-			labels.append(pos);
+			labels.insert_ordered( pos, compare_labels(sortby, sortreverse, filter, welt) );
 		}
 	}
-	std::sort(labels.begin(), labels.end(), compare_labels(sortby, sortreverse, filter, welt));
 }
 
 

@@ -1,3 +1,116 @@
+	CHANGE: default savegame now bzip2 (games 33% smaller)
+	ADD: Odometer and distance per month available for convois/lines
+	ADD: (gerw) built tunnel without ways
+	FIX: no longer possible for negative prices (cheat bus)
+	ADD: (Dwachs) starting money per year
+	ADD: lines will be listed numerically correct, if the contain a number
+	ADD: bridge building with click-and-drag
+	ADD: traffic light can set their phases now manually (in seconds) (new help text: trafficlight_info.txt, new string: -\nSet phases:-)
+	ADD: some more network related settings like server_frames_ahead, network_ms_ahead, server_frames_per_step to control timing on the network
+	ADD: translations are also search in user dir/scenario/text
+	ADD: (gerw) auto-electrify depot added
+	FIX: freelist sometimes returned wrong elements to free
+	ADD (VS): makeobj ignored alpha channel now really
+	CHANGE: (Knightly): Not scaling images displayed by gui_image_t anymore
+	FIX: deleting tram signals again
+	ADD: click-and-drag also for network games (except for building elevated ways, bridges, tunnels)
+	ADD: tools should work on all clients regardless of underground mode
+	ADD: tools work now correct with ctrl keys in networkmode
+	FIX: a double block (presignal) robbed the following signal of its (pres/longblock/choosing) function
+	CHANGE: no rezooming in viewport
+	FIX: text overflow in message boxes
+	FIX: window resizing is triggered even if initial click is not in dragger area
+	FIX: square button's clickable area not set according to accompanying text
+	FIX: help text link's clickable area not correctly set
+	FIX: pak file image data not trimmed according to x-offset and contains superfluous data
+	ADD: factories now support multiple fields
+	FIX: factory builder does not consider minimum fields in randomising production
+	FIX: tooltip box hovering above viewport
+	ADD: (mostly Dwachs) nicer crossing infos
+	ADD: bridges/tunnel show their names in info window
+	ADD: (inspired by gerw) choose singals will not choose if on the route is another choose signal or and end_of_choose
+	FIX: text overflow in ground info
+	CHANGE: ground info and thing info title bar color will change according to ownership
+	ADD: allow_buying_obsolete_vehicles in simuconf.tab can disallow buying obsolete vehicles for better balancing
+	FIX: forest density/size nor again reasonable dependent on map size
+	ADD: factory stops can now get different names from building stops (%s factory %s %s must be new tranlated)
+	FIX: build foundations only directly under elevated monorail depots
+	FIX: ist_natur() return als false on halt tiles (like harbour)
+	ADD: (gerw) broad tunnel patch (see pak64 sources: adding images [Nl] [Nm] [Nr] and so on)
+	FIX: no longer no trees after 150 years
+	ADD: no decimal point for very large amounts
+	CHANGE: better displaying algorithm, should give much less clipping errors/graphics glitches with lang vehicles/bridges/stations etc.
+	ADD: configurable thousand exponent (like 10^4 for japanese) by SEP_THOUSAND_EXPONENT
+	FIX: Makeobj could not extract bridges (and possibly even more objects) under XP
+	ADD: zooming in also for pak192
+	ADD: preparation for images larger than 64k resp 255*255
+	FIX: maintenance for ticks_per_month smaller 18
+	ADD: timeline for cityroads using 'city_road[0]=name[,intro][,retire]' in simuconf.tab
+	ADD: winter image for PowerSource/ PowerDest: Image[2] and [3] as snowy versions of [0] and [1]
+	ADD: winter image for sidewalk: Image[1],[4],[7],[10],[13] as snowy versions, Image [5][8][11][14] transition images
+	ADD: minimum and maximum numbers of next towns to connect to a factory can be set too in simuconf.tab with factory_worker_minimum_towns/factory_worker_maximum_towns
+	ADD: timeline for intercityroads using 'intercity_road[number]=name[,intro][,retire]' in simuconf.tab
+	ADD: winter image and timeline for crossings: winter images of [image][0] are [image][1]
+	ADD: powerline stabilisation pak which enforces a single transformer next to factories/power stations
+	ADD: enable to use more than one powerline object
+	ADD: texture for tunnel grounds (Obj=misc, Name=TunnelTexture, Image with numbers 0,3,6,9)
+	ADD: simuconf.tab: add default values for cityroad ("city_road") and intercity road ("asphalt_road")
+	CHANGE: TAB goes to next/Shift+TAB to previous edit box, moving and resizing now even when other windows open
+
+
+Release of 102.2.2 (r3131 on 8-Mar-2010):
+
+	FIX: connecting upslope to upper way works in sliced mode (r2949)
+	FIX: longer convoi's name could cause crash when entering depot
+	FIX: lines were never freed upon deletion
+	FIX: deleting factories/cities/attractions while those lists were open resulted in CTD
+	FIX: stop types in station frame sometime painted on top of each other
+	FIX: delete convoi only in next step if loading and return directly (and step reverse in karte_t)
+	FIX: walk_city (for stop in towns with AI) was broken (r2990)
+	FIX: distribute goods also on factories with less than 10 output
+	FIX: latin2 characters with unicode>255 work again (via hack)
+	FIX: (VS) do not buy same house twice
+	FIX: (Knightly) only do action when mouse button release also on same button
+	FIX: (Knightly) prevent pending mouse events when resizing
+	ADD: support for townhalls with four rotations
+	ADD: korean glyphs now in cyr.bdf (r2967/r3059)
+	ADD: reading of bzip2 savegames from trunk
+	ADD: (Dwachs) starting money per year
+	FIX: crash when changing schedule after no_route on halt
+	FIX: presignal before station failed
+	FIX: wrong clipping of text
+	FIX: (TurfIt) really empty factories input even in consumption factors not 100%
+	FIX: stop factory building if more than 10 attempts failed
+	FIX: (Dwachs) display correct length in depot
+
+
+
+Release of 102.2.1 (r2928)
+
+	FIX: minimap was not updated when a bridge was deleted
+	FIX: AI could not built any lines
+	FIX: grid slopes were not (re)set correctly
+	FIX: min_building_density and harbour are now recognized in dat/tab files
+	ADD: do not close load/save dialogue after deleting
+	FIX: do not show more than the last 2000 messages in message center to prevent scrollbar malfunction
+	FIX: margin calculation was wrong
+	FIX: first halts are now first in connection list => consistently transfer at first possibility
+	FIX: no money when selling convois at the depot
+	FIX: (Knightly) inverse scrolling consistently for minimap and main view
+	FIX: also ask when a single pakset with addons is present what to load
+	FIX: game starts in normal mode (instead paused) again
+	FIX: downgrading ways were cheaper than destruction => now downgrading will be as expensive as removal
+	CHANGE: ignore empty entries and lines starting with # in citylists
+	FIX: deleting line does not longer crash in halt_detail windows
+	FIX: withdraw all with convois in depot causes crash (and maybe also not withdraw all)
+	FIX: several issues with tram signals
+	CHANGE: info windows now open less important first resp. for single window topmost object first (usually most important)
+
+
+
+Release of 102.2 (r2785)
+
+18-Oct-2009:
 	CHANGE: cursor now works with full 3d-coordinates
 	ADD: (mostly gerw) sparse data and overlay in main map for passenger destinations
 	ADD: No connections found via overcrowded stops, if overcrowded flag active
@@ -15,7 +128,34 @@
 	ADD: completly ignore message button at beginning of dialoge
 	CHANGE: faster map (non-isometric) on very large maps and no crashes with extremely large maps anymore
 	ADD: paste letters under windows with CNTRL+V
-
+	ADD: button "withdraw all" in line window
+	CHANGE: simuconf.tab cost values can now go up to 48 bit (should be enough for insanely high starting capital)
+	CHANGE: addons can be put now into the user folder with the same name than the main pak folder
+	CHANGE: skins are now read first from program dir/skin then from own dir/skin and then from pak set
+	ADD: (gerw) dragging of wayobj and many other tools, adding wayobj-remover
+	CHANGE: (Dwachs) better intercityroad creation
+	ADD: (Dwachs) sliced underground mode
+	ADD: (z9999) 8 layout for city buildings allow also closed corners
+	ADD: (Dwachs) buying cityhouse will protect them from renovation
+	ADD: Underground slope (in principle even compatible to older savegames) using standard slope tool
+	ADD: changing slopes now also with objects on top
+	ADD: (Dwachs) tram track can be build in road tunnels
+	ADD: (gerw) click-and-drag for tunnels
+	ADD: (Nathan Samson) allow left_to_right_graphs (=1 in simuconf.tab)
+	ADD: (z9999) better display of depots in minimap
+	ADD: (Dwachs) zooming of map with mousewheel
+	ADD: switches change graphics for diagonal going trains (only eyecandy)
+	ADD: ambient sound effects (for all grphics + forest + beaches)
+	CHANGE: less lagging updating/rerouting after schedule chnages even with large stations
+	ADD: (Dwachs) Public player can remove all
+	ADD: two switches (-addons and -noaddons) to regulate loading of addons together with pakset
+	CHANGE: (Dwachs) 2-5x faster city generation
+	CHANGE: (Knightly) even faster routing of goods due to ignoring non-transfer stations in breath search
+	ADD: switch to keep towns static
+	ADD: (gerw) minimaps in city info window are clickable
+	CHANGE: after 40 retrys, factory construction will ignore climates to avoid broken chains (if possible at all)
+	ADD: citygrowth parameter configurable in simuconf.tab
+	ADD: setting dialog allow access to all settings also found in simuconf.tab before starting a game
 
 
 Release of 102.0 (r2366)
@@ -803,7 +943,7 @@ Release of 99.01
 	FIX: pause at waypoints
 	CHANGE: automatically loading pak/demo.sve (or whatever the pak folder is) on startup
 	CHANGE: symbol.BigLogo.pak with maximum for image loaded during intial startup
-	CHANGE: more complex tunnels, with cost=,maitenance=, topspeed=, waytype=, intro- and retiredates
+	CHANGE: more complex tunnels, with cost=, maintenance=, topspeed=, waytype=, intro- and retiredates
 	CHANGE: allowed tunnels for all but air, also removal or tunnel with tramrails should work
 	FIX: city roads no longer destroy runways and the like
 	FIX: more even house distribution with rotation
@@ -3219,7 +3359,7 @@ Released Simutrans 0.84.8.0
                gameplay yet
 
 03-Apr-04 NEW: goods info window now shows weight per unit, too.
- 
+
 02-Apr-04 CHANGE: enabled -async option for SDL based Simutrans
                   versions
 

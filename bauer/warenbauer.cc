@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2002 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2002 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -11,6 +11,7 @@
 #include "../simware.h"
 #include "../simcolor.h"
 #include "warenbauer.h"
+#include "../dataobj/translator.h"
 
 
 stringhashtable_tpl<const ware_besch_t *> warenbauer_t::besch_names;
@@ -28,16 +29,15 @@ ware_besch_t *warenbauer_t::load_post = NULL;
 ware_besch_t *warenbauer_t::load_nichts = NULL;
 
 static spezial_obj_tpl<ware_besch_t> spezial_objekte[] = {
-    { &warenbauer_t::passagiere,    "Passagiere" },
-    { &warenbauer_t::post,	    "Post" },
-    { &warenbauer_t::nichts,	    "None" },
-    { NULL, NULL }
+	{ &warenbauer_t::passagiere,    "Passagiere" },
+	{ &warenbauer_t::post,	    "Post" },
+	{ &warenbauer_t::nichts,	    "None" },
+	{ NULL, NULL }
 };
 
 
 
-bool
-warenbauer_t::alles_geladen()
+bool warenbauer_t::alles_geladen()
 {
 	if(!::alles_geladen(spezial_objekte)) {
 		return false;
@@ -51,8 +51,13 @@ warenbauer_t::alles_geladen()
 	waren.insert_at(0,load_post);
 	waren.insert_at(0,load_passagiere);
 
-	if(waren.get_count()>255) {
+	if(waren.get_count()>=255) {
 		dbg->fatal("warenbauer_t::alles_geladen()","Too many different goods %i>255",waren.get_count()-1 );
+	}
+
+	// assign indexes
+	for(  uint8 i=3;  i<waren.get_count();  i++  ) {
+		waren[i]->ware_index = i;
 	}
 
 	// now assign unique category indexes for unique categories
@@ -112,6 +117,13 @@ bool warenbauer_t::register_besch(ware_besch_t *besch)
 {
 	besch->value = besch->base_value;
 	::register_besch(spezial_objekte, besch);
+	// avoid duplicates with same name
+	ware_besch_t *old_besch = (ware_besch_t *)besch_names.get(besch->get_name());
+	if(  old_besch  ) {
+		dbg->warning( "warenbauer_t::register_besch()", "Object %s was overlaid by addon!", besch->get_name() );
+		besch_names.remove(besch->get_name());
+		waren.remove( old_besch );
+	}
 	besch_names.put(besch->get_name(), besch);
 
 	if(besch==passagiere) {
@@ -121,7 +133,6 @@ bool warenbauer_t::register_besch(ware_besch_t *besch)
 		besch->ware_index = 1;
 		load_post = besch;
 	} else if(besch != nichts) {
-		besch->ware_index = waren.get_count()+3;
 		waren.append(besch);
 	}
 	else {
@@ -137,11 +148,11 @@ bool warenbauer_t::register_besch(ware_besch_t *besch)
 const ware_besch_t *
 warenbauer_t::get_info(const char* name)
 {
-	const ware_besch_t* t = besch_names.get(name);
-	if(t == NULL) {
-		dbg->fatal("warenbauer_t::get_info()", "No info for good '%s' available", name);
+	const ware_besch_t *ware = besch_names.get(name);
+	if (ware==NULL) {
+		ware = besch_names.get(translator::compatibility_name(name));
 	}
-	return t;
+	return ware;
 }
 
 

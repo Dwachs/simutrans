@@ -9,8 +9,9 @@
 #define gui_ground_info_h
 
 #include "gui_frame.h"
-#include "components/gui_world_view_t.h"
-#include "components/gui_textarea.h"
+#include "components/location_view_t.h"
+#include "../utils/cbuffer_t.h"
+#include "components/gui_fixedwidth_textarea.h"
 
 class grund_t;
 
@@ -29,7 +30,9 @@ protected:
 	 * @author Hj. Malthaner
 	 */
 	const grund_t* gr;
-	world_view_t view;
+	location_view_t view;
+	static cbuffer_t gr_info;
+	gui_fixedwidth_textarea_t textarea;
 
 public:
 	grund_info_t(const grund_t* gr);

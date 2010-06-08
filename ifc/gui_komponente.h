@@ -25,13 +25,7 @@ private:
 	* allow component to show/hide itself
 	* @author hsiegeln
 	*/
-	bool visible;
-
-	/**
-	* Does this component have the input focus?
-	* @author hsiegeln
-	*/
-	bool focus_gained;
+	bool visible:1;
 
 	/**
 	* some components might not be allowed to gain focus
@@ -39,7 +33,7 @@ private:
 	* this flag can be set to true to deny focus requesst for a gui_component always
 	* @author hsiegeln
 	*/
-	bool read_only;
+	bool allow_focus:1;
 
 protected:
 	/**
@@ -54,11 +48,7 @@ public:
 	* Basic contructor, initialises member variables
 	* @author Hj. Malthaner
 	*/
-	gui_komponente_t() {
-		visible = true;
-		focus_gained = false;
-		read_only = true;
-	}
+	gui_komponente_t() : visible(true), allow_focus(false) {}
 
 	/**
 	* Virtueller Destruktor, damit Klassen sauber abgeleitet werden können
@@ -66,11 +56,11 @@ public:
 	*/
 	virtual ~gui_komponente_t() {}
 
-	void set_read_only(bool yesno) {
-		read_only = yesno;
+	void set_allow_focus(bool yesno) {
+		allow_focus = yesno;
 	}
 
-	bool get_allow_focus() { return !read_only; }
+	bool get_allow_focus() { return allow_focus; }
 
 	/**
 	* Sets component to be shown/hidden
@@ -133,9 +123,8 @@ public:
 	* Prüft, ob eine Position innerhalb der Komponente liegt.
 	* @author Hj. Malthaner
 	*/
-	virtual bool getroffen(int x, int y)
-	{
-		return (pos.x <= x && pos.y <= y && (pos.x+groesse.x) >= x && (pos.y+groesse.y) >= y);
+	virtual bool getroffen(int x, int y) {
+		return (pos.x <= x && pos.y <= y && (pos.x+groesse.x) > x && (pos.y+groesse.y) > y);
 	}
 
 	/**
@@ -151,6 +140,13 @@ public:
 	* @author Hj. Malthaner
 	*/
 	virtual void zeichnen(koord offset) = 0;
+
+	/**
+	 * returns element that has the focus
+	 * other derivates like scrolled list of tabs want to
+	 * return a component out of their selection
+	 */
+	virtual gui_komponente_t *get_focus() const { return NULL; }
 };
 
 #endif

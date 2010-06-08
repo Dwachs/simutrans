@@ -63,7 +63,6 @@ const uint8 button_order[MAX_PLAYER_COST] =
 	6, 5, 10, 7
 };
 
-char money_frame_t::digit[4];
 
 /**
  * fills buffer (char array) with finance info
@@ -119,7 +118,7 @@ money_frame_t::money_frame_t(spieler_t *sp)
 		maintenance_money(NULL, COL_RED, gui_label_t::money),
 		warn("", COL_YELLOW, gui_label_t::left),
 		scenario("", COL_BLACK, gui_label_t::left),
-		headquarter_view(sp->get_welt(), koord3d::invalid)
+		headquarter_view(sp->get_welt(), koord3d::invalid, koord(120, 64))
 {
 	if(sp->get_welt()->get_spieler(0)!=sp) {
 		sprintf(money_frame_title,translator::translate("Finances of %s"),translator::translate(sp->get_name()) );
@@ -138,7 +137,7 @@ money_frame_t::money_frame_t(spieler_t *sp)
 	chart.set_seed(sp->get_welt()->get_last_year());
 	chart.set_background(MN_GREY1);
 	for (int i = 0; i<MAX_PLAYER_COST; i++) {
-		chart.add_curve(cost_type_color[i], sp->get_finance_history_year(), MAX_PLAYER_COST, i, 12, (i < 10) ||  i==COST_POWERLINES ? MONEY: STANDARD, false, false);
+		chart.add_curve(cost_type_color[i], sp->get_finance_history_year(), MAX_PLAYER_COST, i, 12, (i < COST_ALL_TRANSPORTED) ||  i==COST_POWERLINES ? MONEY: STANDARD, false, true, (i < COST_ALL_TRANSPORTED) ||  i==COST_POWERLINES ? 2 : 0  );
 	}
 	//CHART YEAR END
 
@@ -149,7 +148,7 @@ money_frame_t::money_frame_t(spieler_t *sp)
 	mchart.set_seed(0);
 	mchart.set_background(MN_GREY1);
 	for (int i = 0; i<MAX_PLAYER_COST; i++) {
-		mchart.add_curve(cost_type_color[i], sp->get_finance_history_month(), MAX_PLAYER_COST, i, 12, (i < 10) ||  i==COST_POWERLINES ? MONEY: STANDARD, false, false);
+		mchart.add_curve(cost_type_color[i], sp->get_finance_history_month(), MAX_PLAYER_COST, i, 12, (i < COST_ALL_TRANSPORTED) ||  i==COST_POWERLINES ? MONEY: STANDARD, false, true, (i < COST_ALL_TRANSPORTED) ||  i==COST_POWERLINES ? 2 : 0 );
 	}
 	mchart.set_visible(false);
 	//CHART MONTH END
@@ -242,7 +241,7 @@ money_frame_t::money_frame_t(spieler_t *sp)
 	// easier headquarter access
 	old_level = sp->get_headquarter_level();
 	old_pos = sp->get_headquarter_pos();
-	if (!hausbauer_t::headquarter.empty()) {
+	if(!hausbauer_t::headquarter.empty()) {
 
 		headquarter.init(button_t::box, old_pos!=koord::invalid ? "upgrade HQ" : "build HQ", koord(582-12-120, 0), koord(120, BUTTONSPACE));
 		headquarter.add_listener(this);
@@ -263,7 +262,6 @@ money_frame_t::money_frame_t(spieler_t *sp)
 			headquarter_view.set_location( sp->get_welt()->lookup_kartenboden( sp->get_headquarter_pos() )->get_pos() );
 		}
 		headquarter_view.set_pos( koord(582-12-120, BUTTONSPACE) );
-		headquarter_view.set_groesse( koord(120, 64) );
 		add_komponente(&headquarter_view);
 	}
 
@@ -373,7 +371,7 @@ void money_frame_t::zeichnen(koord pos, koord gr)
 	money.set_color(get_money_colour(COST_NETWEALTH, 0));
 
 	display_money(COST_MARGIN, str_buf[19], 0);
-	str_buf[19][strlen(str_buf[19])-1] = 0;	// remove percent sign
+	str_buf[19][strlen(str_buf[19])-1] = '%';	// remove cent sign
 	margin.set_text(str_buf[19]);
 	margin.set_color(get_money_colour(COST_MARGIN, 0));
 
@@ -422,7 +420,7 @@ void money_frame_t::zeichnen(koord pos, koord gr)
 	}
 
 	if(old_level!=sp->get_headquarter_level()  ||  old_pos!=sp->get_headquarter_pos()) {
-		headquarter.set_text( sp->get_headquarter_pos()!=koord::invalid ? "upgrade HQ" : "Build HQ" );
+		headquarter.set_text( sp->get_headquarter_pos()!=koord::invalid ? "upgrade HQ" : "build HQ" );
 		remove_komponente(&headquarter_view);
 		old_level = sp->get_headquarter_level();
 		old_pos = sp->get_headquarter_pos();
@@ -433,7 +431,11 @@ void money_frame_t::zeichnen(koord pos, koord gr)
 	}
 
 	// Hajo: Money is counted in credit cents (100 cents = 1 Cr)
-	money_to_string(str_buf[16], (double)((sint64)sp->get_maintenance()<<((sint64)sp->get_welt()->ticks_bits_per_tag-18l))/100.0 );
+	money_to_string(str_buf[16],
+		sp->get_welt()->ticks_per_world_month_shift>=18 ?
+		(double)((sint64)sp->get_maintenance()<<(sp->get_welt()->ticks_per_world_month_shift-18u))/100.0 :
+		(double)((sint64)sp->get_maintenance()>>(18u-sp->get_welt()->ticks_per_world_month_shift))/100.0
+	);
 	maintenance_money.set_text(str_buf[16]);
 	maintenance_money.set_color(sp->get_maintenance()>=0?MONEY_PLUS:MONEY_MINUS);
 
@@ -453,7 +455,7 @@ void money_frame_t::zeichnen(koord pos, koord gr)
 bool money_frame_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 {
 	if(komp==&headquarter) {
-		sp->get_welt()->set_werkzeug( werkzeug_t::general_tool[WKZ_HEADQUARTER] );
+		sp->get_welt()->set_werkzeug( werkzeug_t::general_tool[WKZ_HEADQUARTER], sp );
 		return true;
 	}
 

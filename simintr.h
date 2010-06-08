@@ -15,8 +15,8 @@ class karte_ansicht_t;
 
 bool reduce_frame_time();
 bool increase_frame_time();
-unsigned long get_frame_time();
-void set_frame_time(unsigned long time);
+long get_frame_time();
+void set_frame_time(long time);
 
 
 void intr_refresh_display(bool dirty);
@@ -42,10 +42,16 @@ void interrupt_force();
 void interrupt_check();
 void interrupt_check(const char* caller_info);
 
-// standard version
-#define INT_CHECK(info) interrupt_check();
-
-// debug version
-// #define INT_CHECK(info) interrupt_check(info);
-
+#if defined NO_GRAPHIC && defined PROFILE
+	// 0 bit graphic + profiling: no interrupt_check.
+	#define INT_CHECK(info);
+#else
+	#ifndef DEBUG
+		// standard version
+		#define INT_CHECK(info) interrupt_check();
+	#else
+		// debug version
+		#define INT_CHECK(info) interrupt_check(info);
+	#endif
+#endif
 #endif

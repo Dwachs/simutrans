@@ -62,6 +62,9 @@ public:
 
 	virtual void set_groesse(koord groesse);
 
+	// all init in one ...
+	void init( sint32 value, sint32 min, sint32 max, sint32 mode, bool wrap );
+
 	/**
 	 * sets and get the current value.
 	 * return current value (or min or max in currently set to outside value)
@@ -108,6 +111,12 @@ public:
 	 * This method is called if an action is triggered
 	 */
 	virtual bool action_triggered(gui_action_creator_t *komp, value_t p);
+
+	/**
+	 * returns element that has the focus
+	 * that is: go down the hierarchy as much as possible
+	 */
+	gui_komponente_t *get_focus() const { return (gui_komponente_t *)this; }
 };
 
 #endif

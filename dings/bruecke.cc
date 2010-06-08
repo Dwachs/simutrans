@@ -25,7 +25,7 @@
 
 
 
-bruecke_t::bruecke_t(karte_t *welt, loadsave_t *file) : ding_t(welt)
+bruecke_t::bruecke_t(karte_t* const welt, loadsave_t* const file) : ding_no_info_t(welt)
 {
 	rdwr(file);
 }
@@ -34,7 +34,7 @@ bruecke_t::bruecke_t(karte_t *welt, loadsave_t *file) : ding_t(welt)
 
 bruecke_t::bruecke_t(karte_t *welt, koord3d pos, spieler_t *sp,
 		     const bruecke_besch_t *besch, bruecke_besch_t::img_t img) :
- ding_t(welt, pos)
+ ding_no_info_t(welt, pos)
 {
 	this->besch = besch;
 	this->img = img;
@@ -56,6 +56,10 @@ void bruecke_t::calc_bild()
 			}
 			else {
 				gr->get_weg_nr(0)->set_bild(besch->get_hintergrund(img, get_pos().z >= welt->get_snowline()));
+			}
+			gr->get_weg_nr(0)->set_yoff(-gr->get_weg_yoff() );
+			if (gr->get_weg_nr(1)) {
+				gr->get_weg_nr(1)->set_yoff(-gr->get_weg_yoff() );
 			}
 		}
 		set_yoff( -gr->get_weg_yoff() );
@@ -138,6 +142,11 @@ void bruecke_t::entferne( spieler_t *sp2 )
 			if(weg) {
 				weg->set_max_speed( weg->get_besch()->get_topspeed() );
 				spieler_t::add_maintenance( sp,  weg->get_besch()->get_wartung());
+				// reset offsets
+				weg->set_yoff(0);
+				if (gr->get_weg_nr(1)) {
+					gr->get_weg_nr(1)->set_yoff(0);
+				}
 			}
 		}
 		spieler_t::add_maintenance( sp,  -besch->get_wartung() );
@@ -161,4 +170,16 @@ void bruecke_t::rotate90()
 	ding_t::rotate90();
 	// the rotated image parameter is just one in front/back
 	img = rotate90_img[img];
+}
+
+// returns NULL, if removal is allowed
+// players can remove public owned ways
+const char *bruecke_t::ist_entfernbar(const spieler_t *sp)
+{
+	if (get_player_nr()==1) {
+		return NULL;
+	}
+	else {
+		return ding_t::ist_entfernbar(sp);
+	}
 }

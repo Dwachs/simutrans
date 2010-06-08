@@ -2,11 +2,12 @@
 
 #ifndef _MSC_VER
 #include <unistd.h>
-#include <dirent.h>
 #else
 #include <sys/stat.h>
+#include <direct.h>
 #include <io.h>
 #endif
+
 
 // for the progress bar
 #include "../../simcolor.h"
@@ -18,7 +19,13 @@
 #include "../grund_besch.h"	// for the error message!
 #include "../../simskin.h"
 
+// for init of button images
+#include "../../gui/components/gui_button.h"
+
 // normal stuff
+#include "../../dataobj/translator.h"
+#include "../../dataobj/umgebung.h"
+
 #include "../../utils/searchfolder.h"
 
 #include "../../tpl/inthashtable_tpl.h"
@@ -37,26 +44,57 @@ inthashtable_tpl<obj_type, stringhashtable_tpl<obj_besch_t *> > obj_reader_t::lo
 inthashtable_tpl<obj_type, stringhashtable_tpl< slist_tpl<obj_besch_t **> > > obj_reader_t::unresolved;
 ptrhashtable_tpl<obj_besch_t **, int> obj_reader_t::fatals;
 
-bool obj_reader_t::has_been_init = false;
-
 void obj_reader_t::register_reader()
 {
-    if(!obj_reader) {
+	if(!obj_reader) {
 		obj_reader =  new inthashtable_tpl<obj_type, obj_reader_t *>;
-    }
-    obj_reader->put(get_type(), this);
-    //printf("This program can read %s objects\n", get_type_name());
+	}
+	obj_reader->put(get_type(), this);
+	//printf("This program can read %s objects\n", get_type_name());
 }
 
 
-bool obj_reader_t::init(const char *liste)
+bool obj_reader_t::init()
 {
-	DBG_MESSAGE("obj_reader_t::init()","reading from '%s'", liste);
-	bool drawing=is_display_init();
+	// search for skins first
+	chdir( umgebung_t::program_dir );
+	load( "skin/", translator::translate("Loading skins ...") );
+	if(  umgebung_t::program_dir!=umgebung_t::user_dir  ) {
+		chdir( umgebung_t::user_dir );
+		load( "skin/", translator::translate("Loading skins ...") );
+	}
+	chdir( umgebung_t::program_dir );
+	button_t::init_button_images();
+	return true;
+}
 
+
+bool obj_reader_t::laden_abschliessen()
+{
+	resolve_xrefs();
+
+	inthashtable_iterator_tpl<obj_type, obj_reader_t *> iter(obj_reader);
+
+	while(iter.next()) {
+DBG_MESSAGE("obj_reader_t::laden_abschliessen()","Checking %s objects...",iter.get_current_value()->get_type_name());
+
+		if(!iter.get_current_value()->successfully_loaded()) {
+			dbg->warning("obj_reader_t::laden_abschliessen()","... failed!");
+			return false;
+		}
+	}
+
+	button_t::init_button_images();
+	return true;
+}
+
+
+bool obj_reader_t::load(const char *liste, const char *message)
+{
 	searchfolder_t find;
 	cstring_t name = find.complete(liste, "dat");
-	int i;
+	size_t i;
+	const bool drawing=is_display_init();
 
 	if(name.right(1) != "/") {
 		// very old style ... (I think unused by now)
@@ -66,11 +104,9 @@ bool obj_reader_t::init(const char *liste)
 			while(!feof(listfp)) {
 				char buf[256];
 
-				if(fgets(buf, 255, listfp) == 0) {
+				if (fgets(buf, sizeof(buf), listfp) == 0) {
 					continue;
 				}
-
-				buf[255] = '\0';
 
 				if(*buf == '#') {
 					continue;
@@ -89,6 +125,7 @@ bool obj_reader_t::init(const char *liste)
 				}
 			}
 			fclose(listfp);
+			return true;
 		}
 	}
 	else {
@@ -104,36 +141,42 @@ bool obj_reader_t::init(const char *liste)
 			teilung = 0;
 		}
 		teilung = (2<<teilung)-1;
+
 		if(drawing) {
+			display_set_progress_text(message);
+		}
+
+		if(drawing  &&  skinverwaltung_t::biglogosymbol==NULL) {
 			display_fillbox_wh( 0, 0, display_get_width(), display_get_height(), COL_BLACK, true );
-			display_set_progress_text("Loading paks ...");
 			read_file(name+"symbol.BigLogo.pak");
-DBG_MESSAGE("obj_reader_t::init()","big logo %p", skinverwaltung_t::biglogosymbol);
-			if(skinverwaltung_t::biglogosymbol) {
-				const int w = skinverwaltung_t::biglogosymbol->get_bild(0)->get_pic()->w;
-				const int h = skinverwaltung_t::biglogosymbol->get_bild(0)->get_pic()->h;
-				int x = display_get_width()/2-w;
-				int y = display_get_height()/4-w;
-				if(y<0) {
-					y = 1;
-				}
-				display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(0), x, y, 0, false, true);
-				display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(1), x+w, y, 0, false, true);
-				display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(2), x, y+h, 0, false, true);
-				display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(3), x+w, y+h, 0, false, true);
+DBG_MESSAGE("obj_reader_t::load()","big logo %p", skinverwaltung_t::biglogosymbol);
+		}
+		if(skinverwaltung_t::biglogosymbol) {
+			const int w = skinverwaltung_t::biglogosymbol->get_bild(0)->get_pic()->w;
+			const int h = skinverwaltung_t::biglogosymbol->get_bild(0)->get_pic()->h;
+			int x = display_get_width()/2-w;
+			int y = display_get_height()/4-w;
+			if(y<0) {
+				y = 1;
+			}
+			display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(0), x, y, 0, false, true);
+			display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(1), x+w, y, 0, false, true);
+			display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(2), x, y+h, 0, false, true);
+			display_color_img(skinverwaltung_t::biglogosymbol->get_bild_nr(3), x+w, y+h, 0, false, true);
+#if 0
+			display_free_all_images_above( skinverwaltung_t::biglogosymbol->get_bild_nr(0) );
+#endif
+		}
+
+		if(  grund_besch_t::ausserhalb==NULL  ) {
+			// defining the pak tile witdh ....
+			read_file(name+"ground.Outside.pak");
+			if(grund_besch_t::ausserhalb==NULL) {
+				dbg->error("obj_reader_t::load()","ground.Outside.pak not found, cannot guess tile size! (driving on left will not work!)");
 			}
 		}
 
-		// and free all slots again ...
-		display_free_all_images_above(0);
-
-		// defining the pak tile witdh ....
-		read_file(name+"ground.Outside.pak");
-		if(grund_besch_t::ausserhalb==NULL) {
-			dbg->error("obj_reader_t::init()","ground.Outside.pak not found, cannot guess tile size! (driving on left will not work!)");
-		}
-
-DBG_MESSAGE("obj_reader_t::init()", "reading from '%s'", (const char*)name);
+DBG_MESSAGE("obj_reader_t::load()", "reading from '%s'", (const char*)name);
 		uint n = 0;
 		for (searchfolder_t::const_iterator i = find.begin(), end = find.end(); i != end; ++i, n++) {
 			read_file(*i);
@@ -141,27 +184,10 @@ DBG_MESSAGE("obj_reader_t::init()", "reading from '%s'", (const char*)name);
 				display_progress(n, max);
 			}
 		}
+
+		return find.begin()!=find.end();
 	}
-	resolve_xrefs();
-
-	inthashtable_iterator_tpl<obj_type, obj_reader_t *> iter(obj_reader);
-
-	while(iter.next()) {
-DBG_MESSAGE("obj_reader_t::init()","Checking %s objects...",iter.get_current_value()->get_type_name());
-
-		if(!iter.get_current_value()->successfully_loaded()) {
-			dbg->warning("obj_reader_t::init()","... failed!");
-			return false;
-		}
-	}
-
-	// clean screen
-	if(drawing) {
-		display_fillbox_wh( 0, display_get_height()/2-20, display_get_width(), display_get_height()/2+20, COL_BLACK, true );
-	}
-
-DBG_MESSAGE("obj_reader_t::init()", "done");
-	return true;
+	return false;
 }
 
 
@@ -173,7 +199,7 @@ void obj_reader_t::read_file(const char *name)
 	FILE *fp = fopen(name, "rb");
 
 	if(fp) {
-		int n = 0;
+		sint32 n = 0;
 
 		// This is the normal header reading code
 		int c;
@@ -202,7 +228,7 @@ void obj_reader_t::read_file(const char *name)
 
 		if(version <= COMPILER_VERSION_CODE) {
 			obj_besch_t *data = NULL;
-			read_nodes(fp, data, 0 );
+			read_nodes(fp, data, 0, version );
 		}
 		else {
 			DBG_DEBUG("obj_reader_t::read_file()","version of '%s' is too old, %d instead of %d", version, COMPILER_VERSION_CODE, name);
@@ -216,16 +242,29 @@ void obj_reader_t::read_file(const char *name)
 }
 
 
-void obj_reader_t::read_nodes(FILE* fp, obj_besch_t*& data, int register_nodes)
+void obj_reader_t::read_nodes(FILE* fp, obj_besch_t*& data, int register_nodes, uint32 version )
 {
 	obj_node_info_t node;
-	char load_dummy[8], *p;
+	char load_dummy[EXT_OBJ_NODE_INFO_SIZE], *p;
 
 	p = load_dummy;
-	fread(p, 8, 1, fp);
-	node.type = decode_uint32(p);
-	node.children = decode_uint16(p);
-	node.size = decode_uint16(p);
+	if(  version==COMPILER_VERSION_CODE_11  ) {
+		fread(p, OBJ_NODE_INFO_SIZE, 1, fp);
+		node.type = decode_uint32(p);
+		node.children = decode_uint16(p);
+		node.size = decode_uint16(p);
+	}
+	else {
+		// can have larger records
+		fread(p, OBJ_NODE_INFO_SIZE, 1, fp);
+		node.type = decode_uint32(p);
+		node.children = decode_uint16(p);
+		node.size = decode_uint16(p);
+		if(  node.size==LARGE_RECORD_SIZE  ) {
+			fread(p, 4, 1, fp);
+			node.size = decode_uint32(p);
+		}
+	}
 
 	obj_reader_t *reader = obj_reader->get(static_cast<obj_type>(node.type));
 	if(reader) {
@@ -233,7 +272,7 @@ void obj_reader_t::read_nodes(FILE* fp, obj_besch_t*& data, int register_nodes)
 //DBG_DEBUG("obj_reader_t::read_nodes()","Reading %.4s-node of length %d with '%s'",	reinterpret_cast<const char *>(&node.type),	node.size,	reader->get_type_name());
 		data = reader->read_node(fp, node);
 		for(int i = 0; i < node.children; i++) {
-			read_nodes(fp, data->node_info[i], register_nodes+1);
+			read_nodes(fp, data->node_info[i], register_nodes+1, version);
 		}
 
 //DBG_DEBUG("obj_reader_t","registering with '%s'", reader->get_type_name());
@@ -247,7 +286,7 @@ void obj_reader_t::read_nodes(FILE* fp, obj_besch_t*& data, int register_nodes)
 		dbg->warning("obj_reader_t::read_nodes()","skipping unknown %.4s-node\n",reinterpret_cast<const char *>(&node.type));
 		fseek(fp, node.size, SEEK_CUR);
 		for(int i = 0; i < node.children; i++) {
-			skip_nodes(fp);
+			skip_nodes(fp,version);
 		}
 		data = NULL;
 	}
@@ -269,21 +308,34 @@ obj_besch_t *obj_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 }
 
 
-void obj_reader_t::skip_nodes(FILE *fp)
+void obj_reader_t::skip_nodes(FILE *fp,uint32 version)
 {
 	obj_node_info_t node;
-	char load_dummy[8], *p;
+	char load_dummy[OBJ_NODE_INFO_SIZE], *p;
 
 	p = load_dummy;
-	fread(p, 8, 1, fp);
-	node.type = decode_uint32(p);
-	node.children = decode_uint16(p);
-	node.size = decode_uint16(p);
+	if(  version==COMPILER_VERSION_CODE_11  ) {
+		fread(p, OBJ_NODE_INFO_SIZE, 1, fp);
+		node.type = decode_uint32(p);
+		node.children = decode_uint16(p);
+		node.size = decode_uint16(p);
+	}
+	else {
+		// can have larger records
+		fread(p, OBJ_NODE_INFO_SIZE, 1, fp);
+		node.type = decode_uint32(p);
+		node.children = decode_uint16(p);
+		node.size = decode_uint16(p);
+		if(  node.size==LARGE_RECORD_SIZE  ) {
+			fread(p, 4, 1, fp);
+			node.size = decode_uint32(p);
+		}
+	}
 //DBG_DEBUG("obj_reader_t::skip_nodes", "type %.4s (size %d)",reinterpret_cast<const char *>(&node.type),node.size);
 
 	fseek(fp, node.size, SEEK_CUR);
 	for(int i = 0; i < node.children; i++) {
-		skip_nodes(fp);
+		skip_nodes(fp,version);
 	}
 }
 
@@ -317,9 +369,9 @@ void obj_reader_t::resolve_xrefs()
 			}
 
 			slist_iterator_tpl<obj_besch_t **> xref_iter(xrefname_iter.access_current_value());
-			while(xref_iter.next()) {
-			if(!obj_loaded && fatals.get(xref_iter.get_current())) {
-				dbg->fatal("obj_reader_t::resolve_xrefs", "cannot resolve '%4.4s-%s'",	&xreftype_iter.get_current_key(), xrefname_iter.get_current_key());
+			while(  xref_iter.next()  ) {
+				if(  !obj_loaded  &&  fatals.get(xref_iter.get_current())  ) {
+					dbg->fatal("obj_reader_t::resolve_xrefs", "cannot resolve '%4.4s-%s'",	&xreftype_iter.get_current_key(), xrefname_iter.get_current_key());
 				}
 				// delete old xref-node
 				xref_nodes.append(*xref_iter.get_current());
@@ -346,9 +398,8 @@ void obj_reader_t::obj_for_xref(obj_type type, const char *name, obj_besch_t *da
 		loaded.put(type, stringhashtable_tpl<obj_besch_t *>());
 		objtype_loaded = loaded.access(type);
 	}
-	if(!objtype_loaded->get(name)) {
-		objtype_loaded->put(name, data);
-	}
+	objtype_loaded->remove(name);
+	objtype_loaded->put(name, data);
 }
 
 

@@ -2,11 +2,9 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "../simtypes.h"
 #include "../tpl/debug_helper.h"
-
 #include "../simmem.h"
-#include "../simmesg.h"	// to get the right size of a message
-
 #include "freelist.h"
 
 
@@ -30,12 +28,10 @@ static nodelist_node_t *chunk_list = NULL;
  * nodes of the same size will be kept in the same list
  * to be more efficient, all nodes with sizes smaller than 16 will be used at size 16 (one cacheline)
  */
-static nodelist_node_t *message_nodes = NULL;
-#define message_node_size (sizeof(struct message_t::node)+sizeof(void *))
 
-static nodelist_node_t *node1220 = NULL;
-static nodelist_node_t *node1624 = NULL;
-static nodelist_node_t *node2440 = NULL;
+// if additional fixed sizes are required, add them here
+// (the few request for larger ones are satisfied with xmalloc otherwise)
+
 
 // for 64 bit, set this to 128
 #define MAX_LIST_INDEX (128)
@@ -56,41 +52,35 @@ static nodelist_node_t *all_lists[NUM_LIST] = {
 };
 
 
-void *
-freelist_t::gimme_node(int size)
+// to have this working, we need chunks at least the size of a pointer
+const size_t min_size = sizeof(void *);
+
+
+
+void *freelist_t::gimme_node(size_t size)
 {
 	nodelist_node_t ** list = NULL;
 	if(size==0) {
 		return NULL;
 	}
 
+	// all sizes should be dividable by 4 and at least as large as a pointer
+	size = max( min_size, size );
+	size = (size+3)>>2;
+	size <<= 2;
+
 	// hold return value
 	nodelist_node_t *tmp;
 	if(size>MAX_LIST_INDEX) {
-		switch(size) {
-			case message_node_size:
-				list = &message_nodes;
-				break;
-			case 1220:
-				list = &node1220;
-				break;
-			case 1624:
-				list = &node1624;
-				break;
-			case 2440:
-				list = &node2440;
-				break;
-			default:
-				dbg->fatal("freelist_t::gimme_node()","No list with size %i! (only up to %i and %i, 1220, 1624, 2440)", size, MAX_LIST_INDEX, message_node_size );
-		}
+		return xmalloc(size);
 	}
 	else {
-		list = &(all_lists[(size+3)/4]);
+		list = &(all_lists[size/4]);
 	}
 
 	// need new memory?
 	if(*list==NULL) {
-		int num_elements = 32764/size;
+		int num_elements = 32764/(int)size;
 		char* p = (char*)xmalloc(num_elements * size + sizeof(p));
 		// put the memory into the chunklist for free it
 		nodelist_node_t *chunk = (nodelist_node_t *)p;
@@ -137,33 +127,24 @@ static void putback_check_node(nodelist_node_t** list, nodelist_node_t* p)
 #endif
 
 
-void
-freelist_t::putback_node(int size,void *p)
+void freelist_t::putback_node( size_t size, void *p )
 {
 	nodelist_node_t ** list = NULL;
 	if(size==0  ||  p==NULL) {
 		return;
 	}
+
+	// all sizes should be dividable by 4
+	size = max( min_size, size );
+	size = ((size+3)>>2);
+	size <<= 2;
+
 	if(size>MAX_LIST_INDEX) {
-		switch(size) {
-			case message_node_size:
-				list = &message_nodes;
-				break;
-			case 1220:
-				list = &node1220;
-				break;
-			case 1624:
-				list = &node1624;
-				break;
-			case 2440:
-				list = &node2440;
-				break;
-			default:
-				dbg->fatal("freelist_t::gimme_node()","No list with size %i! (only up to %i and %i, 1220, 1624, 2440)", size, MAX_LIST_INDEX, message_node_size );
-		}
+		free(p);
+		return;
 	}
 	else {
-		list = &(all_lists[(size+3)/4]);
+		list = &(all_lists[size/4]);
 	}
 #ifdef DEBUG_MEM
 	putback_check_node(list,(nodelist_node_t *)p);
@@ -177,8 +158,7 @@ freelist_t::putback_node(int size,void *p)
 
 
 // clears all list memories
-void
-freelist_t::free_all_nodes()
+void freelist_t::free_all_nodes()
 {
 	printf("freelist_t::free_all_nodes(): frees all list memory\n" );
 	while(chunk_list) {
@@ -192,8 +172,4 @@ freelist_t::free_all_nodes()
 		all_lists[i] = NULL;
 	}
 	printf("freelist_t::free_all_nodes(): ok\n");
-	message_nodes = NULL;
-	node1220 = NULL;
-	node1624 = NULL;
-	node2440 = NULL;
 }

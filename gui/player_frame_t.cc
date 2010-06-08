@@ -17,6 +17,7 @@
 
 #include "../simcolor.h"
 #include "../simworld.h"
+#include "../simwerkz.h"
 #include "../dataobj/umgebung.h"
 #include "../dataobj/translator.h"
 
@@ -24,6 +25,7 @@
 #include "../utils/simstring.h"
 
 #include "money_frame.h" // for the finances
+#include "password_frame.h" // for the password
 #include "player_frame_t.h"
 
 
@@ -40,11 +42,8 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 		player_change_to[i].init(button_t::arrowright_state, " ", koord(16+4,6+i*2*LINESPACE), koord(10,BUTTON_HEIGHT));
 		player_change_to[i].add_listener(this);
 
-		ai_income[i] = new gui_label_t(account_str[i], MONEY_PLUS, gui_label_t::money);
-		ai_income[i]->set_pos( koord( 225, 8+i*2*LINESPACE ) );
-
 		if(i>=2) {
-			player_active[i-2].init(button_t::square_state, " ", koord(4,6+i*2*LINESPACE), koord(10,BUTTON_HEIGHT));
+			player_active[i-2].init(button_t::square_state, "", koord(4,6+i*2*LINESPACE));
 			player_active[i-2].add_listener(this);
 			if(  welt->get_einstellungen()->get_player_type(i)!=spieler_t::EMPTY  ) {
 				add_komponente( player_active+i-2 );
@@ -56,9 +55,11 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 			add_komponente(player_change_to+i);
 		}
 
+		// finances button
 		player_get_finances[i].init(button_t::box, "", koord(34,4+i*2*LINESPACE), koord(120,BUTTON_HEIGHT));
-		player_get_finances[i].background =PLAYER_FLAG|((wl->get_spieler(i)?welt->get_spieler(i)->get_player_color1():i*8)+4);
+		player_get_finances[i].background = PLAYER_FLAG|((wl->get_spieler(i)?welt->get_spieler(i)->get_player_color1():i*8)+4);
 		player_get_finances[i].add_listener(this);
+
 		player_select[i].set_pos( koord(34,4+i*2*LINESPACE) );
 		player_select[i].set_groesse( koord(120,BUTTON_HEIGHT) );
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("slot empty"), COL_BLACK ) );
@@ -66,6 +67,7 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Goods AI"), COL_BLACK ) );
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Passenger AI"), COL_BLACK ) );
 		assert(  spieler_t::MAX_AI==4  );
+
 		// when adding new players, add a name here ...
 		player_select[i].set_selection(welt->get_einstellungen()->get_player_type(i) );
 		player_select[i].add_listener(this);
@@ -78,6 +80,15 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 			add_komponente( player_select+i );
 		}
 
+		// password/locked button
+		player_lock[i].init(button_t::box, "", koord(160+1,4+i*2*LINESPACE+1), koord(BUTTON_HEIGHT-2,BUTTON_HEIGHT-2));
+		player_lock[i].background = (wl->get_spieler(i)  &&  welt->get_spieler(i)->is_locked()) ? COL_RED : COL_GREEN;
+		player_lock[i].add_listener(this);
+		add_komponente( player_lock+i );
+
+		// income label
+		ai_income[i] = new gui_label_t(account_str[i], MONEY_PLUS, gui_label_t::money);
+		ai_income[i]->set_pos( koord( 225, 8+i*2*LINESPACE ) );
 		add_komponente( ai_income[i] );
 	}
 
@@ -112,9 +123,12 @@ ki_kontroll_t::~ki_kontroll_t()
  */
 bool ki_kontroll_t::action_triggered( gui_action_creator_t *komp,value_t p )
 {
+	static char param[16];
+
 	if(  komp==&freeplay  ) {
-		welt->get_einstellungen()->set_freeplay( !welt->get_einstellungen()->is_freeplay() );
-		freeplay.pressed = welt->get_einstellungen()->is_freeplay();
+		sprintf( param, "f,0,%i", !welt->get_einstellungen()->is_freeplay() );
+		werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL]->set_default_param( param );
+		welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL], welt->get_active_player() );
 		return true;
 	}
 
@@ -122,21 +136,25 @@ bool ki_kontroll_t::action_triggered( gui_action_creator_t *komp,value_t p )
 		if(i>=2  &&  komp==(player_active+i-2)) {
 			// switch AI on/off
 			if(  welt->get_spieler(i)==NULL  ) {
-				welt->new_spieler( i, player_select[i].get_selection() );
-				welt->get_einstellungen()->set_player_type( i, welt->get_spieler(i)->get_ai_id() );
+				// create
+				sprintf( param, "n,%i,%i", i, player_select[i].get_selection() );
+				werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL]->set_default_param( param );
+				welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL], welt->get_active_player() );
 				remove_komponente( player_select+i );
 				add_komponente( player_change_to+i );
-				if(  welt->get_spieler(i)->get_ai_id()==spieler_t::HUMAN  ) {
-					remove_komponente( player_active+i-2 );
-				}
-				player_get_finances[i].set_text( welt->get_spieler(i)->get_name() );
+				player_get_finances[i].set_text( player_select[i].get_element(player_select[i].get_selection())->get_text() );
 				add_komponente( player_get_finances+i );
-				welt->get_spieler(i)->set_active( true );
+				// activate
+				sprintf( param, "a,%i,1", i );
+				werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL]->set_default_param( param );
+				welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL], welt->get_active_player() );
 			}
 			else {
-				welt->get_spieler(i)->set_active( !welt->get_spieler(i)->is_active() );
+				// activate
+				sprintf( param, "a,%i,%i", i, !welt->get_spieler(i)->is_active() );
+				werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL]->set_default_param( param );
+				welt->set_werkzeug( werkzeug_t::simple_tool[WKZ_SET_PLAYER_TOOL], welt->get_active_player() );
 			}
-			welt->get_einstellungen()->set_player_active( i, welt->get_spieler(i)->is_active() );
 			break;
 		}
 		if(komp==(player_get_finances+i)) {
@@ -149,6 +167,11 @@ bool ki_kontroll_t::action_triggered( gui_action_creator_t *komp,value_t p )
 			// make active player
 			welt->switch_active_player(i);
 			break;
+		}
+		if(komp==(player_lock+i)  &&  welt->get_spieler(i)) {
+			// set password
+			create_win( -1, -1, new password_frame_t(welt->get_spieler(i)), w_info, (long)(welt->get_player_password_hash(i)) );
+			player_lock[i].pressed = false;
 		}
 		if(komp==(player_select+i)) {
 			// make active player
@@ -173,9 +196,16 @@ bool ki_kontroll_t::action_triggered( gui_action_creator_t *komp,value_t p )
  * Zeichnet die Komponente
  * @author Hj. Malthaner
  */
-void
-ki_kontroll_t::zeichnen(koord pos, koord gr)
+void ki_kontroll_t::zeichnen(koord pos, koord gr)
 {
+	freeplay.pressed = welt->get_einstellungen()->is_freeplay();
+	if(  (welt->get_spieler(1)->is_locked()  ||  !welt->get_einstellungen()->get_allow_player_change())  &&  welt->get_active_player_nr()!=1  ) {
+		freeplay.disable();
+	}
+	else {
+		freeplay.enable();
+	}
+
 	for(int i=0; i<MAX_PLAYER_COUNT-1; i++) {
 
 		player_change_to[i].pressed = false;
@@ -183,6 +213,8 @@ ki_kontroll_t::zeichnen(koord pos, koord gr)
 		if(i>=2) {
 			player_active[i-2].pressed = welt->get_spieler(i)!=NULL  &&  welt->get_spieler(i)->is_active();
 		}
+
+		player_lock[i].background = (welt->get_spieler(i)  &&  welt->get_spieler(i)->is_locked()) ? COL_RED : COL_GREEN;
 
 		spieler_t *sp = welt->get_spieler(i);
 		if(  sp!=NULL  ) {

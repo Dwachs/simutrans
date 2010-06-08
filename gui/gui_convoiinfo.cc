@@ -44,7 +44,7 @@ void gui_convoiinfo_t::infowin_event(const event_t *ev)
 	if(cnv.is_bound()) {
 		if(IS_LEFTRELEASE(ev)) {
 			if(cnv->in_depot()) {
-				grund_t *gr = cnv->get_welt()->lookup(cnv->get_vehikel(0)->get_pos());
+				grund_t const* gr = cnv->get_welt()->lookup(cnv->front()->get_pos());
 				if(gr==NULL  ||  gr->get_depot()==NULL) {
 					gr = cnv->get_welt()->lookup(cnv->get_home_depot());
 				}
@@ -55,7 +55,7 @@ void gui_convoiinfo_t::infowin_event(const event_t *ev)
 			}
 		}
 		else if(IS_RIGHTRELEASE(ev)) {
-			cnv->get_welt()->change_world_position(cnv->get_vehikel(0)->get_pos());
+			cnv->get_welt()->change_world_position(cnv->front()->get_pos());
 		}
 	}
 }
@@ -72,7 +72,7 @@ void gui_convoiinfo_t::zeichnen(koord offset)
 		int max_x = display_proportional_clip(pos.x+offset.x+2,pos.y+offset.y+8+LINESPACE, translator::translate("Gewinn"), ALIGN_LEFT, COL_BLACK, true);
 
 		char buf[256];
-		money_to_string(buf, cnv->get_jahresgewinn()/100);
+		money_to_string(buf, (double)(cnv->get_jahresgewinn()/100) );
 		max_x += display_proportional_clip(pos.x+offset.x+2+max_x+5,pos.y+offset.y+8+LINESPACE, buf, ALIGN_LEFT, cnv->get_jahresgewinn()>0?MONEY_PLUS:MONEY_MINUS, true);
 
 		/*

@@ -64,6 +64,7 @@ DBG_DEBUG("werkzeug_waehler_t::add_tool()", "at position %i (width %i)", tools.g
 // reset the tools to empty state
 void werkzeug_waehler_t::reset_tools()
 {
+	welt->set_dirty();
 	for(  int i=tools.get_count();  i>0;  ) {
 		i--;
 		tools.remove_at(i);
@@ -95,14 +96,14 @@ void werkzeug_waehler_t::infowin_event(const event_t *ev)
 			const int wz_idx = x+(tool_icon_width*y);
 
 			if (wz_idx < (int)tools.get_count()) {
-				welt->set_werkzeug( tools[wz_idx] );
+				welt->set_werkzeug( tools[wz_idx], welt->get_active_player() );
 			}
 			dirty = true;
 		}
 	}
 	/* this resets to query-tool, when closing toolsbar ... */
 	else if(ev->ev_class==INFOWIN &&  ev->ev_code==WIN_CLOSE) {
-		welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE] );
+		welt->set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], welt->get_active_player() );
 	}
 }
 
@@ -131,9 +132,7 @@ void werkzeug_waehler_t::zeichnen(koord pos, koord)
 		}
 		else {
 			display_color_img(icon_img, draw_pos.x, draw_pos.y, 0, false, dirty);
-			if(  tools[i]->is_selected(welt)  ) {
-				display_img_blend( icon_img, draw_pos.x, draw_pos.y, TRANSPARENT50_FLAG|OUTLINE_FLAG|COL_BLACK, false, dirty);
-			}
+			tools[i]->draw_after( welt, draw_pos );
 		}
 	}
 

@@ -15,6 +15,7 @@
 #include "../simcolor.h"
 #include "../simgraph.h"
 #include "../simworld.h"
+#include "../simmenu.h"
 #include "../simwin.h"
 
 #include "../dataobj/fahrplan.h"
@@ -33,13 +34,19 @@
 
 #include "convoi_detail_t.h"
 
-const char cost_type[MAX_CONVOI_COST][64] =
+static const char cost_type[MAX_CONVOI_COST][64] =
 {
-	"Free Capacity",
-	"Transported",
-	"Revenue",
-	"Operation",
-	"Profit"
+	"Free Capacity", "Transported", "Revenue", "Operation", "Profit", "Distance"
+};
+
+static const int cost_type_color[MAX_CONVOI_COST] =
+{
+	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT, COL_DISTANCE
+};
+
+static const bool cost_type_money[MAX_CONVOI_COST] =
+{
+	false, false, true, true, true, false
 };
 
 bool convoi_info_t::route_search_in_progress=false;
@@ -59,10 +66,6 @@ const char *convoi_info_t::sort_text[SORT_MODES] = {
 	"Menge"
 };
 
-const int cost_type_color[MAX_CONVOI_COST] =
-{
-	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT
-};
 
 
 convoi_info_t::convoi_info_t(convoihandle_t cnv)
@@ -73,7 +76,7 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 			 " \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n"
 			 " \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n"
 			 " \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n"),
-	view(cnv->get_vehikel(0)),
+	view(cnv->front(), koord(max(64, get_base_tile_raster_width()), max(56, (get_base_tile_raster_width() * 7) / 8))),
 	sort_label(translator::translate("loaded passenger/freight")),
 	freight_info(8192)
 {
@@ -81,7 +84,10 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	this->mean_convoi_speed = speed_to_kmh(cnv->get_akt_speed()*4);
 	this->max_convoi_speed = speed_to_kmh(cnv->get_min_top_speed()*4);
 
-	input.set_pos(koord(11,4));
+	const sint16 offset_below_viewport = 21 + view.get_groesse().y;
+	const sint16 total_width = 3*(BUTTON_WIDTH+BUTTON_SPACER) + 30 + view.get_groesse().x + 10;
+
+	input.set_pos(koord(10,4));
 	input.set_text( cnv->access_internal_name(), 116);
 	add_komponente(&input);
 
@@ -109,7 +115,7 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	details_button.set_tooltip("Vehicle details");
 	add_komponente(&details_button);
 
-	scrolly.set_pos(koord(0, 122));
+	scrolly.set_pos(koord(0, offset_below_viewport+46));
 	add_komponente(&scrolly);
 
 	filled_bar.add_color_value(&cnv->get_loading_limit(), COL_YELLOW);
@@ -131,17 +137,17 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	line_button.add_listener( this );
 	line_bound = false;
 
-	set_fenstergroesse(koord(TOTAL_WIDTH, 278));
+	set_fenstergroesse(koord(total_width, view.get_groesse().y+222));
 
 	// chart
-	chart.set_pos(koord(44,76+BUTTON_HEIGHT+8));
-	chart.set_groesse(koord(TOTAL_WIDTH-44-4, 100));
+	chart.set_pos(koord(88,offset_below_viewport+BUTTON_HEIGHT+8));
+	chart.set_groesse(koord(TOTAL_WIDTH-88-4, 100));
 	chart.set_dimension(12, 10000);
 	chart.set_visible(false);
 	chart.set_background(MN_GREY1);
 	for (int cost = 0; cost<MAX_CONVOI_COST; cost++) {
-		chart.add_curve(cost_type_color[cost], cnv->get_finance_history(), MAX_CONVOI_COST, cost, MAX_MONTHS, cost<MAX_CONVOI_NON_MONEY_TYPES ? 0 : 1, false, true);
-		filterButtons[cost].init(button_t::box_state, cost_type[cost], koord(BUTTON1_X+(BUTTON_WIDTH+BUTTON_SPACER)*(cost%4), 230+(BUTTON_HEIGHT+2)*(cost/4)), koord(BUTTON_WIDTH, BUTTON_HEIGHT));
+		chart.add_curve( cost_type_color[cost], cnv->get_finance_history(), MAX_CONVOI_COST, cost, MAX_MONTHS, cost_type_money[cost], false, true, cost_type_money[cost]*2 );
+		filterButtons[cost].init(button_t::box_state, cost_type[cost], koord(BUTTON1_X+(BUTTON_WIDTH+BUTTON_SPACER)*(cost%4), view.get_groesse().y+174+(BUTTON_HEIGHT+2)*(cost/4)), koord(BUTTON_WIDTH, BUTTON_HEIGHT));
 		filterButtons[cost].add_listener(this);
 		filterButtons[cost].background = cost_type_color[cost];
 		filterButtons[cost].set_visible(false);
@@ -157,11 +163,11 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	button.set_typ(button_t::roundbox);
 	button.set_tooltip("Alters a schedule.");
 	add_komponente(&button);
-	button.set_pos(koord(BUTTON1_X,76));
+	button.set_pos(koord(BUTTON1_X,offset_below_viewport));
 	button.add_listener(this);
 
 	go_home_button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
-	go_home_button.set_pos(koord(BUTTON2_X,76));
+	go_home_button.set_pos(koord(BUTTON2_X,offset_below_viewport));
 	go_home_button.set_text("go home");
 	go_home_button.set_typ(button_t::roundbox);
 	go_home_button.set_tooltip("Sends the convoi to the last depot it departed from!");
@@ -169,14 +175,14 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	go_home_button.add_listener(this);
 
 	no_load_button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
-	no_load_button.set_pos(koord(BUTTON3_X,76));
+	no_load_button.set_pos(koord(BUTTON3_X,offset_below_viewport));
 	no_load_button.set_text("no load");
 	no_load_button.set_typ(button_t::roundbox);
 	no_load_button.set_tooltip("No goods are loaded onto this convoi.");
 	add_komponente(&no_load_button);
 	no_load_button.add_listener(this);
 
-	follow_button.set_groesse(koord(66, BUTTON_HEIGHT));
+	follow_button.set_groesse(koord(view.get_groesse().x, BUTTON_HEIGHT));
 	follow_button.set_text("follow me");
 	follow_button.set_typ(button_t::roundbox_state);
 	follow_button.set_tooltip("Follow the convoi on the map.");
@@ -185,7 +191,7 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 
 	cnv->set_sortby( umgebung_t::default_sortmode );
 
-	set_min_windowsize(koord(TOTAL_WIDTH, 194));
+	set_min_windowsize(koord(total_width, view.get_groesse().y+138));
 	set_resizemode(diagonal_resize);
 	resize(koord(0,0));
 }
@@ -203,7 +209,7 @@ void
 convoi_info_t::zeichnen(koord pos, koord gr)
 {
 	if(!cnv.is_bound()) {
-		destroy_win(dynamic_cast <gui_fenster_t *> (this));
+		destroy_win(this);
 	}
 	else {
 		if(cnv->get_besitzer()==cnv->get_welt()->get_active_player()) {
@@ -218,7 +224,7 @@ convoi_info_t::zeichnen(koord pos, koord gr)
 			button.enable();
 			go_home_button.pressed = route_search_in_progress;
 			details_button.pressed = win_get_magic( magic_convoi_detail+cnv.get_id() );
-			if(  cnv->get_schedule()->get_count() > 0  ) {
+			if (!cnv->get_schedule()->empty()) {
 				const grund_t* g = cnv->get_welt()->lookup(cnv->get_schedule()->get_current_eintrag().pos);
 				if (g != NULL && g->get_depot()) {
 					go_home_button.disable();
@@ -250,8 +256,8 @@ enable_home:
 		cnv->get_freight_info(freight_info);
 		text.set_text(freight_info);
 
-		route_bar.set_base(cnv->get_route()->get_max_n());
-		cnv_route_index = cnv->get_vehikel(0)->get_route_index()-1;
+		route_bar.set_base(cnv->get_route()->get_count()-1);
+		cnv_route_index = cnv->front()->get_route_index() - 1;
 
 		// all gui stuff set => display it
 		gui_frame_t::zeichnen(pos, gr);
@@ -266,34 +272,36 @@ enable_home:
 		mean_convoi_speed += speed_to_kmh(cnv->get_akt_speed()*4);
 		mean_convoi_speed /= 2;
 		sprintf(tmp,translator::translate("%i km/h (max. %ikm/h)"), (mean_convoi_speed+3)/4, speed_to_kmh(cnv->get_min_top_speed()) );
-		display_proportional( pos.x+11, pos.y+16+20, tmp, ALIGN_LEFT, COL_BLACK, true );
+		display_proportional( pos.x+10, pos.y+16+20, tmp, ALIGN_LEFT, COL_BLACK, true );
 
 		// next important: income stuff
-		int len = display_proportional(pos.x + 11, pos.y + 16 + 20 + 1 * LINESPACE, translator::translate("Gewinn"), ALIGN_LEFT, COL_BLACK, true ) + 5;
+		int len = display_proportional(pos.x + 10, pos.y + 16 + 20 + 1 * LINESPACE, translator::translate("Gewinn"), ALIGN_LEFT, COL_BLACK, true ) + 5;
 		money_to_string( tmp, cnv->get_jahresgewinn()/100.0 );
-		len += display_proportional( pos.x+11+len, pos.y+16+20+1*LINESPACE, tmp, ALIGN_LEFT, cnv->get_jahresgewinn()>0?MONEY_PLUS:MONEY_MINUS, true )+5;
-		sprintf(tmp," (%1.2f$/km)", cnv->get_running_cost()/100.0 );
-		display_proportional( pos.x+11+len, pos.y+16+20+1*LINESPACE, tmp, ALIGN_LEFT, COL_BLACK, true );
+		len += display_proportional( pos.x+10+len, pos.y+16+20+1*LINESPACE, tmp, ALIGN_LEFT, cnv->get_jahresgewinn()>0?MONEY_PLUS:MONEY_MINUS, true )+5;
+		money_to_string( tmp+1, cnv->get_running_cost()/100.0 );
+		strcat( tmp, "/km)" );
+		tmp[0] = '(';
+		display_proportional( pos.x+10+len, pos.y+16+20+1*LINESPACE, tmp, ALIGN_LEFT, COL_BLACK, true );
 
 		// the weight entry
 		info_buf.clear();
 		info_buf.append( translator::translate("Gewicht") );
 		info_buf.append( ": " );
-		info_buf.append( cnv->get_sum_gesamtgewicht() );
-		info_buf.append( " (" );
-		info_buf.append( cnv->get_sum_gesamtgewicht()-cnv->get_sum_gewicht() );
-		info_buf.append( ") t" );
-		display_proportional( pos.x+11, pos.y+16+20+2*LINESPACE, info_buf, ALIGN_LEFT, COL_BLACK, true );
+		info_buf.append( cnv->get_sum_gesamtgewicht(), 0 );
+		info_buf.append( "t (" );
+		info_buf.append( cnv->get_sum_gesamtgewicht()-cnv->get_sum_gewicht(), 0 );
+		info_buf.append( "t)" );
+		display_proportional( pos.x+10, pos.y+16+20+2*LINESPACE, info_buf, ALIGN_LEFT, COL_BLACK, true );
 
 		// next stop
 		const schedule_t * fpl = cnv->get_schedule();
 		info_buf.clear();
 		info_buf.append(translator::translate("Fahrtziel"));
 		fahrplan_gui_t::gimme_short_stop_name(info_buf, cnv->get_welt(), cnv->get_besitzer(), fpl, fpl->get_aktuell(), 34);
-		len = display_proportional_clip( pos.x+11, pos.y+16+20+3*LINESPACE, info_buf, ALIGN_LEFT, COL_BLACK, true );
+		len = display_proportional_clip( pos.x+10, pos.y+16+20+3*LINESPACE, info_buf, ALIGN_LEFT, COL_BLACK, true );
 
 		// convoi load indicator
-		const int offset = max( len, 167)+3;
+		const int offset = max( len+10, 167)+3;
 		route_bar.set_pos(koord(offset,22+3*LINESPACE));
 		route_bar.set_groesse(koord(view.get_pos().x-offset-5, 4));
 
@@ -309,6 +317,7 @@ enable_home:
 		POP_CLIP();
 	}
 }
+
 
 
 /**
@@ -352,15 +361,12 @@ bool convoi_info_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 	if(cnv->get_besitzer()==cnv->get_welt()->get_active_player()) {
 
 		if(komp == &button) {
-			cnv->open_schedule_window();
+			cnv->call_convoi_tool( 'f', NULL );
 			return true;
 		}
 
 		if(komp == &no_load_button    &&    !route_search_in_progress) {
-			cnv->set_no_load(!cnv->get_no_load());
-			if(!cnv->get_no_load()) {
-				cnv->set_withdraw(false);
-			}
+			cnv->call_convoi_tool( 'n', NULL );
 			return true;
 		}
 
@@ -380,43 +386,42 @@ DBG_MESSAGE("convoi_info_t::action_triggered()","convoi state %i => cannot chang
 			koord3d home = koord3d(0,0,0);
 			while (depot_iter.next()) {
 				depot_t *depot = depot_iter.get_current();
-				if(depot->get_wegtyp()!=cnv->get_vehikel(0)->get_besch()->get_waytype()    ||    depot->get_besitzer()!=cnv->get_besitzer()) {
+				vehikel_t& v = *cnv->front();
+				if (depot->get_wegtyp()   != v.get_besch()->get_waytype() ||
+						depot->get_besitzer() != cnv->get_besitzer()) {
 					continue;
 				}
 				koord3d pos = depot->get_pos();
-				if(!shortest_route->empty()    &&    abs_distance(pos.get_2d(),cnv->get_pos().get_2d())>=shortest_route->get_max_n()) {
+				if(!shortest_route->empty()    &&    koord_distance(pos.get_2d(),cnv->get_pos().get_2d())>=shortest_route->get_count()-1) {
 					// the current route is already shorter, no need to search further
 					continue;
 				}
-				bool found = cnv->get_vehikel(0)->calc_route(cnv->get_pos(), pos,    50, route); // do not care about speed
-				if (found) {
-					if(  route->get_max_n() < shortest_route->get_max_n()    ||    shortest_route->empty()  ) {
+				if (v.calc_route(cnv->get_pos(), pos, 50, route)) { // do not care about speed
+					if(  route->get_count() < shortest_route->get_count()    ||    shortest_route->empty()  ) {
 						shortest_route->kopiere(route);
 						home = pos;
 					}
 				}
 			}
 			delete route;
-			DBG_MESSAGE("shortest route has ", "%i hops", shortest_route->get_max_n());
+			DBG_MESSAGE("shortest route has ", "%i hops", shortest_route->get_count()-1);
 
 			// if route to a depot has been found, update the convoi's schedule
-			bool b_depot_found = false;
+			const char *txt;
 			if(!shortest_route->empty()) {
-				schedule_t *fpl = cnv->get_schedule();
+				schedule_t *fpl = cnv->get_schedule()->copy();
 				fpl->insert(cnv->get_welt()->lookup(home));
 				fpl->set_aktuell( (fpl->get_aktuell()+fpl->get_count()-1)%fpl->get_count() );
-				b_depot_found = cnv->set_schedule(fpl);
+				cbuffer_t buf(5500);
+				fpl->sprintf_schedule( buf );
+				cnv->call_convoi_tool( 'g', buf );
+				txt = "Convoi has been sent\nto the nearest depot\nof appropriate type.\n";
+			}
+			else {
+				txt = "Home depot not found!\nYou need to send the\nconvoi to the depot\nmanually.";
 			}
 			delete shortest_route;
 			route_search_in_progress = false;
-
-			// show result
-			const char* txt;
-			if (b_depot_found) {
-				txt = "Convoi has been sent\nto the nearest depot\nof appropriate type.\n";
-			} else {
-				txt = "Home depot not found!\nYou need to send the\nconvoi to the depot\nmanually.";
-			}
 			create_win( new news_img(txt), w_time_delete, magic_none);
 		} // end go home button
 	}
@@ -424,8 +429,8 @@ DBG_MESSAGE("convoi_info_t::action_triggered()","convoi state %i => cannot chang
 	if (komp == &toggler) {
 		toggler.pressed = !toggler.pressed;
 		const koord offset = toggler.pressed ? koord(0, 170) : koord(0, -170);
-		set_min_windowsize( koord(TOTAL_WIDTH, toggler.pressed ? 364: 194));
-		scrolly.set_pos( scrolly.get_pos()+koord(0,offset.y) );
+		set_min_windowsize(get_min_windowsize() + offset);
+		scrolly.set_pos(scrolly.get_pos() + offset);
 		// toggle visibility of components
 		chart.set_visible(toggler.pressed);
 		set_fenstergroesse(get_fenstergroesse() + offset);
@@ -441,7 +446,8 @@ DBG_MESSAGE("convoi_info_t::action_triggered()","convoi state %i => cannot chang
 			filterButtons[i].pressed = !filterButtons[i].pressed;
 			if(filterButtons[i].pressed) {
 				chart.show_curve(i);
-			} else {
+			}
+			else {
 				chart.hide_curve(i);
 			}
 
@@ -461,14 +467,14 @@ void convoi_info_t::resize(const koord delta)
 {
 	gui_frame_t::resize(delta);
 
-	input.set_groesse(koord(get_fenstergroesse().x-22, 13));
+	input.set_groesse(koord(get_fenstergroesse().x - 20, 13));
 
-	view.set_pos(koord(get_fenstergroesse().x - 64 - 12 , 21));
-	follow_button.set_pos(koord(view.get_pos().x-1,77));
+	view.set_pos(koord(get_fenstergroesse().x - view.get_groesse().x - 10 , 21));
+	follow_button.set_pos(koord(view.get_pos().x, view.get_groesse().y + 21));
 
 	scrolly.set_groesse(get_client_windowsize()-scrolly.get_pos());
 
-	const int yoff = scrolly.get_pos().y-BUTTON_HEIGHT-2;
+	const sint16 yoff = scrolly.get_pos().y-BUTTON_HEIGHT-2;
 	sort_button.set_pos(koord(BUTTON1_X,yoff));
 	toggler.set_pos(koord(BUTTON3_X,yoff));
 	details_button.set_pos(koord(BUTTON4_X,yoff));

@@ -65,17 +65,10 @@ convoi_detail_t::convoi_detail_t(convoihandle_t cnv)
 
 
 
-/**
- * komponente neu zeichnen. Die übergebenen Werte beziehen sich auf
- * das Fenster, d.h. es sind die Bildschirkoordinaten des Fensters
- * in dem die Komponente dargestellt wird.
- * @author Hj. Malthaner
- */
-void
-convoi_detail_t::zeichnen(koord pos, koord gr)
+void convoi_detail_t::zeichnen(koord pos, koord gr)
 {
 	if(!cnv.is_bound()) {
-		destroy_win(dynamic_cast <gui_fenster_t *>(this));
+		destroy_win(this);
 	}
 	else {
 		if(cnv->get_besitzer()==cnv->get_welt()->get_active_player()) {
@@ -94,16 +87,24 @@ convoi_detail_t::zeichnen(koord pos, koord gr)
 		int offset_y = pos.y+14+16;
 
 		// current value
-		char tmp[256];
+		char tmp[512];
 
 		// current power
 		sprintf( tmp, translator::translate("Leistung: %d kW"), cnv->get_sum_leistung() );
 		display_proportional_clip( pos.x+10, offset_y, tmp, ALIGN_LEFT, MONEY_PLUS, true );
 		offset_y += LINESPACE;
 
-		char buf[32];
-		money_to_string( buf, cnv->calc_restwert()/100.0 );
-		sprintf( tmp, "%s %s", translator::translate("Restwert:"), buf );
+		char number[64];
+		number_to_string( number, cnv->get_total_distance_traveled(), 0 );
+		sprintf( tmp, translator::translate("Odometer: %s km"), number );
+		display_proportional_clip( pos.x+10, offset_y, tmp, ALIGN_LEFT, MONEY_PLUS, true );
+		offset_y += LINESPACE;
+
+		sprintf( tmp, "%s %i", translator::translate("Station tiles:"), cnv->get_tile_length() );
+		display_proportional_clip( pos.x+10, offset_y, tmp, ALIGN_LEFT, MONEY_PLUS, true );
+		offset_y += LINESPACE;
+
+		money_to_string( tmp+sprintf( tmp, "%s ", translator::translate("Restwert:") ), cnv->calc_restwert()/100.0 );
 		display_proportional_clip( pos.x+10, offset_y, tmp, ALIGN_LEFT, MONEY_PLUS, true );
 		offset_y += LINESPACE;
 	}
@@ -115,17 +116,15 @@ convoi_detail_t::zeichnen(koord pos, koord gr)
  * This method is called if an action is triggered
  * @author Markus Weber
  */
-bool
-convoi_detail_t::action_triggered(gui_action_creator_t *komp,value_t /* */)           // 28-Dec-01    Markus Weber    Added
+bool convoi_detail_t::action_triggered(gui_action_creator_t *komp,value_t /* */)           // 28-Dec-01    Markus Weber    Added
 {
 	if(cnv.is_bound()) {
 		if(komp==&sale_button) {
-			cnv->self_destruct();
+			cnv->call_convoi_tool( 'x', NULL );
 			return true;
 		}
 		else if(komp==&withdraw_button) {
-			cnv->set_withdraw(!cnv->get_withdraw());
-			cnv->set_no_load(cnv->get_withdraw());
+			cnv->call_convoi_tool( 'w', NULL );
 			return true;
 		}
 	}
@@ -164,7 +163,7 @@ void gui_vehicleinfo_t::zeichnen(koord offset)
 		char buf[256], tmp[256];
 
 		// for bonus stuff
-		const sint32 ref_speed = cnv->get_welt()->get_average_speed( cnv->get_vehikel(0)->get_waytype() );
+		sint32 const ref_speed = cnv->get_welt()->get_average_speed(cnv->front()->get_waytype());
 		const sint32 speed_base = (100*speed_to_kmh(cnv->get_min_top_speed()))/ref_speed-100;
 
 		static cbuffer_t freight_info(1024);

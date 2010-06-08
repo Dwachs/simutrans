@@ -16,7 +16,7 @@
 #include "tpl/minivec_tpl.h"
 #include "tpl/vector_tpl.h"
 
-#define MAX_LINE_COST   6 // Total number of cost items
+#define MAX_LINE_COST   7 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
 #define MAX_NON_MONEY_TYPES 2 // number of non money types in line's financial statistic
 
@@ -24,12 +24,12 @@
 #define LINE_TRANSPORTED_GOODS 1 // the amount of ware that has been transported
 #define LINE_CONVOIS		2 // number of convois for this line
 #define LINE_REVENUE		3 // the income this line generated
-#define LINE_OPERATIONS         4 // the cost of operations this line generated
-#define LINE_PROFIT             5 // total profit of line
+#define LINE_OPERATIONS     4 // the cost of operations this line generated
+#define LINE_PROFIT         5 // total profit of line
+#define LINE_DISTANCE       6 // distance converd by all convois
 
 class karte_t;
 class loadsave_t;
-class simlinemgmt_t;
 class spieler_t;
 
 class simline_t {
@@ -42,8 +42,10 @@ protected:
 	simline_t(karte_t* welt, spieler_t*sp);
 
 	schedule_t * fpl,  *old_fpl;
-	linetype type;
 	spieler_t *sp;
+	linetype type;
+
+	bool withdraw;
 
 private:
 	static karte_t * welt;
@@ -74,13 +76,12 @@ private:
 	vector_tpl<convoihandle_t> line_managed_convoys;
 
 	/*
-	 * a list of all convoys assigned to this line
-	 * @author hsiegeln
+	 * a list of all catg_index, which can be transported by this line.
 	 */
 	minivec_tpl<uint8> goods_catg_index;
 
 	/*
- 	 * struct holds new financial history for line
+	 * struct holds new financial history for line
 	 * @author hsiegeln
 	 */
 	sint64 financial_history[MAX_MONTHS][MAX_LINE_COST];
@@ -199,6 +200,10 @@ public:
 	// recalculates the good transported by this line and (in case of changes) will start schedule recalculation
 	void recalc_catg_index();
 
+	void set_withdraw( bool yes_no );
+
+	bool get_withdraw() const { return withdraw; }
+
 public:
 	spieler_t *get_besitzer() const {return sp;}
 
@@ -211,7 +216,7 @@ class truckline_t : public simline_t
 	public:
 		truckline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::truckline;
+			type = truckline;
 			set_schedule(new autofahrplan_t());
 		}
 };
@@ -221,7 +226,7 @@ class trainline_t : public simline_t
 	public:
 		trainline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::trainline;
+			type = trainline;
 			set_schedule(new zugfahrplan_t());
 		}
 };
@@ -231,7 +236,7 @@ class shipline_t : public simline_t
 	public:
 		shipline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::shipline;
+			type = shipline;
 			set_schedule(new schifffahrplan_t());
 		}
 };
@@ -241,7 +246,7 @@ class airline_t : public simline_t
 	public:
 		airline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::airline;
+			type = airline;
 			set_schedule(new airfahrplan_t());
 		}
 };
@@ -251,7 +256,7 @@ class monorailline_t : public simline_t
 	public:
 		monorailline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::monorailline;
+			type = monorailline;
 			set_schedule(new monorailfahrplan_t());
 		}
 };
@@ -261,7 +266,7 @@ class tramline_t : public simline_t
 	public:
 		tramline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::tramline;
+			type = tramline;
 			set_schedule(new tramfahrplan_t());
 		}
 };
@@ -271,7 +276,7 @@ class narrowgaugeline_t : public simline_t
 	public:
 		narrowgaugeline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::narrowgaugeline;
+			type = narrowgaugeline;
 			set_schedule(new narrowgaugefahrplan_t());
 		}
 };
@@ -281,7 +286,7 @@ class maglevline_t : public simline_t
 	public:
 		maglevline_t(karte_t* welt, spieler_t* sp) : simline_t(welt, sp)
 		{
-			type = simline_t::maglevline;
+			type = maglevline;
 			set_schedule(new maglevfahrplan_t());
 		}
 };
