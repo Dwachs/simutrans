@@ -11,6 +11,7 @@
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
+#include "../../../simmenu.h"
 #include "../../../simmesg.h"
 #include "../../../bauer/brueckenbauer.h"
 #include "../../../bauer/hausbauer.h"

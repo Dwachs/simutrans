@@ -10,6 +10,7 @@
 #include "ai.h"
 
 #include "../simcity.h"
+#include "../simfab.h"
 #include "../simhalt.h"
 #include "../simmenu.h"
 #include "../simmesg.h"

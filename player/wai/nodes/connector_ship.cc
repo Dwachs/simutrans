@@ -10,6 +10,7 @@
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
+#include "../../../simmenu.h"
 #include "../../../simmesg.h"
 #include "../../../simtools.h"
 #include "../../../bauer/hausbauer.h"

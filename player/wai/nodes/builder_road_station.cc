@@ -3,6 +3,7 @@
 #include "../../../bauer/hausbauer.h"
 #include "../../../besch/haus_besch.h"
 #include "../../../simhalt.h"
+#include "../../../simmenu.h"
 #include "../../ai.h"
 #include "../../ai_wai.h"
 
