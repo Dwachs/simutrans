@@ -20,8 +20,6 @@ bool water_digger_t::is_allowed_step( const grund_t *from, const grund_t *to, lo
 		*costs = 1;
 	}
 	else {
-		const sint8 hgt_diff = to->get_hoehe() - sea_level;
-
 		*costs = 1 + cost;
 	}
 	return true;
@@ -39,7 +37,7 @@ sint64 water_digger_t::calc_costs()
 			bool ok = welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
 		}
 	}
-	return  -(estimate*welt->get_einstellungen()->cst_alter_land) / 100;
+	return  -(estimate*welt->get_einstellungen()->cst_alter_land);
 }			
 
 
