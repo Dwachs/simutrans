@@ -7,6 +7,7 @@
 #include "../bt.h"
 #include "../datablock.h"
 #include "../vehikel_prototype.h"
+#include "../utils/water_digger.h"
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
@@ -15,6 +16,7 @@
 #include "../../../simtools.h"
 #include "../../../bauer/hausbauer.h"
 #include "../../../besch/vehikel_besch.h"
+#include "../../../besch/weg_besch.h"
 #include "../../../dataobj/loadsave.h"
 
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
@@ -80,15 +82,16 @@ return_value_t *connector_ship_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 	if( childs.empty() ) {
+		karte_t *welt = sp->get_welt();
 		return_value_t *rv = new_return_value(RT_DONE_NOTHING);
 		switch(phase) {
 			case 0: {
 				// Our first step: Build a harbour.
 				// calculate space
-				koord zv(sp->get_welt()->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
+				koord zv(welt->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
 				koord test_pos(harbour_pos.get_2d() - zv);
 				for(uint8 i = 1; i<8; i++) {
-					grund_t *gr = sp->get_welt()->lookup_kartenboden(test_pos);
+					grund_t *gr = welt->lookup_kartenboden(test_pos);
 					// TODO: reicht abfrage?
 					if (gr && gr->ist_wasser() && !gr->get_halt().is_bound() && gr->find<gebaeude_t>()==NULL) {
 						test_pos -= zv;
@@ -100,7 +103,7 @@ return_value_t *connector_ship_t::step()
 				uint32 len = koord_distance(harbour_pos, test_pos);
 
 				// get a suitable station
-				const haus_besch_t* fh = get_random_harbour(sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, len);
+				const haus_besch_t* fh = get_random_harbour(welt->get_timeline_year_month(), haltestelle_t::WARE, len);
 				bool ok = fh!=NULL;
 
 				// build immediately 1x1 stations
@@ -117,8 +120,23 @@ return_value_t *connector_ship_t::step()
 				}
 				break;
 			}
-
 			case 1: {
+				koord zv(welt->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
+				// test the digger
+				water_digger_t baubiber(welt, sp);
+				
+				baubiber.route_fuer((wegbauer_t::bautyp_t)water_wt, wegbauer_t::weg_search(water_wt, 1, 0, weg_t::type_flat));
+				baubiber.calc_route(start, harbour_pos-zv);
+				const sint64 cost = baubiber.calc_costs();
+				if (baubiber.get_route().get_count()>2  &&  sp->is_cash_available(cost)) {
+					sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start.get_2d().get_str(), harbour_pos.get_str());
+					baubiber.terraform();
+				}
+				// no else branch as a route should exist without digging anyway
+				break;
+			}
+
+			case 2: {
 				vector_tpl<koord> tiles;
 				fab1->get_tile_list( tiles );
 				ai_t::add_neighbourhood( tiles, 5 );
@@ -126,7 +144,7 @@ return_value_t *connector_ship_t::step()
 				uint32 best_dist = 0xffffffff;
 				// Test which tiles are the best:
 				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
-					const grund_t* gr = sp->get_welt()->lookup_kartenboden( tiles[j] );
+					const grund_t* gr = welt->lookup_kartenboden( tiles[j] );
 					if(  gr  &&  gr->ist_wasser()  &&  !gr->find<gebaeude_t>()  &&  !gr->get_leitung())
 					{// look for own depots and prefer them
 						depot_t* d = gr->get_depot();
@@ -139,9 +157,9 @@ return_value_t *connector_ship_t::step()
 					}
 				}
 				deppos = best_tile;
-				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, sp->get_welt()->get_timeline_year_month(), 0);
+				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, welt->get_timeline_year_month(), 0);
 				bool ok = dep!=NULL && deppos!=koord3d::invalid;
-				if (ok && sp->get_welt()->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
+				if (ok && welt->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
 					ok &= sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
 				if( !ok ) {
@@ -151,16 +169,16 @@ return_value_t *connector_ship_t::step()
 				break;
 			}
 
-			case 2: {
+			case 3: {
 				// create line
 				schedule_t *fpl = new schifffahrplan_t();
 
 				// full load? or do we have unused capacity?
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
-				fpl->append(sp->get_welt()->lookup(start), ladegrad);
+				fpl->append(welt->lookup(start), ladegrad);
 				koord3d ziel =  get_ship_target(); // harbour_pos - koord(gr->get_grund_hang());
-				fpl->append(sp->get_welt()->lookup(ziel), 0);
+				fpl->append(welt->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
 
@@ -172,7 +190,7 @@ return_value_t *connector_ship_t::step()
 				// tell the player
 				char buf[256];
 				sprintf(buf, translator::translate("%s\nnow operates\n%i ships between\n%s at (%i,%i)\nand %s at (%i,%i)."), sp->get_name(), nr_vehicles, translator::translate(fab1->get_name()), start.x, start.y, translator::translate(fab2->get_name()), ziel.x, ziel.y);
-				sp->get_welt()->get_message()->add_message(buf, start.get_2d(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), prototyper->proto->besch[0]->get_basis_bild());
+				welt->get_message()->add_message(buf, start.get_2d(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), prototyper->proto->besch[0]->get_basis_bild());
 
 				// tell the industrymanager via the industry-connector
 				rv->data = new datablock_t();
@@ -182,10 +200,12 @@ return_value_t *connector_ship_t::step()
 				prototyper = NULL;
 				break;
 			}
+			default: 
+				break;
 		}
 		sp->get_log().message( "connector_ship_t::step", "completed phase %d", phase);
 		phase ++;
-		rv->code = phase>3 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
+		rv->code = phase>4 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
 		return rv;
 	}
 	else {
