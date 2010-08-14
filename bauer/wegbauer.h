@@ -128,8 +128,6 @@ protected:
 	// allowed slope?
 	bool check_slope( const grund_t *from, const grund_t *to );
 
-	bool check_building( const grund_t *to, const koord dir );
-
 	/* This is the core routine for the way search
 	* it will check
 	* A) allowed step

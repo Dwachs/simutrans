@@ -101,8 +101,8 @@ void vehikel_builder_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_node_t::rdwr(file,version);
 	pos.rdwr(file);
-	file->rdwr_short(nr_vehikel,"");
-	file->rdwr_bool(withdraw_old,"");
+	file->rdwr_short(nr_vehikel);
+	file->rdwr_bool(withdraw_old);
 	if (file->is_loading()) {
 		prototyper = new simple_prototype_designer_t(sp);
 	}
@@ -112,7 +112,7 @@ void vehikel_builder_t::rdwr( loadsave_t *file, const uint16 version )
 	if (file->is_saving()) {
 		line_id = line.is_bound() ? line->get_line_id() : INVALID_LINE_ID;
 	}
-	file->rdwr_short(line_id, " ");
+	file->rdwr_short(line_id);
 	if (file->is_loading()) {
 		if (line_id != INVALID_LINE_ID) {
 			line = sp->simlinemgmt.get_line_by_id(line_id);
@@ -139,8 +139,8 @@ void vehikel_builder_t::rotate90( const sint16 y_size )
 }
 
 
-void vehikel_builder_t::debug( log_t &file, cstring_t prefix )
+void vehikel_builder_t::debug( log_t &file, string prefix )
 {
-	file.message("vehb","%s[%p]%s build %d for line %s", (const char*)prefix, this, (const char*)name, nr_vehikel, line.is_bound() ? line->get_name() : "<error>");
+	file.message("vehb","%s[%p]%s build %d for line %s", prefix.c_str(), this, name.c_str(), nr_vehikel, line.is_bound() ? line->get_name() : "<error>");
 	prototyper->debug(file,prefix+ "  " );
 }

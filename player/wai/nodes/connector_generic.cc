@@ -10,6 +10,7 @@
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
+#include "../../../simmenu.h"
 #include "../../../simmesg.h"
 #include "../../../bauer/brueckenbauer.h"
 #include "../../../bauer/hausbauer.h"
@@ -50,8 +51,8 @@ connector_generic_t::connector_generic_t( ai_wai_t *sp, const char *name, koord3
 void connector_generic_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_sequential_t::rdwr( file, version );
-	file->rdwr_byte(phase, "");
-	file->rdwr_byte(force_through, "");
+	file->rdwr_byte(phase);
+	file->rdwr_byte(force_through);
 
 	ai_t::rdwr_weg_besch(file, weg_besch);
 	if (file->is_loading()) {
@@ -339,8 +340,8 @@ return_value_t *connector_generic_t::step()
 	}
 }
 
-void connector_generic_t::debug( log_t &file, cstring_t prefix )
+void connector_generic_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
-	file.message("cong","%s phase=%d", (const char*)prefix, phase);
+	file.message("cong","%s phase=%d", prefix.c_str(), phase);
 }

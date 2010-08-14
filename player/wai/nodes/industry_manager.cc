@@ -45,22 +45,22 @@ report_t* industry_link_t::get_final_report(ai_wai_t *sp)
 
 void industry_link_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
 {
-	file->rdwr_longlong(status, "");
+	file->rdwr_longlong(status);
 	connections->rdwr(file, version, sp);
 	start.rdwr(file, version, sp);
 	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
 }
 
-void industry_link_t::debug( log_t &file, cstring_t prefix )
+void industry_link_t::debug( log_t &file, string prefix )
 {
-	if (start.is_bound()) file.message("indc", "%s from    %s(%s)", (const char*)prefix, start->get_name(), start->get_pos().get_str() );
-	else                  file.message("indc", "%s from    %s(%s)", (const char*)prefix, "NULL", koord3d::invalid.get_str() );
-	if (ziel.is_bound())  file.message("indc", "%s to      %s(%s)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str() );
-	else                  file.message("indc", "%s from    %s(%s)", (const char*)prefix, "NULL", koord3d::invalid.get_str() );
-	file.message("indc", "%s freight %s", (const char*)prefix, freight->get_name() );
+	if (start.is_bound()) file.message("indc", "%s from    %s(%s)", prefix.c_str(), start->get_name(), start->get_pos().get_str() );
+	else                  file.message("indc", "%s from    %s(%s)", prefix.c_str(), "NULL", koord3d::invalid.get_str() );
+	if (ziel.is_bound())  file.message("indc", "%s to      %s(%s)", prefix.c_str(), ziel->get_name(), ziel->get_pos().get_str() );
+	else                  file.message("indc", "%s from    %s(%s)", prefix.c_str(), "NULL", koord3d::invalid.get_str() );
+	file.message("indc", "%s freight %s", prefix.c_str(), freight->get_name() );
 	connections->debug(file, prefix + "   ");
-	file.message("indc", "%s status=%d", (const char*)prefix, status);
+	file.message("indc", "%s status=%d", prefix.c_str(), status);
 }
 
 uint32 industry_manager_t::get_index(const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) const
@@ -155,7 +155,7 @@ void industry_manager_t::append_report(report_t *report)
 			if (sp->is_cash_available(report->cost_fix)) {
 				sp->get_log().message( "industry_manager_t::append_report()","got a nice report for immediate execution");
 				if (report->action) {
-					report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
+					report->action->debug(sp->get_log(), string("industry_manager_t::append_report() .. "));
 				}
 				else {
 					sp->get_log().warning( "industry_manager_t::append_report()","empty action");
@@ -172,7 +172,7 @@ void industry_manager_t::append_report(report_t *report)
 		else {
 			sp->get_log().message( "industry_manager_t::append_report()","got a bad report, put it in trash bin");
 			if (report->action) {
-				report->action->debug(sp->get_log(), cstring_t("industry_manager_t::append_report() .. "));
+				report->action->debug(sp->get_log(), string("industry_manager_t::append_report() .. "));
 			}
 			delete report;
 		}
@@ -210,10 +210,10 @@ void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)
 {
 	manager_t::rdwr(file, version);
 
-	file->rdwr_long(next_cid, "");
+	file->rdwr_long(next_cid);
 
 	uint32 count = connections.get_count();
-	file->rdwr_long(count,"");
+	file->rdwr_long(count);
 	for(uint32 i=0; i<count; i++) {
 		if (file->is_loading()) {
 			connections.append(new industry_link_t(sp,NULL,NULL,NULL));
@@ -230,11 +230,11 @@ void industry_manager_t::rotate90( const sint16 y_size)
 		connections[i]->rotate90(y_size);
 }
 
-void industry_manager_t::debug( log_t &file, cstring_t prefix )
+void industry_manager_t::debug( log_t &file, string prefix )
 {
 	manager_t::debug(file,prefix);
 
-	file.message("indm","%s connections: %d", (const char*)prefix, connections.get_count());
+	file.message("indm","%s connections: %d", prefix.c_str(), connections.get_count());
 	for(uint32 i=0; i<connections.get_count(); i++)
 	{
 		char buf[40];

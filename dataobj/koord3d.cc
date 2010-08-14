@@ -113,7 +113,7 @@ void koord3d_vector_t::rotate90( sint16 y_size )
 void koord3d_vector_t::rdwr(loadsave_t *file)
 {
 	uint32 count_ = get_count();
-	file->rdwr_long( count_, "c" );
+	file->rdwr_long( count_);
 	if( file->is_loading() ) {
 		clear();
 		resize( count_ );

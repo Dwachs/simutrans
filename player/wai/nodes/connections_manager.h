@@ -31,7 +31,7 @@ public:
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	virtual void rotate90( const sint16 /*y_size*/ ) {}
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 
 	static connection_t* alloc_connection(connection_types t, ai_wai_t *sp);
 	static void rdwr_connection(loadsave_t* file, const uint16 version, ai_wai_t *sp, connection_t* &c);
@@ -59,7 +59,7 @@ public:
 	virtual report_t* get_final_report(ai_wai_t *sp);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 protected:
 	// process one child per get_report call
 	uint32 next_to_report;
@@ -94,7 +94,7 @@ public:
 	virtual report_t* get_final_report(ai_wai_t *sp);
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 private:
 	wfabrik_t ziel;
 	const ware_besch_t *freight;
@@ -112,7 +112,7 @@ public:
 	withdrawn_connection_t() : connection_t() { type=CONN_WITHDRAWN; }
 	virtual report_t* get_report(ai_wai_t *sp);
 
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 };
 
 

@@ -44,7 +44,7 @@ public:
 
 	void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp);
 	void rotate90( const sint16 /*y_size*/ ) {}
-	void debug( log_t &file, cstring_t prefix );
+	void debug( log_t &file, string prefix );
 private:
 	sint64 status;
 	parallel_connection_t *connections;
@@ -81,7 +81,7 @@ public:
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ );
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 private:
 	vector_tpl<industry_link_t *> connections;
 	// returns the index of the link, if get_index>=get_count then link is not in the list

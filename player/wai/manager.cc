@@ -9,7 +9,7 @@
 return_value_t *manager_t::step()
 {
 	return_value_t *rc = bt_sequential_t::step();
-	//sp->get_log().message("manager_t::step","%s: node %d returns %d", (const char*)name, rc->type, rc->code);
+	//sp->get_log().message("manager_t::step","%s: node %d returns %d", name.c_str(), rc->type, rc->code);
 	if ( rc->code == RT_DONE_NOTHING || rc->code == RT_TOTAL_SUCCESS ) {
 		delete rc;
 		return work();
@@ -48,7 +48,7 @@ void manager_t::rdwr(loadsave_t* file, const uint16 version)
 	bt_sequential_t::rdwr(file, version);
 
 	uint32 count = reports.get_count();
-	file->rdwr_long(count, " ");
+	file->rdwr_long(count);
 	for(uint32 i=0; i<count; i++) {
 		if(file->is_loading()) {
 			reports.append(new report_t());
@@ -67,11 +67,11 @@ void manager_t::rotate90( const sint16 y_size)
 	}
 }
 
-void manager_t::debug( log_t &file, cstring_t prefix )
+void manager_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
-	file.message("mana","%s reports received: %d", (const char*)prefix, reports.get_count());
-	cstring_t next_prefix( prefix + "  " );
+	file.message("mana","%s reports received: %d", prefix.c_str(), reports.get_count());
+	string next_prefix( prefix + "  " );
 	for(uint32 i=0; i<reports.get_count(); i++)
 	{
 		char buf[40];

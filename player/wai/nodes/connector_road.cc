@@ -78,12 +78,12 @@ connector_road_t::~connector_road_t()
 void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_sequential_t::rdwr( file, version );
-	file->rdwr_byte(phase, "");
-	file->rdwr_byte(force_through, "");
+	file->rdwr_byte(phase);
+	file->rdwr_byte(force_through);
 	fab1.rdwr(file, version, sp);
 	fab2.rdwr(file, version, sp);
 	ai_t::rdwr_weg_besch(file, road_besch);
-	file->rdwr_short(nr_vehicles, "");
+	file->rdwr_short(nr_vehicles);
 	if (phase<=2) {
 		if (file->is_loading()) {
 			prototyper = new simple_prototype_designer_t(sp);
@@ -431,10 +431,10 @@ return_value_t *connector_road_t::step()
 	}
 }
 
-void connector_road_t::debug( log_t &file, cstring_t prefix )
+void connector_road_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
-	file.message("conr","%s phase=%d", (const char*)prefix, phase);
-	cstring_t next_prefix( prefix + " prototyp");
+	file.message("conr","%s phase=%d", prefix.c_str(), phase);
+	string next_prefix( prefix + " prototyp");
 	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
 }

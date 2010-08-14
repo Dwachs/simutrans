@@ -49,10 +49,10 @@ connector_ship_t::~connector_ship_t()
 void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	bt_sequential_t::rdwr( file, version );
-	file->rdwr_byte(phase, "");
+	file->rdwr_byte(phase);
 	fab1.rdwr(file, version, sp);
 	fab2.rdwr(file, version, sp);
-	file->rdwr_short(nr_vehicles, "");
+	file->rdwr_short(nr_vehicles);
 	if (phase<=2) {
 		if (file->is_loading()) {
 			prototyper = new simple_prototype_designer_t(sp);
@@ -214,11 +214,11 @@ return_value_t *connector_ship_t::step()
 	}
 }
 
-void connector_ship_t::debug( log_t &file, cstring_t prefix )
+void connector_ship_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
-	file.message("conr","%s phase=%d", (const char*)prefix, phase);
-	cstring_t next_prefix( prefix + " prototyp");
+	file.message("conr","%s phase=%d", prefix.c_str(), phase);
+	string next_prefix( prefix + " prototyp");
 	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
 }
 

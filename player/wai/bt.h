@@ -1,17 +1,18 @@
 #ifndef BT_H
 #define BT_H
 
+#include <string>
 #include "alloc_node.h"
 #include "return_value.h"
 #include "../../simtypes.h"
 #include "../../tpl/vector_tpl.h"
-#include "../../utils/cstring_t.h"
 #include "../../utils/log.h"
 
 class ai_wai_t;
 class loadsave_t;
 class report_t;
 
+using std::string;
 
 /*
  * This defines a node of a behaviour tree.
@@ -21,7 +22,7 @@ class report_t;
 
 class bt_node_t {
 protected:
-	cstring_t name; // for debugging purposes
+	string name; // for debugging purposes
 	uint16 type;    // to get the right class for loading / saving
 	ai_wai_t *sp;
 	virtual return_value_t* new_return_value(return_code rc);
@@ -47,7 +48,7 @@ public:
 	 */
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ ) {};
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 
 	ai_wai_t *get_sp() const { return sp; }
 
@@ -81,7 +82,7 @@ public:
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 y_size );
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 
 	uint32 get_count() const { return childs.get_count(); }
 protected:

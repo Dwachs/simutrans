@@ -19,7 +19,7 @@ void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wa
 	if (file->is_saving()) {
 		t = c ? (uint8) c->get_type() :  (uint8)CONN_NULL;
 	}
-	file->rdwr_byte(t,"");
+	file->rdwr_byte(t);
 	if (file->is_loading()) {
 		c = alloc_connection((connection_types)t, sp);
 	}
@@ -56,19 +56,19 @@ void connection_t::rdwr(loadsave_t* file, const uint16 /*version*/, ai_wai_t *sp
 	if (file->is_saving()) {
 		line_id = line.is_bound() ? line->get_line_id() : INVALID_LINE_ID;
 	}
-	file->rdwr_short(line_id, " ");
+	file->rdwr_short(line_id);
 	if (file->is_loading()) {
 		if (line_id != INVALID_LINE_ID) {
 			line = sp->simlinemgmt.get_line_by_id(line_id);
 		}
 	}
-	file->rdwr_byte(state, "");
+	file->rdwr_byte(state);
 }
 
-void connection_t::debug( log_t &file, cstring_t prefix )
+void connection_t::debug( log_t &file, string prefix )
 {
 	if (line.is_bound()) {
-		file.message("conn", "%s line(%d) (state %d) %s", (const char*)prefix, line->get_line_id(), state, line->get_name() );
+		file.message("conn", "%s line(%d) (state %d) %s", prefix.c_str(), line->get_line_id(), state, line->get_name() );
 	}
 }
 
@@ -95,10 +95,10 @@ report_t* combined_connection_t::get_final_report(ai_wai_t *sp)
 
 void combined_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp)
 {
-	file->rdwr_long(next_to_report, "");
+	file->rdwr_long(next_to_report);
 
 	uint32 count = connections.get_count();
-	file->rdwr_long(count,"");
+	file->rdwr_long(count);
 	for(uint32 i=0; i<count; i++) {
 		if (file->is_loading()) {
 			connections.append(NULL);
@@ -106,7 +106,7 @@ void combined_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_
 		connection_t::rdwr_connection(file, version, sp, connections[i]);
 	}
 }
-void combined_connection_t::debug( log_t &file, cstring_t prefix )
+void combined_connection_t::debug( log_t &file, string prefix )
 {
 	for(uint32 i=0; i<connections.get_count(); i++) {
 		char buf[40];
@@ -456,25 +456,25 @@ void freight_connection_t::rdwr(loadsave_t* file, const uint16 version, ai_wai_t
 
 	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
-	file->rdwr_byte(status, "");
+	file->rdwr_byte(status);
 }
 
-void freight_connection_t::debug( log_t &file, cstring_t prefix )
+void freight_connection_t::debug( log_t &file, string prefix )
 {
 	connection_t::debug(file, prefix);
 	if (ziel.is_bound()) {
-		file.message("frec", "%s to      %s(%s) - status(%d)", (const char*)prefix, ziel->get_name(), ziel->get_pos().get_str(), status );
+		file.message("frec", "%s to      %s(%s) - status(%d)", prefix.c_str(), ziel->get_name(), ziel->get_pos().get_str(), status );
 	}
 	else {
-		file.message("frec", "%s to      %s(%s) - status(%d)", (const char*)prefix, "NULL", koord3d::invalid.get_str(), status );
+		file.message("frec", "%s to      %s(%s) - status(%d)", prefix.c_str(), "NULL", koord3d::invalid.get_str(), status );
 	}
-	file.message("frec", "%s freight %s", (const char*)prefix, freight->get_name() );
+	file.message("frec", "%s freight %s", prefix.c_str(), freight->get_name() );
 }
 
 
 
 
-void withdrawn_connection_t::debug( log_t &file, cstring_t prefix )
+void withdrawn_connection_t::debug( log_t &file, string prefix )
 {
 	connection_t::debug(file, prefix);
 	file.message("widr", "%d convois left", line->count_convoys());
