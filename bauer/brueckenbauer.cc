@@ -226,7 +226,7 @@ koord3d brueckenbauer_t::finde_ende(karte_t *welt, koord3d pos, koord zv, const 
 				}
 			}
 			else if(  gr1->get_typ()==grund_t::monorailboden  ) {
-				// check if we can connect ro elevated way
+				// check if we can connect to elevated way
 				if(  gr1->hat_weg(wegtyp)  ) {
 					return gr1->get_pos();
 				}
@@ -239,14 +239,12 @@ koord3d brueckenbauer_t::finde_ende(karte_t *welt, koord3d pos, koord zv, const 
 			if(wegtyp != powerline_wt) {
 				if(gr2->has_two_ways()) {
 					if (gr2->ist_uebergang()  ||  wegtyp!=road_wt) {
-						error_msg =  "Tile not empty.";
-						return koord3d::invalid;
-					}
-					// If road and tram, we have to check both ribis.
-					ribi = gr2->get_weg_nr(0)->get_ribi_unmasked() | gr2->get_weg_nr(1)->get_ribi_unmasked();
-					if(  besch->get_waytype()  !=  road_wt  ) {
-						// only road bridges allowed here.
+						// full ribi -> build no bridge here
 						ribi = 15;
+					}
+					else {
+						// road/tram on the tile, we have to check both ribis.
+						ribi = gr2->get_weg_nr(0)->get_ribi_unmasked() | gr2->get_weg_nr(1)->get_ribi_unmasked();
 					}
 				}
 				else {
@@ -569,11 +567,13 @@ void brueckenbauer_t::baue_auffahrt(karte_t* welt, spieler_t* sp, koord3d end, k
 		if(!lt) {
 			lt = new leitung_t(welt, bruecke->get_pos(), sp);
 			bruecke->obj_add( lt );
-			lt->laden_abschliessen();
 		}
 		else {
-			lt->calc_neighbourhood();
+			// remove maintainance - it will be added in leitung_t::laden_abschliessen
+			spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung());
 		}
+		// connect to neighbor tiles and networks, add maintenance
+		lt->laden_abschliessen();
 	}
 	bruecke_t *br = new bruecke_t(welt, end, sp, besch, img);
 	bruecke->obj_add( br );
@@ -654,6 +654,7 @@ const char *brueckenbauer_t::remove(karte_t *welt, spieler_t *sp, koord3d pos, w
 
 		// we may have a second way/powerline here ...
 		gr->obj_loesche_alle(sp);
+		gr->mark_image_dirty();
 
 		welt->access(pos.get_2d())->boden_entfernen(gr);
 		delete gr;

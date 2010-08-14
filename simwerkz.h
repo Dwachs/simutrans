@@ -50,6 +50,7 @@
 #include "gui/enlarge_map_frame_t.h"
 #include "gui/labellist_frame_t.h"
 #include "gui/climates.h"
+#include "gui/settings_frame.h"
 
 #include "tpl/slist_tpl.h"
 
@@ -223,8 +224,10 @@ public:
 class wkz_wegebau_t : public two_click_werkzeug_t {
 private:
 	static const weg_besch_t *defaults[17];	// default ways for all types
+protected:
+	static karte_t *welt;
 	const weg_besch_t *besch;
-	const weg_besch_t *get_besch(uint16,bool) const;
+
 public:
 	wkz_wegebau_t() : two_click_werkzeug_t(), besch(NULL) { id = WKZ_WEGEBAU | GENERAL_TOOL; }
 	virtual image_id get_icon(spieler_t *) const;
@@ -233,13 +236,23 @@ public:
 	virtual bool is_selected( karte_t *welt ) const;
 	virtual bool init( karte_t *, spieler_t * );
 	virtual bool is_move_network_save(spieler_t *sp) const { return two_click_werkzeug_t::is_move_network_save(sp) && (besch  &&  besch->get_styp()!=1); }
-
-private:
+protected:
+	virtual const weg_besch_t *get_besch(uint16,bool) const;
 	void calc_route( wegbauer_t &bauigel, const koord3d &, const koord3d & );
-
+private:
 	virtual const char *do_work( karte_t *, spieler_t *, const koord3d &, const koord3d & );
 	virtual void mark_tiles( karte_t *, spieler_t *, const koord3d &, const koord3d & );
 	virtual uint8 is_valid_pos( karte_t *, spieler_t *, const koord3d &, const char *&, const koord3d & );
+};
+
+class wkz_build_cityroad : public wkz_wegebau_t {
+public:
+	wkz_build_cityroad() : wkz_wegebau_t() { id = WKZ_CITYROAD | GENERAL_TOOL; }
+	virtual const weg_besch_t *get_besch(uint16,bool) const;
+	virtual image_id get_icon(spieler_t *sp) const { return werkzeug_t::get_icon(sp); }
+	virtual bool is_selected( karte_t *welt ) const { return werkzeug_t::is_selected(welt); }
+private:
+	virtual const char *do_work( karte_t *, spieler_t *, const koord3d &, const koord3d & );
 };
 
 class wkz_brueckenbau_t : public two_click_werkzeug_t {
@@ -432,8 +445,8 @@ public:
 	const char *get_tooltip(spieler_t *) { return translator::translate("Lock game"); }
 	bool init( karte_t *welt, spieler_t * ) { return welt->get_einstellungen()->get_allow_player_change(); }
 	const char *work( karte_t *welt, spieler_t *, koord3d ) {
-		welt->get_einstellungen()->set_allow_player_change( false );
-		destroy_all_win();
+		welt->access_einstellungen()->set_allow_player_change( false );
+		destroy_all_win( true );
 		welt->switch_active_player( 0 );
 		welt->set_werkzeug( general_tool[WKZ_ABFRAGE], welt->get_spieler(0) );
 		return NULL;
@@ -724,7 +737,7 @@ public:
 	wkz_quit_t() : werkzeug_t() { id = WKZ_QUIT | SIMPLE_TOOL; }
 	const char *get_tooltip(spieler_t *) { return translator::translate("Beenden"); }
 	bool init( karte_t *welt, spieler_t * ) {
-		destroy_all_win();
+		destroy_all_win( true );
 		welt->beenden( true );
 		return false;
 	}
@@ -772,7 +785,7 @@ public:
 	const char *get_tooltip(spieler_t *) { return translator::translate("5LIGHT_CHOOSE"); }
 	bool is_selected(karte_t *welt) const { return welt->get_einstellungen()->get_show_pax(); }
 	bool init( karte_t *welt, spieler_t * ) {
-		welt->get_einstellungen()->set_show_pax( !welt->get_einstellungen()->get_show_pax() );
+		welt->access_einstellungen()->set_show_pax( !welt->get_einstellungen()->get_show_pax() );
 		return false;
 	}
 	virtual bool is_init_network_save() const { return false; }
@@ -784,7 +797,7 @@ public:
 	const char *get_tooltip(spieler_t *) { return translator::translate("6LIGHT_CHOOSE"); }
 	bool is_selected(karte_t *welt) const { return welt->get_einstellungen()->get_random_pedestrians(); }
 	bool init( karte_t *welt, spieler_t * ) {
-		welt->get_einstellungen()->set_random_pedestrians( !welt->get_einstellungen()->get_random_pedestrians() );
+		welt->access_einstellungen()->set_random_pedestrians( !welt->get_einstellungen()->get_random_pedestrians() );
 		return false;
 	}
 	virtual bool is_init_network_save() const { return false; }
@@ -798,7 +811,7 @@ public:
 	bool is_selected(karte_t *) const { return false; }
 	bool init( karte_t *welt, spieler_t * ) {
 		assert(  default_param  );
-		welt->get_einstellungen()->set_verkehr_level( atoi(default_param) );
+		welt->access_einstellungen()->set_verkehr_level( atoi(default_param) );
 		return false;
 	}
 	virtual bool is_init_network_save() const { return false; }
@@ -836,6 +849,14 @@ public:
 class wkz_change_player_t : public werkzeug_t {
 public:
 	wkz_change_player_t() : werkzeug_t() { id = WKZ_SET_PLAYER_TOOL | SIMPLE_TOOL; }
+	virtual bool init( karte_t *, spieler_t * );
+	virtual bool is_init_network_save() const { return false; }
+};
+
+// change timing of traffic light
+class wkz_change_traffic_light_t : public werkzeug_t {
+public:
+	wkz_change_traffic_light_t() : werkzeug_t() { id = WKZ_TRAFFIC_LIGHT_TOOL | SIMPLE_TOOL; }
 	virtual bool init( karte_t *, spieler_t * );
 	virtual bool is_init_network_save() const { return false; }
 };
@@ -1021,7 +1042,7 @@ public:
 	bool is_selected(karte_t *) const { return win_get_magic(magic_load_t); }
 	bool is_init_network_save() const { return true; }
 	bool init( karte_t *welt, spieler_t * ) {
-		destroy_all_win();
+		destroy_all_win( true );
 		create_win(new loadsave_frame_t(welt, true), w_info, magic_load_t);
 		return false;
 	}
@@ -1195,7 +1216,7 @@ public:
 	const char *get_tooltip(spieler_t *) { return translator::translate("enlarge map"); }
 	bool is_selected(karte_t *) const { return win_get_magic(magic_bigger_map); }
 	bool init( karte_t *welt, spieler_t *sp ) {
-		destroy_all_win();
+		destroy_all_win( true );
 		create_win( new enlarge_map_frame_t(sp,welt), w_info, magic_bigger_map );
 		return false;
 	}
@@ -1222,7 +1243,19 @@ public:
 	const char *get_tooltip(spieler_t *) { return translator::translate("Climate Control"); }
 	bool is_selected(karte_t *) const { return win_get_magic(magic_climate); }
 	bool init( karte_t *welt, spieler_t * ) {
-		create_win( new climate_gui_t(welt->get_einstellungen()), w_info, magic_climate );
+		create_win( new climate_gui_t(welt->access_einstellungen()), w_info, magic_climate );
+		return false;
+	}
+};
+
+/* open climate settings */
+class wkz_settings_t : public werkzeug_t {
+public:
+	wkz_settings_t() : werkzeug_t() { id = WKZ_SETTINGS | DIALOGE_TOOL; }
+	const char *get_tooltip(spieler_t *) { return translator::translate("Setting"); }
+	bool is_selected(karte_t *) const { return win_get_magic(magic_settings_frame_t); }
+	bool init( karte_t *welt, spieler_t * ) {
+		create_win( new settings_frame_t(welt->access_einstellungen()), w_info, magic_settings_frame_t );
 		return false;
 	}
 };

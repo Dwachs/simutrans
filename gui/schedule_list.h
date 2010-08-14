@@ -39,9 +39,9 @@ private:
 
 	sint32 selection, capacity, load, loadfactor;
 
-	sint32 old_line_count;
+	uint32 old_line_count;
 	sint32 last_schedule_count;
-	sint32 last_vehicle_count;
+	uint32 last_vehicle_count;
 
 	void display(koord pos);
 
@@ -96,7 +96,7 @@ public:
    * Mausklicks werden hiermit an die GUI-Komponenten
    * gemeldet
    */
-   void infowin_event(const event_t *ev);
+   bool infowin_event(const event_t *ev);
 
 	/**
 	* This method is called if an action is triggered

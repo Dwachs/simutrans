@@ -87,44 +87,9 @@ halt_info_t::halt_info_t(karte_t *welt, halthandle_t halt)
 	input.set_pos(koord(10,4));
 	tstrncpy(edit_name, halt->get_name(), lengthof(edit_name));
 	input.set_text(edit_name, lengthof(edit_name));
-
-	add_komponente(&sort_label);
-
-	// hsiegeln: added sort_button
-	sort_button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
-	sort_button.set_pos(koord(BUTTON1_X, offset_below_viewport));
-	sort_button.set_text(sort_text[umgebung_t::default_sortmode]);
-	sort_button.set_typ(button_t::roundbox);
-	sort_button.set_tooltip("Sort waiting list by");
-
-	toggler.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
-	toggler.set_pos(koord(BUTTON3_X, offset_below_viewport));
-	toggler.set_text("Chart");
-	toggler.set_typ(button_t::roundbox_state);
-	toggler.set_tooltip("Show/hide statistics");
-	toggler.add_listener(this);
-	toggler.pressed = false;
-	add_komponente(&toggler);
-
-	button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
-	button.set_pos(koord(BUTTON4_X, offset_below_viewport));
-	button.set_text("Details");
-	button.set_typ(button_t::roundbox);
-
-	scrolly.set_pos(koord(0, offset_below_viewport+BUTTON_HEIGHT+4));
-
-	add_komponente(&sort_button);
-	add_komponente(&button);
 	add_komponente(&input);
 
-	set_fenstergroesse(koord(total_width, view.get_groesse().y+208));
-	set_min_windowsize(koord(total_width, view.get_groesse().y+138));
-	set_resizemode(diagonal_resize);     // 31-May-02	markus weber	added
-	resize(koord(0,0));
-
-	button.add_listener(this);
-//	input.add_listener(this);
-	sort_button.add_listener(this);
+	add_komponente(&view);
 
 	// chart
 	chart.set_pos(koord(66,view.get_groesse().y+24));
@@ -146,7 +111,43 @@ halt_info_t::halt_info_t(karte_t *welt, halthandle_t halt)
 	}
 	add_komponente(&chart);
 
-	add_komponente(&view);
+	add_komponente(&sort_label);
+
+	// hsiegeln: added sort_button
+	sort_button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
+	sort_button.set_pos(koord(BUTTON1_X, offset_below_viewport));
+	sort_button.set_text(sort_text[umgebung_t::default_sortmode]);
+	sort_button.set_typ(button_t::roundbox);
+	sort_button.set_tooltip("Sort waiting list by");
+	add_komponente(&sort_button);
+
+	toggler.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
+	toggler.set_pos(koord(BUTTON3_X, offset_below_viewport));
+	toggler.set_text("Chart");
+	toggler.set_typ(button_t::roundbox_state);
+	toggler.set_tooltip("Show/hide statistics");
+	toggler.add_listener(this);
+	toggler.pressed = false;
+	add_komponente(&toggler);
+
+	button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
+	button.set_pos(koord(BUTTON4_X, offset_below_viewport));
+	button.set_text("Details");
+	button.set_typ(button_t::roundbox);
+
+	scrolly.set_pos(koord(0, offset_below_viewport+BUTTON_HEIGHT+4));
+
+	add_komponente(&button);
+
+	set_fenstergroesse(koord(total_width, view.get_groesse().y+208));
+	set_min_windowsize(koord(total_width, view.get_groesse().y+138));
+	set_resizemode(diagonal_resize);     // 31-May-02	markus weber	added
+	resize(koord(0,0));
+
+	button.add_listener(this);
+//	input.add_listener(this);
+	sort_button.add_listener(this);
+
 	add_komponente(&scrolly);
 }
 
@@ -164,6 +165,11 @@ halt_info_t::zeichnen(koord pos, koord gr)
 	if(halt.is_bound()) {
 		if(strcmp(edit_name,halt->get_name())) {
 			halt->set_name( edit_name );
+			// Knightly : need to update the title text of the associated halt detail dialog, if present
+			halt_detail_t *const details_frame = dynamic_cast<halt_detail_t *>( win_get_magic( magic_halt_detail + halt.get_id() ) );
+			if(  details_frame  ) {
+				details_frame->set_name( halt->get_name() );
+			}
 		}
 
 		// buffer update now only when needed by halt itself => dedicated buffer for this
@@ -286,7 +292,7 @@ halt_info_t::zeichnen(koord pos, koord gr)
 bool halt_info_t::action_triggered( gui_action_creator_t *comp,value_t /* */)
 {
 	if (comp == &button) { 			// details button pressed
-		create_win( new halt_detail_t(halt), w_info, (long)this);
+		create_win( new halt_detail_t(halt), w_info, magic_halt_detail + halt.get_id() );
 	} else if (comp == &sort_button) { 	// @author hsiegeln sort button pressed
 		umgebung_t::default_sortmode = ((int)(halt->get_sortby())+1)%4;
 		halt->set_sortby((freight_list_sorter_t::sort_mode_t) umgebung_t::default_sortmode);

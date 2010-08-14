@@ -62,6 +62,12 @@ ifeq ($(OSTYPE),mingw)
   LIBS += -lmingw32 -lgdi32 -lwinmm -lwsock32 -lz -lbz2
 endif
 
+ifeq ($(OSTYPE),mingw)
+  SOURCES += clipboard_w32.cc
+else
+  SOURCES += clipboard_internal.cc
+endif
+
 ALLEGRO_CONFIG ?= allegro-config
 SDL_CONFIG     ?= sdl-config
 
@@ -201,6 +207,7 @@ SOURCES += gui/colors.cc
 SOURCES += gui/components/gui_button.cc
 SOURCES += gui/components/gui_chart.cc
 SOURCES += gui/components/gui_combobox.cc
+SOURCES += gui/components/gui_fixedwidth_textarea.cc
 SOURCES += gui/components/gui_flowtext.cc
 SOURCES += gui/components/gui_image_list.cc
 SOURCES += gui/components/gui_label.cc
@@ -211,7 +218,6 @@ SOURCES += gui/components/gui_scrollpane.cc
 SOURCES += gui/components/gui_speedbar.cc
 SOURCES += gui/components/gui_tab_panel.cc
 SOURCES += gui/components/gui_textarea.cc
-SOURCES += gui/components/gui_fixedwidth_textarea.cc
 SOURCES += gui/components/gui_textinput.cc
 SOURCES += gui/components/gui_world_view_t.cc
 SOURCES += gui/convoi_detail_t.cc
@@ -269,10 +275,11 @@ SOURCES += gui/sound_frame.cc
 SOURCES += gui/sprachen.cc
 SOURCES += gui/stadt_info.cc
 SOURCES += gui/station_building_select.cc
-SOURCES += gui/trafficlight_info.cc
 SOURCES += gui/thing_info.cc
+SOURCES += gui/trafficlight_info.cc
 SOURCES += gui/welt.cc
 SOURCES += gui/werkzeug_waehler.cc
+SOURCES += old_blockmanager.cc
 SOURCES += player/ai.cc
 SOURCES += player/ai_goods.cc
 SOURCES += player/ai_passenger.cc
@@ -301,7 +308,6 @@ SOURCES += player/wai/utils/amphi_searcher.cc
 SOURCES += player/wai/utils/water_digger.cc
 SOURCES += player/wai/utils/wrapper.cc
 SOURCES += player/simplay.cc
-SOURCES += old_blockmanager.cc
 SOURCES += simcity.cc
 SOURCES += simconvoi.cc
 SOURCES += simdebug.cc
@@ -332,11 +338,10 @@ SOURCES += sucher/platzsucher.cc
 SOURCES += tpl/debug_helper.cc
 SOURCES += unicode.cc
 SOURCES += utils/cbuffer_t.cc
-SOURCES += utils/cstring_t.cc
 SOURCES += utils/log.cc
 SOURCES += utils/memory_rw.cc
-SOURCES += utils/sha1.cc
 SOURCES += utils/searchfolder.cc
+SOURCES += utils/sha1.cc
 SOURCES += utils/simstring.cc
 SOURCES += vehicle/movingobj.cc
 SOURCES += vehicle/simpeople.cc

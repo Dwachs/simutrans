@@ -9,7 +9,7 @@
 #define labellist_stats_t_h
 
 #include "../tpl/vector_tpl.h"
-#include "../ifc/gui_komponente.h"
+#include "components/gui_komponente.h"
 #include "components/gui_button.h"
 
 class karte_t;
@@ -39,7 +39,7 @@ public:
 	* gemeldet
 	* @author Hj. Malthaner
 	*/
-	void infowin_event(const event_t *);
+	bool infowin_event(const event_t *);
 
 	/**
 	* Zeichnet die Komponente

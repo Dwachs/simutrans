@@ -8,6 +8,7 @@
  *
  */
 
+#include <string>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,12 +67,6 @@ karte_t* stadt_t::welt = NULL; // one is enough ...
  */
 const uint32 stadt_t::step_bau_interval = 21000;
 
-/**
- * try to built cities at least this distance apart
- * @author prissi
- */
-static uint32 minimum_city_distance = 16;
-
 /*
  * chance to do renovation instead new building (in percent)
  * @author prissi
@@ -85,22 +80,15 @@ static uint32 renovation_percentage = 12;
  */
 static uint32 min_building_density = 25;
 
-/**
- * add a new consumer every % people increase
- * @author prissi
- */
-static uint32 industry_increase_every[8];
-
-
 // the following are the scores for the different building types
-static int ind_start_score =   0;
-static int com_start_score = -10;
-static int res_start_score =   0;
+static sint16 ind_start_score =   0;
+static sint16 com_start_score = -10;
+static sint16 res_start_score =   0;
 
 // order: res com, ind, given by gebaeude_t::typ
-static int ind_neighbour_score[] = { -8, 0,  8 };
-static int com_neighbour_score[] = {  1, 8,  1 };
-static int res_neighbour_score[] = {  8, 0, -8 };
+static sint16 ind_neighbour_score[] = { -8, 0,  8 };
+static sint16 com_neighbour_score[] = {  1, 8,  1 };
+static sint16 res_neighbour_score[] = {  8, 0, -8 };
 
 /**
  * Rule data structure
@@ -111,15 +99,40 @@ class rule_entry_t {
 public:
 	uint8 x,y;
 	char flag;
-	rule_entry_t() : x(0), y(0), flag('.') {}
-	rule_entry_t(uint8 x_, uint8 y_, char f_) : x(x_), y(y_), flag(f_) {}
+	rule_entry_t(uint8 x_=0, uint8 y_=0, char f_='.') : x(x_), y(y_), flag(f_) {}
+
+	void rdwr(loadsave_t* file)
+	{
+		file->rdwr_byte(x);
+		file->rdwr_byte(y);
+		uint8 c = flag;
+		file->rdwr_byte(c);
+		flag = c;
+	}
 };
 
 class rule_t {
 public:
-	int  chance;
+	sint16  chance;
 	vector_tpl<rule_entry_t> rule;
-	rule_t() : chance(0) {}
+	rule_t(uint32 count=0) : chance(0), rule(count) {}
+
+	void rdwr(loadsave_t* file)
+	{
+		file->rdwr_short(chance);
+
+		if (file->is_loading()) {
+			rule.clear();
+		}
+		uint32 count = rule.get_count();
+		file->rdwr_long(count);
+		for(uint32 i=0; i<count; i++) {
+			if (file->is_loading()) {
+				rule.append(rule_entry_t());
+			}
+			rule[i].rdwr(file);
+		}
+	}
 };
 
 // house rules
@@ -252,41 +265,17 @@ void stadt_t::bewerte_haus(koord k, sint32 rd, rule_t &regel)
 
 
 
-uint32 stadt_t::get_industry_increase()
-{
-	return industry_increase_every[0];
-}
-
-void stadt_t::set_industry_increase(uint32 ind_increase)
-{
-	for (int i = 0; i < 8; i++) {
-		industry_increase_every[i] = ind_increase << i;
-	}
-}
-
-uint32 stadt_t::get_minimum_city_distance()
-{
-	return minimum_city_distance;
-}
-
-void stadt_t::set_minimum_city_distance(uint32 s)
-{
-	minimum_city_distance = s;
-}
-
-
-
 /**
  * Reads city configuration data
  * @author Hj. Malthaner
  */
-bool stadt_t::cityrules_init(cstring_t objfilename)
+bool stadt_t::cityrules_init(const std::string &objfilename)
 {
 	tabfile_t cityconf;
 	// first take user data, then user global data
-	cstring_t user_dir=umgebung_t::user_dir;
-	if (!cityconf.open(user_dir+"cityrules.tab")) {
-		if (!cityconf.open(objfilename+"config/cityrules.tab")) {
+	const std::string user_dir=umgebung_t::user_dir;
+	if (!cityconf.open((user_dir+"cityrules.tab").c_str())) {
+		if (!cityconf.open((objfilename+"config/cityrules.tab").c_str())) {
 			dbg->fatal("stadt_t::init()", "Can't read cityrules.tab" );
 			return false;
 		}
@@ -297,12 +286,10 @@ bool stadt_t::cityrules_init(cstring_t objfilename)
 
 	char buf[128];
 
-	minimum_city_distance = contents.get_int("minimum_city_distance", 16);
 	renovation_percentage = (uint32)contents.get_int("renovation_percentage", 25);
 	// to keep compatible with the typo, here both are ok
 	min_building_density = (uint32)contents.get_int("minimum_building_desity", 25);
 	min_building_density = (uint32)contents.get_int("minimum_building_density", min_building_density);
-	set_industry_increase( contents.get_int("industry_increase_every", 0) );
 
 	// init the building value tables
 	ind_start_score = contents.get_int("ind_start_score", 0);
@@ -432,7 +419,57 @@ bool stadt_t::cityrules_init(cstring_t objfilename)
 	return true;
 }
 
+/**
+* Reads/writes city configuration data from/to a savegame
+* called from karte_t::speichern and karte_t::laden
+* only written for networkgames
+* @author Dwachs
+*/
+void stadt_t::cityrules_rdwr(loadsave_t *file)
+{
+	file->rdwr_long(renovation_percentage);
+	file->rdwr_long(min_building_density);
 
+	file->rdwr_short(ind_start_score);
+	file->rdwr_short(ind_neighbour_score[0]);
+	file->rdwr_short(ind_neighbour_score[1]);
+	file->rdwr_short(ind_neighbour_score[2]);
+
+	file->rdwr_short(com_start_score);
+	file->rdwr_short(com_neighbour_score[0]);
+	file->rdwr_short(com_neighbour_score[1]);
+	file->rdwr_short(com_neighbour_score[2]);
+
+	file->rdwr_short(res_start_score);
+	file->rdwr_short(res_neighbour_score[0]);
+	file->rdwr_short(res_neighbour_score[1]);
+	file->rdwr_short(res_neighbour_score[2]);
+
+	// house rules
+	if (file->is_loading()) {
+		house_rules.clear();
+	}
+	uint32 count = house_rules.get_count();
+	file->rdwr_long(count);
+	for(uint32 i=0; i<count; i++) {
+		if (file->is_loading()) {
+			house_rules.append(new rule_t());
+		}
+		house_rules[i]->rdwr(file);
+	}
+	// road rules
+	if (file->is_loading()) {
+		road_rules.clear();
+	}
+	count = road_rules.get_count();
+	file->rdwr_long(count);
+	for(uint32 i=0; i<count; i++) {
+		if (file->is_loading()) {
+			road_rules.append(new rule_t());
+		}
+		road_rules[i]->rdwr(file);
+	}
+}
 
 /**
  * denkmal_platz_sucher_t:
@@ -868,23 +905,23 @@ void stadt_t::rdwr(loadsave_t* file)
 	uint32 lob = lo.y;
 	uint32 lre = ur.x;
 	uint32 lun = ur.y;
-	file->rdwr_long(lli, " ");
-	file->rdwr_long(lob, "\n");
-	file->rdwr_long(lre, " ");
-	file->rdwr_long(lun, "\n");
+	file->rdwr_long(lli);
+	file->rdwr_long(lob);
+	file->rdwr_long(lre);
+	file->rdwr_long(lun);
 	lo.x = lli;
 	lo.y = lob;
 	ur.x = lre;
 	ur.y = lun;
-	file->rdwr_long(besitzer_n, "\n");
-	file->rdwr_long(bev, " ");
-	file->rdwr_long(arb, " ");
-	file->rdwr_long(won, "\n");
+	file->rdwr_long(besitzer_n);
+	file->rdwr_long(bev);
+	file->rdwr_long(arb);
+	file->rdwr_long(won);
 	// old values zentrum_namen_cnt : aussen_namen_cnt
 	if(file->get_version()<99018) {
 		sint32 dummy=0;
-		file->rdwr_long(dummy, " ");
-		file->rdwr_long(dummy, "\n");
+		file->rdwr_long(dummy);
+		file->rdwr_long(dummy);
 	}
 
 	if (file->is_loading()) {
@@ -914,52 +951,52 @@ void stadt_t::rdwr(loadsave_t* file)
 		// 86.00.0 introduced city history
 		for (uint year = 0; year < MAX_CITY_HISTORY_YEARS; year++) {
 			for (uint hist_type = 0; hist_type < 2; hist_type++) {
-				file->rdwr_longlong(city_history_year[year][hist_type], " ");
+				file->rdwr_longlong(city_history_year[year][hist_type]);
 			}
 			for (uint hist_type = 4; hist_type < 6; hist_type++) {
-				file->rdwr_longlong(city_history_year[year][hist_type], " ");
+				file->rdwr_longlong(city_history_year[year][hist_type]);
 			}
 		}
 		for (uint month = 0; month < MAX_CITY_HISTORY_MONTHS; month++) {
 			for (uint hist_type = 0; hist_type < 2; hist_type++) {
-				file->rdwr_longlong(city_history_month[month][hist_type], " ");
+				file->rdwr_longlong(city_history_month[month][hist_type]);
 			}
 			for (uint hist_type = 4; hist_type < 6; hist_type++) {
-				file->rdwr_longlong(city_history_month[month][hist_type], " ");
+				file->rdwr_longlong(city_history_month[month][hist_type]);
 			}
 		}
 		// not needed any more
 		sint32 dummy = 0;
-		file->rdwr_long(dummy, " ");
-		file->rdwr_long(dummy, "\n");
-		file->rdwr_long(dummy, " ");
-		file->rdwr_long(dummy, "\n");
+		file->rdwr_long(dummy);
+		file->rdwr_long(dummy);
+		file->rdwr_long(dummy);
+		file->rdwr_long(dummy);
 	}
 	else {
 		// 99.17.0 extended city history
 		for (uint year = 0; year < MAX_CITY_HISTORY_YEARS; year++) {
 			for (uint hist_type = 0; hist_type < MAX_CITY_HISTORY; hist_type++) {
-				file->rdwr_longlong(city_history_year[year][hist_type], " ");
+				file->rdwr_longlong(city_history_year[year][hist_type]);
 			}
 		}
 		for (uint month = 0; month < MAX_CITY_HISTORY_MONTHS; month++) {
 			for (uint hist_type = 0; hist_type < MAX_CITY_HISTORY; hist_type++) {
-				file->rdwr_longlong(city_history_month[month][hist_type], " ");
+				file->rdwr_longlong(city_history_month[month][hist_type]);
 			}
 		}
 		// save button settings for this town
-		file->rdwr_long( stadtinfo_options, "si" );
+		file->rdwr_long( stadtinfo_options);
 	}
 
 	if(file->get_version()>99014  &&  file->get_version()<99016) {
 		sint32 dummy = 0;
-		file->rdwr_long(dummy, " ");
-		file->rdwr_long(dummy, "\n");
+		file->rdwr_long(dummy);
+		file->rdwr_long(dummy);
 	}
 
 	// since 102.2 there are static cities
 	if(file->get_version()>102001) {
-		file->rdwr_bool(allow_citygrowth,"");
+		file->rdwr_bool(allow_citygrowth);
 	}
 	else if(  file->is_loading()  ) {
 		allow_citygrowth = true;
@@ -1526,9 +1563,14 @@ void stadt_t::step_passagiere()
 					if (found) {
 						ware_t return_pax (wtyp);
 
-						// always use normal amount for return pas/mail
-						// (for mail pax.menge might have been smaller!)
-						return_pax.menge = pax_left_to_do;
+						if(  will_return != town_return  &&  wtyp==warenbauer_t::post  ) {
+							// attractions/factory generate more mail than they recieve
+							return_pax.menge = pax_left_to_do*3;
+						}
+						else {
+							// use normal amount for return pas/mail
+							return_pax.menge = pax_left_to_do;
+						}
 						return_pax.set_zielpos(k);
 						return_pax.set_ziel(start_halt);
 						return_pax.set_zwischenziel(welt->lookup(return_zwischenziel)->get_halt());
@@ -1986,9 +2028,10 @@ void stadt_t::check_bau_rathaus(bool new_town)
  */
 void stadt_t::check_bau_factory(bool new_town)
 {
-	if (!new_town && industry_increase_every[0] > 0 && bev % industry_increase_every[0] == 0) {
-		for (int i = 0; i < 8; i++) {
-			if (industry_increase_every[i] == (uint32)bev) {
+	if (!new_town  &&  welt->get_einstellungen()->get_industry_increase_every() > 0  &&  (bev % welt->get_einstellungen()->get_industry_increase_every())== 0) {
+		uint32 div = bev / welt->get_einstellungen()->get_industry_increase_every();
+		for (uint8 i = 0; i < 8; i++) {
+			if (div==(1u<<i)) {
 				DBG_MESSAGE("stadt_t::check_bau_factory", "adding new industry at %i inhabitants.", get_einwohner());
 				fabrikbauer_t::increase_industry_density( welt, true );
 			}
@@ -2564,7 +2607,7 @@ void stadt_t::baue()
 }
 
 
-// geeigneten platz zur Stadtgruendung durch Zufall ermitteln
+// find suitable places for cities
 vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl, sint16 old_x, sint16 old_y)
 {
 	int cl = 0;
@@ -2574,12 +2617,14 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 		}
 	}
 	DBG_DEBUG("karte_t::init()", "get random places in climates %x", cl);
-	slist_tpl<koord>* list = wl->finde_plaetze(2, 3, (climate_bits)cl, old_x, old_y);
+	// search at least places which are 5x5 squares large
+	slist_tpl<koord>* list = wl->finde_plaetze( 5, 5, (climate_bits)cl, old_x, old_y);
 	DBG_DEBUG("karte_t::init()", "found %i places", list->get_count());
 	vector_tpl<koord>* result = new vector_tpl<koord>(anzahl);
 
 	// pre processed array: max 1 city from each square can be built
 	// each entry represents a cell of minimum_city_distance/2 length and width
+	const uint32 minimum_city_distance = wl->get_einstellungen()->get_minimum_city_distance();
 	const uint32 xmax = (2*wl->get_groesse_x())/minimum_city_distance+1;
 	const uint32 ymax = (2*wl->get_groesse_y())/minimum_city_distance+1;
 	array2d_tpl< vector_tpl<koord> > places(xmax, ymax);

@@ -241,7 +241,7 @@ money_frame_t::money_frame_t(spieler_t *sp)
 	// easier headquarter access
 	old_level = sp->get_headquarter_level();
 	old_pos = sp->get_headquarter_pos();
-	if(!hausbauer_t::headquarter.empty()) {
+	if(old_level > 0  ||  hausbauer_t::get_headquarter(0,sp->get_welt()->get_timeline_year_month())!=NULL) {
 
 		headquarter.init(button_t::box, old_pos!=koord::invalid ? "upgrade HQ" : "build HQ", koord(582-12-120, 0), koord(120, BUTTONSPACE));
 		headquarter.add_listener(this);
@@ -382,7 +382,7 @@ void money_frame_t::zeichnen(koord pos, koord gr)
 	else if(sp->get_konto_ueberzogen()) {
 		warn.set_color( COL_RED );
 		if(sp->get_finance_history_year(0, COST_NETWEALTH)<0) {
-			sprintf(str_buf[15], translator::translate("Company bankrupt") );
+			tstrncpy(str_buf[15], translator::translate("Company bankrupt"), lengthof(str_buf[15]) );
 		}
 		else {
 			sprintf(str_buf[15], translator::translate("On loan since %i month(s)"), sp->get_konto_ueberzogen() );

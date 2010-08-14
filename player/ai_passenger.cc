@@ -271,6 +271,7 @@ bool ai_passenger_t::create_water_transport_vehikel(const stadt_t* start_stadt, 
 		// we use the free own vehikel_besch_t
 		vehikel_besch_t remover_besch( water_wt, 500, vehikel_besch_t::diesel );
 		vehikel_t* test_driver = vehikelbauer_t::baue( koord3d(start_harbour-start_dx,welt->get_grundwasser()), this, NULL, &remover_besch );
+		test_driver->set_flag( ding_t::not_on_map );
 		route_t verbindung;
 		bool connected = verbindung.calc_route(welt, koord3d(start_harbour-start_dx,welt->get_grundwasser()), koord3d(end_harbour-end_dx,welt->get_grundwasser()), test_driver, 0);
 		delete test_driver;
@@ -1401,17 +1402,17 @@ void ai_passenger_t::rdwr(loadsave_t *file)
 	}
 
 	// now save current state ...
-	file->rdwr_enum(state, "");
-	file->rdwr_long( construction_speed, "" );
-	file->rdwr_bool( air_transport, "" );
-	file->rdwr_bool( ship_transport, "" );
+	file->rdwr_enum(state);
+	file->rdwr_long(construction_speed);
+	file->rdwr_bool(air_transport);
+	file->rdwr_bool(ship_transport);
 	platz1.rdwr( file );
 	platz2.rdwr( file );
 
 	if(file->is_saving()) {
 		// save current pointers
 		sint32 delta_steps = next_contruction_steps-welt->get_steps();
-		file->rdwr_long(delta_steps, " ");
+		file->rdwr_long(delta_steps);
 		koord k = start_stadt ? start_stadt->get_pos() : koord::invalid;
 		k.rdwr(file);
 		k = end_stadt ? end_stadt->get_pos() : koord::invalid;
@@ -1423,7 +1424,7 @@ void ai_passenger_t::rdwr(loadsave_t *file)
 	}
 	else {
 		// since steps in loaded game == 0
-		file->rdwr_long(next_contruction_steps, " ");
+		file->rdwr_long(next_contruction_steps);
 		next_contruction_steps += welt->get_steps();
 		// reinit current pointers
 		koord k;

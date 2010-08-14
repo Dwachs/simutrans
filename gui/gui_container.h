@@ -12,7 +12,7 @@
 #include "../simdebug.h"
 #include "../simevent.h"
 #include "../tpl/slist_tpl.h"
-#include "../ifc/gui_komponente.h"
+#include "components/gui_komponente.h"
 
 /**
  * Ein Behälter für andere gui_komponenten. Ist selbst eine
@@ -54,7 +54,7 @@ public:
 	* gemeldet
 	* @author Hj. Malthaner
 	*/
-	virtual void infowin_event(const event_t *);
+	virtual bool infowin_event(const event_t *);
 
 	/**
 	* Zeichnet die Komponente
@@ -68,6 +68,12 @@ public:
 	*/
 	void remove_all();
 
+	/**
+	 * Returns true if any child component is focusable
+	 * @author Knightly
+	 */
+	virtual bool is_focusable();
+
 	// activates this element
 	void set_focus( gui_komponente_t *komp_focus );
 
@@ -75,7 +81,14 @@ public:
 	 * returns element that has the focus
 	 * that is: go down the hierarchy as much as possible
 	 */
-	gui_komponente_t *get_focus() const;
+	virtual gui_komponente_t *get_focus();
+
+	/**
+	 * Get the relative position of the focused component.
+	 * Used for auto-scrolling inside a scroll pane.
+	 * @author Knightly
+	 */
+	virtual koord get_focus_pos() { return komp_focus ? pos+komp_focus->get_focus_pos() : koord::invalid; }
 };
 
 #endif

@@ -6,6 +6,7 @@
  * New configurable OOP tool system
  */
 
+#include <string>
 #include <algorithm>
 
 #include "unicode.h"
@@ -96,6 +97,7 @@ werkzeug_t *create_general_tool(int toolnr)
 		case WKZ_REMOVE_WAYOBJ:    tool = new wkz_wayobj_remover_t(); break;
 		case WKZ_SLICED_AND_UNDERGROUND_VIEW: tool = new wkz_show_underground_t(); break;
 		case WKZ_BUY_HOUSE:        tool = new wkz_buy_house_t(); break;
+		case WKZ_CITYROAD:         tool = new wkz_build_cityroad(); break;
 		default:                   dbg->error("create_general_tool()","cannot satisfy request for general_tool[%i]!",toolnr);
 		                           return NULL;
 	}
@@ -137,6 +139,7 @@ werkzeug_t *create_simple_tool(int toolnr)
 		case WKZ_DEPOT_TOOL:        tool = new wkz_change_depot_t(); break;
 		case WKZ_PWDHASH_TOOL:		tool = new wkz_change_password_hash_t(); break;
 		case WKZ_SET_PLAYER_TOOL:	tool = new wkz_change_player_t(); break;
+		case WKZ_TRAFFIC_LIGHT_TOOL:tool = new wkz_change_traffic_light_t(); break;
 		default:                    dbg->error("create_simple_tool()","cannot satisfy request for simple_tool[%i]!",toolnr);
 		                            return NULL;
 	}
@@ -176,6 +179,7 @@ werkzeug_t *create_dialog_tool(int toolnr)
 		case WKZ_ENLARGE_MAP:    tool = new wkz_enlarge_map_t(); break;
 		case WKZ_LIST_LABEL:     tool = new wkz_list_label_t(); break;
 		case WKZ_CLIMATES:       tool = new wkz_climates_t(); break;
+		case WKZ_SETTINGS:       tool = new wkz_settings_t(); break;
 		default:                 dbg->error("create_dialog_tool()","cannot satisfy request for dialog_tool[%i]!",toolnr);
 		                         return NULL;
 	}
@@ -278,14 +282,14 @@ static bool compare_werkzeug(werkzeug_t const* const a, werkzeug_t const* const 
 
 
 // read a tab file to add images, cursors and sound to the tools
-void werkzeug_t::read_menu(cstring_t objfilename)
+void werkzeug_t::read_menu(const std::string &objfilename)
 {
 	char_to_tool.clear();
 	tabfile_t menuconf;
 	// only use pak sepcific menues, since otherwise images may missing
-	cstring_t user_dir=umgebung_t::user_dir;
-	if (!menuconf.open(objfilename+"config/menuconf.tab")) {
-		dbg->fatal("werkzeug_t::init_menu()", "Can't read %sconfig/menuconf.tab", (const char *)objfilename );
+	const std::string user_dir=umgebung_t::user_dir;
+	if (!menuconf.open((objfilename+"config/menuconf.tab").c_str())) {
+		dbg->fatal("werkzeug_t::init_menu()", "Can't read %sconfig/menuconf.tab", objfilename.c_str() );
 	}
 
 	tabfileobj_t contents;
@@ -334,7 +338,7 @@ void werkzeug_t::read_menu(cstring_t objfilename)
 			str++;
 			if(*str!=',') {
 				uint16 cursor = (uint16)atoi(str);
-				if(  cursor>=skinverwaltung_t::werkzeuge_general->get_bild_anzahl()  ) {
+				if(  cursor>=skinverwaltung_t::cursor_general->get_bild_anzahl()  ) {
 					dbg->fatal( "werkzeug_t::init_menu()", "wrong cursor (%i) given for general_tool[%i]", cursor, i );
 				}
 				w->cursor = skinverwaltung_t::cursor_general->get_bild_nr(cursor);
@@ -569,6 +573,12 @@ void werkzeug_t::read_menu(cstring_t objfilename)
 				uint8 toolnr = atoi(toolname+13);
 				if(  toolnr<GENERAL_TOOL_COUNT  ) {
 					if(icon!=IMG_LEER  ||  key_str  ||  param_str) {
+						// compatibility mode: wkz_cityroad is used for wkz_wegebau with defaultparam 'cityroad'
+						if(  toolnr==WKZ_WEGEBAU  &&  param_str  &&  strcmp(param_str,"city_road")==0) {
+							toolnr = WKZ_CITYROAD;
+							dbg->warning("werkzeug_t::read_menu()", "toolbar[%i][%i]: replaced way-builder(id=14) with default param=cityroad by cityroad builder(id=36)", i,j);
+						}
+						// now create tool
 						addtool = create_general_tool( toolnr );
 						// copy defaults
 						*addtool = *(general_tool[toolnr]);
@@ -824,6 +834,11 @@ void toolbar_t::update(karte_t *welt, spieler_t *sp)
 			}
 		}
 		else if(w->get_icon(welt->get_active_player())!=IMG_LEER) {
+			// get the right city_road
+			if(w->get_id() == (WKZ_CITYROAD | GENERAL_TOOL)) {
+				w->init(welt,sp);
+			}
+			// now add it to the toolbar gui
 			wzw->add_werkzeug( w );
 		}
 	}

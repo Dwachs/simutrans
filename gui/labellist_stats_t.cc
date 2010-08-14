@@ -114,18 +114,18 @@ void labellist_stats_t::get_unique_labels(labellist::sort_mode_t sortby, bool so
  * gemeldet
  * @author Hj. Malthaner
  */
-void labellist_stats_t::infowin_event(const event_t * ev)
+bool labellist_stats_t::infowin_event(const event_t * ev)
 {
 	const unsigned int line = (ev->cy) / (LINESPACE+1);
 
 	line_selected = 0xFFFFFFFFu;
 	if (line>=labels.get_count()) {
-		return;
+		return false;
 	}
 
 	koord pos = labels[line];
 	if (pos==koord::invalid) {
-		return;
+		return false;
 	}
 
 	// deperess goto button
@@ -145,6 +145,7 @@ void labellist_stats_t::infowin_event(const event_t * ev)
 	else if (IS_RIGHTRELEASE(ev)) {
 		welt->change_world_position(pos);
 	}
+	return false;
 } // end of function labellist_stats_t::infowin_event(const event_t * ev)
 
 
@@ -154,7 +155,6 @@ void labellist_stats_t::infowin_event(const event_t * ev)
  */
 void labellist_stats_t::zeichnen(koord offset)
 {
-	image_id const arrow_right_normal = skinverwaltung_t::window_skin->get_bild(10)->get_nummer();
 	const struct clip_dimension cd = display_get_clip_wh();
 	const int start = cd.y-LINESPACE+1;
 	const int end = cd.yy;
@@ -171,15 +171,9 @@ void labellist_stats_t::zeichnen(koord offset)
 			continue;
 		}
 
-		if(i!=line_selected) {
-			// goto information
-			display_color_img(arrow_right_normal, offset.x+2, yoff, 0, false, true);
-		}
-		else {
-			// select goto button
-			display_color_img(skinverwaltung_t::window_skin->get_bild(11)->get_nummer(),
+		// goto button
+		display_color_img( i!=line_selected ? button_t::arrow_right_normal : button_t::arrow_right_pushed,
 				offset.x+2, yoff, 0, false, true);
-		}
 
 		buf.clear();
 

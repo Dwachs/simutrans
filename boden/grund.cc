@@ -194,7 +194,7 @@ void grund_t::rdwr(loadsave_t *file)
 		pos.rdwr(file);
 	}
 	else {
-		file->rdwr_byte( z, "" );
+		file->rdwr_byte(z);
 		pos.z = get_typ()==grund_t::wasser ? welt->get_grundwasser() : z;
 	}
 
@@ -213,7 +213,7 @@ void grund_t::rdwr(loadsave_t *file)
 
 	if(file->get_version()<99007) {
 		bool label;
-		file->rdwr_bool(label, "\n");
+		file->rdwr_bool(label);
 		if(label) {
 			dinge.add( new label_t(welt, pos, welt->get_spieler(0), get_text() ) );
 		}
@@ -221,12 +221,12 @@ void grund_t::rdwr(loadsave_t *file)
 
 	sint8 besitzer_n=-1;
 	if(file->get_version()<99005) {
-		file->rdwr_byte(besitzer_n, "\n");
+		file->rdwr_byte(besitzer_n);
 	}
 
 	if(file->get_version()>=88009) {
 		uint8 sl = slope;
-		file->rdwr_byte( sl, " " );
+		file->rdwr_byte(sl);
 		slope = sl;
 	}
 	else {
@@ -308,12 +308,12 @@ void grund_t::rdwr(loadsave_t *file)
 							sint16 d16;
 							sint32 d32;
 
-							file->rdwr_byte(d8, "\n");
-							file->rdwr_short(d16, "\n");
-							file->rdwr_long(d32, "\n");
-							file->rdwr_long(d32, "\n");
-							file->rdwr_long(d32, "\n");
-							file->rdwr_long(d32, "\n");
+							file->rdwr_byte(d8);
+							file->rdwr_short(d16);
+							file->rdwr_long(d32);
+							file->rdwr_long(d32);
+							file->rdwr_long(d32);
+							file->rdwr_long(d32);
 							DBG_MESSAGE("grund_t::rdwr()","at (%i,%i) dock ignored",get_pos().x, get_pos().y);
 						}
 						break;
@@ -604,6 +604,22 @@ static inline uint8 get_backbild_from_diff(sint8 h1, sint8 h2)
 	}
 }
 
+/**
+* if ground is deleted mark the old spot as dirty
+*/
+void grund_t::mark_image_dirty()
+{
+	// see ding_t::mark_image_dirty
+	if(bild_nr!=IMG_LEER) {
+		// better not try to twist your brain to follow the retransformation ...
+		const sint16 rasterweite=get_tile_raster_width();
+		const koord diff = pos.get_2d()-welt->get_world_position()-welt->get_ansicht_ij_offset();
+		const sint16 x = (diff.x-diff.y)*(rasterweite/2);
+		const sint16 y = (diff.x+diff.y)*(rasterweite/4) + tile_raster_scale_y( -get_disp_height()*TILE_HEIGHT_STEP/Z_TILE_STEP, rasterweite) + ((display_get_width()/rasterweite)&1)*(rasterweite/4);
+		// mark the region after the image as dirty
+		display_mark_img_dirty( bild_nr, x+welt->get_x_off(), y+welt->get_y_off() );
+	}
+}
 
 // artifical walls from here on ...
 void grund_t::calc_back_bild(const sint8 hgt,const sint8 slope_this)
@@ -1481,7 +1497,7 @@ int grund_t::get_max_speed() const
 	if (weg_t const* const w = get_weg_nr(0)) {
 		max = w->get_max_speed();
 	}
-	if (weg_t const* const w = get_weg_nr(0)) {
+	if (weg_t const* const w = get_weg_nr(1)) {
 		max = min(max, w->get_max_speed());
 	}
 	return max;

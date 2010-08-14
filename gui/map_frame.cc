@@ -9,6 +9,7 @@
  * [Mathew Hounsell] Min Size Button On Map Window 20030313
  */
 
+#include <string>
 #include <stdio.h>
 #include <cmath>
 
@@ -21,7 +22,6 @@
 #include "../simgraph.h"
 #include "../simcolor.h"
 #include "../bauer/fabrikbauer.h"
-#include "../utils/cstring_t.h"
 #include "../dataobj/umgebung.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/koord.h"
@@ -34,6 +34,7 @@ koord map_frame_t::size=koord(0,0);
 uint8 map_frame_t::legend_visible=false;
 uint8 map_frame_t::scale_visible=false;
 uint8 map_frame_t::directory_visible=false;
+bool map_frame_t::is_cursor_hidden=false;
 
 // Hajo: we track our position onscreen
 koord map_frame_t::screenpos;
@@ -42,9 +43,9 @@ koord map_frame_t::screenpos;
 struct legend_entry
 {
 	legend_entry() {}
-	legend_entry(const cstring_t& text_, int colour_) : text(text_), colour(colour_) {}
+	legend_entry(const std::string &text_, int colour_) : text(text_), colour(colour_) {}
 
-	cstring_t text;
+	std::string text;
 	int       colour;
 };
 
@@ -134,15 +135,14 @@ map_frame_t::map_frame_t(karte_t *welt) :
 	// add factory names; shorten too long names
 	while(iter.next()) {
 		if(iter.get_current_value()->get_gewichtung()>0) {
-			int i;
+			size_t i;
 
-			cstring_t label (translator::translate(iter.get_current_value()->get_name()));
-			for(  i=12;  i<label.len()  &&  display_calc_proportional_string_len_width(label,i)<100;  i++  )
+			std::string label (translator::translate(iter.get_current_value()->get_name()));
+			for(  i=12;  i<label.size()  &&  display_calc_proportional_string_len_width(label.c_str(),i)<100;  i++  )
 				;
-			if(  i<label.len()  ) {
-				label.set_at(i++, '.');
-				label.set_at(i++, '.');
-				label.set_at(i++, '\0');
+			if(  i<label.size()  ) {
+				label = label.substr(0, i);
+				label.append("..");
 			}
 
 			legend.append(legend_entry(label, iter.get_current_value()->get_kennfarbe()));
@@ -188,6 +188,7 @@ map_frame_t::map_frame_t(karte_t *welt) :
 	set_resizemode(diagonal_resize);
 
 	is_dragging = false;
+	zoomed = false;
 
 	karte->set_mode( (reliefkarte_t::MAP_MODES)umgebung_t::default_mapmode );
 }
@@ -224,27 +225,11 @@ map_frame_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 	}
 	else if(komp==zoom_buttons+1) {
 		// zoom out
-		if(reliefkarte_t::get_karte()->zoom_in>1) {
-			reliefkarte_t::get_karte()->zoom_in--;
-		}
-		else if(reliefkarte_t::get_karte()->zoom_out<4  ) {
-			reliefkarte_t::get_karte()->zoom_out++;
-		}
-		// recalc sliders
-		reliefkarte_t::get_karte()->calc_map_groesse();
-		scrolly.set_groesse( scrolly.get_groesse() );
+		zoom(true);
 	}
 	else if(komp==zoom_buttons+0) {
 		// zoom in
-		if(reliefkarte_t::get_karte()->zoom_out>1) {
-			reliefkarte_t::get_karte()->zoom_out--;
-		}
-		else if(reliefkarte_t::get_karte()->zoom_in<4  ) {
-			reliefkarte_t::get_karte()->zoom_in++;
-		}
-		// recalc sliders
-		reliefkarte_t::get_karte()->calc_map_groesse();
-		scrolly.set_groesse( scrolly.get_groesse() );
+		zoom(false);
 	}
 	else if(komp==&b_rotate45) {
 		// rotated/straight map
@@ -300,9 +285,12 @@ void map_frame_t::zoom(bool zoom_out)
 			reliefkarte_t::get_karte()->zoom_in++;
 		}
 	}
-	// recalc sliders
+	// recalc map size
 	reliefkarte_t::get_karte()->calc_map_groesse();
-	scrolly.set_groesse( scrolly.get_groesse() );
+	// recalc all the other data incl scrollbars
+	resize(koord(0,0));
+
+	zoomed = true;
 }
 
 
@@ -311,7 +299,7 @@ void map_frame_t::zoom(bool zoom_out)
  * gemeldet
  * @author Hj. Malthaner
  */
-void map_frame_t::infowin_event(const event_t *ev)
+bool map_frame_t::infowin_event(const event_t *ev)
 {
 	if(ev->ev_class == INFOWIN) {
 		if(ev->ev_code == WIN_OPEN) {
@@ -325,29 +313,29 @@ void map_frame_t::infowin_event(const event_t *ev)
 	if(  (IS_WHEELUP(ev) || IS_WHEELDOWN(ev))  &&  reliefkarte_t::get_karte()->getroffen(ev->mx-scrolly.get_pos().x,ev->my-scrolly.get_pos().y-16)) {
 		// otherwise these would go to the vertical scroll bar
 		zoom(IS_WHEELUP(ev));
-		return;
-	}
-
-	if(!is_dragging) {
-		gui_frame_t::infowin_event(ev);
+		return true;
 	}
 
 	// Hajo: hack: relief map can resize upon right click
 	// we track this here, and adjust size.
-	if(IS_RIGHTCLICK(ev)) {
+	if(  IS_RIGHTCLICK(ev)  ) {
 		is_dragging = false;
+		display_show_pointer(false);
+		is_cursor_hidden = true;
 		reliefkarte_t::get_karte()->get_welt()->set_scroll_lock(false);
+		return true;
 	}
-
-	if(IS_RIGHTRELEASE(ev)) {
+	else if(  IS_RIGHTRELEASE(ev)  ) {
 		if(!is_dragging) {
 			resize( koord(0,0) );
 		}
 		is_dragging = false;
+		display_show_pointer(true);
+		is_cursor_hidden = false;
 		reliefkarte_t::get_karte()->get_welt()->set_scroll_lock(false);
+		return true;
 	}
-
-	if(reliefkarte_t::get_karte()->getroffen(ev->mx,ev->my)  &&  IS_RIGHTDRAG(ev)) {
+	else if(  IS_RIGHTDRAG(ev)  &&  reliefkarte_t::get_karte()->getroffen(ev->mx,ev->my)  ) {
 		int x = scrolly.get_scroll_x();
 		int y = scrolly.get_scroll_y();
 		const int scroll_direction = ( umgebung_t::scroll_multi>0 ? 1 : -1 );
@@ -362,7 +350,15 @@ void map_frame_t::infowin_event(const event_t *ev)
 
 		// Hajo: re-center mouse pointer
 		display_move_pointer(screenpos.x+ev->cx, screenpos.y+ev->cy);
+		return true;
 	}
+	else if(  is_cursor_hidden  )
+	{
+		display_show_pointer(true);
+		is_cursor_hidden = false;
+	}
+
+	return gui_frame_t::infowin_event(ev);
 }
 
 
@@ -475,12 +471,13 @@ void map_frame_t::zeichnen(koord pos, koord gr)
 		// only recenter by zoom or position change; we want still be able to scroll
 		if(old_ij!=ij) {
 			koord groesse = scrolly.get_groesse();
-			if(
+			if(	zoomed  ||
 				(scrolly.get_scroll_x()>ij.x  ||  scrolly.get_scroll_x()+groesse.x<=ij.x) ||
 				(scrolly.get_scroll_y()>ij.y  ||  scrolly.get_scroll_y()+groesse.y<=ij.y) ) {
 				// recenter cursor by scrolling
 				scrolly.set_scroll_position( max(0,ij.x-(groesse.x/2)), max(0,ij.y-(groesse.y/2)) );
 				old_ij = ij;
+				zoomed = false;
 			}
 		}
 	}
@@ -529,7 +526,7 @@ void map_frame_t::zeichnen(koord pos, koord gr)
 				break;
 			}
 			display_fillbox_wh(xpos, ypos+ 1 , 7, 7, i->colour, false);
-			display_proportional(xpos + 8, ypos, i->text, ALIGN_LEFT, COL_BLACK, false);
+			display_proportional(xpos + 8, ypos, i->text.c_str(), ALIGN_LEFT, COL_BLACK, false);
 		}
 	}
 }

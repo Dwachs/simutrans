@@ -75,7 +75,7 @@ void fahrplan_gui_t::gimme_stop_name(cbuffer_t & buf, karte_t *welt, const spiel
 void fahrplan_gui_t::gimme_short_stop_name(cbuffer_t &buf, karte_t *welt, const spieler_t *sp, const schedule_t *fpl, int i, int max_chars)
 {
 	if(i<0  ||  fpl==NULL  ||  i>=fpl->get_count()) {
-		dbg->warning("void fahrplan_gui_t::gimme_stop_name()","tried to recieved unused entry %i in schedule %p.",i,fpl);
+		dbg->warning("void fahrplan_gui_t::gimme_stop_name()","tried to receive unused entry %i in schedule %p.",i,fpl);
 		return;
 	}
 	const linieneintrag_t& entry = fpl->eintrag[i];
@@ -117,7 +117,6 @@ void fahrplan_gui_stats_t::zeichnen(koord offset)
 {
 	if(fpl) {
 		sint16 width = 16;
-		image_id const arrow_right_normal = skinverwaltung_t::window_skin->get_bild(10)->get_nummer();
 
 		for (int i = 0; i < fpl->get_count(); i++) {
 
@@ -129,15 +128,9 @@ void fahrplan_gui_stats_t::zeichnen(koord offset)
 				width = w;
 			}
 
-			if(i!=fpl->get_aktuell()) {
-				// goto information
-				display_color_img(arrow_right_normal, offset.x + 2, offset.y + i * (LINESPACE + 1), 0, false, true);
-			}
-			else {
-				// select goto button
-				display_color_img(skinverwaltung_t::window_skin->get_bild(11)->get_nummer(),
-					offset.x + 2, offset.y + i * (LINESPACE + 1), 0, false, true);
-			}
+			// goto button
+			display_color_img( i!=fpl->get_aktuell() ? button_t::arrow_right_normal : button_t::arrow_right_pushed,
+				offset.x + 2, offset.y + i * (LINESPACE + 1), 0, false, true);
 		}
 		set_groesse( koord(width+11, fpl->get_count() * (LINESPACE + 1) ) );
 	}
@@ -352,7 +345,7 @@ void fahrplan_gui_t::update_selection()
  * Mausklicks werden hiermit an die GUI-Komponenten
  * gemeldet
  */
-void fahrplan_gui_t::infowin_event(const event_t *ev)
+bool fahrplan_gui_t::infowin_event(const event_t *ev)
 {
 	if ( (ev)->ev_class == EVENT_CLICK  &&  !((ev)->ev_code==MOUSE_WHEELUP  ||  (ev)->ev_code==MOUSE_WHEELDOWN)  &&  !line_selector.getroffen(ev->cx, ev->cy-16))  {//  &&  !scrolly.getroffen(ev->cx, ev->cy+16)) {
 
@@ -402,10 +395,6 @@ void fahrplan_gui_t::infowin_event(const event_t *ev)
 				}
 			}
 			else {
-				// since matches does not check for depots, we need to do it this way ...
-				if(  fpl->get_count()!=old_fpl->get_count()  ||  !old_fpl->matches( sp->get_welt(), fpl )  ) {
-					sp->get_welt()->set_schedule_counter();
-				}
 				cbuffer_t buf(5500);
 				fpl->sprintf_schedule( buf );
 				cnv->call_convoi_tool( 'g', buf );
@@ -421,7 +410,8 @@ void fahrplan_gui_t::infowin_event(const event_t *ev)
 		// just to be sure, renew the tools ...
 		update_werkzeug( true );
 	}
-	gui_frame_t::infowin_event(ev);
+
+	return gui_frame_t::infowin_event(ev);
 }
 
 
@@ -477,6 +467,9 @@ DBG_MESSAGE("fahrplan_gui_t::action_triggered()","komp=%p combo=%p",komp,&line_s
 			}
 			else if(wait<16) {
 				wait ++;
+			}
+			else {
+				wait = 0;
 			}
 			update_selection();
 		}

@@ -439,11 +439,12 @@ haltestelle_t::~haltestelle_t()
 		}
 	}
 
+	destroy_win( magic_halt_info + self.get_id() );
+	destroy_win( magic_halt_detail + self.get_id() );
+
 	// finally detach handle
 	// before it is needed for clearing up the planqudrat and tiles
 	self.detach();
-
-	destroy_win((long)this);
 
 	for(unsigned i=0; i<warenbauer_t::get_max_catg_index(); i++) {
 		if(waren[i]) {
@@ -996,6 +997,7 @@ sint32 haltestelle_t::rebuild_destinations()
 		non_identical_schedules[i] = 0;
 	}
 	rebuilt_destination_counter = welt->get_schedule_counter();
+	reroute_counter = rebuilt_destination_counter-1;
 	resort_freight_info = true;	// might result in error in routing
 
 	last_catg_index = 255;	// must reroute everything
@@ -1017,8 +1019,6 @@ sint32 haltestelle_t::rebuild_destinations()
 
 	minivec_tpl<uint8> supported_catg_index(32);
 
-	vector_tpl<convoihandle_t>::const_iterator index_for_convoys = welt->convois_begin();
-
 	/*
 	 * In the first loops:
 	 * lines==true => search for lines
@@ -1026,60 +1026,38 @@ sint32 haltestelle_t::rebuild_destinations()
 	 * lines==false => search for single convoys without lines
 	 */
 	bool lines = true;
-	uint32 index_for_lines = 0;
-	while(  lines  ||  index_for_convoys < welt->convois_end()  ) {
-
-		// Gives the first occurence of "self" in "fpl".
-		uint8 first_self_index = 0;
+	uint32 current_index = 0;
+	while(  lines  ||  current_index < registered_convoys.get_count()  ) {
 
 		// Now, collect the "fpl", "owner" and "add_catg_index" from line resp. convoy.
 		if( lines ) {
-			if(  index_for_lines >= registered_lines.get_count()  ) {
+			if(  current_index >= registered_lines.get_count()  ) {
 				// We have looped over all lines.
 				lines = false;
+				current_index = 0;	// Knightly : start over for registered lineless convoys
 				continue;
 			}
 
-			const linehandle_t line = registered_lines[ index_for_lines ];
-			index_for_lines++;
-
-			if(  line->count_convoys()==0  ){
-				continue;
-			}
+			const linehandle_t line = registered_lines[current_index];
+			++current_index;
 
 			owner = line->get_besitzer();
 			fpl = line->get_schedule();
 			goods_catg_index = &line->get_goods_catg_index();
 		}
 		else {
-			convoihandle_t cnv = *index_for_convoys;
-			++index_for_convoys;
-			if(  cnv->get_line().is_bound()  ) {
-				continue;
-			}
+			const convoihandle_t cnv = registered_convoys[current_index];
+			++current_index;
 
 			owner = cnv->get_besitzer();
 			fpl = cnv->get_schedule();
 			goods_catg_index = &cnv->get_goods_catg_index();
 		}
 
-		if(  !i_am_public  &&  owner!=get_besitzer()  ) {
-			continue;
-		}
-
-		if(  fpl==NULL  ) {
-			// may happen for cnv in depots
-			continue;
-		}
-
 		// find first own index
-		for(  first_self_index=0;  first_self_index < fpl->get_count()  &&  get_halt( welt, fpl->eintrag[first_self_index].pos, owner ) != self;  ) {
-			first_self_index++;
-		}
-
-		if(  first_self_index == fpl->get_count()  ) {
-			// this convoi does not stop here (the usual case for convoys)
-			continue;
+		uint8 first_self_index = 0;
+		while(  first_self_index < fpl->get_count()  &&  get_halt( welt, fpl->eintrag[first_self_index].pos, owner ) != self  ) {
+			++first_self_index;
 		}
 
 		// determine goods category indices supported by this halt
@@ -1839,7 +1817,7 @@ void haltestelle_t::get_short_freight_info(cbuffer_t & buf)
 
 void haltestelle_t::zeige_info()
 {
-	create_win(new halt_info_t(welt, self), w_info, (long)this );
+	create_win( new halt_info_t(welt, self), w_info, magic_halt_info + self.get_id() );
 }
 
 
@@ -2109,13 +2087,13 @@ void haltestelle_t::rdwr(loadsave_t *file)
 	if(file->get_version()<99008) {
 		init_pos.rdwr( file );
 	}
-	file->rdwr_long(spieler_n, "\n");
+	file->rdwr_long(spieler_n);
 
 	if(file->get_version()<=88005) {
 		bool dummy;
-		file->rdwr_bool(dummy, " "); // pax
-		file->rdwr_bool(dummy, " "); // post
-		file->rdwr_bool(dummy, "\n");	// ware
+		file->rdwr_bool(dummy); // pax
+		file->rdwr_bool(dummy); // post
+		file->rdwr_bool(dummy);	// ware
 	}
 
 	if(file->is_loading()) {
@@ -2164,7 +2142,7 @@ void haltestelle_t::rdwr(loadsave_t *file)
 				s = "y";	// needs to be non-empty
 				file->rdwr_str(s);
 				count = warray->get_count();
-				file->rdwr_short(count, " ");
+				file->rdwr_short(count);
 				for(unsigned i=0;  i<warray->get_count();  i++ ) {
 					ware_t &ware = (*warray)[i];
 					ware.rdwr(welt,file);
@@ -2180,7 +2158,7 @@ void haltestelle_t::rdwr(loadsave_t *file)
 		char s[256];
 		file->rdwr_str(s, lengthof(s));
 		while(*s) {
-			file->rdwr_short(count, " ");
+			file->rdwr_short(count);
 			if(count>0) {
 				for(int i = 0; i < count; i++) {
 					// add to internal storage (use this function, since the old categories were different)
@@ -2199,7 +2177,7 @@ void haltestelle_t::rdwr(loadsave_t *file)
 		// old games save the list with stations
 		// however, we have to rebuilt them anyway for the new format
 		if(file->get_version()<99013) {
-			file->rdwr_short(count, " ");
+			file->rdwr_short(count);
 			for(int i=0; i<count; i++) {
 				warenziel_t wz (file);
 			}
@@ -2209,7 +2187,7 @@ void haltestelle_t::rdwr(loadsave_t *file)
 
 	for (int j = 0; j<MAX_HALT_COST; j++) {
 		for (int k = MAX_MONTHS-1; k>=0; k--) {
-			file->rdwr_longlong(financial_history[k][j], " ");
+			file->rdwr_longlong(financial_history[k][j]);
 		}
 	}
 	pax_happy    = financial_history[0][HALT_HAPPY];
@@ -2221,10 +2199,6 @@ void haltestelle_t::rdwr(loadsave_t *file)
 
 void haltestelle_t::laden_abschliessen()
 {
-	if(besitzer_p==NULL) {
-		return;
-	}
-
 	// fix good destination coordinates
 	for(unsigned i=0; i<warenbauer_t::get_max_catg_index(); i++) {
 		if(waren[i]) {
@@ -2464,16 +2438,16 @@ bool haltestelle_t::add_grund(grund_t *gr)
 		}
 	}
 
-	// check, if we have to add a line to this coordinate
+	// check if we have to register line(s) and/or lineless convoy(s) which serve this halt
 	vector_tpl<linehandle_t> check_line(0);
-	if(get_besitzer()==welt->get_spieler(1)) {
+	if(  get_besitzer()==welt->get_spieler(1)  ) {
 		// must iterate over all players lines ...
 		for(  int i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
 			if(welt->get_spieler(i)) {
 				welt->get_spieler(i)->simlinemgmt.get_lines(simline_t::line, &check_line);
 				for(  uint j=0;  j<check_line.get_count();  j++  ) {
-					// only add unknow lines
-					if(  !registered_lines.is_contained(check_line[j])  ) {
+					// only add unknown lines
+					if(  !registered_lines.is_contained(check_line[j])  &&  check_line[j]->count_convoys()>0  ) {
 						const schedule_t *fpl = check_line[j]->get_schedule();
 						for(  int k=0;  k<fpl->get_count();  k++  ) {
 							if(get_halt(welt,fpl->eintrag[k].pos,check_line[j]->get_besitzer())==self) {
@@ -2485,17 +2459,49 @@ bool haltestelle_t::add_grund(grund_t *gr)
 				}
 			}
 		}
+		// Knightly : iterate over all convoys
+		for(  vector_tpl<convoihandle_t>::const_iterator i=welt->convois_begin(), end=welt->convois_end();  i!=end;  ++i  ) {
+			const convoihandle_t cnv = (*i);
+			// only check lineless convoys which are not yet registered
+			if(  !cnv->get_line().is_bound()  &&  !registered_convoys.is_contained(cnv)  ) {
+				const schedule_t *const fpl = cnv->get_schedule();
+				if(  fpl  ) {
+					for(  int k=0;  k<fpl->get_count();  ++k  ) {
+						if(  get_halt(welt, fpl->eintrag[k].pos, get_besitzer())==self  ) {
+							registered_convoys.append(cnv);
+							break;
+						}
+					}
+				}
+			}
+		}
 	}
 	else {
 		get_besitzer()->simlinemgmt.get_lines(simline_t::line, &check_line);
 		for(  uint32 j=0;  j<check_line.get_count();  j++  ) {
-			// only add unknow lines
-			if(  !registered_lines.is_contained(check_line[j])  ) {
+			// only add unknown lines
+			if(  !registered_lines.is_contained(check_line[j])  &&  check_line[j]->count_convoys()>0  ) {
 				const schedule_t *fpl = check_line[j]->get_schedule();
 				for(  int k=0;  k<fpl->get_count();  k++  ) {
 					if(get_halt(welt,fpl->eintrag[k].pos,get_besitzer())==self) {
 						registered_lines.append(check_line[j]);
 						break;
+					}
+				}
+			}
+		}
+		// Knightly : iterate over all convoys
+		for(  vector_tpl<convoihandle_t>::const_iterator i=welt->convois_begin(), end=welt->convois_end();  i!=end;  ++i  ) {
+			const convoihandle_t cnv = (*i);
+			// only check lineless convoys which have matching ownership and which are not yet registered
+			if(  !cnv->get_line().is_bound()  &&  cnv->get_besitzer()==get_besitzer()  &&  !registered_convoys.is_contained(cnv)  ) {
+				const schedule_t *const fpl = cnv->get_schedule();
+				if(  fpl  ) {
+					for(  int k=0;  k<fpl->get_count();  ++k  ) {
+						if(  get_halt(welt, fpl->eintrag[k].pos, get_besitzer())==self  ) {
+							registered_convoys.append(cnv);
+							break;
+						}
 					}
 				}
 			}
@@ -2593,6 +2599,22 @@ bool haltestelle_t::rem_grund(grund_t *gr)
 		// need removal?
 		if(!ok) {
 			registered_lines.remove_at(j);
+		}
+	}
+
+	// Knightly : remove registered lineless convoys as well
+	for(  int j=registered_convoys.get_count()-1;  j>=0;  --j  ) {
+		const schedule_t *const fpl = registered_convoys[j]->get_schedule();
+		bool ok = false;
+		for(  uint8 k=0;  k<fpl->get_count();  ++k  ) {
+			if(  get_halt( welt, fpl->eintrag[k].pos, registered_convoys[j]->get_besitzer() )==self  ) {
+				ok = true;
+				break;
+			}
+		}
+		// need removal?
+		if(  !ok  ) {
+			registered_convoys.remove_at(j);
 		}
 	}
 

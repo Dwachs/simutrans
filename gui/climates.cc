@@ -114,7 +114,7 @@ DBG_MESSAGE("","sizeof(stat)=%d, sizeof(tm)=%d",sizeof(struct stat),sizeof(struc
 	intTopOfButton += 5;
 
 	no_tree.init( button_t::square, "no tree", koord(10,intTopOfButton) ); // right align
-	no_tree.pressed=umgebung_t::no_tree;
+	no_tree.pressed = sets->get_no_trees();
 	no_tree.add_listener( this );
 	add_komponente( &no_tree );
 	intTopOfButton += 12+4;
@@ -157,68 +157,63 @@ DBG_MESSAGE("","sizeof(stat)=%d, sizeof(tm)=%d",sizeof(struct stat),sizeof(struc
  * This method is called if an action is triggered
  * @author Hj. Malthaner
  */
-bool
-climate_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
+bool climate_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
 {
 	welt_gui_t *welt_gui = dynamic_cast<welt_gui_t *>(win_get_magic( magic_welt_gui_t ));
 	if(komp==&no_tree) {
-		umgebung_t::no_tree ^= 1;
 		no_tree.pressed ^= 1;
-		if(  welt_gui  ) {
-			welt_gui->update_preview();
-		}
+		sets->set_no_trees(no_tree.pressed);
 	}
 	else if(komp==&water_level) {
-		sets->set_grundwasser( v.i );
+		sets->grundwasser = (sint16)v.i;
 		if(  welt_gui  ) {
 			welt_gui->update_preview();
 		}
 	}
 	else if(komp==&mountain_height) {
-		sets->set_max_mountain_height( v.i );
+		sets->max_mountain_height = v.i;
 		if(  welt_gui  ) {
 			welt_gui->update_preview();
 		}
 	}
 	else if(komp==&mountain_roughness) {
-		sets->set_map_roughness( (double)(v.i+8)/20.0 );
+		sets->map_roughness = (double)(v.i+8)/20.0;
 		if(  welt_gui  ) {
 			welt_gui->update_preview();
 		}
 	}
 	else if(komp==&river_n) {
-		sets->set_river_number( v.i );
+		sets->river_number = (sint16)v.i;
 	}
 	else if(komp==&river_min) {
-		sets->set_min_river_length( v.i );
+		sets->min_river_length = (sint16)v.i;
 		river_max.set_limits(v.i+16,1024);
 	}
 	else if(komp==&river_max) {
-		sets->set_max_river_length( v.i );
+		sets->max_river_length = (sint16)v.i;
 		river_min.set_limits(0,max(16,v.i)-16);
 	}
 	else if(komp==&snowline_winter) {
-		sets->set_winter_snowline( v.i );
+		sets->winter_snowline = (sint16)v.i;
 	}
 	else {
 		// all climate borders from here on
-		sint16 *climate_borders = (sint16 *)sets->get_climate_borders();
 
 		// artic starts at maximum end of climate
 		sint16 arctic = 0;
 		for(  int i=desert_climate;  i<=rocky_climate;  i++  ) {
 			if(  komp==climate_borders_ui+i-1  ) {
-				climate_borders[i] = v.i;
+				sets->climate_borders[i] = v.i;
 			}
-			if(climate_borders[i]>arctic) {
-				arctic = climate_borders[i];
+			if(sets->climate_borders[i]>arctic) {
+				arctic = sets->climate_borders[i];
 			}
 		}
-		climate_borders[arctic_climate] = arctic;
+		sets->climate_borders[arctic_climate] = arctic;
 
 		// correct summer snowline too
 		if(arctic<sets->get_winter_snowline()) {
-			sets->set_winter_snowline( arctic );
+			sets->winter_snowline = arctic;
 		}
 		snowline_winter.set_limits( 0, arctic );
 	}
@@ -230,7 +225,7 @@ climate_gui_t::action_triggered( gui_action_creator_t *komp, value_t v)
 
 void climate_gui_t::zeichnen(koord pos, koord gr)
 {
-	no_tree.pressed = umgebung_t::no_tree;
+	no_tree.pressed = sets->get_no_trees();
 
 	no_tree.set_text( "no tree" );
 

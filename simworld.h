@@ -301,6 +301,7 @@ private:
 	// Variables used in interactive()
 	uint32 sync_steps;
 	uint8  network_frame_count;
+	uint32 fix_ratio_frame_time; // set in reset_timer()
 
 	/**
 	 * fuer performancevergleiche
@@ -373,7 +374,7 @@ private:
 	 * It's now an extra function so we don't need the code twice.
 	 * @auther Gerd Wachsmuth
 	 */
-	void distribute_groundobjs_cities(int new_cities, sint16 old_x, sint16 old_y);
+	void distribute_groundobjs_cities(int new_cities, sint32 new_mittlere_einwohnerzahl, sint16 old_x, sint16 old_y);
 
 public:
 	/* reads height data from 8 or 25 bit bmp or ppm files
@@ -468,7 +469,8 @@ public:
 	void set_follow_convoi(convoihandle_t cnv) { follow_convoi = cnv; }
 	convoihandle_t get_follow_convoi() const { return follow_convoi; }
 
-	einstellungen_t* get_einstellungen() const { return einstellungen; }
+	const einstellungen_t * get_einstellungen() const { return einstellungen; }
+	einstellungen_t *access_einstellungen() const { return einstellungen; }
 
 	// returns current speed bonus
 	int get_average_speed(waytype_t typ) const { return average_speed[ (typ==16 ? 3 : (int)(typ-1)&7 ) ]; }

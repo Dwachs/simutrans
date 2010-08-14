@@ -116,16 +116,18 @@ bool loadsave_t::rd_open(const char *filename)
 			version = int_version(str, &dummy, pak_extension);
 
 			read( buf, sizeof(" pak=\"")-1 );
-			s = pak_extension;
-			for(  int i=0;  i<63;  i++ ) {
-				char c = lsgetc();
-				if(c=='\"') {
-					break;
+			if (version>0) {
+				s = pak_extension;
+				for(  int i=0;  i<63;  i++ ) {
+					char c = lsgetc();
+					if(c=='\"') {
+						break;
+					}
+					*s++ = c;
 				}
-				*s++ = c;
+				*s = 0;
+				while(  lsgetc()!='>'  )  ;
 			}
-			*s = 0;
-			while(  lsgetc()!='>'  )  ;
 		}
 	}
 	else {
@@ -313,7 +315,7 @@ int loadsave_t::lsgetc()
 	}
 }
 
-long loadsave_t::write(const void *buf, size_t len)
+size_t loadsave_t::write(const void *buf, size_t len)
 {
 	if(is_zipped()) {
 		return gzwrite(fp, const_cast<void *>(buf), len);
@@ -321,21 +323,20 @@ long loadsave_t::write(const void *buf, size_t len)
 	else if(is_bzip2()) {
 		BZ2_bzWrite( &bse, bzfp, const_cast<void *>(buf), len);
 		assert(bse==BZ_OK);
-		return (long)len;
+		return len;
 	}
 	else {
-		return (long)fwrite(buf, 1, len, fp);
+		return fwrite(buf, 1, len, fp);
 	}
 }
 
-long loadsave_t::read(void *buf, size_t len)
+size_t loadsave_t::read(void *buf, size_t len)
 {
 	if(is_bzip2()) {
 		if(  bse==BZ_OK  ) {
 			BZ2_bzRead( &bse, bzfp, const_cast<void *>(buf), len);
 		}
-		// little trick: zero if not ok ...
-		return (long)len&~(bse-BZ_OK);
+		return bse==BZ_OK ? len : 0;
 	}
 	else {
 		return gzread(fp, buf, len);
@@ -349,7 +350,7 @@ long loadsave_t::read(void *buf, size_t len)
 
 
 
-void loadsave_t::rdwr_byte(sint8 &c, const char *)
+void loadsave_t::rdwr_byte(sint8 &c)
 {
 	if(!is_xml()) {
 		if(saving) {
@@ -366,15 +367,15 @@ void loadsave_t::rdwr_byte(sint8 &c, const char *)
 	}
 }
 
-void loadsave_t::rdwr_byte(uint8 &c, const char *)
+void loadsave_t::rdwr_byte(uint8 &c)
 {
 	sint8 cc=c;
-	rdwr_byte(cc,NULL);
+	rdwr_byte(cc);
 	c = (uint8)cc;
 }
 
 
-void loadsave_t::rdwr_short(sint16 &i, const char *)
+void loadsave_t::rdwr_short(sint16 &i)
 {
 	if(!is_xml()) {
 		if (saving) {
@@ -401,15 +402,15 @@ void loadsave_t::rdwr_short(sint16 &i, const char *)
 	}
 }
 
-void loadsave_t::rdwr_short(uint16 &i, const char *)
+void loadsave_t::rdwr_short(uint16 &i)
 {
 	sint16 ii=i;
-	rdwr_short(ii,NULL);
+	rdwr_short(ii);
 	i = (uint16)ii;
 }
 
 
-void loadsave_t::rdwr_long(sint32 &l, const char *)
+void loadsave_t::rdwr_long(sint32 &l)
 {
 	if(!is_xml()) {
 		if (saving) {
@@ -436,15 +437,15 @@ void loadsave_t::rdwr_long(sint32 &l, const char *)
 	}
 }
 
-void loadsave_t::rdwr_long(uint32 &l, const char *)
+void loadsave_t::rdwr_long(uint32 &l)
 {
 	sint32 ll=l;
-	rdwr_long(ll,NULL);
+	rdwr_long(ll);
 	l = (uint32)ll;
 }
 
 
-void loadsave_t::rdwr_longlong(sint64 &ll, const char *)
+void loadsave_t::rdwr_longlong(sint64 &ll)
 {
 	if(!is_xml()) {
 		if (saving) {
@@ -488,7 +489,7 @@ void loadsave_t::rdwr_double(double &dbl)
 }
 
 
-void loadsave_t::rdwr_bool(bool &i, const char *)
+void loadsave_t::rdwr_bool(bool &i)
 {
 	if(  !is_xml()  ) {
 		if(saving) {
@@ -667,23 +668,23 @@ void loadsave_t::rdwr_str(const char *&s)
 void loadsave_t::rdwr_str(char* s, size_t const size)
 {
 	if(!is_xml()) {
-		sint16 len;
+		uint16 len;
 		if(saving) {
-			len = (sint16)min(32767,strlen(s));
+			len = (uint16)min(32767,strlen(s));
 #ifdef SIM_BIG_ENDIAN
 			{
 				sint16 ii = endian(len);
 				write(&ii, sizeof(sint16));
 			}
 #else
-			write(&len, sizeof(sint16));
+			write(&len, sizeof(uint16));
 #endif
 			write(s, len);
 		}
 		else {
-			read(&len, sizeof(sint16));
+			read(&len, sizeof(uint16));
 			len = endian(len);
-			if (len >= size) {
+			if(  len >= size) {
 				dbg->fatal( "loadsave_t::rdwr_str()","string longer (%i) than allowed size (%i)", len, size );
 			}
 			read(s, len);
@@ -717,7 +718,7 @@ void loadsave_t::rdwr_str(char* s, size_t const size)
 			// now parse input
 			if(string) {
 				const char *ptr = NULL;
-				for(  int i=0;  i<size;  i++  ) {
+				for(  size_t i=0;  i<size;  i++  ) {
 					char c = lsgetc();
 					if(  c=='<'  ) {
 						ptr = s;
@@ -740,7 +741,7 @@ void loadsave_t::rdwr_str(char* s, size_t const size)
 			else {
 				char last_three_chars[4];
 				sint8 len = 0;	// maximum is three
-				for(  int i=0;  i<size;  ) {
+				for(  size_t i=0;  i<size;  ) {
 					char c = lsgetc();
 					if(  c==']'  &&  (  len==0  ||  (len==1  &&  last_three_chars[0] == ']') )  ) {
 						last_three_chars[len++] = c;
@@ -910,7 +911,7 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 {
 	// major number (0..)
 	uint32 v0 = atoi(version_text);
-	while(*version_text && *version_text++ != '.')
+	while(*version_text  &&  *version_text++ != '.')
 		;
 	if(!*version_text) {
 		dbg->fatal( "loadsave_t::int_version()","Really broken version string!" );
@@ -919,7 +920,7 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 
 	// middle number (.99.)
 	uint32 v1 = atoi(version_text);
-	while(*version_text && *version_text++ != '.')
+	while(*version_text  &&  *version_text++ != '.')
 		;
 	if(!*version_text) {
 		dbg->fatal( "loadsave_t::int_version()","Really broken version string!" );
@@ -930,8 +931,16 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 	uint32 v2 = atoi(version_text);
 	uint32 version = v0 * 1000000 + v1 * 1000 + v2;
 
-	while(  isdigit(*version_text)  ) {
+	while(*version_text  &&  isdigit(*version_text)) {
 		version_text++;
+	}
+	// simutrans-experimental savegame?
+	// the next char is either 'b'/'z'/'-',
+	// if it is '.' the we try to load a simutrans-experimental savegame
+	if(*version_text == '.') {
+		// st-exp savegame, we can't load it, return version=0
+		strcpy(pak_extension_str,"(st-exp)");
+		return 0;
 	}
 
 	if(  version<=102002  ) {
@@ -948,7 +957,8 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 		}
 		else if(  *version_text  ) {
 			// illegal version ...
-			version = 999999999;
+			strcpy(pak_extension_str,"(broken)");
+			return 0;
 		}
 	}
 	else {

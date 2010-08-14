@@ -56,6 +56,34 @@
 	ADD: texture for tunnel grounds (Obj=misc, Name=TunnelTexture, Image with numbers 0,3,6,9)
 	ADD: simuconf.tab: add default values for cityroad ("city_road") and intercity road ("asphalt_road")
 	CHANGE: TAB goes to next/Shift+TAB to previous edit box, moving and resizing now even when other windows open
+	ADD: skinnable scrollbars
+	ADD: setting dialoge tool (handle with care, should not be visible by defualt for pak sets!)
+	ADD: resizer also part of skin
+	CHANGE: also starts without any skin
+	FIX: no signals to be built on switches, since they will not display correctly
+	FIX: waiting time cycles also on left button
+	ADD: (z9999+) limit size of toolsbars in simuconf.tab
+	FIX: (z9999+) loading old games before 88.00
+	CHANGE: forest settings moved to simuconf.tab
+	ADD: delay and duration of tooltip configurable in simuconf.tab
+	ADD: timeline for headquarters (pak-sets may need to be updated as the default intro date is 1900, default retire date is 2999)
+	ADD: blinking cursor, selectable text and clipboard functions for text input fields
+	ADD: industry increase and minimum city distance now also saved in savegame
+	FIX: error in routing will clear itself after loading
+	FIX: not restore fields if there is already a building on this tile
+	CHANGE: minimap will center after zooming
+	ADD: parameters of cityrules.tab saved in savegame (networkmode)
+	ADD: active window title bar is highlighted (for options see simuconf.tab)
+	CHG: canals cannot be built on canals of other players
+	FIX: removed obsolete forest config parameters
+	FIX: traffic light setting also network safe
+	ADD: if present show copyright line from ground.outside.pak (which should contain pak set and revision)
+	ADD: new general_tool[36] to build cityroad according to timeline
+	FIX: (z9999) building a harbour must check also for existing stops above/below
+	FIX: (z9999) trains were braking on field too late after changing of route count
+	FIX: (z9999) stopping before occipied crossings with a signal and many other signal fixes
+	ADD: for text input, double-click to select a word and triple-click to select the whole text
+	ADD: register lineless convoys at the halts and list them with links in the halt details dialog
 
 
 Release of 102.2.2 (r3131 on 8-Mar-2010):
@@ -1878,7 +1906,7 @@ Release of 87.01
 4-Nov-2005 (prissi)
 	FIX: loading old maps with obsolete docks
 	FIX: no route next to attraction should now have a more meaningful number (so you can better guess how much you have to transport)
-	FIX: mail from attractions and factories again 4x recieved mail
+	FIX: mail from attractions and factories again 4x received mail
 	CHANGE: some further small optimizations for faster drawing of dialoges
 	CHANGE: vehicles now sorted in depot by intro year and engine type
 3-Nov-2005 (mip)
@@ -6274,7 +6302,7 @@ You can use this version with the 0.81.35exp base package.
          - FIX: midi playlist displays message
                 "Musicplaying disabled/not available" if either no MIDI
                 files could be loaded or if the soundcard could not be
-                initialized succesfully
+                initialized successfully
          - FIX: Song name in playlist is updated if a new song starts
                 playing
 

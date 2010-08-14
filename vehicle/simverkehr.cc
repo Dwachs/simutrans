@@ -220,41 +220,41 @@ void verkehrsteilnehmer_t::rdwr(loadsave_t *file)
 
 	if(file->get_version() < 86006) {
 		sint32 l;
-		file->rdwr_long(l, "\n");
-		file->rdwr_long(l, " ");
-		file->rdwr_long(weg_next, "\n");
-		file->rdwr_long(l, " ");
+		file->rdwr_long(l);
+		file->rdwr_long(l);
+		file->rdwr_long(weg_next);
+		file->rdwr_long(l);
 		dx = (sint8)l;
-		file->rdwr_long(l, "\n");
+		file->rdwr_long(l);
 		dy = (sint8)l;
-		file->rdwr_enum(fahrtrichtung, " ");
-		file->rdwr_long(l, "\n");
+		file->rdwr_enum(fahrtrichtung);
+		file->rdwr_long(l);
 		hoff = (sint8)l;
 	}
 	else {
 		if(file->get_version()<99005) {
 			sint32 dummy32;
-			file->rdwr_long(dummy32, "\n");
+			file->rdwr_long(dummy32);
 		}
-		file->rdwr_long(weg_next, "\n");
+		file->rdwr_long(weg_next);
 		if(file->get_version()<99018) {
-			file->rdwr_byte(dx, " ");
-			file->rdwr_byte(dy, "\n");
+			file->rdwr_byte(dx);
+			file->rdwr_byte(dy);
 		}
 		else {
-			file->rdwr_byte(steps, " ");
-			file->rdwr_byte(steps_next, "\n");
+			file->rdwr_byte(steps);
+			file->rdwr_byte(steps_next);
 		}
-		file->rdwr_enum(fahrtrichtung, " ");
+		file->rdwr_enum(fahrtrichtung);
 		dx = dxdy[ ribi_t::get_dir(fahrtrichtung)*2];
 		dy = dxdy[ ribi_t::get_dir(fahrtrichtung)*2+1];
 		if(file->get_version()<99005  ||  file->get_version()>99016) {
 			sint16 dummy16 = ((16*(sint16)hoff)/TILE_STEPS);
-			file->rdwr_short(dummy16, "\n");
+			file->rdwr_short(dummy16);
 			hoff = (sint8)((TILE_STEPS*(sint16)dummy16)/16);
 		}
 		else {
-			file->rdwr_byte(hoff, "\n");
+			file->rdwr_byte(hoff);
 		}
 	}
 	pos_next.rdwr(file);
@@ -283,7 +283,7 @@ void verkehrsteilnehmer_t::rdwr(loadsave_t *file)
 
 	// the lifetime in ms
 	if(file->get_version()>89004) {
-		file->rdwr_long( time_to_life, "t" );
+		file->rdwr_long(time_to_life);
 	}
 
 	// Hajo: avoid endless growth of the values
@@ -493,7 +493,7 @@ void stadtauto_t::rdwr(loadsave_t *file)
 		time_to_life = simrand(1000000)+10000;
 	}
 	else if(file->get_version() <= 89004) {
-		file->rdwr_long(time_to_life, "\n");
+		file->rdwr_long(time_to_life);
 		time_to_life *= 10000;	// converting from hops left to ms since start
 	}
 
@@ -505,7 +505,7 @@ void stadtauto_t::rdwr(loadsave_t *file)
 	}
 	else {
 		sint32 dummy32=current_speed;
-		file->rdwr_long(dummy32, "\n");
+		file->rdwr_long(dummy32);
 		current_speed = dummy32;
 	}
 
@@ -521,7 +521,7 @@ void stadtauto_t::rdwr(loadsave_t *file)
 		set_tiles_overtaking( 0 );
 	}
 	else {
-		file->rdwr_byte( tiles_overtaking, "o" );
+		file->rdwr_byte(tiles_overtaking);
 		set_tiles_overtaking( tiles_overtaking );
 	}
 
@@ -552,6 +552,11 @@ bool stadtauto_t::ist_weg_frei(grund_t *gr)
 		const uint8 next_fahrtrichtung = ribi_t::rueckwaerts(this_fahrtrichtung);
 		frei = (NULL == no_cars_blocking( gr, NULL, next_fahrtrichtung, next_fahrtrichtung, next_fahrtrichtung ));
 
+		// do not block railroad crossing
+		if(frei  &&  str->is_crossing()) {
+			const grund_t *gr = welt->lookup(get_pos());
+			frei = (NULL == no_cars_blocking( gr, NULL, next_fahrtrichtung, next_fahrtrichtung, next_fahrtrichtung ));
+		}
 	}
 	else {
 		// driving on: check for crossongs etc. too
@@ -559,6 +564,11 @@ bool stadtauto_t::ist_weg_frei(grund_t *gr)
 
 		// do not block this crossing (if possible)
 		if(ribi_t::is_threeway(str->get_ribi_unmasked())) {
+			// but leaving from railroad crossing is more important
+			grund_t *gr_here = welt->lookup(get_pos());
+			if(gr_here  &&  gr_here->ist_uebergang()) {
+				return true;
+			}
 			grund_t *test = welt->lookup(pos_next_next);
 			if(test) {
 				uint8 next_90fahrtrichtung = this->calc_richtung(pos_next.get_2d(), pos_next_next.get_2d());
@@ -612,9 +622,9 @@ bool stadtauto_t::ist_weg_frei(grund_t *gr)
 		if(frei  &&  str->is_crossing()) {
 			// can we cross?
 			crossing_t* cr = gr->find<crossing_t>(2);
-			if(cr) {
+			if(  cr && !cr->request_crossing(this)) {
 				// approaching railway crossing: check if empty
-				return cr->request_crossing( this );
+				return false;
 			}
 			// no further check, when already entered a crossing (to alloew leaving it)
 			grund_t *gr_here = welt->lookup(get_pos());
@@ -624,12 +634,14 @@ bool stadtauto_t::ist_weg_frei(grund_t *gr)
 			// ok, now check for free exit
 			koord dir = pos_next.get_2d()-get_pos().get_2d();
 			koord3d checkpos = pos_next+dir;
-			const uint8 nextnext_fahrtrichtung = ribi_typ(dir);
 			while(1) {
 				const grund_t *test = welt->lookup(checkpos);
 				if(!test) {
+					// should not reach here ! (z9999)
 					break;
 				}
+				const uint8 next_fahrtrichtung = ribi_typ(dir);
+				const uint8 nextnext_fahrtrichtung = ribi_typ(dir);
 				// test next field after way crossing
 				if(no_cars_blocking( test, NULL, next_fahrtrichtung, nextnext_fahrtrichtung, nextnext_fahrtrichtung )) {
 					return false;
@@ -639,6 +651,15 @@ bool stadtauto_t::ist_weg_frei(grund_t *gr)
 					// approaching railway crossing: check if empty
 					crossing_t* cr = gr->find<crossing_t>(2);
 					return cr->request_crossing( this );
+				}
+				else {
+					// seems to be a deadend.
+					if((test->get_weg_ribi(road_wt)&next_fahrtrichtung) ==0) {
+						// will be going back
+						pos_next_next=get_pos();
+						// check also opposite direction are free
+						dir = -dir;
+					}
 				}
 				checkpos += dir;
 			}

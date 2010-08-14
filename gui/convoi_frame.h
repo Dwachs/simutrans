@@ -61,7 +61,7 @@ private:
 	/*
 	 * Child window, if open
 	 */
-	gui_fenster_t *filter_frame;
+	gui_frame_t *filter_frame;
 
 	/*
 	 * All filter settings are static, so they are not reset each
@@ -100,7 +100,7 @@ public:
 	 * gemeldet
 	 * @author V. Meyer
 	 */
-	void infowin_event(const event_t *ev);
+	bool infowin_event(const event_t *ev);
 
 	/**
 	 * The filter frame tells us when it is closed.

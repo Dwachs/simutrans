@@ -25,6 +25,7 @@
 #include "gui/karte.h"
 #include "gui/convoi_info_t.h"
 #include "gui/fahrplan_gui.h"
+#include "gui/depot_frame.h"
 #include "gui/messagebox.h"
 #include "boden/grund.h"
 #include "boden/wege/schiene.h"	// for railblocks
@@ -196,6 +197,11 @@ DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 	welt->sync_remove( this );
 	welt->rem_convoi( self );
 
+	// Knightly : if lineless convoy -> unregister from stops
+	if(  !line.is_bound()  ) {
+		unregister_stops();
+	}
+
 	// force asynchronous recalculation
 	if(fpl) {
 		if(!fpl->ist_abgeschlossen()) {
@@ -357,6 +363,11 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 			}
 		}
 		fahr[0]->set_erstes(true);
+	}
+
+	// Knightly : if lineless convoy -> register itself with stops
+	if(  !line.is_bound()  ) {
+		register_stops();
 	}
 }
 
@@ -1001,6 +1012,25 @@ void convoi_t::new_month()
 
 void convoi_t::betrete_depot(depot_t *dep)
 {
+	// first remove reservation, if train is still on train
+	if(  !route.empty()  &&  anz_vehikel>0) {
+		/* now remove reservation from all tiles
+		 * otherwise vehicles with lenght>8 may leave holes
+		 * on diagonals (lenght 8)
+		 */
+		uint32 start_index = route.get_count()-1;
+		do {
+			if(  grund_t *gr = welt->lookup(route.position_bei(start_index))  ) {
+				if (schiene_t* const sch = dynamic_cast<schiene_t*>(gr->get_weg(fahr[0]->get_waytype()))) {
+					if(  !sch->unreserve(self)  ) {
+						// unreserve until no reserved track is encoutered
+						break;
+					}
+				}
+			}
+		} while(  start_index--!=0  );
+	}
+
 	// Hajo: remove vehicles from world data structure
 	for(unsigned i=0; i<anz_vehikel; i++) {
 		vehikel_t* v = fahr[i];
@@ -1010,6 +1040,7 @@ void convoi_t::betrete_depot(depot_t *dep)
 			// remove from blockstrecke
 			v->set_letztes(true);
 			v->verlasse_feld();
+			v->set_flag( ding_t::not_on_map );
 		}
 	}
 
@@ -1055,6 +1086,7 @@ void convoi_t::start()
 		for(unsigned i=0; i<anz_vehikel; i++) {
 			fahr[i]->set_erstes( false );
 			fahr[i]->set_letztes( false );
+			fahr[i]->clear_flag( ding_t::not_on_map );
 			fahr[i]->beladen( home_depot.get_2d(), halthandle_t() );
 		}
 		fahr[0]->set_erstes( true );
@@ -1336,9 +1368,15 @@ bool convoi_t::set_schedule(schedule_t * f)
 
 	DBG_DEBUG("convoi_t::set_schedule()", "new=%p, old=%p", f, fpl);
 
-	if(f == NULL) {
+	if(  f==NULL  ) {
 		if(  line.is_bound()  ) {
 			unset_line();
+		}
+		else {
+			// Knightly : if schedule is going to be deleted -> make sure to unregister stops for lineless convoys
+			if(  state==INITIAL  ) {
+				unregister_stops();
+			}
 		}
 		if(  state==INITIAL  ) {
 			delete fpl;
@@ -1350,16 +1388,36 @@ bool convoi_t::set_schedule(schedule_t * f)
 
 	// happens to be identical?
 	if(fpl!=f) {
-		// now check, we we have been bond to a line we are about to loose:
-		if(  line.is_bound()  &&  !f->matches( welt, line->get_schedule() )  ) {
-			unset_line();
+		// now check, we we have been bond to a line we are about to lose:
+		bool changed = false;
+		if(  line.is_bound()  ) {
+			if(  !f->matches( welt, line->get_schedule() )  ) {
+				// change from line to individual schedule
+				//		-> unset line now and register stops from new schedule later
+				changed = true;
+				unset_line();
+			}
+		}
+		else {
+			if(  !f->matches( welt, fpl )  ) {
+				// Knightly : merely change schedule and do not involve line
+				//				-> unregister stops from old schedule now and register stops from new schedule later
+				changed = true;
+				unregister_stops();
+			}
 		}
 		// destroy a possibly open schedule window
-		if(fpl &&  !fpl->ist_abgeschlossen()) {
+		if(  fpl  &&  !fpl->ist_abgeschlossen()  ) {
 			destroy_win((long)fpl);
 			delete fpl;
 		}
 		fpl = f;
+		if(  changed  ) {
+			// Knightly : if line is unset or schedule is changed
+			//				-> register stops from new schedule
+			register_stops();
+			welt->set_schedule_counter();	// must trigger refresh
+		}
 	}
 
 	// remove wrong freight
@@ -1666,23 +1724,23 @@ convoi_t::rdwr(loadsave_t *file)
 	// @author hsiegeln
 	if(file->get_version()<88003) {
 		dummy = 0;
-		file->rdwr_long(dummy, " ");
+		file->rdwr_long(dummy);
 		line_id = (uint16)dummy;
 	}
 	else {
-		file->rdwr_short(line_id, " ");
+		file->rdwr_short(line_id);
 	}
 
 	dummy = anz_vehikel;
-	file->rdwr_long(dummy, " ");
+	file->rdwr_long(dummy);
 	anz_vehikel = (uint8)dummy;
 
 	if(file->get_version()<99014) {
 		// was anz_ready
-		file->rdwr_long(dummy, " ");
+		file->rdwr_long(dummy);
 	}
 
-	file->rdwr_long(wait_lock, " ");
+	file->rdwr_long(wait_lock);
 	// some versions may produce broken safegames apparently
 	if(wait_lock > 60000) {
 		dbg->warning("convoi_t::sync_prepre()","Convoi %d: wait lock out of bounds: wait_lock = %d, setting to 60000",self.get_id(), wait_lock);
@@ -1690,18 +1748,18 @@ convoi_t::rdwr(loadsave_t *file)
 	}
 
 	bool dummy_bool=false;
-	file->rdwr_bool(dummy_bool, " ");
-	file->rdwr_long(besitzer_n, "\n");
-	file->rdwr_long(akt_speed, " ");
-	file->rdwr_long(akt_speed_soll, " ");
-	file->rdwr_long(sp_soll, " ");
-	file->rdwr_enum(state, " ");
-	file->rdwr_enum(alte_richtung, " ");
+	file->rdwr_bool(dummy_bool);
+	file->rdwr_long(besitzer_n);
+	file->rdwr_long(akt_speed);
+	file->rdwr_long(akt_speed_soll);
+	file->rdwr_long(sp_soll);
+	file->rdwr_enum(state);
+	file->rdwr_enum(alte_richtung);
 
 	// read the yearly income (which has since then become a 64 bit value)
 	// will be recalculated later directly from the history
 	if(file->get_version()<=89003) {
-		file->rdwr_long(dummy, "\n");
+		file->rdwr_long(dummy);
 	}
 
 	route.rdwr(file);
@@ -1842,7 +1900,7 @@ convoi_t::rdwr(loadsave_t *file)
 	}
 
 	bool has_fpl = (fpl != NULL);
-	file->rdwr_bool(has_fpl, "");
+	file->rdwr_bool(has_fpl);
 	if(has_fpl) {
 		//DBG_MESSAGE("convoi_t::rdwr()","convoi has a schedule, state %s!",state_names[state]);
 		const vehikel_t* v = fahr[0];
@@ -1878,12 +1936,12 @@ convoi_t::rdwr(loadsave_t *file)
 		int j;
 		for (j = 0; j<3; j++) {
 			for (int k = MAX_MONTHS-1; k>=0; k--) {
-				file->rdwr_longlong(financial_history[k][j], " ");
+				file->rdwr_longlong(financial_history[k][j]);
 			}
 		}
 		for (j = 2; j<5; j++) {
 			for (int k = MAX_MONTHS-1; k>=0; k--) {
-				file->rdwr_longlong(financial_history[k][j], " ");
+				file->rdwr_longlong(financial_history[k][j]);
 			}
 		}
 		for (int k = MAX_MONTHS-1; k>=0; k--) {
@@ -1894,7 +1952,7 @@ convoi_t::rdwr(loadsave_t *file)
 		// load statistics
 		for (int j = 0; j<5; j++) {
 			for (int k = MAX_MONTHS-1; k>=0; k--) {
-				file->rdwr_longlong(financial_history[k][j], " ");
+				file->rdwr_longlong(financial_history[k][j]);
 			}
 		}
 		for (int k = MAX_MONTHS-1; k>=0; k--) {
@@ -1905,14 +1963,14 @@ convoi_t::rdwr(loadsave_t *file)
 		// load statistics
 		for (int j = 0; j<MAX_CONVOI_COST; j++) {
 			for (int k = MAX_MONTHS-1; k>=0; k--) {
-				file->rdwr_longlong(financial_history[k][j], " ");
+				file->rdwr_longlong(financial_history[k][j]);
 			}
 		}
 	}
 
 	// the convoi odometer
 	if(  file->get_version()>102002  ){
-		file->rdwr_longlong( total_distance_traveled, "" );
+		file->rdwr_longlong( total_distance_traveled);
 	}
 
 	// since it was saved as an signed int
@@ -1926,7 +1984,7 @@ convoi_t::rdwr(loadsave_t *file)
 
 	// save/restore pending line updates
 	if(file->get_version()>84008   &&  file->get_version()<99013) {
-		file->rdwr_long(dummy, "\n");	// ignore
+		file->rdwr_long(dummy);	// ignore
 	}
 	if(file->is_loading()) {
 		line_update_pending = linehandle_t();
@@ -1951,22 +2009,22 @@ convoi_t::rdwr(loadsave_t *file)
 		steps_driven = -1;
 	}
 	else {
-		file->rdwr_short( steps_driven, "s" );
+		file->rdwr_short(steps_driven);
 	}
 
 	// waiting time left ...
 	if(file->get_version()>=99017) {
 		if(file->is_saving()) {
 			if(go_on_ticks==WAIT_INFINITE) {
-				file->rdwr_long( go_on_ticks, "dt" );
+				file->rdwr_long(go_on_ticks);
 			}
 			else {
 				uint32 diff_ticks = welt->get_zeit_ms()>go_on_ticks ? 0 : go_on_ticks-welt->get_zeit_ms();
-				file->rdwr_long( diff_ticks, "dt" );
+				file->rdwr_long(diff_ticks);
 			}
 		}
 		else {
-			file->rdwr_long( go_on_ticks, "dt" );
+			file->rdwr_long(go_on_ticks);
 			if(go_on_ticks!=WAIT_INFINITE) {
 				go_on_ticks += welt->get_zeit_ms();
 			}
@@ -1985,7 +2043,7 @@ convoi_t::rdwr(loadsave_t *file)
 		set_tiles_overtaking( 0 );
 	}
 	else {
-		file->rdwr_byte( tiles_overtaking, "o" );
+		file->rdwr_byte(tiles_overtaking);
 		set_tiles_overtaking( tiles_overtaking );
 	}
 	// no_load, withdraw
@@ -1994,8 +2052,8 @@ convoi_t::rdwr(loadsave_t *file)
 		withdraw = false;
 	}
 	else {
-		file->rdwr_bool( no_load, "" );
-		file->rdwr_bool( withdraw, "" );
+		file->rdwr_bool(no_load);
+		file->rdwr_bool(withdraw);
 	}
 
 	if( file->is_loading() ) {
@@ -2006,12 +2064,30 @@ convoi_t::rdwr(loadsave_t *file)
 
 void convoi_t::zeige_info()
 {
-	if(!in_depot()) {
-
-		if(umgebung_t::verbose_debug) {
+	if(  in_depot()  ) {
+		// Knightly : if ownership matches, we can try to open the depot dialog
+		if(  get_besitzer()==welt->get_active_player()  ) {
+			grund_t *ground = welt->lookup( front()->get_pos() );
+			if(  ground==NULL  ||  ground->get_depot()==NULL  ) {
+				ground = welt->lookup( get_home_depot() );
+			}
+			if(  ground  ) {
+				depot_t *const depot = ground->get_depot();
+				if(  depot  ) {
+					depot->zeige_info();
+					// try to activate this particular convoy in the depot
+					depot_frame_t *const frame = dynamic_cast<depot_frame_t *>( win_get_magic( (long)depot ) );
+					if(  frame  ) {
+						frame->activate_convoi(self);
+					}
+				}
+			}
+		}
+	}
+	else {
+		if(  umgebung_t::verbose_debug  ) {
 			dump();
 		}
-
 		create_win( new convoi_info_t(self), w_info, magic_convoi_info+self.get_id() );
 	}
 }
@@ -2056,7 +2132,7 @@ void convoi_t::get_freight_info(cbuffer_t & buf)
 		ALLOCA(uint32, max_loaded_waren, n);
 		MEMZERON(max_loaded_waren, n);
 
-		for (size_t i = 0; i != anz_vehikel; ++i) {
+		for(  uint32 i = 0;  i != anz_vehikel;  ++i  ) {
 			const vehikel_t* v = fahr[i];
 
 			// first add to capacity indicator
@@ -2142,7 +2218,9 @@ void convoi_t::open_schedule_window( bool show )
 	}
 
 	akt_speed = 0;	// stop the train ...
-	state = FAHRPLANEINGABE;
+	if(state!=INITIAL) {
+		state = FAHRPLANEINGABE;
+	}
 	wait_lock = 25000;
 	alte_richtung = fahr[0]->get_fahrtrichtung();
 
@@ -2154,82 +2232,23 @@ void convoi_t::open_schedule_window( bool show )
 	fpl->eingabe_beginnen();
 }
 
-
-
-/* Fahrzeuge passen oft nur in bestimmten kombinationen
- * die Beschraenkungen werden hier geprueft, die für die Nachfolger von
- * vor gelten - daher muß vor != NULL sein..
+/**
+ * Check validity of convoi with respect to vehicle constraints
  */
-bool convoi_t::pruefe_nachfolger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter)
-{
-	const vehikel_besch_t *soll;
-
-	if(!vor->get_nachfolger_count()) {
-		// Alle Nachfolger erlaubt
-		return true;
-	}
-	for(int i=0; i < vor->get_nachfolger_count(); i++) {
-		soll = vor->get_nachfolger(i);
-		//DBG_MESSAGE("convoi_t::pruefe_an_index()",
-		//    "checking successor: should be %d, is %d",
-		//    soll ? soll->get_name() : "none",
-		//    hinter ? hinter->get_name() : "none");
-
-		if(hinter == soll) {
-			// Diese Beschränkung erlaubt unseren Nachfolger
-			return true;
-		}
-	}
-	//DBG_MESSAGE("convoi_t::pruefe_an_index()",
-	//		 "No matching successor found.");
-	return false;
-}
-
-/* Fahrzeuge passen oft nur in bestimmten kombinationen
- * die Beschraenkungen werden hier geprueft, die für die Vorgänger von
- *  hinter gelten - daher muß hinter != NULL sein.
- */
-bool convoi_t::pruefe_vorgaenger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter)
-{
-	const vehikel_besch_t *soll;
-
-	if(!hinter->get_vorgaenger_count()) {
-		// Alle Vorgänger erlaubt
-		return true;
-	}
-	for(int i=0; i < hinter->get_vorgaenger_count(); i++) {
-		soll = hinter->get_vorgaenger(i);
-		//DBG_MESSAGE("convoi_t::pruefe_vorgaenger()",
-		//	     "checking predecessor: should be %s, is %s",
-		//	     soll ? soll->get_name() : "none",
-		//	     vor ? vor->get_name() : "none");
-
-		if(vor == soll) {
-			// Diese Beschränkung erlaubt unseren Vorgänger
-			return true;
-		}
-	}
-	//DBG_MESSAGE("convoi_t::pruefe_vorgaenger()",
-	//		 "No matching predecessor found.");
-	return false;
-}
-
-
-
 bool convoi_t::pruefe_alle()
 {
-	bool ok = (anz_vehikel == 0 || pruefe_vorgaenger(NULL, fahr[0]->get_besch()));
+	bool ok = anz_vehikel == 0  ||  fahr[0]->get_besch()->can_follow(NULL);
 	unsigned i;
 
 	const vehikel_t* pred = fahr[0];
 	for(i = 1; ok && i < anz_vehikel; i++) {
 		const vehikel_t* v = fahr[i];
-		ok = pruefe_nachfolger(pred->get_besch(), v->get_besch()) &&
-				 pruefe_vorgaenger(pred->get_besch(), v->get_besch());
+		ok = pred->get_besch()->can_lead(v->get_besch())  &&
+				 v->get_besch()->can_follow(pred->get_besch());
 		pred = v;
 	}
 	if(ok) {
-		ok = pruefe_nachfolger(pred->get_besch(), NULL);
+		ok = pred->get_besch()->can_lead(NULL);
 	}
 
 	return ok;
@@ -2484,6 +2503,12 @@ void convoi_t::destroy()
 	if(  state != INITIAL  ) {
 		state = SELF_DESTRUCT;
 	}
+	else {
+		// in depot => not on map
+		for(int i=anz_vehikel-1;  i>=0; i--) {
+			fahr[i]->set_flag( ding_t::not_on_map );
+		}
+	}
 
 	// pay the current value
 	besitzer_p->buche( calc_restwert(), get_pos().get_2d(), COST_NEW_VEHICLE );
@@ -2593,8 +2618,13 @@ void convoi_t::set_line(linehandle_t org_line)
 	if(!org_line.is_bound()) {
 		return;
 	}
-	if(line.is_bound()) {
+	if(  line.is_bound()  ) {
 		unset_line();
+	}
+	else {
+		// Knightly : originally a lineless convoy -> unregister itself from stops as it now belongs to a line
+		unregister_stops();
+		welt->set_schedule_counter();	// must trigger refresh
 	}
 	line_update_pending = org_line;
 	check_pending_updates();
@@ -2747,6 +2777,39 @@ void convoi_t::check_pending_updates()
 }
 
 
+/**
+ * Register the convoy with the stops in the schedule
+ * @author Knightly
+ */
+void convoi_t::register_stops()
+{
+	if(  fpl  ) {
+		for(  uint8 i=0;  i<fpl->get_count();  ++i  ) {
+			const halthandle_t halt = haltestelle_t::get_halt( welt, fpl->eintrag[i].pos, get_besitzer() );
+			if(  halt.is_bound()  ) {
+				halt->add_convoy(self);
+			}
+		}
+	}
+}
+
+
+/**
+ * Unregister the convoy from the stops in the schedule
+ * @author Knightly
+ */
+void convoi_t::unregister_stops()
+{
+	if(  fpl  ) {
+		for(  uint8 i=0;  i<fpl->get_count();  ++i  ) {
+			const halthandle_t halt = haltestelle_t::get_halt( welt, fpl->eintrag[i].pos, get_besitzer() );
+			if(  halt.is_bound()  ) {
+				halt->remove_convoy(self);
+			}
+		}
+	}
+}
+
 
 /*
  * the current state saved as color
@@ -2782,14 +2845,17 @@ uint8 convoi_t::get_status_color() const
 uint16 convoi_t::get_tile_length() const
 {
 	uint16 tiles=0;
-	// the last vehicle does not count!
 	for(sint8 i=0;  i<anz_vehikel-1;  i++) {
 		tiles += fahr[i]->get_besch()->get_length();
 	}
-	// add 127/256 tile to account for the driving in stations in north/west direction
-	// see at the end of vehikel_t::hop()
-	return (tiles*16 + 256-1 + 127)/256;
-	// was originally (tiles+16-1)/16;
+	// the last vehicle counts differently in stations and for reserving track
+	// (1) add 8 = 127/256 tile to account for the driving in stations in north/west direction
+	//     see at the end of vehikel_t::hop()
+	// (2) for length of convoi for loading in stations the length of the last vehicle matters
+	//     see convoi_t::hat_gehalten
+	tiles += max(8, fahr[anz_vehikel-1]->get_besch()->get_length());
+
+	return (tiles + 15) / 16;
 }
 
 
@@ -2839,8 +2905,8 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 
 	// Distance it takes overtaking (unit:256*tile) = my_speed * time_overtaking
 	// time_overtaking = tiles_to_overtake/diff_speed
-	// tiles_to_overtake = convoi_length + pos_other_convoi
-	int distance = 256 + akt_speed*((get_length()*16)+steps_other)/diff_speed;
+	// tiles_to_overtake = convoi_length + current pos within tile + (pos_other_convoi wihtin tile + length of other convoi) - one tile
+	int distance = akt_speed*(fahr[0]->get_steps()+(get_length()*16)+steps_other-256)/diff_speed;
 	int time_overtaking = 0;
 
 	// Conditions for overtaking:
@@ -2921,9 +2987,9 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 	//   invade the dangerous zone.
 	// Conditions for the street are milder: e.g. if no street, no facing traffic
 	time_overtaking = (time_overtaking << 16)/akt_speed;
-	while ( time_overtaking > 0 ) {
+	while(  time_overtaking > 0  ) {
 
-		if ( route_index >= route.get_count() ) {
+		if(  route_index >= route.get_count()  ) {
 			return false;
 		}
 
@@ -2959,6 +3025,6 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 	}
 
 	set_tiles_overtaking( 1+n_tiles );
-	other_overtaker->set_tiles_overtaking( -1-(n_tiles/2) );
+	other_overtaker->set_tiles_overtaking( -1-(n_tiles*(akt_speed-diff_speed))/akt_speed );
 	return true;
 }

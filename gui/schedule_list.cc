@@ -285,7 +285,7 @@ schedule_list_gui_t::schedule_list_gui_t(spieler_t* sp_) :
  * Mausklicks werden hiermit an die GUI-Komponenten
  * gemeldet
  */
-void schedule_list_gui_t::infowin_event(const event_t *ev)
+bool schedule_list_gui_t::infowin_event(const event_t *ev)
 {
 	if(ev->ev_class == INFOWIN) {
 		if(ev->ev_code == WIN_CLOSE) {
@@ -297,7 +297,7 @@ void schedule_list_gui_t::infowin_event(const event_t *ev)
 			reliefkarte_t::get_karte()->set_current_fpl(line->get_schedule(), sp->get_player_nr()); // (*fpl,player_nr)
 		}
 	}
-	gui_frame_t::infowin_event(ev);
+	return gui_frame_t::infowin_event(ev);
 }
 
 
@@ -355,12 +355,11 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 		}
 	}
 	else if (komp == &scl) {
-		if(  (uint32)(v.i)<scl.get_count()  ) {
-			// get selected line
-			linehandle_t new_line = ((line_scrollitem_t *)scl.get_element(v.i))->get_line();
-			update_lineinfo( new_line );
+		if(  line_scrollitem_t *li=(line_scrollitem_t *)scl.get_element(v.i)  ) {
+			update_lineinfo( li->get_line() );
 		}
 		else {
+			// no valid line
 			update_lineinfo(linehandle_t());
 		}
 		// brute force: just recalculate whole list on each click to keep it current

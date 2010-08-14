@@ -9,6 +9,7 @@
 #ifndef simmenu_h
 #define simmenu_h
 
+#include <string>
 #include "besch/sound_besch.h"
 
 #include "dataobj/translator.h"
@@ -62,6 +63,7 @@ enum {
 	WKZ_REMOVE_WAYOBJ,
 	WKZ_SLICED_AND_UNDERGROUND_VIEW,
 	WKZ_BUY_HOUSE,
+ 	WKZ_CITYROAD,
 	GENERAL_TOOL_COUNT,
 	GENERAL_TOOL = 0x1000
 };
@@ -97,6 +99,7 @@ enum {
 	WKZ_DEPOT_TOOL,
 	WKZ_PWDHASH_TOOL,
 	WKZ_SET_PLAYER_TOOL,
+	WKZ_TRAFFIC_LIGHT_TOOL,
 	SIMPLE_TOOL_COUNT,
 	SIMPLE_TOOL = 0x2000
 };
@@ -130,6 +133,7 @@ enum {
 	WKZ_ENLARGE_MAP,
 	WKZ_LIST_LABEL,
 	WKZ_CLIMATES,
+	WKZ_SETTINGS,
 	DIALOGE_TOOL_COUNT,
 	DIALOGE_TOOL = 0x4000
 };
@@ -187,7 +191,7 @@ public:
 
 	static void init_menu();
 
-	static void read_menu(cstring_t objfilename);
+	static void read_menu(const std::string &objfilename);
 
 	werkzeug_t() : id(0xFFFFu) { cursor = icon = IMG_LEER; ok_sound = NO_SOUND; offset = Z_PLAN; default_param = NULL; command_key = 0; }
 	virtual ~werkzeug_t() {}
