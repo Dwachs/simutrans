@@ -47,11 +47,19 @@ private:
 	static uint8 scale_visible;
 	static uint8 directory_visible;
 
+	static bool is_cursor_hidden;
+
 	  /**
 	   * We need to keep track of trag/click events
 	   * @author Hj. Malthaner
 	   */
 	bool is_dragging;
+
+	/**
+	 * remember that we zoomed
+	 * to center map
+	 */
+	bool zoomed;
 
 	gui_scrollpane_t scrolly;
 
@@ -102,7 +110,7 @@ public:
 	 * gemeldet
 	 * @author Hj. Malthaner
 	 */
-	void infowin_event(const event_t *ev);
+	bool infowin_event(const event_t *ev);
 
 	/**
 	 * Setzt die Fenstergroesse

@@ -16,7 +16,7 @@ public:
 	void set_withdraw(bool yn) { withdraw_old = yn; }
 	void withdraw() const;
 	
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 	virtual void rotate90( const sint16 y_size );
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 private:

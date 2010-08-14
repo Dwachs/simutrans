@@ -21,7 +21,7 @@ public:
 
 	void rdwr(loadsave_t* file, const uint16 version);
 	void rotate90( const sint16 y_size);
-	void debug( log_t &file, cstring_t prefix );
+	void debug( log_t &file, string prefix );
 private:
 	uint8 check_position(koord3d pos);
 	void remove_way_end(koord3d &pos);

@@ -26,7 +26,7 @@ public:
 
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16);
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 private:
 	wfabrik_t fab1, fab2;
 	const weg_besch_t *road_besch;

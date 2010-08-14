@@ -24,7 +24,7 @@ free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, koor
 void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 version )
 {
 	pos.rdwr(file);
-	file->rdwr_bool(through,"");
+	file->rdwr_bool(through);
 }
 
 return_value_t *free_tile_searcher_t::step() 

@@ -450,7 +450,7 @@ bool dingliste_t::add(ding_t* ding)
 	if(pri==0) {
 		// check for other ways to keep order! (maximum is two ways per tile at the moment)
 		weg_t const* const w   = ding_cast<weg_t>(obj.some[0]);
-		uint8        const pos = w && w->get_waytype() ? 1 : 0;
+		uint8        const pos = w  &&  w->get_waytype() < static_cast<weg_t*>(ding)->get_waytype() ? 1 : 0;
 		intern_insert_at(ding, pos);
 		return true;
 	}
@@ -739,7 +739,7 @@ void dingliste_t::rdwr(karte_t *welt, loadsave_t *file, koord3d current_pos)
 	if(file->is_saving()) {
 		max_object_index = top-1;
 	}
-	file->rdwr_long(max_object_index, "\n");
+	file->rdwr_long(max_object_index);
 
 	if(max_object_index>254) {
 		dbg->error("dingliste_t::laden()","Too many objects (%i) at (%i,%i), some vehicle may not appear immediately.",max_object_index,current_pos.x,current_pos.y);

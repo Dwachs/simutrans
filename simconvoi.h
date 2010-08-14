@@ -361,6 +361,18 @@ private:
 
 	void check_pending_updates();
 
+	/**
+	 * Register the convoy with the stops in the schedule
+	 * @author Knightly
+	 */
+	void register_stops();
+
+	/**
+	 * Unregister the convoy from the stops in the schedule
+	 * @author Knightly
+	 */
+	void unregister_stops();
+
 	uint32 move_to(karte_t const&, koord3d const& k, uint16 start_index);
 
 public:
@@ -649,9 +661,6 @@ public:
 	* @see simwin
 	*/
 	void open_schedule_window( bool show );
-
-	static bool pruefe_vorgaenger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter);
-	static bool pruefe_nachfolger(const vehikel_besch_t *vor, const vehikel_besch_t *hinter);
 
 	/**
 	* pruefe ob Beschraenkungen fuer alle Fahrzeuge erfuellt sind

@@ -100,7 +100,7 @@ void industry_connector_t::rotate90( const sint16 y_size)
 	}
 }
 
-void industry_connector_t::debug( log_t &file, cstring_t prefix )
+void industry_connector_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
 }

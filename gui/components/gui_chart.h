@@ -7,7 +7,7 @@
 #define gui_chart_h
 
 #include "../../simtypes.h"
-#include "../../ifc/gui_komponente.h"
+#include "gui_komponente.h"
 #include "../../tpl/slist_tpl.h"
 
 // CURVE TYPES
@@ -40,7 +40,7 @@ public:
 	 * gemeldet
 	 * @author Hj. Malthaner
 	 */
-	void infowin_event(const event_t *);
+	bool infowin_event(const event_t *);
 
 	/*
 	 * set dimension

@@ -6,6 +6,7 @@
  */
 
 #include <algorithm>
+#include <string>
 #include "../simgraph.h"
 #include "../vehicle/simvehikel.h"
 #include "../player/simplay.h"
@@ -22,8 +23,6 @@
 
 #include "../bauer/warenbauer.h"
 #include "../bauer/vehikelbauer.h"
-
-#include "../utils/cstring_t.h"
 
 #include "../tpl/inthashtable_tpl.h"
 #include "../tpl/stringhashtable_tpl.h"
@@ -59,11 +58,11 @@ static sint32 default_speedbonus[8] =
 	60	// narrowgauge
 };
 
-bool vehikelbauer_t::speedbonus_init(cstring_t objfilename)
+bool vehikelbauer_t::speedbonus_init(const std::string &objfilename)
 {
 	tabfile_t bonusconf;
 	// first take user data, then user global data
-	if (!bonusconf.open(objfilename+"config/speedbonus.tab")) {
+	if (!bonusconf.open((objfilename+"config/speedbonus.tab").c_str())) {
 		dbg->error("vehikelbauer_t::speedbonus_init()", "Can't read speedbonus.tab" );
 		return false;
 	}
@@ -352,7 +351,7 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
 
 			// engine, but not allowed to lead a convoi, or no power at all or no electrics allowed
 			if(target_weight) {
-				if(test_besch->get_leistung()==0  ||  !test_besch->can_lead()  ||  (!include_electric  &&  test_besch->get_engine_type()==vehikel_besch_t::electric) ) {
+				if(test_besch->get_leistung()==0  ||  !test_besch->can_follow(NULL)  ||  (!include_electric  &&  test_besch->get_engine_type()==vehikel_besch_t::electric) ) {
 					continue;
 				}
 			}
@@ -378,7 +377,7 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
 				// assign this vehicle, if we have none found one yet, or we found only a too week one
 				if(  besch!=NULL  ) {
 					// it is cheaper to run? (this is most important)
-					difference += (besch->get_zuladung()*1000)/besch->get_betriebskosten() < (test_besch->get_zuladung()*1000)/test_besch->get_betriebskosten() ? -20 : 20;
+					difference += (besch->get_zuladung()*1000)/(1+besch->get_betriebskosten()) < (test_besch->get_zuladung()*1000)/(1+test_besch->get_betriebskosten()) ? -20 : 20;
 					if(  target_weight>0  ) {
 						// it is strongerer?
 						difference += (besch->get_leistung()*besch->get_gear())/64 < power ? -10 : 10;
@@ -402,7 +401,7 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
 
 			else {
 				// engine/tugboat/truck for trailer
-				if(  test_besch->get_zuladung()!=0  ||  !test_besch->can_lead()  ) {
+				if(  test_besch->get_zuladung()!=0  ||  !test_besch->can_follow(NULL)  ) {
 					continue;
 				}
 				// finally, we might be able to use this vehicle
@@ -410,7 +409,7 @@ const vehikel_besch_t *vehikelbauer_t::vehikel_search( waytype_t wt, const uint1
 				uint32 max_weight = power/( (speed*speed)/2500 + 1 );
 
 				// we found a useful engine
-				long current_index = (power*100)/test_besch->get_betriebskosten() + test_besch->get_geschw() - (sint16)test_besch->get_gewicht() - (sint32)(test_besch->get_preis()/25000);
+				long current_index = (power*100)/(1+test_besch->get_betriebskosten()) + test_besch->get_geschw() - (sint16)test_besch->get_gewicht() - (sint32)(test_besch->get_preis()/25000);
 				// too slow?
 				if(speed < target_speed) {
 					current_index -= 250;
@@ -505,7 +504,7 @@ const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const ui
 				// assign this vehicle, if we have none found one yet, or we found only a too week one
 				if(  besch!=NULL  ) {
 					// it is cheaper to run? (this is most important)
-					difference += (besch->get_zuladung()*1000)/besch->get_betriebskosten() < (test_besch->get_zuladung()*1000)/test_besch->get_betriebskosten() ? -20 : 20;
+					difference += (besch->get_zuladung()*1000)/(1+besch->get_betriebskosten()) < (test_besch->get_zuladung()*1000)/(1+test_besch->get_betriebskosten()) ? -20 : 20;
 					if(  target_weight>0  ) {
 						// it is strongerer?
 						difference += (besch->get_leistung()*besch->get_gear())/64 < power ? -10 : 10;
@@ -532,7 +531,7 @@ const vehikel_besch_t *vehikelbauer_t::get_best_matching( waytype_t wt, const ui
 				uint32 max_weight = power/( (speed*speed)/2500 + 1 );
 
 				// we found a useful engine
-				long current_index = (power*100)/test_besch->get_betriebskosten() + test_besch->get_geschw() - (sint16)test_besch->get_gewicht() - (sint32)(test_besch->get_preis()/25000);
+				long current_index = (power*100)/(1+test_besch->get_betriebskosten()) + test_besch->get_geschw() - (sint16)test_besch->get_gewicht() - (sint32)(test_besch->get_preis()/25000);
 				// too slow?
 				if(speed < target_speed) {
 					current_index -= 250;

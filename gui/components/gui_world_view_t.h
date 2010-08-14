@@ -8,7 +8,7 @@
 #ifndef world_view_t_h
 #define world_view_t_h
 
-#include "../../ifc/gui_komponente.h"
+#include "gui_komponente.h"
 #include "../../dataobj/koord3d.h"
 #include "../../tpl/vector_tpl.h"
 
@@ -31,7 +31,7 @@ class world_view_t : public gui_komponente_t
 		 * gemeldet
 		 * @author Hj. Malthaner
 		 */
-		void infowin_event(const event_t *);
+		bool infowin_event(const event_t *);
 
 		/**
 		 * resize window in response to a resize event

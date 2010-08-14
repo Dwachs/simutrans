@@ -84,13 +84,13 @@ bool ai_wai_t::is_cash_available(sint64 cost)
 	// future maintenance
 	sint64 maint = ((sint64)get_maintenance()<<((sint64)get_welt()->ticks_per_world_month_shift-18l));
 	// Mit Polster von ca. 20.000 + 2* monatliche Betriebskosten
-	return( 10*cost + 20000000 + 20* maint < 9*cash );
+	return( 10*(cost + 2000000 + 2* maint) < 9*cash );
 }
 
 void ai_wai_t::neuer_monat()
 {
 	ai_t::neuer_monat();
-	cstring_t empty("");
+	string empty("");
 	log.message("ai_wai_t::neuer_monat()", "debug output");
 	bt_root.debug( log, empty );
 }
@@ -106,7 +106,7 @@ void ai_wai_t::rdwr(loadsave_t *file)
 	ai_t::rdwr(file);
 
 	uint16 wai_version = WAI_VERSION;
-	file->rdwr_short(wai_version, " ");
+	file->rdwr_short(wai_version);
 
 	log.message("ai_wai_t::rdwr", "%s v.%d", file->is_saving() ? "save" : "load", wai_version);
 

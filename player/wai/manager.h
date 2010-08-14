@@ -23,7 +23,7 @@ public:
 
 	virtual void rdwr(loadsave_t* file, const uint16 version);
 	virtual void rotate90( const sint16 /*y_size*/ );
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 
 	// reports
 	virtual void append_report(report_t *report) { if (report) reports.append(report); }

@@ -227,7 +227,7 @@ private:
 	/**
 	 * Raise tile (x,y): height of each corner is given
 	 */
-	bool can_raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest=15) const;
+	bool can_raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, int &cost, uint8 ctest=15) const;
 	int  raise_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw);
 	/**
 	 * Raise grid point (x,y), used during map creation/enlargement
@@ -237,7 +237,7 @@ private:
 	/**
 	 * Lower tile (x,y): height of each corner is given
 	 */
-	bool can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 ctest=15) const;
+	bool can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, int &cost, uint8 ctest=15) const;
 	int  lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw);
 	/**
 	 * Lwer grid point (x,y), used during map creation/enlargement
@@ -301,6 +301,7 @@ private:
 	// Variables used in interactive()
 	uint32 sync_steps;
 	uint8  network_frame_count;
+	uint32 fix_ratio_frame_time; // set in reset_timer()
 
 	/**
 	 * fuer performancevergleiche
@@ -373,7 +374,7 @@ private:
 	 * It's now an extra function so we don't need the code twice.
 	 * @auther Gerd Wachsmuth
 	 */
-	void distribute_groundobjs_cities(int new_cities, sint16 old_x, sint16 old_y);
+	void distribute_groundobjs_cities(int new_cities, sint32 new_mittlere_einwohnerzahl, sint16 old_x, sint16 old_y);
 
 public:
 	/* reads height data from 8 or 25 bit bmp or ppm files
@@ -468,7 +469,8 @@ public:
 	void set_follow_convoi(convoihandle_t cnv) { follow_convoi = cnv; }
 	convoihandle_t get_follow_convoi() const { return follow_convoi; }
 
-	einstellungen_t* get_einstellungen() const { return einstellungen; }
+	const einstellungen_t * get_einstellungen() const { return einstellungen; }
+	einstellungen_t *access_einstellungen() const { return einstellungen; }
 
 	// returns current speed bonus
 	int get_average_speed(waytype_t typ) const { return average_speed[ (typ==16 ? 3 : (int)(typ-1)&7 ) ]; }
@@ -781,7 +783,7 @@ public:
 	 * @param y y-Gitterkoordinate
 	 * @author Hj. Malthaner
 	 */
-	bool can_raise(sint16 x,sint16 y) const;
+	bool can_raise(sint16 x,sint16 y, int &cost) const;
 
 	/**
 	 * Erhoeht die Hoehe an Gitterkoordinate (x,y) um eins.
@@ -797,7 +799,7 @@ public:
 	 * @param y y-Gitterkoordinate
 	 * @author Hj. Malthaner
 	 */
-	bool can_lower(sint16 x,sint16 y) const;
+	bool can_lower(sint16 x,sint16 y, int &cost) const;
 
 	/**
 	 * Erniedrigt die Hoehe an Gitterkoordinate (x,y) um eins.
@@ -807,7 +809,7 @@ public:
 	int lower(koord pos);
 
 	// mostly used by AI: Ask to flatten a tile
-	bool can_ebne_planquadrat(koord pos, sint8 hgt);
+	bool can_ebne_planquadrat(koord pos, sint8 hgt, int &cost);
 	bool ebne_planquadrat(spieler_t *sp, koord pos, sint8 hgt);
 
 	// the convois are also handled each steps => thus we keep track of them too

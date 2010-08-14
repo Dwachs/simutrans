@@ -8,7 +8,7 @@
 #ifndef message_stats_t_h
 #define message_stats_t_h
 
-#include "../ifc/gui_komponente.h"
+#include "components/gui_komponente.h"
 #include "../simimg.h"
 
 class karte_t;
@@ -34,7 +34,7 @@ public:
 	 * gemeldet
 	 * @author Hj. Malthaner
 	 */
-	void infowin_event(const event_t *);
+	bool infowin_event(const event_t *);
 
 	/**
 	 * Zeichnet die Komponente

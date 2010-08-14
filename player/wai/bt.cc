@@ -13,24 +13,24 @@ return_value_t* bt_node_t::new_return_value(return_code rc)
 
 return_value_t* bt_node_t::step()
 {
-	sp->get_log().message( name, "dummy step, done nothing" );
+	sp->get_log().message( name.c_str(), "dummy step, done nothing" );
 	return new_return_value(RT_DONE_NOTHING);
 }
 
-void bt_node_t::debug( log_t &file, cstring_t prefix )
+void bt_node_t::debug( log_t &file, string prefix )
 {
-	file.message("node","%s%s", (const char*)prefix, (const char*)name);
+	file.message("node","%s%s", prefix.c_str(), name.c_str());
 }
 
 void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, ai_wai_t *sp_, bt_node_t* &child)
 {
 	if (file->is_saving()) {
 		uint16 t = child ? (bt_types)child->get_type() : BT_NULL;
-		file->rdwr_short(t, " ");
+		file->rdwr_short(t);
 	}
 	else {
 		uint16 t=0;
-		file->rdwr_short(t, " ");
+		file->rdwr_short(t);
 		if( child ) {
 			delete child;
 		}
@@ -44,7 +44,7 @@ void bt_node_t::rdwr_child(loadsave_t* file, const uint16 version, ai_wai_t *sp_
 void bt_node_t::rdwr(loadsave_t* file, const uint16 /*version*/)
 {
 	if (file->is_saving()) {
-		const char* t = name;
+		const char* t = name.c_str();
 		file->rdwr_str(t);
 	}
 	else {
@@ -73,7 +73,7 @@ bt_sequential_t::~bt_sequential_t()
 return_value_t* bt_sequential_t::step()
 {
 	uint32 num_childs = childs.get_count();
-	sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", (const char*)name, next_to_step, num_childs);
+	sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", name.c_str(), next_to_step, num_childs);
 
 	if(  num_childs == 0  ) {
 		// We have nothing to do... => Kill us.
@@ -133,11 +133,11 @@ void bt_sequential_t::rdwr( loadsave_t* file, const uint16 version )
 {
 	bt_node_t::rdwr(file, version);
 
-	file->rdwr_long(next_to_step, " ");
+	file->rdwr_long(next_to_step);
 
 	// 1. Schritt: Anzahl Kinder schreiben / lesen.
 	uint32 count = childs.get_count();
-	file->rdwr_long(count, " ");
+	file->rdwr_long(count);
 	// 2. Schritt: Kinder mit dem richtigen Konstruktor aufrufen (siehe simconvoi.cc, rdwr).
 	for(uint32 i=0; i<count; i++) {
 		if(file->is_loading()) {
@@ -154,10 +154,10 @@ void bt_sequential_t::rotate90( sint16 size_y )
 	}
 }
 
-void bt_sequential_t::debug( log_t &file, cstring_t prefix )
+void bt_sequential_t::debug( log_t &file, string prefix )
 {
-	file.message("sequ","%s%s", (const char*)prefix, (const char*)name);
-	cstring_t next_prefix( prefix + "  " );
+	file.message("sequ","%s%s", prefix.c_str(), name.c_str());
+	string next_prefix( prefix + "  " );
 	for( uint32 i = 0; i < childs.get_count(); i++ ) {
 		childs[i]->debug( file, next_prefix );
 	}

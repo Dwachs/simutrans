@@ -649,9 +649,9 @@ void depot_frame_t::build_vehicle_lists()
 				bool append = true;
 				if(!show_all) {
 					if(veh_action == va_insert) {
-						append = !(!convoi_t::pruefe_nachfolger(info, veh) || (veh && !convoi_t::pruefe_vorgaenger(info, veh)));
+						append = info->can_lead(veh)  &&  (veh==NULL  ||  veh->can_follow(info));
 					} else if(veh_action == va_append) {
-						append = convoi_t::pruefe_vorgaenger(veh, info);
+						append = info->can_follow(veh)  &&  (veh==NULL  ||  veh->can_lead(info));
 					}
 				}
 				if(append) {
@@ -683,22 +683,22 @@ void depot_frame_t::update_data()
 
 	switch(depot->convoi_count()) {
 		case 0:
-			tstrncpy(txt_convois, translator::translate("no convois"), lengthof(txt_convois));
+			tstrncpy( txt_convois, translator::translate("no convois"), lengthof(txt_convois) );
 			break;
 		case 1:
 			if(icnv == -1) {
-				sprintf(txt_convois, translator::translate("1 convoi"));
+				tstrncpy( txt_convois, translator::translate("1 convoi"), lengthof(txt_convois) );
 			}
 			else {
-				sprintf(txt_convois, translator::translate("convoi %d of %d"), icnv + 1, depot->convoi_count());
+				sprintf( txt_convois, translator::translate("convoi %d of %d"), icnv + 1, depot->convoi_count() );
 			}
 			break;
 		default:
 			if(icnv == -1) {
-				sprintf(txt_convois, translator::translate("%d convois"), depot->convoi_count());
+				sprintf( txt_convois, translator::translate("%d convois"), depot->convoi_count() );
 			}
 			else {
-				sprintf(txt_convois, translator::translate("convoi %d of %d"), icnv + 1, depot->convoi_count());
+				sprintf( txt_convois, translator::translate("convoi %d of %d"), icnv + 1, depot->convoi_count() );
 			}
 			break;
 	}
@@ -733,12 +733,12 @@ void depot_frame_t::update_data()
 		}
 
 		/* color bars for current convoi: */
-		convoi_pics[0].lcolor = convoi_t::pruefe_vorgaenger(NULL, cnv->front()->get_besch()) ? COL_GREEN : COL_YELLOW;
+		convoi_pics[0].lcolor = cnv->front()->get_besch()->can_follow(NULL) ? COL_GREEN : COL_YELLOW;
 		for(  i=1;  i<cnv->get_vehikel_anzahl(); i++) {
-			convoi_pics[i - 1].rcolor = convoi_t::pruefe_nachfolger(cnv->get_vehikel(i - 1)->get_besch(), cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
-			convoi_pics[i].lcolor     = convoi_t::pruefe_vorgaenger(cnv->get_vehikel(i - 1)->get_besch(), cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
+			convoi_pics[i - 1].rcolor = cnv->get_vehikel(i-1)->get_besch()->can_lead(cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
+			convoi_pics[i].lcolor     = cnv->get_vehikel(i)->get_besch()->can_follow(cnv->get_vehikel(i-1)->get_besch()) ? COL_GREEN : COL_RED;
 		}
-		convoi_pics[i - 1].rcolor = convoi_t::pruefe_nachfolger(cnv->get_vehikel(i - 1)->get_besch(), NULL) ? COL_GREEN : COL_YELLOW;
+		convoi_pics[i - 1].rcolor = cnv->get_vehikel(i-1)->get_besch()->can_lead(NULL) ? COL_GREEN : COL_YELLOW;
 
 		// change grren into blue for retired vehicles
 		for(i=0;  i<cnv->get_vehikel_anzahl(); i++) {
@@ -773,17 +773,17 @@ void depot_frame_t::update_data()
 		*/
 
 		if(veh_action == va_insert) {
-			if (!convoi_t::pruefe_nachfolger(info, veh) || (veh && !convoi_t::pruefe_vorgaenger(info, veh))) {
+			if(!info->can_lead(veh)  ||  (veh  &&  !veh->can_follow(info))) {
 				iter1.get_current_value()->lcolor = COL_RED;
 				iter1.get_current_value()->rcolor = COL_RED;
-			} else if(!convoi_t::pruefe_vorgaenger(NULL, info)) {
+			} else if(!info->can_follow(NULL)) {
 				iter1.get_current_value()->lcolor = COL_YELLOW;
 			}
 		} else if(veh_action == va_append) {
-			if(!convoi_t::pruefe_vorgaenger(veh, info) || (veh && !convoi_t::pruefe_nachfolger(veh, info))) {
+			if(!info->can_follow(veh)  ||  (veh  &&  !veh->can_lead(info))) {
 				iter1.get_current_value()->lcolor = COL_RED;
 				iter1.get_current_value()->rcolor = COL_RED;
-			} else if(!convoi_t::pruefe_nachfolger(info, NULL)) {
+			} else if(!info->can_lead(NULL)) {
 				iter1.get_current_value()->rcolor = COL_YELLOW;
 			}
 		} else if( veh_action == va_sell ) {
@@ -985,14 +985,14 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *komp,value_t p)
 }
 
 
-void depot_frame_t::infowin_event(const event_t *ev)
+bool depot_frame_t::infowin_event(const event_t *ev)
 {
 	if(ev->ev_code!=WIN_CLOSE  &&  get_welt()->get_active_player() != depot->get_besitzer()) {
 		destroy_win(this);
-		return;
+		return true;
 	}
 
-	gui_frame_t::infowin_event(ev);
+	const bool swallowed = gui_frame_t::infowin_event(ev);
 
 	if(IS_WINDOW_CHOOSE_NEXT(ev)) {
 
@@ -1022,6 +1022,9 @@ void depot_frame_t::infowin_event(const event_t *ev)
 			win_set_pos( win_get_magic((long)next_dep), x, y );
 			get_welt()->change_world_position(next_dep->get_pos());
 		}
+
+		return true;
+
 	} else if(IS_WINDOW_REZOOM(ev)) {
 		koord gr = get_fenstergroesse();
 		set_fenstergroesse(gr);
@@ -1032,6 +1035,8 @@ void depot_frame_t::infowin_event(const event_t *ev)
 			line_selector.close_box();
 		}
 	}
+
+	return swallowed;
 }
 
 
@@ -1078,8 +1083,9 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 				total_max_weight += (max_weight*besch->get_zuladung()+499)/1000;
 				total_min_weight += (min_weight*besch->get_zuladung()+499)/1000;
 			}
-			max_speed = min(speed_to_kmh(cnv->get_min_top_speed()), (uint32) sqrt((((double)total_power/total_min_weight)-1)*2500));
-			min_speed = min(speed_to_kmh(cnv->get_min_top_speed()), (uint32) sqrt((((double)total_power/total_max_weight)-1)*2500));
+			// ensure that argument of sqrt is not negative
+			max_speed = total_power < total_min_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), (uint32) (sqrt( (double)total_power/total_min_weight - 1)*50) );
+			min_speed = total_power < total_max_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), (uint32) (sqrt( (double)total_power/total_max_weight - 1)*50) );
 			sprintf(txt_convoi_count, "%s %d (%s %i)",
 				translator::translate("Fahrzeuge:"), cnv->get_vehikel_anzahl(),
 				translator::translate("Station tiles:"), cnv->get_tile_length() );
@@ -1151,7 +1157,7 @@ void depot_frame_t::fahrplaneingabe()
 		// this can happen locally, since any update of the schedule is done during closing window
 		schedule_t *fpl = cnv->create_schedule();
 		assert(fpl!=NULL);
-		gui_fenster_t *fplwin = win_get_magic((long)fpl);
+		gui_frame_t *fplwin = win_get_magic((long)fpl);
 		if(   fplwin==NULL  ) {
 			cnv->open_schedule_window( get_welt()->get_active_player()==cnv->get_besitzer() );
 		}

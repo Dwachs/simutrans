@@ -109,13 +109,20 @@ karte_ansicht_t::display(bool force_dirty)
 	// gr->get_disp_height() == min(gr->get_hoehe(), hmax_ground)
 	const sint8 hmax_ground = (grund_t::underground_mode==grund_t::ugm_level) ? grund_t::underground_level : 127;
 
+
+	// lower limit for y: display correctly water/outside graphics at upper border of screen
+	int y_min = (-const_y_off + 4*tile_raster_scale_y( min(hmax_ground,welt->get_grundwasser())*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE )
+					+ 4*(menu_height -IMG_SIZE) -IMG_SIZE/2-1) / IMG_SIZE;
+
 	// first display ground
 	int	y;
-	for(y=-dpy_height; y<dpy_height+dpy_width; y++) {
+	for(y=y_min; y<dpy_height+4*4; y++) {
 
 		const sint16 ypos = y*(IMG_SIZE/4) + const_y_off;
+		// plotted = we plotted something for y=lower bound
+		bool plotted = y>y_min;
 
-		for(sint16 x=-dpy_width-(y & 1); x<=dpy_width+dpy_height; x+=2) {
+		for(sint16 x=-2-((y+dpy_width) & 1); x<=2*dpy_width; x+=2) {
 
 			const sint16 i = ((y+x) >> 1) + i_off;
 			const sint16 j = ((y-x) >> 1) + j_off;
@@ -123,26 +130,34 @@ karte_ansicht_t::display(bool force_dirty)
 
 			if(xpos+IMG_SIZE>0  &&  xpos<disp_width) {
 				if (grund_t const* const kb = welt->lookup_kartenboden(koord(i, j))) {
-					sint16 const yypos = ypos - tile_raster_scale_y(min(kb->get_hoehe(), hmax_ground) * TILE_HEIGHT_STEP / Z_TILE_STEP, IMG_SIZE);
+					const sint16 yypos = ypos - tile_raster_scale_y(min(kb->get_hoehe(), hmax_ground) * TILE_HEIGHT_STEP / Z_TILE_STEP, IMG_SIZE);
 					if(yypos-IMG_SIZE<disp_height  &&  yypos+IMG_SIZE>menu_height) {
 						kb->display_if_visible(xpos, yypos, IMG_SIZE);
+						plotted = true;
 					}
 				}
 				else {
 					// outside ...
-					display_img(grund_besch_t::ausserhalb->get_bild(hang_t::flach), xpos,ypos - tile_raster_scale_y( welt->get_grundwasser()*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE ), force_dirty);
+					const sint16 yypos = ypos - tile_raster_scale_y( welt->get_grundwasser()*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE );
+					if(yypos-IMG_SIZE<disp_height  &&  yypos+IMG_SIZE>menu_height) {
+						display_img(grund_besch_t::ausserhalb->get_bild(hang_t::flach), xpos,yypos, force_dirty);
+					}
 				}
 			}
+		}
+		// increase lower bound if nothing is visible
+		if (!plotted) {
+			y_min++;
 		}
 	}
 
 	// and then things (and other ground)
 	// especially necessary for vehicles
-	for(y=-dpy_height; y<dpy_height+dpy_width; y++) {
+	for(y=y_min; y<dpy_height+4*4; y++) {
 
 		const sint16 ypos = y*(IMG_SIZE/4) + const_y_off;
 
-		for(sint16 x=-dpy_width-(y & 1); x<=dpy_width+dpy_height; x+=2) {
+		for(sint16 x=-2-((y+dpy_width) & 1); x<=2*dpy_width; x+=2) {
 
 			const int i = ((y+x) >> 1) + i_off;
 			const int j = ((y-x) >> 1) + j_off;
@@ -177,7 +192,7 @@ karte_ansicht_t::display(bool force_dirty)
 							underground_level = 127;
 					} */
 					sint16 yypos = ypos - tile_raster_scale_y( min(gr->get_hoehe(),hmax_ground)*TILE_HEIGHT_STEP/Z_TILE_STEP, IMG_SIZE);
-					if(yypos-IMG_SIZE*2<disp_height  &&  yypos+IMG_SIZE>menu_height) {
+					if(yypos-IMG_SIZE*3<disp_height  &&  yypos+IMG_SIZE>menu_height) {
 						plan->display_dinge(xpos, yypos, IMG_SIZE, true, hmin, hmax);
 					}
 				}
@@ -186,11 +201,11 @@ karte_ansicht_t::display(bool force_dirty)
 	}
 
 	// and finally overlays (station coverage and signs)
-	for(y=-dpy_height; y<dpy_height+dpy_width; y++) {
+	for(y=y_min; y<dpy_height+4*4; y++) {
 
 		const sint16 ypos = y*(IMG_SIZE/4) + const_y_off;
 
-		for(sint16 x=-dpy_width-(y & 1); x<=dpy_width+dpy_height; x+=2) {
+		for(sint16 x=-2-((y+dpy_width) & 1); x<=2*dpy_width; x+=2) {
 
 			const int i = ((y+x) >> 1) + i_off;
 			const int j = ((y-x) >> 1) + j_off;

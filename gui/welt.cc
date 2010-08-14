@@ -68,7 +68,7 @@ DBG_MESSAGE("","sizeof(stat)=%d, sizeof(tm)=%d",sizeof(struct stat),sizeof(struc
 	this->welt = welt;
 	this->sets = sets;
 	this->old_lang = -1;
-	this->sets->set_beginner_mode(umgebung_t::default_einstellungen.get_beginner_mode());
+	this->sets->beginner_mode = umgebung_t::default_einstellungen.get_beginner_mode();
 
 	// find earliest start date ...
 	uint16 game_start = 2999;
@@ -339,7 +339,7 @@ welt_gui_t::update_preview()
 	const int my = sets->get_groesse_y()/preview_size;
 
 	if(loaded_heightfield) {
-		update_from_heightfield(sets->heightfield);
+		update_from_heightfield(sets->heightfield.c_str());
 	}
 	else {
 		setsimrand( 0xFFFFFFFF, sets->get_karte_nummer() );
@@ -395,7 +395,7 @@ welt_gui_t::action_triggered( gui_action_creator_t *komp,value_t v)
 		sets->set_land_industry_chains( v.i );
 	}
 	else if(komp==&inp_electric_producer) {
-		sets->set_electric_promille( v.i*10 );
+		sets->electric_promille = v.i*10;
 	}
 	else if(komp==&inp_tourist_attractions) {
 		sets->set_tourist_attractions( v.i );
@@ -413,20 +413,25 @@ welt_gui_t::action_triggered( gui_action_creator_t *komp,value_t v)
 		// load relief
 		loaded_heightfield = false;
 		sets->heightfield = "";
-		sets->set_grundwasser(-2);
+		sets->grundwasser = -2;
 		create_win(new load_relief_frame_t(sets), w_info, magic_load_t);
 		knr = sets->get_karte_nummer();	// otherwise using cancel would not show the normal generated map again
 	}
 	else if(komp==&use_intro_dates) {
-		sets->set_use_timeline( use_intro_dates.pressed^1 );
-		use_intro_dates.pressed = sets->get_use_timeline();
+		// 0,1 should force setting to new game as well. don't allow to change
+		// 2,3 allow to change
+		if(sets->get_use_timeline()&2) {
+			// don't change bit1. bit1 affects loading saved game
+			sets->set_use_timeline( sets->get_use_timeline()^1 );
+			use_intro_dates.pressed = sets->get_use_timeline()&1;
+		}
 	}
 	else if(komp==&allow_player_change) {
 		sets->set_allow_player_change( allow_player_change.pressed^1 );
 		allow_player_change.pressed = sets->get_allow_player_change();
 	}
 	else if(komp==&open_setting_gui) {
-		gui_fenster_t *sg = win_get_magic( magic_settings_frame_t );
+		gui_frame_t *sg = win_get_magic( magic_settings_frame_t );
 		if(  sg  ) {
 			destroy_win( sg );
 			open_setting_gui.pressed = false;
@@ -437,7 +442,7 @@ welt_gui_t::action_triggered( gui_action_creator_t *komp,value_t v)
 		}
 	}
 	else if(komp==&open_climate_gui) {
-		gui_fenster_t *climate_gui = win_get_magic( magic_climate );
+		gui_frame_t *climate_gui = win_get_magic( magic_climate );
 		if(  climate_gui  ) {
 			destroy_win( climate_gui );
 			open_climate_gui.pressed = false;
@@ -467,7 +472,7 @@ welt_gui_t::action_triggered( gui_action_creator_t *komp,value_t v)
 	}
 
 	if(knr>=0) {
-		sets->set_karte_nummer( knr );
+		sets->nummer = knr;
 		if(!loaded_heightfield) {
 			update_preview();
 		}
@@ -477,21 +482,23 @@ welt_gui_t::action_triggered( gui_action_creator_t *komp,value_t v)
 
 
 
-void welt_gui_t::infowin_event(const event_t *ev)
+bool  welt_gui_t::infowin_event(const event_t *ev)
 {
 	gui_frame_t::infowin_event(ev);
 
 	if(ev->ev_class==INFOWIN  &&  ev->ev_code==WIN_CLOSE) {
 		close = true;
 	}
+
+	return true;
 }
 
 
 
 void welt_gui_t::zeichnen(koord pos, koord gr)
 {
-	if(!loaded_heightfield  && sets->heightfield.len()!=0) {
-		if(update_from_heightfield(sets->heightfield)) {
+	if(!loaded_heightfield  && sets->heightfield.size()!=0) {
+		if(update_from_heightfield(sets->heightfield.c_str())) {
 			loaded_heightfield = true;
 		}
 		else {

@@ -5,7 +5,7 @@
 
 #include "gui_scrollbar.h"
 #include "action_listener.h"
-#include "../../ifc/gui_action_creator.h"
+#include "gui_action_creator.h"
 #include "../../simcolor.h"
 
 /**
@@ -125,7 +125,8 @@ public:
 
 	void set_groesse(koord groesse);
 
-	void infowin_event(const event_t *ev);
+	bool infowin_event(const event_t *ev);
+
 	void zeichnen(koord pos);
 
 	/**

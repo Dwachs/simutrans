@@ -407,6 +407,6 @@ void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version
 	ai_t::rdwr_ware_besch(file, freight);
 
 	sint16 iwt = wt;
-	file->rdwr_short(iwt,"");
+	file->rdwr_short(iwt);
 	wt = (waytype_t)iwt;
 }

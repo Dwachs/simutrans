@@ -125,7 +125,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				if (!ok) continue;
 			}
 			// front vehicles
-			if (test_besch->can_lead()) {
+			if (test_besch->can_follow(NULL)) {
 				front_vehicles.insert(test_besch);
 			}
 			// all other vehicles (without front-only vehicles)
@@ -174,7 +174,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 			// try to append this vehicle now
 			const vehikel_besch_t* test_besch = vehicle_loop[i]->get_current();
 			// valid coupling
-			if ( (i==0 && test_besch->can_lead())
+			if ( (i==0 && test_besch->can_follow(NULL))
 				|| (i>0 && prev_besch->can_lead(test_besch) && test_besch->can_follow(prev_besch) && !blacklist.is_contained(test_besch))) {
 				// avoid some permutations - do we lose something here?
 				if ( i>0 && prev_besch->can_follow(test_besch) && test_besch->can_lead(prev_besch) && prev_besch->get_gewicht()<test_besch->get_gewicht()) {
@@ -337,12 +337,12 @@ convoi_t*  vehikel_prototype_t::baue(koord3d k, spieler_t* sp, const vehikel_pro
 
 void vehikel_prototype_t::rdwr(loadsave_t *file)
 {
-	file->rdwr_long( weight, " ");
-	file->rdwr_long( power, " ");
-	file->rdwr_short(min_top_speed, " ");
-	file->rdwr_short(length, " ");
-	file->rdwr_long( max_speed, " ");
-	file->rdwr_byte( missing_freights, " ");
+	file->rdwr_long( weight);
+	file->rdwr_long( power);
+	file->rdwr_short(min_top_speed);
+	file->rdwr_short(length);
+	file->rdwr_long( max_speed);
+	file->rdwr_byte( missing_freights);
 
 	bool ok = ai_t::rdwr_vector_vehicle_besch( file, besch );
 	// prototype invalid ...
@@ -371,19 +371,19 @@ void simple_prototype_designer_t::update()
 void simple_prototype_designer_t::rdwr(loadsave_t *file)
 {
 	sint16 _wt = (uint8)wt;
-	file->rdwr_short(_wt, "");
+	file->rdwr_short(_wt);
 	if (file->is_loading()) {
 		wt = (waytype_t)_wt;
 	}
-	file->rdwr_long(min_speed, "");
-	file->rdwr_byte(max_length, ""); 
-	file->rdwr_long(max_weight, "");
+	file->rdwr_long(min_speed);
+	file->rdwr_byte(max_length); 
+	file->rdwr_long(max_weight);
 	ai_t::rdwr_ware_besch(file, freight);
-	file->rdwr_long(production, "");
-	file->rdwr_long(distance, "");
-	file->rdwr_bool(include_electric, "");
-	file->rdwr_bool(not_obsolete, "");
-	file->rdwr_long(min_trans, "");
+	file->rdwr_long(production);
+	file->rdwr_long(distance);
+	file->rdwr_bool(include_electric);
+	file->rdwr_bool(not_obsolete);
+	file->rdwr_long(min_trans);
 
 	if (file->is_loading()) {
 		proto = new vehikel_prototype_t();
@@ -432,11 +432,11 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 }
 
 
-void simple_prototype_designer_t::debug( log_t &file, cstring_t prefix )
+void simple_prototype_designer_t::debug( log_t &file, string prefix )
 {
 	for(uint32 i=0; i<proto->besch.get_count(); i++)
 	{
-		file.message("prot", "%s[%d] = %s", (const char*)prefix, i, proto->besch[i]->get_name());
+		file.message("prot", "%s[%d] = %s", prefix.c_str(), i, proto->besch[i]->get_name());
 	}
 }
 

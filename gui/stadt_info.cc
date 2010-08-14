@@ -240,12 +240,13 @@ void stadt_info_t::map_rotate90( sint16 )
 
 
 // curretn task: just update the city pointer ...
-void stadt_info_t::infowin_event(const event_t *ev)
+bool stadt_info_t::infowin_event(const event_t *ev)
 {
 	if(  IS_WINDOW_TOP(ev)  ) {
 		reliefkarte_t::get_karte()->set_city( stadt );
 	}
-	if( ev->ev_code == MOUSE_LEFTBUTTON  &&  PAX_DEST_Y <= ev->my  &&  ev->my < PAX_DEST_Y + PAX_DESTINATIONS_SIZE  ) {
+
+	if(  ev->ev_class!=EVENT_KEYBOARD  &&  ev->ev_code==MOUSE_LEFTBUTTON  &&  PAX_DEST_Y<=ev->my  &&  ev->my<PAX_DEST_Y+PAX_DESTINATIONS_SIZE  ) {
 		uint16 mx = ev->mx;
 		if( mx > PAX_DEST_X + PAX_DESTINATIONS_SIZE ) {
 			// Little trick to handle both maps with the same code: Just remap the x-values of the right map.
@@ -261,5 +262,6 @@ void stadt_info_t::infowin_event(const event_t *ev)
 			stadt->get_welt()->change_world_position( p );
 		}
 	}
-	gui_frame_t::infowin_event(ev);
+
+	return gui_frame_t::infowin_event(ev);
 }

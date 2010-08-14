@@ -293,11 +293,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\clipboard_w32.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\colors.cc"
 				>
 			</File>
 			<File
 				RelativePath=".\player\wai\nodes\connections_manager.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\nodes\connector_generic.cc"
 				>
 			</File>
 			<File
@@ -334,10 +342,6 @@
 			</File>
 			<File
 				RelativePath=".\besch\reader\crossing_reader.cc"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\cstring_t.cc"
 				>
 			</File>
 			<File
@@ -1139,6 +1143,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\utils\water_digger.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\besch\reader\way_obj_reader.cc"
 				>
 			</File>
@@ -1217,6 +1225,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\player\wai\nodes\connector_generic.h"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\nodes\connector_road.h"
 				>
 			</File>
@@ -1270,6 +1282,10 @@
 			</File>
 			<File
 				RelativePath=".\player\wai\vehikel_prototype.h"
+				>
+			</File>
+			<File
+				RelativePath=".\player\wai\utils\water_digger.h"
 				>
 			</File>
 			<File

@@ -34,6 +34,9 @@ private:
 	// path, to be put in front
 	const char *fullpath;
 
+	// search for directories (pak_selector gui)
+	bool only_directories;
+
 	// true, if there is additional information, i.e. loading a game
 	bool use_pak_extension;
 
@@ -95,7 +98,7 @@ public:
 	 * @param suffix Filename suffix, i.e. ".sve", must be four characters
 	 * @author Hj. Malthaner
 	 */
-	savegame_frame_t(const char *suffix, const char *path );
+	savegame_frame_t(const char *suffix, const char *path, bool only_directories=false );
 
 	virtual ~savegame_frame_t();
 
@@ -116,8 +119,8 @@ public:
 	 */
 	virtual bool action_triggered( gui_action_creator_t *komp, value_t extra);
 
-	// must catch open messgae to uptade list, since I am using virtual functions
-	virtual void infowin_event(const event_t *ev);
+	// must catch open message to update list, since I am using virtual functions
+	virtual bool infowin_event(const event_t *ev);
 };
 
 #endif

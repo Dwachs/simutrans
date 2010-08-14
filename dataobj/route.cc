@@ -253,7 +253,9 @@ bool route_t::find_route(karte_t *welt,
 //DBG_DEBUG("reached","");
 	// target reached?
 	if(!fahr->ist_ziel(gr,tmp->parent==NULL?NULL:tmp->parent->gr)  ||  step >= MAX_STEP) {
-		dbg->warning("route_t::find_route()","Too many steps (%i>=max %i) in route (too long/complex)",step,MAX_STEP);
+		if(  step >= MAX_STEP  ) {
+			dbg->warning("route_t::find_route()","Too many steps (%i>=max %i) in route (too long/complex)",step,MAX_STEP);
+		}
 	}
 	else {
 		// reached => construct route
@@ -562,7 +564,7 @@ void route_t::rdwr(loadsave_t *file)
 	xml_tag_t r( file, "route_t" );
 	sint32 max_n = route.get_count()-1;
 
-	file->rdwr_long(max_n, "\n");
+	file->rdwr_long(max_n);
 	if(file->is_loading()) {
 		koord3d k;
 		route.clear();

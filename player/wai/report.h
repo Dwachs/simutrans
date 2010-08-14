@@ -6,7 +6,6 @@
 
 class ai_wai_t;
 
-class cstring_t;
 class loadsave_t;
 class log_t;
 /*
@@ -46,7 +45,7 @@ public:
 
 	virtual void rdwr(loadsave_t* file, const uint16 version, ai_wai_t *sp_);
 	virtual void rotate90( const sint16 y_size );
-	virtual void debug( log_t &file, cstring_t prefix );
+	virtual void debug( log_t &file, string prefix );
 
 	/*
 	 * merges given report into (this)

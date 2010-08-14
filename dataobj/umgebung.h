@@ -8,12 +8,12 @@
 #ifndef dataobj_umgebung_h
 #define dataobj_umgebung_h
 
+#include <string>
 #include "../simtypes.h"
 #include "../simconst.h"
 #include "../simcolor.h"
 #include "einstellungen.h"
 
-class cstring_t;
 
 /**
  * Diese Klasse bildet eine Abstraktion der Kommandozeilenparameter.
@@ -33,7 +33,7 @@ public:
 	//points to the current directory user for loading and saving
 	static const char *user_dir;
 
-	static cstring_t objfilename;
+	static std::string objfilename;
 
 	// true, if we are in networkmode
 	static bool networkmode;
@@ -147,10 +147,6 @@ public:
 	*/
 	static bool window_buttons_right;
 
-	/*
-	 * frame active window
-	 */
-	static bool window_frame_active;
 
 	/**
 	* Produce more debug info ?
@@ -209,13 +205,16 @@ public:
 	// false to quit the programs
 	static bool quit_simutrans;
 
-	// new game start without tree
-	static bool no_tree;
-
 	// customize your tooltips
 	static bool show_tooltips;
 	static uint8 tooltip_color;
 	static uint8 tooltip_textcolor;
+	static uint32 tooltip_delay;
+	static uint32 tooltip_duration;
+
+	// limit width and height of menu toolbars
+	static uint8 toolbar_max_width;
+	static uint8 toolbar_max_height;
 
 	// color used for cursor overlay blending
 	static uint8 cursor_overlay_color;
@@ -234,6 +233,13 @@ public:
 	static bool mute_sound, mute_midi, shuffle_midi;
 
 	static bool left_to_right_graphs;
+
+	// how to highlight topped (untopped windows)
+	static bool window_frame_active;
+	static uint8 front_window_bar_color;
+	static uint8 front_window_text_color;
+	static uint8 bottom_window_bar_color;
+	static uint8 bottom_window_text_color;
 
 	static einstellungen_t default_einstellungen;
 

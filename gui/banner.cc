@@ -21,7 +21,7 @@
 #include "banner.h"
 
 
-banner_t::banner_t()
+banner_t::banner_t() : gui_frame_t("")
 {
 	last_ms = dr_time();
 	line = 0;
@@ -31,11 +31,13 @@ banner_t::banner_t()
 
 
 
-void banner_t::infowin_event(const event_t *ev)
+bool banner_t::infowin_event(const event_t *ev)
 {
 	if(ev->ev_class==EVENT_RELEASE  ||  (ev->ev_class==EVENT_KEYBOARD  &&  ev->ev_code!=0)) {
 		destroy_win(this);
+		return true;
 	}
+	return false;
 }
 
 

@@ -13,6 +13,8 @@
 
 #ifdef _WIN32
 #include <SDL_syswm.h>
+// windows.h defines min and max macros which we don't want
+#define NOMINMAX 1
 #include <windows.h>
 #else
 #include <sys/stat.h>
@@ -552,25 +554,7 @@ static void internal_GetEvents(int wait)
 					if (event.key.keysym.unicode != 0) {
 						code = event.key.keysym.unicode;
 						if (event.key.keysym.unicode == 22 /* ^V */) {
-#ifdef _WIN32
-							// paste
-							if (OpenClipboard(NULL)) {
-								if (HANDLE const hText = GetClipboardData(CF_UNICODETEXT)) {
-									if (WCHAR const* chr = static_cast<WCHAR const*>(GlobalLock(hText))) {
-										SDL_Event new_event;
-										new_event.type           = SDL_KEYDOWN;
-										new_event.key.keysym.sym = SDLK_UNKNOWN;
-										for (; *chr != '\0'; ++chr) {
-											if (*chr == '\n') continue;
-											new_event.key.keysym.unicode = *chr;
-											SDL_PushEvent(&new_event);
-										}
-										GlobalUnlock(hText);
-									}
-								}
-								CloseClipboard();
-							}
-#elif 0
+#if 0	// disabled as internal buffer is used; code is retained for possible future implementation of dr_paste()
 							// X11 magic ... not tested yet!
 							SDL_SysWMinfo si;
 							if (SDL_GetWMInfo(&si) && si.subsystem == SDL_SYSWM_X11) {

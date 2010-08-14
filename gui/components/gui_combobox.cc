@@ -7,9 +7,9 @@
 
 #include <string.h>
 
-#include "../../ifc/gui_fenster.h"
 #include "../../macros.h"
 #include "../../simdebug.h"
+#include "../gui_frame.h"
 #include "gui_combobox.h"
 #include "../../simevent.h"
 #include "../../simgraph.h"
@@ -19,6 +19,7 @@
 
 
 gui_combobox_t::gui_combobox_t() :
+	gui_komponente_t(true),
 	droplist(gui_scrolled_list_t::select)
 {
 	bt_prev.set_typ(button_t::arrowleft);
@@ -45,7 +46,7 @@ gui_combobox_t::gui_combobox_t() :
  * gemeldet
  * @author Hj. Malthaner
  */
-void gui_combobox_t::infowin_event(const event_t *ev)
+bool gui_combobox_t::infowin_event(const event_t *ev)
 {
 	if (!droplist.is_visible()) {
 DBG_MESSAGE("event","%d,%d",ev->cx, ev->cy);
@@ -59,7 +60,7 @@ DBG_MESSAGE("event","HOWDY!");
 				p.i = droplist.get_selection();
 				call_listeners( p );
 			}
-			return;
+			return true;
 		}
 		else if(bt_next.getroffen(ev->cx, ev->cy)) {
 			bt_next.pressed = IS_LEFT_BUTTON_PRESSED(ev);
@@ -70,13 +71,13 @@ DBG_MESSAGE("event","HOWDY!");
 				p.i = droplist.get_selection();
 				call_listeners(p);
 			}
-			return;
+			return true;
 		}
 	}
 	else if(  IS_WHEELUP(ev)  ||  IS_WHEELDOWN(ev)  ) {
 		// scroll the list
 		droplist.infowin_event(ev);
-		return;
+		return true;
 	}
 
 	// got to next/previous choice
@@ -85,7 +86,7 @@ DBG_MESSAGE("event","HOWDY!");
 		set_selection( droplist.get_selection() + (ev->ev_code==SIM_KEY_UP ? -1 : +1 ) );
 		p.i = droplist.get_selection();
 		call_listeners( p );
-		return;
+		return true;
 	}
 
 	if(IS_LEFTCLICK(ev) || IS_LEFTDRAG(ev) || IS_LEFTRELEASE(ev)  ) {
@@ -108,24 +109,22 @@ DBG_MESSAGE("event","HOWDY!");
 			}
 			droplist.show_selection(sel);
 		}
-		else {
-			if (droplist.is_visible()) {
-				event_t ev2 = *ev;
-				translate_event(&ev2, 0, -16);
+		else if (droplist.is_visible()) {
+			event_t ev2 = *ev;
+			translate_event(&ev2, 0, -16);
 
-				if(droplist.getroffen(ev->cx + pos.x, ev->cy + pos.y)  ||  IS_WHEELUP(ev)  ||  IS_WHEELDOWN(ev)) {
-					droplist.infowin_event(&ev2);
-					// we selected something?
-					if(finish  &&  IS_LEFTRELEASE(ev)) {
-						close_box();
-					}
+			if(droplist.getroffen(ev->cx + pos.x, ev->cy + pos.y)  ||  IS_WHEELUP(ev)  ||  IS_WHEELDOWN(ev)) {
+				droplist.infowin_event(&ev2);
+				// we selected something?
+				if(finish  &&  IS_LEFTRELEASE(ev)) {
+					close_box();
 				}
-				else {
-					// acting on "release" is better than checking for "new selection"
-					if (IS_LEFTRELEASE(ev)) {
+			}
+			else {
+				// acting on "release" is better than checking for "new selection"
+				if (IS_LEFTRELEASE(ev)) {
 DBG_MESSAGE("gui_combobox_t::infowin_event()","close");
-						close_box();
-					}
+					close_box();
 				}
 			}
 		}
@@ -140,8 +139,9 @@ DBG_MESSAGE("gui_combobox_t::infowin_event()","close");
 		// finally handle textinput
 		event_t ev2 = *ev;
 		translate_event(&ev2, -textinp.get_pos().x, -textinp.get_pos().y);
-		textinp.infowin_event(ev);
+		return textinp.infowin_event(ev);
 	}
+	return true;
 }
 
 
@@ -172,8 +172,7 @@ void gui_combobox_t::zeichnen(koord offset)
 		tstrncpy(editstr, item->get_text(), lengthof(editstr));
 	}
 
-	const gui_fenster_t *win = win_get_top();
-	textinp.zeichnen_mit_cursor( offset,(win  &&  win->get_focus()==this) );
+	textinp.display_with_focus( offset, (win_get_focus()==this) );
 
 	if (droplist.is_visible()) {
 		droplist.zeichnen(offset);

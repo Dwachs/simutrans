@@ -42,8 +42,7 @@ static const char * measures[] =
 */
 
 
-int
-leitung_t::gimme_neighbours(leitung_t **conn)
+int leitung_t::gimme_neighbours(leitung_t **conn)
 {
 	int count = 0;
 	grund_t *gr_base = welt->lookup(get_pos());
@@ -53,9 +52,14 @@ leitung_t::gimme_neighbours(leitung_t **conn)
 		conn[i] = NULL;
 		if(  gr_base->get_neighbour( gr, invalid_wt, koord::nsow[i] ) ) {
 			leitung_t *lt = gr->get_leitung();
-			if(  lt  &&  spieler_t::check_owner(get_besitzer(), lt->get_besitzer())  ) {
-				conn[i] = lt;
-				count++;
+			if(  lt  ) {
+				const spieler_t *owner = get_besitzer();
+				const spieler_t *other = lt->get_besitzer();
+				const spieler_t *super = welt->get_spieler(1);
+				if (owner==other  ||  owner==super  ||  other==super) {
+					conn[i] = lt;
+					count++;
+				}
 			}
 		}
 	}
@@ -63,9 +67,7 @@ leitung_t::gimme_neighbours(leitung_t **conn)
 }
 
 
-
-fabrik_t *
-leitung_t::suche_fab_4(const koord pos)
+fabrik_t *leitung_t::suche_fab_4(const koord pos)
 {
 	for(int k=0; k<4; k++) {
 		fabrik_t *fab = fabrik_t::get_fab( welt, pos+koord::nsow[k] );
@@ -91,7 +93,6 @@ leitung_t::leitung_t(karte_t *welt, koord3d pos, spieler_t *sp) : ding_t(welt, p
 	set_besitzer( sp );
 	set_besch(wegbauer_t::leitung_besch);
 }
-
 
 
 leitung_t::~leitung_t()
@@ -142,14 +143,11 @@ leitung_t::~leitung_t()
 }
 
 
-
-void
-leitung_t::entferne(spieler_t *sp)
+void leitung_t::entferne(spieler_t *sp)
 {
 	spieler_t::accounting(sp, -besch->get_preis()/2, get_pos().get_2d(), COST_CONSTRUCTION);
 	mark_image_dirty( bild, 0 );
 }
-
 
 
 /**
@@ -184,7 +182,6 @@ void leitung_t::replace(powernet_t* new_net)
 		}
 	}
 }
-
 
 
 /**
@@ -231,7 +228,6 @@ void leitung_t::verbinde()
 		}
 	}
 }
-
 
 
 /* extended by prissi */
@@ -286,7 +282,6 @@ void leitung_t::calc_bild()
 }
 
 
-
 /**
  * Recalculates the images of all neighbouring
  * powerlines and the powerline itself
@@ -309,7 +304,6 @@ void leitung_t::calc_neighbourhood()
 	set_flag( ding_t::dirty );
 	calc_bild();
 }
-
 
 
 /**
@@ -361,7 +355,6 @@ void leitung_t::laden_abschliessen()
 }
 
 
-
 /**
  * Speichert den Zustand des Objekts.
  *
@@ -378,14 +371,18 @@ void leitung_t::rdwr(loadsave_t *file)
 	ding_t::rdwr(file);
 	if(file->is_saving()) {
 		value = (unsigned long)get_net();
-		file->rdwr_long(value, "\n");
+		file->rdwr_long(value);
 	}
 	else {
-		file->rdwr_long(value, "\n");
+		file->rdwr_long(value);
 		//      net = powernet_t::load_net((powernet_t *) value);
 		set_net(NULL);
 	}
+
 	if(get_typ()==leitung) {
+		/* ATTENTION: during loading thus MUST not be called from the constructor!!!
+		 * (Otherwise it will be always true!
+		 */
 		if(file->get_version() > 102002) {
 			if(file->is_saving()) {
 				const char *s = besch->get_name();
@@ -415,18 +412,15 @@ void leitung_t::rdwr(loadsave_t *file)
 }
 
 
-
 /************************************ from here on pump (source) stuff ********************************************/
 
 slist_tpl<pumpe_t *> pumpe_t::pumpe_list;
-
 
 
 void pumpe_t::neue_karte()
 {
 	pumpe_list.clear();
 }
-
 
 
 void pumpe_t::step_all(long delta_t)
@@ -438,13 +432,12 @@ void pumpe_t::step_all(long delta_t)
 }
 
 
-
-pumpe_t::pumpe_t(karte_t *welt, loadsave_t *file) : leitung_t(welt , file)
+pumpe_t::pumpe_t(karte_t *welt, loadsave_t *file ) : leitung_t( welt, koord3d::invalid, NULL )
 {
 	fab = NULL;
 	supply = 0;
+	rdwr( file );
 }
-
 
 
 pumpe_t::pumpe_t(karte_t *welt, koord3d pos, spieler_t *sp) : leitung_t(welt , pos, sp)
@@ -453,7 +446,6 @@ pumpe_t::pumpe_t(karte_t *welt, koord3d pos, spieler_t *sp) : leitung_t(welt , p
 	supply = 0;
 	sp->buche( welt->get_einstellungen()->cst_transformer, get_pos().get_2d(), COST_CONSTRUCTION);
 }
-
 
 
 pumpe_t::~pumpe_t()
@@ -466,7 +458,6 @@ pumpe_t::~pumpe_t()
 	}
 	spieler_t::add_maintenance(get_besitzer(), welt->get_einstellungen()->cst_maintain_transformer);
 }
-
 
 
 void pumpe_t::step(long delta_t)
@@ -500,7 +491,6 @@ void pumpe_t::step(long delta_t)
 }
 
 
-
 void pumpe_t::laden_abschliessen()
 {
 	leitung_t::laden_abschliessen();
@@ -512,7 +502,6 @@ void pumpe_t::laden_abschliessen()
 	}
 	pumpe_list.insert( this );
 }
-
 
 
 void pumpe_t::info(cbuffer_t & buf) const
@@ -527,18 +516,15 @@ void pumpe_t::info(cbuffer_t & buf) const
 }
 
 
-
 /************************************ From here on drain stuff ********************************************/
 
 slist_tpl<senke_t *> senke_t::senke_list;
-
 
 
 void senke_t::neue_karte()
 {
 	senke_list.clear();
 }
-
 
 
 void senke_t::step_all(long delta_t)
@@ -551,8 +537,7 @@ void senke_t::step_all(long delta_t)
 }
 
 
-
-senke_t::senke_t(karte_t *welt, loadsave_t *file) : leitung_t(welt , file)
+senke_t::senke_t(karte_t *welt, loadsave_t *file) : leitung_t( welt, koord3d::invalid, NULL )
 {
 	fab = NULL;
 	einkommen = 0;
@@ -561,6 +546,7 @@ senke_t::senke_t(karte_t *welt, loadsave_t *file) : leitung_t(welt , file)
 	delta_sum = 0;
 	last_power_demand = 0;
 	power_load = 0;
+	rdwr( file );
 }
 
 
@@ -577,7 +563,6 @@ senke_t::senke_t(karte_t *welt, koord3d pos, spieler_t *sp) : leitung_t(welt , p
 }
 
 
-
 senke_t::~senke_t()
 {
 	if(fab!=NULL) {
@@ -589,7 +574,6 @@ senke_t::~senke_t()
 	}
 	spieler_t::add_maintenance(get_besitzer(), welt->get_einstellungen()->cst_maintain_transformer);
 }
-
 
 
 void senke_t::step(long delta_t)
@@ -618,8 +602,8 @@ void senke_t::step(long delta_t)
 	}
 	fab->add_power_demand( power_demand-power_load ); // allows subsequently stepped senke to supply demand this senke couldn't
 
-	max_einkommen += last_power_demand;
-	einkommen += power_load;
+	max_einkommen += last_power_demand * delta_t / PRODUCTION_DELTA_T;
+	einkommen += power_load  * delta_t / PRODUCTION_DELTA_T;
 
 	if(max_einkommen>(2000<<11)) {
 		get_besitzer()->buche(einkommen >> 11, get_pos().get_2d(), COST_POWERLINES);
@@ -630,7 +614,6 @@ void senke_t::step(long delta_t)
 
 	last_power_demand = power_demand;
 }
-
 
 
 bool senke_t::sync_step(long delta_t)
@@ -688,7 +671,6 @@ bool senke_t::sync_step(long delta_t)
 }
 
 
-
 void senke_t::laden_abschliessen()
 {
 	leitung_t::laden_abschliessen();
@@ -701,7 +683,6 @@ void senke_t::laden_abschliessen()
 	senke_list.insert( this );
 	welt->sync_add(this);
 }
-
 
 
 void senke_t::info(cbuffer_t & buf) const

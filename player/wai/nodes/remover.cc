@@ -217,9 +217,9 @@ void remover_t::rdwr(loadsave_t* file, const uint16 version)
 	start.rdwr(file);
 	end.rdwr(file);
 	uint8 iwt = wt;
-	file->rdwr_byte(iwt, "");
+	file->rdwr_byte(iwt);
 	wt = (waytype_t) iwt;
-	file->rdwr_bool(first_step, "");
+	file->rdwr_bool(first_step);
 }
 void remover_t::rotate90( const sint16 y_size)
 {
@@ -227,7 +227,7 @@ void remover_t::rotate90( const sint16 y_size)
 	start.rotate90(y_size);
 	end.rotate90(y_size);
 }
-void remover_t::debug( log_t &file, cstring_t prefix )
+void remover_t::debug( log_t &file, string prefix )
 {
-	file.message("remo","%s from %s to %s,%d", (const char*)prefix, start.get_str(), end.get_2d().get_str(), end.z);
+	file.message("remo","%s from %s to %s,%d", prefix.c_str(), start.get_str(), end.get_2d().get_str(), end.z);
 }

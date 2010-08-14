@@ -10,6 +10,7 @@
 #include "ai.h"
 
 #include "../simcity.h"
+#include "../simfab.h"
 #include "../simhalt.h"
 #include "../simmenu.h"
 #include "../simmesg.h"
@@ -143,7 +144,7 @@ bool ai_t::call_general_tool( int tool, koord k, const char *param )
 			dbg->message("ai_t::call_general_tool()","failed for tool %i at (%s) because of \"%s\"", tool, pos.get_str(), err );
 		}
 		else {
-			dbg->message("ai_t::call_general_tool()","not succesful for tool %i at (%s)", tool, pos.get_str() );
+			dbg->message("ai_t::call_general_tool()","not successful for tool %i at (%s)", tool, pos.get_str() );
 		}
 	}
 	werkzeug_t::general_tool[tool]->set_default_param(old_param);
@@ -170,7 +171,8 @@ bool ai_t::suche_platz(koord pos, koord &size, koord *dirs) const
 	for(  int dir=0;  dir<max_dir;  dir++  ) {
 		for( sint16 i=0;  i<=length;  i++  ) {
 			grund_t *gr = welt->lookup_kartenboden(  pos + (dirs[dir]*i)  );
-			if(gr==NULL  ||  gr->get_halt().is_bound()  ||  !welt->can_ebne_planquadrat(pos,start_z)  ||  !gr->ist_natur()  ||  gr->kann_alle_obj_entfernen(this)!=NULL  ||  gr->get_hoehe()<welt->get_grundwasser()) {
+			int dummy;
+			if(gr==NULL  ||  gr->get_halt().is_bound()  ||  !welt->can_ebne_planquadrat(pos,start_z,dummy)  ||  !gr->ist_natur()  ||  gr->kann_alle_obj_entfernen(this)!=NULL  ||  gr->get_hoehe()<welt->get_grundwasser()) {
 				return false;
 			}
 		}
@@ -328,13 +330,7 @@ void ai_t::set_marker( koord place, koord size )
 bool ai_t::built_update_headquarter()
 {
 	// find next level
-	const haus_besch_t* besch = NULL;
-	for(  vector_tpl<const haus_besch_t *>::const_iterator iter = hausbauer_t::headquarter.begin(), end = hausbauer_t::headquarter.end();  iter != end;  ++iter  ) {
-		if ((*iter)->get_extra() == get_headquarter_level()) {
-			besch = (*iter);
-			break;
-		}
-	}
+	const haus_besch_t* besch = hausbauer_t::get_headquarter(get_headquarter_level(), welt->get_timeline_year_month());
 	// is the a suitable one?
 	if(besch!=NULL) {
 		// cost is negative!
@@ -364,24 +360,23 @@ bool ai_t::built_update_headquarter()
 					place = ai_bauplatz_mit_strasse_sucher_t(welt).suche_platz(st->get_pos(), besch->get_b(), besch->get_h(), besch->get_allowed_climate_bits(), &is_rotate);
 				}
 			}
-			const char *err=NULL;
+			const char *err="No suitable ground!";
 			if(  place!=koord::invalid  ) {
 				err = werkzeug_t::general_tool[WKZ_HEADQUARTER]->work( welt, this, welt->lookup_kartenboden(place)->get_pos() );
-			}
-			// cathcing more errors
-			if(  err==NULL  ) {
-				// tell the player
-				char buf[256];
-				sprintf(buf, translator::translate("%s s\nheadquarter now\nat (%i,%i)."), get_name(), place.x, place.y );
-				welt->get_message()->add_message(buf, place, message_t::ai, PLAYER_FLAG|player_nr, welt->lookup_kartenboden(place)->find<gebaeude_t>()->get_tile()->get_hintergrund(0,0,0) );
-			}
-			else {
-				if(  place==koord::invalid  ||  err!=NULL  ) {
-					add_headquarter( 0, koord::invalid );
+
+				// catching more errors
+				if(  err==NULL  ) {
+					// tell the player
+					char buf[256];
+					sprintf(buf, translator::translate("%s s\nheadquarter now\nat (%i,%i)."), get_name(), place.x, place.y );
+					welt->get_message()->add_message(buf, place, message_t::ai, PLAYER_FLAG|player_nr, welt->lookup_kartenboden(place)->find<gebaeude_t>()->get_tile()->get_hintergrund(0,0,0) );
+					return true;
 				}
+			}
+			if(  place==koord::invalid  ||  err!=NULL  ) {
 				dbg->warning( "ai_t::built_update_headquarter()", "HQ failed with : %s", translator::translate(err) );
 			}
-			return place != koord::invalid;
+			return false;
 		}
 
 	}
@@ -486,6 +481,7 @@ bool ai_t::create_simple_road_transport(koord platz1, koord size1, koord platz2,
 	// get a default vehikel
 	vehikel_besch_t test_besch(road_wt, 25, vehikel_besch_t::diesel );
 	vehikel_t* test_driver = vehikelbauer_t::baue(welt->lookup_kartenboden(platz1)->get_pos(), this, NULL, &test_besch);
+	test_driver->set_flag( ding_t::not_on_map );
 	route_t verbindung;
 	if (verbindung.calc_route(welt, welt->lookup_kartenboden(platz1)->get_pos(), welt->lookup_kartenboden(platz2)->get_pos(), test_driver, 0)  &&
 		verbindung.get_count()<2u*koord_distance(platz1,platz2))  {
@@ -570,7 +566,7 @@ void ai_t::rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg)
 bool ai_t::rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel_besch_t*> &besch )
 {
 	uint32 count = besch.get_count();
-	file->rdwr_long( count, " ");
+	file->rdwr_long( count);
 
 	bool ok = true;
 	const char *s = NULL;

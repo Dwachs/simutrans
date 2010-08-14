@@ -1,4 +1,6 @@
 #include "amphi_searcher.h"
+#include "../../../boden/grund.h"
+#include "../../../simworld.h"
 
 bool amphi_searcher_t::is_allowed_step( const grund_t *from, const grund_t *to, long *costs )
 {

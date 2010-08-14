@@ -8,7 +8,7 @@
 #ifndef banner_h
 #define banner_h
 
-#include "../ifc/gui_fenster.h"
+#include "gui_frame.h"
 
 
 /**
@@ -17,7 +17,7 @@
  *
  * @author Hj. Malthaner
  */
-class banner_t : public gui_fenster_t
+class banner_t : public gui_frame_t
 {
 private:
 	sint32 last_ms;
@@ -25,7 +25,9 @@ private:
 	sint16 xoff, yoff;
 
 public:
-		banner_t();
+	banner_t();
+
+	bool has_sticky() const { return false; }
 
 	/**
 	* Fenstertitel
@@ -54,7 +56,7 @@ public:
 	* gemeldet
 	* @author Hj. Malthaner
 	*/
-	void infowin_event(const event_t *ev);
+	bool infowin_event(const event_t *ev);
 
 	/**
 	* komponente neu zeichnen. Die übergebenen Werte beziehen sich auf
