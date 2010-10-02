@@ -59,15 +59,17 @@ waytype_t vehikel_prototype_t::get_waytype() const
 void vehikel_prototype_t::calc_data(const ware_besch_t *freight)
 {				
 	power = 0;
-	min_top_speed = 0xffff;
+	min_top_speed = -1;
 	weight = 0;
 	for(uint8 i=0; i<besch.get_count(); i++) {
 		power += besch[i]->get_leistung()*besch[i]->get_gear()/64;
 		uint32 w = (freight && besch[i]->get_ware()->is_interchangeable(freight)) ? freight->get_weight_per_unit() : 0;
 		weight += (w*besch[i]->get_zuladung() + 499)/1000 + besch[i]->get_gewicht();
-		min_top_speed = min( min_top_speed, kmh_to_speed(besch[i]->get_geschw()) );
+		if (min_top_speed < 0  ||  kmh_to_speed(besch[i]->get_geschw()) < min_top_speed) {
+			min_top_speed = kmh_to_speed(besch[i]->get_geschw());
+		}
 	}
-	max_speed = min(speed_to_kmh(min_top_speed), (uint32) sqrt((((double)power/weight)-1)*2500));
+	max_speed = min(speed_to_kmh(min_top_speed), (sint32) sqrt((((double)power/weight)-1)*2500));
 }
 
 /* extended search for vehicles for KI *
@@ -83,7 +85,7 @@ void vehikel_prototype_t::calc_data(const ware_besch_t *freight)
 // TODO: zus. Parameter: vector_tpl<vehikel_besch_t*> .. prototyp muss mind ein Fahrzeug aus dieser Liste enthalten
 vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *eval, karte_t *world,
 							  const waytype_t wt,
-							  const uint32 min_speed, // in km/h
+							  const sint32 min_speed, // in km/h
 							  const uint8 max_length, // in tiles
 							  const uint32 max_weight,
 							  const slist_tpl<const ware_besch_t*> & freights,
@@ -236,7 +238,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				convoi_tpl[i+1].min_top_speed = min( convoi_tpl[i].min_top_speed, kmh_to_speed(test_besch->get_geschw()) );
 
 				convoi_tpl[i+1].max_speed = min(speed_to_kmh(convoi_tpl[i+1].min_top_speed),
-										(uint32) sqrt((((double)convoi_tpl[i+1].power/convoi_tpl[i+1].weight)-1)*2500));
+										(sint32) sqrt((((double)convoi_tpl[i+1].power/convoi_tpl[i+1].weight)-1)*2500));
 
 
 				// last vehicle does not count
@@ -339,7 +341,7 @@ void vehikel_prototype_t::rdwr(loadsave_t *file)
 {
 	file->rdwr_long( weight);
 	file->rdwr_long( power);
-	file->rdwr_short(min_top_speed);
+	file->rdwr_long( min_top_speed);
 	file->rdwr_short(length);
 	file->rdwr_long( max_speed);
 	file->rdwr_byte( missing_freights);

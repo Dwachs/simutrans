@@ -29,7 +29,7 @@ public:
 	 */
 	static vehikel_prototype_t* vehikel_search( vehikel_evaluator_t *eval, karte_t *world,
 							  const waytype_t wt,
-							  const uint32 min_speed, // in km/h
+							  const sint32 min_speed, // in km/h
 							  const uint8 max_length, // in tiles
 							  const uint32 max_weight,
 							  const slist_tpl<const ware_besch_t*> & freights,
@@ -64,7 +64,7 @@ public:
 		set_data(proto.weight, proto.power, proto.length, proto.min_top_speed, proto.max_speed, proto.missing_freights);
 	}
 	// sets the vehicle characteristics
-	void set_data(uint32 wei, uint32 pow,  uint16 len, uint16 mints, uint32 maxsp, uint8 msf)
+	void set_data(uint32 wei, uint32 pow,  uint16 len, uint16 mints, sint32 maxsp, uint8 msf)
 	{
 		weight = wei; power = pow; length = len; min_top_speed = mints; max_speed = maxsp; missing_freights =msf;
 	}
@@ -83,10 +83,10 @@ public:
 	vector_tpl<const vehikel_besch_t*> besch;
 	uint32 weight;
 	uint32 power;
-	uint16 min_top_speed;
+	sint32 min_top_speed;
 	// length in tiles*256
 	uint16 length;
-	uint32 max_speed;
+	sint32 max_speed;
 	uint8 missing_freights;
 
 	sint64 value;
@@ -108,7 +108,7 @@ public:
 class simple_prototype_designer_t : public vehikel_evaluator_t {
 public:
 	waytype_t wt;
-	uint32 min_speed; // in km/h
+	sint32 min_speed; // in km/h
 	uint8 max_length; // in tiles
 	uint32 max_weight;
 	const ware_besch_t* freight;
