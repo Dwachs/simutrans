@@ -5347,12 +5347,14 @@ bool wkz_change_player_t::init( karte_t *welt, spieler_t *sp)
 				dbg->error( "wkz_change_player_t::init()", "Only public player can enable AIs!" );
 			}
 			break;
-		case 'a': // activate/deactivate AI
-			if(welt->get_spieler(id)  &&  welt->get_spieler(id)->get_ai_id()!=spieler_t::HUMAN) {
-				welt->get_spieler(id)->set_active(state);
-				welt->access_einstellungen()->set_player_active( id, welt->get_spieler(id)->is_active() );
+		case 'a': { // activate/deactivate AI
+			spieler_t *other = welt->get_spieler(id);
+			if(other  &&  other->get_ai_id()!=spieler_t::HUMAN) {
+				other->set_active(state);
+				welt->access_einstellungen()->set_player_active( id, other->is_active() );
 			}
 			break;
+		}
 		case 'f': // activate/deactivate freeplay
 			if(  (welt->get_spieler(1)->is_locked()  ||  !welt->get_einstellungen()->get_allow_player_change())  &&  welt->get_active_player_nr()!=1  ) {
 				dbg->error( "wkz_change_player_t::init()", "Only public player can enable freeplay!" );
