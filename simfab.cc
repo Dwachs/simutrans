@@ -162,7 +162,7 @@ fabrik_t::fabrik_t(karte_t* wl, loadsave_t* file)
 
 	delta_sum = 0;
 	delta_menge = 0;
-	last_lieferziel_start = 0;
+	index_offset = 0;
 	total_input = total_output = 0;
 	status = nothing;
 	currently_producing = false;
@@ -187,7 +187,7 @@ fabrik_t::fabrik_t(koord3d pos_, spieler_t* spieler, const fabrik_besch_t* fabes
 	transformer_connected = false;
 	power = 0;
 	power_demand = 0;
-	last_lieferziel_start = 0;
+	index_offset = 0;
 	total_input = total_output = 0;
 	status = nothing;
 
@@ -250,7 +250,7 @@ void fabrik_t::baue(sint32 rotate)
 			for( uint16 i=0;  i<fields.get_count();  i++  ) {
 				const koord k = fields[i].location;
 				grund_t *gr=welt->lookup_kartenboden(k);
-				if(  gr->get_typ()==grund_t::boden  ) {
+				if(  gr->ist_natur()  ) {
 					// first make foundation below
 					grund_t *gr2 = new fundament_t(welt, gr->get_pos(), gr->get_grund_hang());
 					welt->access(k)->boden_ersetzen(gr, gr2);
@@ -674,7 +674,10 @@ void fabrik_t::smoke() const
 		const uint8 rot = rotate%besch->get_haus()->get_all_layouts();
 		koord ro = rada->get_pos_off(size,rot);
 		grund_t *gr=welt->lookup_kartenboden(pos.get_2d()+ro);
-		wolke_t *smoke =  new wolke_t(welt, gr->get_pos(), ((rada->get_xy_off(rot).x+simrand(7)-3)*TILE_STEPS)/16, ((rada->get_xy_off(rot).y+simrand(7)-3)*TILE_STEPS)/16, rada->get_bilder() );
+		// to get same random order on different compilers
+		const sint8 offsetx =  ((rada->get_xy_off(rot).x+simrand(7)-3)*TILE_STEPS)/16;
+		const sint8 offsety =  ((rada->get_xy_off(rot).y+simrand(7)-3)*TILE_STEPS)/16;
+		wolke_t *smoke =  new wolke_t(welt, gr->get_pos(), offsetx, offsety, rada->get_bilder() );
 		gr->obj_add(smoke);
 		welt->sync_add( smoke );
 	}
@@ -689,7 +692,7 @@ uint32 fabrik_t::produktion(const uint32 produkt, const long delta_t) const
 {
 	// default prodfaktor = 16 => shift 4, default time = 1024 => shift 10, rest precion
 	const uint32 max = prodbase * prodfaktor;
-	uint32 menge = (max >> (18-10+4-fabrik_t::precision_bits)) * delta_t / PRODUCTION_DELTA_T;
+	uint32 menge = ((max >> (18-10+4-fabrik_t::precision_bits)) * delta_t / PRODUCTION_DELTA_T);
 
 	if (ausgang.get_count() > produkt) {
 		// wenn das lager voller wird, produziert eine Fabrik weniger pro step
@@ -708,8 +711,8 @@ uint32 fabrik_t::produktion(const uint32 produkt, const long delta_t) const
 			}
 		}
 		else {
-			// overfull?
-			menge = maxi-1;
+			// overfull? Reduce to maximum
+			menge = 0;
 		}
 	}
 
@@ -821,7 +824,7 @@ void fabrik_t::step(long delta_t)
 		// not a producer => then consume electricity ...
 		if(  !besch->is_electricity_producer()  ) {
 			// one may be thinking of linking this to actual production only
-			prodfaktor = 16 + (16 * power) / (prodbase * PRODUCTION_DELTA_T);
+			prodfaktor = 16 + (16 * power) / (prodbase * PRODUCTION_DELTA_T + 1);
 		}
 
 		const uint32 ecount = eingang.get_count();
@@ -844,7 +847,7 @@ void fabrik_t::step(long delta_t)
 			for(  index = 0;  index < ecount;  index++  ) {
 
 				const uint32 vb = besch->get_lieferant(index)->get_verbrauch();
-				const uint32 v = (menge*vb) >> 8;
+				const uint32 v = max(1,(menge*vb) >> 8);
 
 				if(  (uint32)eingang[index].menge > v + 1  ) {
 					eingang[index].menge -= v;
@@ -854,7 +857,7 @@ void fabrik_t::step(long delta_t)
 						power += prodbase * PRODUCTION_DELTA_T * 4;
 					}
 					// to find out, if storage changed
-					delta_menge += (eingang[index].menge & fabrik_t::precision_mask) + v;
+					delta_menge += v;
 				}
 				else {
 					if(  besch->is_electricity_producer()  ) {
@@ -865,7 +868,6 @@ void fabrik_t::step(long delta_t)
 					eingang[index].menge = 0;
 				}
 			}
-			delta_menge /= eingang.get_count();
 		}
 		else {
 			// ok, calulate maximum allowed consumption
@@ -898,22 +900,24 @@ void fabrik_t::step(long delta_t)
 					menge = produktion(produkt, delta_t);
 				}
 
-				const uint32 pb = besch->get_produkt(produkt)->get_faktor();
-				const uint32 p = (menge*pb) >> 8;
+				if (menge>0) {
+					const uint32 pb = besch->get_produkt(produkt)->get_faktor();
+					// ensure some minimum production
+					const uint32 p = max(1,(menge*pb) >> 8);
 
-				// produce
-				if (ausgang[produkt].menge < ausgang[produkt].max) {
-					// to find out, if storage changed
-					delta_menge += (ausgang[produkt].menge & fabrik_t::precision_mask) + p;
-					ausgang[produkt].menge += p;
-					// if less than 3/4 filled we neary always consume power
-					currently_producing |= (ausgang[produkt].menge*4 < ausgang[produkt].max*3)  &&  (p > 0);
-				}
-				else {
-					ausgang[produkt].menge = ausgang[produkt].max - 1;
+					// produce
+					if (ausgang[produkt].menge < ausgang[produkt].max) {
+						// to find out, if storage changed
+						delta_menge += p;
+						ausgang[produkt].menge += p;
+						// if less than 3/4 filled we neary always consume power
+						currently_producing |= (ausgang[produkt].menge*4 < ausgang[produkt].max*3);
+					}
+					else {
+						ausgang[produkt].menge = ausgang[produkt].max - 1;
+					}
 				}
 			}
-			delta_menge /= ausgang.get_count();
 
 			// and finally consume stock
 			for(index = 0; index<ecount; index ++) {
@@ -944,7 +948,7 @@ void fabrik_t::step(long delta_t)
 
 	delta_sum += delta_t;
 	if(  delta_sum > PRODUCTION_DELTA_T  ) {
-		delta_sum -= delta_sum - delta_sum % PRODUCTION_DELTA_T;
+		delta_sum = delta_sum % PRODUCTION_DELTA_T;
 
 		// distribute, if there are more than 10 waiting ...
 		for(  uint32 produkt = 0;  produkt < ausgang.get_count();  produkt++  ) {
@@ -958,7 +962,11 @@ void fabrik_t::step(long delta_t)
 
 		recalc_factory_status();
 
-		if((delta_menge>>fabrik_t::precision_bits)>0) {
+		// rescale delta_menge here: all products should be produced at least once
+		// (if consumer only: all supplements should be consumed once)
+		const uint32 min_change = ausgang.empty() ? eingang.get_count() : ausgang.get_count();
+
+		if((delta_menge>>fabrik_t::precision_bits) > min_change) {
 
 			// we produced some real quantity => smoke
 			smoke();
@@ -969,15 +977,10 @@ void fabrik_t::step(long delta_t)
 			}
 
 			INT_CHECK("simfab 558");
+			// reset for next cycle
+			delta_menge = 0;
 		}
-
-		// reset for next cycle
-		delta_menge = 0;
-
-		// to distribute to all target equally, we use this counter, for the factory, to try first
-		last_lieferziel_start ++;
 	}
-
 }
 
 
@@ -985,12 +988,14 @@ class distribute_ware_t
 {
 public:
 	halthandle_t halt;
-	sint32	space_left;
-	ware_t	ware;
-	distribute_ware_t( halthandle_t h, sint32 l, ware_t w )
+	sint32 space_left;
+	sint32 space_total;
+	ware_t ware;
+	distribute_ware_t( halthandle_t h, sint32 l, sint32 t, ware_t w )
 	{
 		halt = h;
 		space_left = l;
+		space_total = t;
 		ware = w;
 	}
 	distribute_ware_t() {}
@@ -1020,22 +1025,25 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 	slist_tpl<distribute_ware_t> dist_list;
 	bool still_overflow = true;
 
+	// to distribute to all target equally, we use this counter, for the source hald, and target factory, to try first
+	index_offset++;
+
 	/* prissi: distribute goods to factory
 	 * that has not an overflowing input storage
 	 * also prevent stops from overflowing, if possible
 	 */
 	sint32 menge = ausgang[produkt].menge >> precision_bits;
 
-	// ok, first send everything away
+	// ok, first generate list of possible destinations
 	const halthandle_t *haltlist = plan->get_haltlist();
 	for(  unsigned i=0;  i<plan->get_haltlist_count();  i++  ) {
-		halthandle_t halt = haltlist[i];
+		halthandle_t halt = haltlist[(i + index_offset) % plan->get_haltlist_count()];
 
 		// Über alle Ziele iterieren
 		for(uint32 n=0; n<lieferziele.get_count(); n++) {
 
 			// prissi: this way, the halt, that is tried first, will change. As a result, if all destinations are empty, it will be spread evenly
-			const koord lieferziel = lieferziele[(n + last_lieferziel_start) % lieferziele.get_count()];
+			const koord lieferziel = lieferziele[(n + index_offset) % lieferziele.get_count()];
 
 			fabrik_t * ziel_fab = get_fab(welt, lieferziel);
 			int vorrat;
@@ -1053,6 +1061,7 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 
 				// Station can only store up to a maximum amount of goods per square
 				const sint32 halt_left = (sint32)halt->get_capacity(2) - (sint32)halt->get_ware_summe(ware.get_besch());
+
 				// ok, still enough space
 				if(  halt->suche_route( ware, NULL, welt->get_einstellungen()->is_no_routing_over_overcrowding() )==haltestelle_t::ROUTE_OK  ) {
 
@@ -1069,14 +1078,14 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 							dist_list.clear();
 						}
 						if(still_overflow  ||  !overflown) {
-							dist_list.insert( distribute_ware_t( halt, halt_left, ware ) );
+							dist_list.insert( distribute_ware_t( halt, halt_left, halt->get_capacity(2), ware ) );
 						}
 					}
 					else {
 
 						// only distribute to no-overflowed factories
 						if(!overflown) {
-							dist_list.insert( distribute_ware_t( halt, halt_left, ware ) );
+							dist_list.insert( distribute_ware_t( halt, halt_left, halt->get_capacity(2), ware ) );
 						}
 					}
 				}
@@ -1086,24 +1095,35 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 
 	// Auswertung der Ergebnisse
 	if (!dist_list.empty()) {
-
 		slist_iterator_tpl<distribute_ware_t> iter (dist_list);
 
 		ware_t best_ware       = dist_list.front().ware;
 		halthandle_t best_halt = dist_list.front().halt;
 		sint32 best_amount        = 999999;
+		sint32 best_usage = -1;
 		sint32 capacity_left = -1;
 
+		// search list of destinations for the best one.
 		while(iter.next()) {
-
 			halthandle_t halt = iter.get_current().halt;
 			const ware_t& ware = iter.get_current().ware;
 
 			const sint32 amount = (sint32)halt->get_ware_fuer_zielpos(ausgang[produkt].get_typ(),ware.get_zielpos());
-			if(amount < best_amount) {
+
+			sint32 space_left = iter.get_current().space_left;
+			if( space_left < 0) space_left = 0; // ensure overfull stations compare equal allowing tie breaker clause
+
+			sint32 space_total = iter.get_current().space_total;
+			if( space_total < 1) space_total = 1; // div by 0 prevention
+
+			const sint32 usage = (space_left << precision_bits) / space_total;
+
+			// best is one with most free space, tie breaker - one with least product already waiting
+			if( usage > best_usage || (usage == best_usage && amount < best_amount)) {
 				best_ware = ware;
 				best_halt = halt;
 				best_amount = amount;
+				best_usage = usage;
 				capacity_left = iter.get_current().space_left;
 			}
 //DBG_MESSAGE("verteile_waren()","best_amount %i %s",best_amount,translator::translate(ware.get_name()));
@@ -1130,7 +1150,6 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 				// remove something from the most waiting goods
 				if(best_halt->recall_ware( most_waiting, min(most_waiting.menge/2,1-capacity_left) ) ) {
 					best_ware.menge += most_waiting.menge;
-					assert( (sint32)best_halt->get_ware_summe(best_ware.get_besch())==(sint32)best_halt->get_capacity(2)-capacity_left-(sint32)most_waiting.menge );
 				}
 				else {
 					// overcrowded with other stuff (not from us)
@@ -1536,6 +1555,8 @@ void fabrik_t::add_all_suppliers()
 			if(fab!=this  &&  fab->vorrat_an(ware) > -1) {
 				// add us to this factory
 				fab->add_lieferziel(pos.get_2d());
+				// and vice versa
+				add_supplier(fab->get_pos().get_2d());
 			}
 		}
 	}

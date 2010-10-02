@@ -33,6 +33,9 @@ public:
 	//points to the current directory user for loading and saving
 	static const char *user_dir;
 
+	// version for which the savegames should be created
+	static const char *savegame_version_str;
+
 	static std::string objfilename;
 
 	// true, if we are in networkmode
@@ -43,10 +46,14 @@ public:
 	// how often to synchronize
 	static uint32 server_sync_steps_between_checks;
 
-	// true, if we are the server
-	static bool server;
+	// if we are the server, we are at this port ...
+	static uint16 server;
 
-// scrollrichtung
+	static uint32 announce_server;
+	static std::string server_name;
+	static std::string server_comment;
+
+	// scrollrichtung
 	static sint16 scroll_multi;
 
 	/**

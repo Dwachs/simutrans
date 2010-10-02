@@ -24,6 +24,7 @@
 #include "../dataobj/ribi.h"
 
 class werkzeug_t;
+class checksum_t;
 
 
 class bruecke_besch_t : public obj_besch_std_name_t {
@@ -31,7 +32,7 @@ class bruecke_besch_t : public obj_besch_std_name_t {
     friend class bridge_reader_t;
 
 private:
-	uint32  topspeed;
+	sint32  topspeed;
 	uint32  preis;
 
 	/**
@@ -48,7 +49,7 @@ private:
 	uint8 max_length;	// =0 off, else maximum length
 	uint8 max_height;	// =0 off, else maximum length
 
-	// allowed eara
+	// allowed era
 	uint16 intro_date;
 	uint16 obsolete_date;
 
@@ -111,7 +112,7 @@ public:
 	 * Determines max speed in km/h allowed on this bridge
 	 * @author Hj. Malthaner
 	 */
-	uint32  get_topspeed() const { return topspeed; }
+	sint32  get_topspeed() const { return topspeed; }
 
 	/**
 	 * Distance of pillars (=0 for no pillars)
@@ -156,6 +157,8 @@ public:
 	void set_builder( werkzeug_t *w )  {
 		builder = w;
 	}
+
+	void calc_checksum(checksum_t *chk) const;
 };
 
 #endif

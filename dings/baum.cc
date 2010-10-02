@@ -52,7 +52,10 @@ void baum_t::distribute_trees(karte_t *welt, int dichte)
 
 DBG_MESSAGE("verteile_baeume()","creating %i forest",c_forest_count);
 	for (uint8 c1 = 0 ; c1 < c_forest_count ; c1++) {
-		create_forest( welt, koord( simrand(welt->get_groesse_x()), simrand(welt->get_groesse_y()) ), koord( (t_forest_size*(1+simrand(2))), (t_forest_size*(1+simrand(2))) ) );
+		// to have same execution order for simrand
+		const koord start = koord::koord_random(welt->get_groesse_x(),welt->get_groesse_y());
+		const koord size = koord(t_forest_size,t_forest_size) + koord::koord_random( t_forest_size, t_forest_size );
+		create_forest( welt, start, size );
 	}
 
 	fill_trees(welt, dichte);
@@ -140,7 +143,7 @@ bool baum_t::plant_tree_on_coordinate(karte_t * welt, koord pos, const baum_besc
 	grund_t *gr = welt->lookup_kartenboden(pos);
 	if(gr) {
 		if( gr->ist_natur()  &&
-			gr->get_top()<10  &&
+			gr->get_top() < welt->get_einstellungen()->get_max_no_of_trees_on_square()  &&
 			(!check_climate  ||  besch->is_allowed_climate(welt->get_climate(gr->get_hoehe())))
 			)
 		{
@@ -456,20 +459,13 @@ bool baum_t::saee_baum()
 {
 	// spawn a new tree in an area 3x3 tiles around
 	// the area for normal new tree planting is slightly more restricted, square of 9x9 was too much
-	const koord k = get_pos().get_2d() + koord(simrand(5)-2, simrand(5)-2);
-	const planquadrat_t* p = welt->lookup(k);
-	if (p) {
-		grund_t *bd = p->get_kartenboden();
-		if(	bd!=NULL  &&
-			get_besch()->is_allowed_climate(welt->get_climate(bd->get_pos().z))  &&
-			bd->ist_natur()  &&
-			bd->get_top()<welt->get_einstellungen()->get_max_no_of_trees_on_square())
-		{
-			bd->obj_add( new baum_t(welt, bd->get_pos(), baumtype) );
-			return true;
-		}
-	}
-	return false;
+
+	// to have same execution order for simrand
+	const sint16 sx = simrand(5)-2;
+	const sint16 sy = simrand(5)-2;
+	const koord k = get_pos().get_2d() + koord(sx,sy);
+
+	return plant_tree_on_coordinate(welt, k, baum_typen[baumtype], true, false);
 }
 
 
@@ -561,7 +557,7 @@ void baum_t::info(cbuffer_t & buf) const
 	buf.append( translator::translate(get_besch()->get_name()) );
 	buf.append( "\n" );
 	int age = welt->get_current_month() - geburt;
-	buf.printf( translator::translate("%i years %i months old"), age/12, (age%12) );
+	buf.printf( translator::translate("%i years %i months old."), age/12, (age%12) );
 }
 
 

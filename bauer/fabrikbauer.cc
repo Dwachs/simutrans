@@ -152,6 +152,16 @@ public:
 stringhashtable_tpl<const fabrik_besch_t *> fabrikbauer_t::table;
 
 
+/**
+ * to be able to sort per name
+ * necessary in get_random_consumer
+ */
+static bool compare_fabrik_besch(const fabrik_besch_t* a, const fabrik_besch_t* b)
+{
+	const int diff = strcmp( a->get_name(), b->get_name() );
+	return diff < 0;
+}
+
 /* returns a random consumer
  * @author prissi
  */
@@ -159,8 +169,7 @@ const fabrik_besch_t *fabrikbauer_t::get_random_consumer(bool electric, climate_
 {
 	// get a random city factory
 	stringhashtable_iterator_tpl<const fabrik_besch_t *> iter(table);
-	slist_tpl <const fabrik_besch_t *> consumer;
-	int gewichtung=0;
+	weighted_vector_tpl<const fabrik_besch_t *> consumer;
 
 	while(iter.next()) {
 		const fabrik_besch_t *current=iter.get_current_value();
@@ -168,8 +177,7 @@ const fabrik_besch_t *fabrikbauer_t::get_random_consumer(bool electric, climate_
 		if(current->get_produkt(0)==NULL  &&  current->get_haus()->is_allowed_climate_bits(cl)  &&
 			(electric ^ !current->is_electricity_producer())  &&
 			(timeline==0  ||  (current->get_haus()->get_intro_year_month() <= timeline  &&  current->get_haus()->get_retire_year_month() > timeline))  ) {
-			consumer.insert(current);
-			gewichtung += current->get_gewichtung();
+			consumer.insert_unique_ordered(current, current->get_gewichtung(), compare_fabrik_besch);
 		}
 	}
 	// no consumer installed?
@@ -178,17 +186,10 @@ DBG_MESSAGE("fabrikbauer_t::get_random_consumer()","No suitable consumer found")
 		return NULL;
 	}
 	// now find a random one
-	int next=simrand(gewichtung);
-	for (slist_iterator_tpl<const fabrik_besch_t*> i(consumer); i.next();) {
-		const fabrik_besch_t* fb = i.get_current();
-		if (next < fb->get_gewichtung()) {
-			DBG_MESSAGE("fabrikbauer_t::get_random_consumer()", "consumer %s found.", fb->get_name());
-			return fb;
-		}
-		next -= fb->get_gewichtung();
-	}
-	DBG_MESSAGE("fabrikbauer_t::get_random_consumer()", "consumer %s found.", consumer.front()->get_name());
-	return consumer.front();
+	uint32 next=simrand(consumer.get_sum_weight());
+	const fabrik_besch_t* fb = consumer.at_weight(next);
+	DBG_MESSAGE("fabrikbauer_t::get_random_consumer()", "consumer %s found.", fb->get_name());
+	return fb;
 }
 
 
@@ -245,18 +246,18 @@ DBG_MESSAGE("fabrikbauer_t::finde_anzahl_hersteller()","%i producer for good '%s
 const fabrik_besch_t *fabrikbauer_t::finde_hersteller(const ware_besch_t *ware, uint16 timeline )
 {
 	stringhashtable_iterator_tpl<const fabrik_besch_t *> iter(table);
-	slist_tpl <const fabrik_besch_t *> producer;
-	int gewichtung=0;
+	weighted_vector_tpl<const fabrik_besch_t *> producer;
 
 	while(iter.next()) {
 		const fabrik_besch_t *tmp = iter.get_current_value();
 
-		for (uint i = 0; i < tmp->get_produkte(); i++) {
-			const fabrik_produkt_besch_t *produkt = tmp->get_produkt(i);
-			if(produkt->get_ware()==ware  &&  tmp->get_gewichtung()>0  &&  (timeline==0  ||  (tmp->get_haus()->get_intro_year_month() <= timeline  &&  tmp->get_haus()->get_retire_year_month() > timeline))  ) {
-				producer.insert(tmp);
-				gewichtung += tmp->get_gewichtung();
-				break;
+		if (tmp->get_gewichtung()>0  &&  (timeline==0  ||  (tmp->get_haus()->get_intro_year_month() <= timeline  &&  tmp->get_haus()->get_retire_year_month() > timeline))) {
+			for (uint i = 0; i < tmp->get_produkte(); i++) {
+				const fabrik_produkt_besch_t *produkt = tmp->get_produkt(i);
+				if(produkt->get_ware()==ware) {
+					producer.insert_unique_ordered(tmp, tmp->get_gewichtung(), compare_fabrik_besch);
+					break;
+				}
 			}
 		}
 	}
@@ -267,15 +268,9 @@ const fabrik_besch_t *fabrikbauer_t::finde_hersteller(const ware_besch_t *ware, 
 		return NULL;
 	}
 	// now find a random one
-	int next=simrand(gewichtung);
-	const fabrik_besch_t *besch=NULL;
-	for (slist_iterator_tpl<const fabrik_besch_t*> i(producer); i.next();) {
-		besch = i.get_current();
-		next -= besch->get_gewichtung();
-		if(next<0) {
-			break;
-		}
-	}
+	// now find a random one
+	uint32 next=simrand(producer.get_sum_weight());
+	const fabrik_besch_t* besch = producer.at_weight(next);
 	DBG_MESSAGE("fabrikbauer_t::finde_hersteller()","producer for good '%s' was found %s", translator::translate(ware->get_name()),besch->get_name());
 	return besch;
 }
@@ -361,7 +356,7 @@ void fabrikbauer_t::verteile_tourist(karte_t* welt, int max_number)
 
 	int retrys = max_number*4;
 	while(current_number<max_number  &&  retrys-->0) {
-		koord3d	pos=koord3d(simrand(welt->get_groesse_x()),simrand(welt->get_groesse_y()),1);
+		koord3d	pos=koord3d( koord::koord_random(welt->get_groesse_x(),welt->get_groesse_y()),1);
 		const haus_besch_t *attraction=hausbauer_t::waehle_sehenswuerdigkeit(welt->get_timeline_year_month(),true,(climate)simrand((int)arctic_climate+1));
 
 		// no attractions for that climate or too new
@@ -971,11 +966,9 @@ next_ware_check:
 					// we cannot built this factory here
 					continue;
 				}
-				koord3d	pos = in_city ?
-					welt->lookup_kartenboden( welt->get_staedte().at_weight( simrand( welt->get_staedte().get_sum_weight() ) )->get_pos() )->get_pos() :
-					koord3d(simrand(welt->get_groesse_x()),simrand(welt->get_groesse_y()),1);
-
-				int	rotation=simrand(fab->get_haus()->get_all_layouts()-1);
+				koord   testpos = in_city ? welt->get_staedte().at_weight( simrand( welt->get_staedte().get_sum_weight() ) )->get_pos() : koord::koord_random(welt->get_groesse_x(),welt->get_groesse_y());
+				koord3d pos =  welt->lookup_kartenboden( testpos )->get_pos();
+				int     rotation=simrand(fab->get_haus()->get_all_layouts()-1);
 				if(!in_city) {
 					pos = finde_zufallsbauplatz(welt, pos, 20, fab->get_haus()->get_groesse(rotation),fab->get_platzierung()==fabrik_besch_t::Wasser,fab->get_haus(),not_yet_too_desperate_to_ignore_climates);
 				}

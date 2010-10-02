@@ -47,7 +47,7 @@ void werkzeug_waehler_t::add_werkzeug(werkzeug_t *w)
 	// only for non-empty icons ...
 	tools.append(w);
 
-	int ww = (display_get_width()/icon.x)-2;
+	int ww = max(2,(display_get_width()/icon.x)-2);	// to avoid zero or negative ww on posix (no graphic) backends
 	tool_icon_width = tools.get_count();
 DBG_DEBUG("werkzeug_waehler_t::add_tool()","ww=%i, tool_icon_width=%i",ww,tool_icon_width);
 	if(allow_break  &&  (ww<tool_icon_width  ||  (umgebung_t::toolbar_max_width>0  &&  umgebung_t::toolbar_max_width<tool_icon_width))) {
@@ -103,7 +103,7 @@ bool werkzeug_waehler_t::getroffen(int x, int y)
 
 bool werkzeug_waehler_t::infowin_event(const event_t *ev)
 {
-	if(IS_LEFTRELEASE(ev)) {
+	if(IS_LEFTRELEASE(ev)  ||  IS_RIGHTRELEASE(ev)) {
 		// tooltips?
 		const int x = (ev->mx) / icon.x;
 		const int y = (ev->my-16) / icon.y;
@@ -112,9 +112,20 @@ bool werkzeug_waehler_t::infowin_event(const event_t *ev)
 			const int wz_idx = x+(tool_icon_width*y)+tool_icon_disp_start;
 
 			if (wz_idx < (int)tools.get_count()) {
-				welt->set_werkzeug( tools[wz_idx], welt->get_active_player() );
+				dirty = true;
+				// change tool
+				if(IS_LEFTRELEASE(ev)) {
+					welt->set_werkzeug( tools[wz_idx], welt->get_active_player() );
+				}
+				else {
+				// right-click on toolbar icon closes toolbar
+					if (tools[wz_idx]  &&  tools[wz_idx]->is_selected(welt)  &&  (tools[wz_idx]->get_id()&TOOLBAR_TOOL)) {
+						tools[wz_idx]->exit(welt, welt->get_active_player());
+						// triggers werkzeug_waehler_t::infowin_event if the other toolbar,
+						// which resets active tool to query tool
+					}
+				}
 			}
-			dirty = true;
 			return true;
 		}
 	}

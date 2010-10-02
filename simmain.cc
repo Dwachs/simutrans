@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <string>
 #include <new>
@@ -58,12 +59,13 @@
 #include "utils/simstring.h"
 #include "utils/searchfolder.h"
 
+#include "dataobj/network.h"	// must be before any "windows.h" is included via bzlib2.h ...
 #include "dataobj/loadsave.h"
 #include "dataobj/umgebung.h"
 #include "dataobj/tabfile.h"
 #include "dataobj/einstellungen.h"
 #include "dataobj/translator.h"
-#include "dataobj/network.h"
+#include "dataobj/pakset_info.h"
 
 #include "besch/reader/obj_reader.h"
 #include "besch/sound_besch.h"
@@ -268,34 +270,41 @@ static void ask_objfilename()
  */
 static void ask_language()
 {
-	display_show_pointer(true);
-	show_pointer(1);
-	set_pointer(0);
-	sprachengui_t* sel = new sprachengui_t();
-	koord xy( display_get_width()/2 - sel->get_fenstergroesse().x/2, display_get_height()/2 - sel->get_fenstergroesse().y/2 );
-	event_t ev;
-
-	destroy_all_win(true);	// since eventually the successful load message is still there ....
-	create_win( xy.x, xy.y, sel, w_info, magic_none );
-
-	while(  translator::get_language()==-1  ) {
-		// do not move, do not close it!
-		dr_prepare_flush();
-		sel->zeichnen( xy, sel->get_fenstergroesse() );
-		display_poll_event(&ev);
-		// main window resized
-		check_pos_win(&ev);
-		dr_flush();
-		dr_sleep(50);
-		// main window resized
-		if(ev.ev_class==EVENT_SYSTEM  &&  ev.ev_code==SYSTEM_RESIZE) {
-			// main window resized
-			simgraph_resize( ev.mx, ev.my );
-			display_fillbox_wh( 0, 0, ev.mx, ev.my, COL_BLACK, true );
-		}
+	if(  display_get_width()==0  ) {
+		// only console available ... => choose english for the moment
+		dbg->warning( "ask_language", "No language selected, will use english!" );
+		translator::set_language( "en" );
 	}
-	destroy_win( sel );
-	set_pointer(0);
+	else {
+		display_show_pointer(true);
+		show_pointer(1);
+		set_pointer(0);
+		sprachengui_t* sel = new sprachengui_t();
+		koord xy( display_get_width()/2 - sel->get_fenstergroesse().x/2, display_get_height()/2 - sel->get_fenstergroesse().y/2 );
+		event_t ev;
+
+		destroy_all_win(true);	// since eventually the successful load message is still there ....
+		create_win( xy.x, xy.y, sel, w_info, magic_none );
+
+		while(  translator::get_language()==-1  ) {
+			// do not move, do not close it!
+			dr_prepare_flush();
+			sel->zeichnen( xy, sel->get_fenstergroesse() );
+			display_poll_event(&ev);
+			// main window resized
+			check_pos_win(&ev);
+			dr_flush();
+			dr_sleep(50);
+			// main window resized
+			if(ev.ev_class==EVENT_SYSTEM  &&  ev.ev_code==SYSTEM_RESIZE) {
+				// main window resized
+				simgraph_resize( ev.mx, ev.my );
+				display_fillbox_wh( 0, 0, ev.mx, ev.my, COL_BLACK, true );
+			}
+		}
+		destroy_win( sel );
+		set_pointer(0);
+	}
 }
 
 
@@ -375,6 +384,14 @@ int simu_main(int argc, char** argv)
 		return 0;
 	}
 
+#ifdef _WIN32
+#define PATHSEP "\\"
+#else
+#define PATHSEP "/"
+#endif
+	const char* path_sep = PATHSEP;
+
+
 #ifdef __BEOS__
 	if (1) // since BeOS only supports relative paths ...
 #else
@@ -384,21 +401,15 @@ int simu_main(int argc, char** argv)
 	{
 		// save the current directories
 		getcwd(umgebung_t::program_dir, lengthof(umgebung_t::program_dir));
-#ifdef _WIN32
-		strcat( umgebung_t::program_dir, "\\" );
-#else
-		strcat( umgebung_t::program_dir, "/" );
-#endif
+		strcat( umgebung_t::program_dir, path_sep );
 	}
 	else {
 		strcpy( umgebung_t::program_dir, argv[0] );
-#ifdef _WIN32
-		*(strrchr( umgebung_t::program_dir, '\\' )+1) = 0;
-#else
-		*(strrchr( umgebung_t::program_dir, '/' )+1) = 0;
-#endif
+		*(strrchr( umgebung_t::program_dir, path_sep[0] )+1) = 0;
+
 		chdir( umgebung_t::program_dir );
 	}
+	printf("Use work dir %s\n", umgebung_t::program_dir);
 
 	// only the pak specifiy conf should overide this!
 	uint16 pak_diagonal_multiplier = umgebung_t::default_einstellungen.get_pak_diagonal_multiplier();
@@ -410,7 +421,10 @@ int simu_main(int argc, char** argv)
 	bool multiuser = (gimme_arg(argc, argv, "-singleuser", 0) == NULL);
 
 	tabfile_t simuconf;
-	if(simuconf.open("config/simuconf.tab")) {
+	char path_to_simuconf[24];
+	// was  config/simuconf.tab
+	sprintf(path_to_simuconf, "config%csimuconf.tab", path_sep[0]);
+	if(simuconf.open(path_to_simuconf)) {
 		{
 			tabfileobj_t contents;
 			simuconf.read(contents);
@@ -444,15 +458,16 @@ int simu_main(int argc, char** argv)
 			umgebung_t::rdwr(&file);
 			umgebung_t::default_einstellungen.rdwr(&file);
 			file.close();
-			// reset to false (otherwise freeplay will persist)
+			// reset to false (otherwise these settings will persist)
 			umgebung_t::default_einstellungen.set_freeplay( false );
+			umgebung_t::announce_server = 0;
 		}
 	}
 
 	// continue parsing ...
 	chdir( umgebung_t::program_dir );
 	if(  found_simuconf  ) {
-		if(simuconf.open("config/simuconf.tab")) {
+		if(simuconf.open(path_to_simuconf)) {
 			printf("parse_simuconf() at config/simuconf.tab: ");
 			umgebung_t::default_einstellungen.parse_simuconf( simuconf, disp_width, disp_height, fullscreen, umgebung_t::objfilename );
 		}
@@ -484,6 +499,17 @@ int simu_main(int argc, char** argv)
 	// now set the desired objectfilename (overide all previous settings)
 	if (gimme_arg(argc, argv, "-objects", 1)) {
 		umgebung_t::objfilename = gimme_arg(argc, argv, "-objects", 1);
+		// append slash / replace trailing backslash if necessary
+		uint16 len = umgebung_t::objfilename.length();
+		if (len > 0) {
+			if (umgebung_t::objfilename[len-1]=='\\') {
+				umgebung_t::objfilename.erase(len-1);
+				umgebung_t::objfilename += "/";
+			}
+			else if (umgebung_t::objfilename[len-1]!='/') {
+				umgebung_t::objfilename += "/";
+			}
+		}
 	}
 
 	if (gimme_arg(argc, argv, "-log", 0)) {
@@ -508,7 +534,14 @@ int simu_main(int argc, char** argv)
 		}
 		// will fail fatal on the opening routine ...
 		dbg->message( "simmain()", "Server started on port %i", portadress );
-		umgebung_t::server = umgebung_t::networkmode = network_init_server( portadress );
+		umgebung_t::networkmode = network_init_server( portadress );
+		if(  umgebung_t::networkmode  ) {
+			umgebung_t::server = portadress;
+		}
+	}
+	else {
+		// no announce for clients ...
+		umgebung_t::announce_server = 0;
 	}
 
 	DBG_MESSAGE( "simmain::main()", "Version: " VERSION_NUMBER "  Date: " VERSION_DATE);
@@ -608,7 +641,7 @@ int simu_main(int argc, char** argv)
 	}
 
 	// now find the pak specific tab file ...
-	const string obj_conf = umgebung_t::objfilename + "config/simuconf.tab";
+	const string obj_conf = umgebung_t::objfilename + path_to_simuconf;
 	string dummy("");
 	if (simuconf.open(obj_conf.c_str())) {
 		sint16 idummy;
@@ -664,8 +697,17 @@ int simu_main(int argc, char** argv)
 		exit(11);
 	}
 
-	// use requested (if available)
-	if(  found_settings  ) {
+	// use requested language (if available)
+	if (gimme_arg(argc, argv, "-lang", 1)) {
+		const char *iso = gimme_arg(argc, argv, "-lang", 1);
+		if(  strlen(iso)>=2  ) {
+			translator::set_language( iso );
+		}
+		if(  translator::get_language()==-1  ) {
+			dbg->error("simmain", "Illegal language defintion \"%s\"", iso );
+		}
+	}
+	else if(  found_settings  ) {
 		translator::set_language( umgebung_t::language_iso );
 	}
 
@@ -696,6 +738,8 @@ int simu_main(int argc, char** argv)
 		chdir( umgebung_t::program_dir );
 	}
 	obj_reader_t::laden_abschliessen();
+	pakset_info_t::calculate_checksum();
+	pakset_info_t::debug();
 
 	// set overtaking offsets
 	vehikel_basis_t::set_overtaking_offsets( umgebung_t::drive_on_left );
@@ -708,25 +752,39 @@ int simu_main(int argc, char** argv)
 	}
 
 	bool new_world = true;
-	string loadgame;
+	std::string loadgame;
 
 	if (gimme_arg(argc, argv, "-load", 0) != NULL) {
-		char buf[256];
+		cbuffer_t buf(1024);
 		chdir( umgebung_t::user_dir );
 		/**
 		 * Added automatic adding of extension
 		 */
 		const char *name = gimme_arg(argc, argv, "-load", 1);
 		if(  strstr(name,"net:")==name  ) {
-			strcpy( buf, name );
+			buf.append( name );
 		}
 		else {
-			sprintf(buf, SAVE_PATH_X "%s", searchfolder_t::complete(name, "sve").c_str());
+			buf.printf( SAVE_PATH_X "%s", searchfolder_t::complete(name, "sve").c_str() );
 		}
+		printf( "loading savegame \"%s\"\n", name );
 		loadgame = buf;
 		new_world = false;
 	}
-	else {
+
+	// recover last server game
+	if(  new_world  &&  umgebung_t::server  ) {
+		chdir( umgebung_t::user_dir );
+		if(  FILE *f = fopen("server-network.sve","rb")  ) {
+			// try recover with the latest savegame
+			loadgame = "server-network.sve";
+			fclose(f);
+			new_world = false;
+		}
+	}
+
+	// still nothing to be loaded => search for demo games
+	if(  new_world  ) {
 		chdir( umgebung_t::program_dir );
 		char buffer[256];
 		sprintf(buffer, "%s%sdemo.sve", (const char*)umgebung_t::program_dir, umgebung_t::objfilename.c_str());
@@ -839,6 +897,10 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		intr_set(welt, view);
 		win_set_welt(welt);
 		werkzeug_t::toolbar_tool[0]->init(welt,welt->get_active_player());
+		if(  umgebung_t::server  ) {
+			// meaningless to use a locked map; there are passwords now
+			welt->access_einstellungen()->set_allow_player_change( true );
+		}
 	}
 
 	welt->set_fast_forward(false);
@@ -885,6 +947,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 	welt->get_message()->clear();
 
 	if(  !umgebung_t::networkmode  &&  new_world  ) {
+		printf( "Show banner ... \n" );
 		ticker::add_msg("Welcome to Simutrans, a game created by Hj. Malthaner and the Simutrans community.", koord::invalid, PLAYER_FLAG + 1);
 		zeige_banner(welt);
 	}
@@ -954,6 +1017,8 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 			}
 
 			destroy_all_win(true);
+			welt->get_message()->clear();
+
 			// scenario?
 			if(wg->get_scenario()) {
 				char path[1024];
@@ -976,7 +1041,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 
 				// save setting ...
 				loadsave_t file;
-				if(file.wr_open("default.sve",loadsave_t::binary,"settings only")) {
+				if(file.wr_open("default.sve",loadsave_t::binary,"settings only",SAVEGAME_VER_NR)) {
 					// save default setting
 					umgebung_t::default_einstellungen.rdwr(&file);
 					file.close();
@@ -1003,6 +1068,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 			}
 		}
 
+		printf( "Running world, pause=%i, fast forward=%i ... \n", welt->is_paused(), welt->is_fast_forward() );
 		loadgame = ""; // only first time
 
 		// run the loop
@@ -1013,13 +1079,15 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		welt->set_fast_forward(false);
 		welt->set_pause(false);
 		setsimrand(dr_time(), dr_time());
+
+		printf( "World finished ...\n" );
 	}
 
 	intr_disable();
 
 	// save setting ...
 	chdir( umgebung_t::user_dir );
-	if(file.wr_open("settings.xml",loadsave_t::xml,"settings only/")) {
+	if(file.wr_open("settings.xml",loadsave_t::xml,"settings only/",SAVEGAME_VER_NR)) {
 		umgebung_t::rdwr(&file);
 		umgebung_t::default_einstellungen.rdwr(&file);
 		file.close();

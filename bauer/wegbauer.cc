@@ -149,7 +149,7 @@ bool wegbauer_t::register_besch(weg_besch_t *besch)
  * The timeline is also respected.
  * @author prissi, gerw
  */
-const weg_besch_t* wegbauer_t::weg_search(const waytype_t wtyp, const uint32 speed_limit, const uint16 time, const weg_t::system_type system_type)
+const weg_besch_t* wegbauer_t::weg_search(const waytype_t wtyp, const sint32 speed_limit, const uint16 time, const weg_t::system_type system_type)
 {
 	const weg_besch_t* best = NULL;
 	bool best_allowed = false; // Does the best way fulfill the timeline?
@@ -1680,7 +1680,7 @@ sint64 wegbauer_t::calc_costs()
 	}
 
 	for(uint32 i=0; i<get_count(); i++) {
-		sint16 old_speedlimit = -1;
+		sint32 old_speedlimit = -1;
 
 		const grund_t* gr = welt->lookup(route[i] + offset);
 		if( gr ) {
@@ -1709,6 +1709,9 @@ sint64 wegbauer_t::calc_costs()
 							continue;
 						}
 						old_speedlimit = weg->get_besch()->get_topspeed();
+					}
+					else if (besch->get_wtyp()==water_wt  &&  gr->ist_wasser()) {
+						old_speedlimit = new_speedlimit;
 					}
 				}
 			}
@@ -2060,7 +2063,7 @@ class fluss_fahrer_t : public fahrer_t
 	bool ist_befahrbar(const grund_t* gr) const { return gr->get_weg_ribi_unmasked(water_wt)!=0; }
 	virtual ribi_t::ribi get_ribi(const grund_t* gr) const { return gr->get_weg_ribi_unmasked(water_wt); }
 	virtual waytype_t get_waytype() const { return invalid_wt; }
-	virtual int get_kosten(const grund_t *,const uint32) const { return 1; }
+	virtual int get_kosten(const grund_t *,const sint32) const { return 1; }
 	virtual bool ist_ziel(const grund_t *cur,const grund_t *) const { return cur->ist_wasser()  &&  cur->get_grund_hang()==hang_t::flach; }
 };
 
@@ -2071,7 +2074,7 @@ void wegbauer_t::baue_fluss()
 	/* since the contraints of the wayfinder ensures that a river flows always downwards
 	 * we can assume that the first tiles are the ocean.
 	 * Usually the wayfinder would find either direction!
-	 * route[0] tile at the ocean, route[get_count()-1] the spring of the river
+	 * route.front() tile at the ocean, route.back() the spring of the river
 	 */
 
 	// Do we join an other river?
@@ -2173,7 +2176,7 @@ DBG_MESSAGE("wegbauer_t::baue()","called, but no valid route.");
 		// no valid route here ...
 		return;
 	}
-	DBG_MESSAGE("wegbauer_t::baue()", "type=%d max_n=%d start=%d,%d end=%d,%d", bautyp, get_count()-1, route[0].x, route[0].y, route[get_count()-1].x, route[get_count()-1].y);
+	DBG_MESSAGE("wegbauer_t::baue()", "type=%d max_n=%d start=%d,%d end=%d,%d", bautyp, get_count() - 1, route.front().x, route.front().y, route.back().x, route.back().y);
 
 #ifdef DEBUG_ROUTES
 long ms=dr_time();

@@ -9,7 +9,6 @@
 
 #include "convoi_info_t.h"
 
-#include "../simconvoi.h"
 #include "../simdepot.h"
 #include "../vehicle/simvehikel.h"
 #include "../simcolor.h"
@@ -88,8 +87,9 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 	const sint16 total_width = 3*(BUTTON_WIDTH+BUTTON_SPACER) + 30 + view.get_groesse().x + 10;
 
 	input.set_pos(koord(10,4));
-	input.set_text( cnv->access_internal_name(), 116);
+	reset_cnv_name();
 	add_komponente(&input);
+	input.add_listener(this);
 
 	add_komponente(&view);
 
@@ -198,6 +198,12 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 }
 
 
+// only handle a pending renaming ...
+convoi_info_t::~convoi_info_t()
+{
+	// rename if necessary
+	rename_cnv();
+}
 
 
 /**
@@ -206,8 +212,7 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
  * in dem die Komponente dargestellt wird.
  * @author Hj. Malthaner
  */
-void
-convoi_info_t::zeichnen(koord pos, koord gr)
+void convoi_info_t::zeichnen(koord pos, koord gr)
 {
 	if(!cnv.is_bound()) {
 		destroy_win(this);
@@ -350,6 +355,11 @@ bool convoi_info_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 		cnv->get_welt()->set_dirty();
 	}
 
+	if(  komp == &input  ) {
+		// rename if necessary
+		rename_cnv();
+	}
+
 	// sort by what
 	if(komp == &sort_button) {
 		// sort by what
@@ -457,6 +467,39 @@ DBG_MESSAGE("convoi_info_t::action_triggered()","convoi state %i => cannot chang
 	}
 
 	return false;
+}
+
+
+void convoi_info_t::reset_cnv_name()
+{
+	// change text input of selected line
+	if (cnv.is_bound()) {
+		tstrncpy(old_cnv_name, cnv->get_name(), sizeof(old_cnv_name));
+		tstrncpy(cnv_name, cnv->get_name(), sizeof(cnv_name));
+		input.set_text(cnv_name, sizeof(cnv_name));
+	}
+}
+
+
+void convoi_info_t::rename_cnv()
+{
+	if (cnv.is_bound()) {
+		const char *t = input.get_text();
+		// only change if old name and current name are the same
+		// otherwise some unintended undo if renaming would occur
+		if(  t  &&  t[0]  &&  strcmp(t, cnv->get_name())  &&  strcmp(old_cnv_name, cnv->get_name())==0) {
+			// text changed => call tool
+			cbuffer_t buf(300);
+			buf.printf( "c%u,%s", cnv.get_id(), t );
+			werkzeug_t *w = create_tool( WKZ_RENAME_TOOL | SIMPLE_TOOL );
+			w->set_default_param( buf );
+			cnv->get_welt()->set_werkzeug( w, cnv->get_besitzer());
+			// since init always returns false, it is save to delete immediately
+			delete w;
+			// do not trigger this command again
+			tstrncpy(old_cnv_name, t, sizeof(old_cnv_name));
+		}
+	}
 }
 
 

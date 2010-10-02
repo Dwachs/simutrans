@@ -140,6 +140,9 @@ werkzeug_t *create_simple_tool(int toolnr)
 		case WKZ_PWDHASH_TOOL:		tool = new wkz_change_password_hash_t(); break;
 		case WKZ_SET_PLAYER_TOOL:	tool = new wkz_change_player_t(); break;
 		case WKZ_TRAFFIC_LIGHT_TOOL:tool = new wkz_change_traffic_light_t(); break;
+		case WKZ_CHANGE_CITY_TOOL:  tool = new wkz_change_city_t(); break;
+		case WKZ_RENAME_TOOL:       tool = new wkz_rename_t(); break;
+		case WKZ_ADD_MESSAGE_TOOL:  tool = new wkz_add_message_t(); break;
 		default:                    dbg->error("create_simple_tool()","cannot satisfy request for simple_tool[%i]!",toolnr);
 		                            return NULL;
 	}
@@ -180,6 +183,7 @@ werkzeug_t *create_dialog_tool(int toolnr)
 		case WKZ_LIST_LABEL:     tool = new wkz_list_label_t(); break;
 		case WKZ_CLIMATES:       tool = new wkz_climates_t(); break;
 		case WKZ_SETTINGS:       tool = new wkz_settings_t(); break;
+		case WKZ_GAMEINFO:       tool = new wkz_server_t(); break;
 		default:                 dbg->error("create_dialog_tool()","cannot satisfy request for dialog_tool[%i]!",toolnr);
 		                         return NULL;
 	}
@@ -287,7 +291,6 @@ void werkzeug_t::read_menu(const std::string &objfilename)
 	char_to_tool.clear();
 	tabfile_t menuconf;
 	// only use pak sepcific menues, since otherwise images may missing
-	const std::string user_dir=umgebung_t::user_dir;
 	if (!menuconf.open((objfilename+"config/menuconf.tab").c_str())) {
 		dbg->fatal("werkzeug_t::init_menu()", "Can't read %sconfig/menuconf.tab", objfilename.c_str() );
 	}
@@ -735,6 +738,8 @@ const char *kartenboden_werkzeug_t::check( karte_t *welt, spieler_t *, koord3d p
 class wkz_dummy_t : public werkzeug_t {
 	bool init( karte_t *, spieler_t * ) { return false; }
 	virtual bool is_init_network_save() const { return true; }
+	virtual bool is_work_network_save() const { return true; }
+	virtual bool is_move_network_save(spieler_t *) const { return true; }
 };
 
 werkzeug_t *werkzeug_t::dummy = new wkz_dummy_t();
@@ -871,6 +876,14 @@ bool toolbar_t::init(karte_t *welt, spieler_t *sp)
 }
 
 
+bool toolbar_t::exit( karte_t *, spieler_t *)
+{
+	if(win_get_magic((long)this)) {
+		destroy_win(wzw);
+	}
+	return false;
+}
+
 
 bool two_click_werkzeug_t::init( karte_t *welt, spieler_t *sp )
 {
@@ -898,28 +911,33 @@ const char *two_click_werkzeug_t::work( karte_t *welt, spieler_t *sp, koord3d po
 	cleanup( sp, true );
 
 	const char *error = "";	//default: nosound
-	uint8 value = is_valid_pos( welt, sp, pos, error, start[sp->get_player_nr()] );
+	uint8 value = is_valid_pos( welt, sp, pos, error, !is_first_click(sp) ? start[sp->get_player_nr()] : koord3d::invalid );
+	DBG_MESSAGE("two_click_werkzeug_t::work", "Position %s valid=%d", pos.get_str(), value );
 	if(  value == 0  ) {
+		flags &= ~(WFL_SHIFT | WFL_CTRL);
 		init( welt, sp );
 		return error;
 	}
 
 	if(  is_first_click(sp)  ) {
-		if( value & 1 ) {
+		// work directly if possible and ctrl is NOT pressed
+		if( (value & 1)  &&  !( (value & 2)  &&  is_ctrl_pressed())) {
 			// Work here directly.
-			dbg->warning("two_click_werkzeug_t::work", "Call tool at %s", pos.get_str() );
+			DBG_MESSAGE("two_click_werkzeug_t::work", "Call tool at %s", pos.get_str() );
 			error = do_work( welt, sp, pos, koord3d::invalid );
 		}
 		else {
 			// set starting position.
+			DBG_MESSAGE("two_click_werkzeug_t::work", "Setting start to %s", pos.get_str() );
 			start_at( welt, sp, pos );
 		}
 	}
 	else {
 		if( value & 2 ) {
-			dbg->warning("two_click_werkzeug_t::work", "Setting end to %s", pos.get_str() );
+			DBG_MESSAGE("two_click_werkzeug_t::work", "Setting end to %s", pos.get_str() );
 			error = do_work( welt, sp, start[sp->get_player_nr()], pos );
 		}
+		flags &= ~(WFL_SHIFT | WFL_CTRL);
 		init( welt, sp ); // Do the cleanup stuff after(!) do_work (otherwise start==koord3d::invalid).
 	}
 	return error;
@@ -977,12 +995,15 @@ void two_click_werkzeug_t::start_at( karte_t *welt, spieler_t* sp, koord3d &new_
 {
 	const uint8 sp_nr = sp->get_player_nr();
 	first_click_var[sp_nr] = false;
-	welt->show_distance = start[sp_nr] = new_start;
-	start_marker[sp_nr] = new zeiger_t(welt, start[sp_nr], NULL);
-	start_marker[sp_nr]->set_bild( get_marker_image() );
-	grund_t *gr = welt->lookup( start[sp_nr] );
-	if( gr ) {
-		gr->obj_add(start_marker[sp_nr]);
+	start[sp_nr] = new_start;
+	if (is_local_execution()) {
+		welt->show_distance = new_start;
+		start_marker[sp_nr] = new zeiger_t(welt, start[sp_nr], NULL);
+		start_marker[sp_nr]->set_bild( get_marker_image() );
+		grund_t *gr = welt->lookup( start[sp_nr] );
+		if( gr ) {
+			gr->obj_add(start_marker[sp_nr]);
+		}
 	}
 	DBG_MESSAGE("two_click_werkzeug_t::start_at", "Setting start to %s", start[sp_nr].get_str());
 }

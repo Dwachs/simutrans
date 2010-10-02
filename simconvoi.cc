@@ -27,6 +27,7 @@
 #include "gui/fahrplan_gui.h"
 #include "gui/depot_frame.h"
 #include "gui/messagebox.h"
+#include "gui/convoi_detail_t.h"
 #include "boden/grund.h"
 #include "boden/wege/schiene.h"	// for railblocks
 
@@ -172,6 +173,7 @@ convoi_t::convoi_t(karte_t* wl, loadsave_t* file) : fahr(max_vehicle, NULL)
 convoi_t::convoi_t(spieler_t* sp) : fahr(max_vehicle, NULL)
 {
 	self = convoihandle_t(this);
+	sp->buche( 1, COST_ALL_CONVOIS );
 	init(sp->get_welt(), sp);
 	set_name( "Unnamed" );
 	welt->add_convoi( self );
@@ -181,6 +183,8 @@ convoi_t::convoi_t(spieler_t* sp) : fahr(max_vehicle, NULL)
 
 convoi_t::~convoi_t()
 {
+	besitzer_p->buche( -1, COST_ALL_CONVOIS );
+
 	assert(self.is_bound());
 	assert(anz_vehikel==0);
 
@@ -232,7 +236,7 @@ uint32 convoi_t::move_to(karte_t const& welt, koord3d const& k, uint16 const sta
 			v.mark_image_dirty(v.get_bild(), v.get_hoff());
 			v.verlasse_feld();
 			// maybe unreserve this
-			if (schiene_t* const rails = dynamic_cast<schiene_t*>(gr->get_weg(v.get_waytype()))) {
+			if (schiene_t* const rails = ding_cast<schiene_t>(gr->get_weg(v.get_waytype()))) {
 				rails->unreserve(&v);
 			}
 		}
@@ -270,6 +274,7 @@ void convoi_t::laden_abschliessen()
 					fahr[i]->get_pos() = koord3d::invalid;
 				}
 				destroy();
+				return;
 			}
 		}
 		// anyway reassign convoi pointer ...
@@ -332,6 +337,7 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 		// no vehicles in this convoi?!?
 		dbg->error( "convoi_t::laden_abschliessen()","No vehicles in Convoi %i: will be destroyed!", self.get_id() );
 		destroy();
+		return;
 	}
 	// put convoi agian right on track?
 	if(realing_position  &&  anz_vehikel>1) {
@@ -357,8 +363,7 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 			// eventually reserve this again
 			grund_t *gr=welt->lookup(v->get_pos());
 			// airplanes may have no ground ...
-			schiene_t *sch0 = dynamic_cast<schiene_t *>( gr->get_weg(fahr[i]->get_waytype()) );
-			if(sch0) {
+			if (schiene_t* const sch0 = ding_cast<schiene_t>(gr->get_weg(fahr[i]->get_waytype()))) {
 				sch0->reserve(self,ribi_t::keine);
 			}
 		}
@@ -430,12 +435,33 @@ koord3d convoi_t::get_pos() const
  * Sets the name. Creates a copy of name.
  * @author Hj. Malthaner
  */
-void convoi_t::set_name(const char *name)
+void convoi_t::set_name(const char *name, bool with_new_id)
 {
-	char buf[128];
-	name_offset = sprintf(buf,"(%i) ",self.get_id() );
-	tstrncpy(buf+name_offset, translator::translate(name), 116);
-	tstrncpy(name_and_id, buf, lengthof(name_and_id));
+	if(  with_new_id  ) {
+		char buf[128];
+		name_offset = sprintf(buf,"(%i) ",self.get_id() );
+		tstrncpy(buf+name_offset, translator::translate(name), 116);
+		tstrncpy(name_and_id, buf, lengthof(name_and_id));
+	}
+	else {
+		char buf[128];
+		// check if there is a id in the name string
+		name_offset = sprintf(buf,"(%i) ",self.get_id() );
+		if(  strlen(name) < name_offset  ||  strncmp(buf,name,name_offset)!=0) {
+			name_offset = 0;
+		}
+		tstrncpy(buf+name_offset, name+name_offset, sizeof(buf)-name_offset);
+		tstrncpy(name_and_id, buf, lengthof(name_and_id));
+	}
+	// now tell the windows that we were renamed
+	convoi_detail_t *detail = dynamic_cast<convoi_detail_t*>(win_get_magic( magic_convoi_detail+self.get_id()));
+	if (detail) {
+		detail->update_data();
+	}
+	convoi_info_t *info = dynamic_cast<convoi_info_t*>(win_get_magic( magic_convoi_info+self.get_id()));
+	if (info) {
+		info->update_data();
+	}
 }
 
 
@@ -1021,7 +1047,7 @@ void convoi_t::betrete_depot(depot_t *dep)
 		uint32 start_index = route.get_count()-1;
 		do {
 			if(  grund_t *gr = welt->lookup(route.position_bei(start_index))  ) {
-				if (schiene_t* const sch = dynamic_cast<schiene_t*>(gr->get_weg(fahr[0]->get_waytype()))) {
+				if (schiene_t* const sch = ding_cast<schiene_t>(gr->get_weg(fahr[0]->get_waytype()))) {
 					if(  !sch->unreserve(self)  ) {
 						// unreserve until no reserved track is encoutered
 						break;
@@ -1616,8 +1642,7 @@ void convoi_t::vorfahren()
 					cr->release_crossing(v);
 				}
 				// eventually unreserve this
-				schiene_t * sch0 = dynamic_cast<schiene_t *>( gr->get_weg(fahr[i]->get_waytype()) );
-				if(sch0) {
+				if (schiene_t* const sch0 = ding_cast<schiene_t>(gr->get_weg(fahr[i]->get_waytype()))) {
 					sch0->unreserve(v);
 				}
 			}
@@ -1690,8 +1715,8 @@ void convoi_t::vorfahren()
 		// do not prereserve for airplanes
 		for(unsigned i=0; i<anz_vehikel; i++) {
 			// eventually reserve this
-			schiene_t * sch0 = dynamic_cast<schiene_t *>( welt->lookup(fahr[i]->get_pos())->get_weg(fahr[i]->get_waytype()) );
-			if(sch0) {
+			vehikel_t const& v = *fahr[i];
+			if (schiene_t* const sch0 = ding_cast<schiene_t>(welt->lookup(v.get_pos())->get_weg(v.get_waytype()))) {
 				sch0->reserve(self,ribi_t::keine);
 			}
 			else {
@@ -2208,7 +2233,9 @@ void convoi_t::open_schedule_window( bool show )
 	// - just starting
 	// - a line update is pending
 	if(  (state==FAHRPLANEINGABE  ||  line_update_pending.is_bound())  &&  get_besitzer()==welt->get_active_player()  ) {
-		create_win( new news_img("Not allowed!\nThe convoi's schedule can\nnot be changed currently.\nTry again later!"), w_time_delete, magic_none );
+		if (show) {
+			create_win( new news_img("Not allowed!\nThe convoi's schedule can\nnot be changed currently.\nTry again later!"), w_time_delete, magic_none );
+		}
 		return;
 	}
 
@@ -2345,10 +2372,10 @@ void convoi_t::hat_gehalten(koord k, halthandle_t halt)
 	sint64 gewinn = 0;
 	grund_t *gr=welt->lookup(fahr[0]->get_pos());
 
-	int station_lenght=0;
+	int station_length=0;
 	if(gr->ist_wasser()) {
 		// harbour has any size
-		station_lenght = 24*16;
+		station_length = 24*16;
 	}
 	else {
 		// calculate real station length
@@ -2360,7 +2387,7 @@ void convoi_t::hat_gehalten(koord k, halthandle_t halt)
 			pos.z += Z_TILE_STEP;
 		}
 		while(  grund  &&  grund->get_halt() == halt  ) {
-			station_lenght += 16;
+			station_length += 16;
 			pos += zv;
 			grund = welt->lookup(pos);
 			if(  grund==NULL  ) {
@@ -2379,8 +2406,8 @@ void convoi_t::hat_gehalten(koord k, halthandle_t halt)
 	for(unsigned i=0; i<anz_vehikel; i++) {
 		vehikel_t* v = fahr[i];
 
-		station_lenght -= v->get_besch()->get_length();
-		if(station_lenght<0) {
+		station_length -= v->get_besch()->get_length();
+		if(station_length<0) {
 			break;
 		}
 

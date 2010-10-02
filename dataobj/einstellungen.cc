@@ -20,6 +20,7 @@
 #include "../player/simplay.h"
 #include "loadsave.h"
 #include "tabfile.h"
+#include "translator.h"
 
 
 #define NEVER 0xFFFFU
@@ -661,6 +662,14 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	umgebung_t::network_frames_per_step = contents.get_int("server_frames_per_step", umgebung_t::network_frames_per_step );
 	umgebung_t::server_sync_steps_between_checks = contents.get_int("server_frames_between_checks", umgebung_t::server_sync_steps_between_checks );
 
+	umgebung_t::announce_server = contents.get_int("announce_server", umgebung_t::announce_server );
+	if(  *contents.get("server_name")  ) {
+		umgebung_t::server_name = ltrim(contents.get("server_name"));
+	}
+	if(  *contents.get("server_comment")  ) {
+		umgebung_t::server_comment = ltrim(contents.get("server_comment"));
+	}
+
 	// up to ten rivers are possible
 	for(  int i = 0;  i<10;  i++  ) {
 		char name[32];
@@ -827,7 +836,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	for(  int i = 0;  i<10;  i++  ) {
 		char name[32];
 		sprintf( name, "starting_money[%i]", i );
-		int *test = contents.get_ints(name );
+		sint64 *test = contents.get_sint64s(name );
 		if ((test[0]>1) && (test[0]<=3)) {
 			// insert sorted by years
 			int k=0;
@@ -838,7 +847,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 					break;
 				}
 			}
-			startingmoneyperyear[k].year = test[1];
+			startingmoneyperyear[k].year = (sint16)test[1];
 			startingmoneyperyear[k].money = test[2];
 			if (test[0]==3) {
 				startingmoneyperyear[k].interpol = test[3]!=0;
@@ -846,6 +855,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 			else {
 				startingmoneyperyear[k].interpol = false;
 			}
+			printf("smpy[%d] year=%d money=%lld\n",k,startingmoneyperyear[k].year,startingmoneyperyear[k].money);
 			j++;
 		}
 		else {
@@ -969,6 +979,19 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	printf("Reading simuconf.tab successful!\n" );
 
 	simuconf.close( );
+}
+
+
+int einstellungen_t::get_name_language_id() const
+{
+	int lang = -1;
+	if(  umgebung_t::networkmode  &&  !umgebung_t::server  ) {
+		lang = translator::get_language( language_code_names );
+	}
+	if(  lang == -1  ) {
+		lang = translator::get_language();
+	}
+	return lang;
 }
 
 

@@ -305,7 +305,7 @@ void depot_frame_t::layout(koord *gr)
 	/*
 	*	Structure of [VINFO] is one multiline text.
 	*/
-	int VINFO_HEIGHT = 86;
+	int VINFO_HEIGHT = 86+12;
 
 	/*
 	* Total width is the max from [CONVOI] and [ACTIONS] width.
@@ -1061,8 +1061,8 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 			uint32 total_power=0;
 			uint32 total_max_weight=0;
 			uint32 total_min_weight=0;
-			uint16 max_speed=0;
-			uint16 min_speed=0;
+			sint32 max_speed=0;
+			sint32 min_speed=0;
 			for( unsigned i=0;  i<cnv->get_vehikel_anzahl();  i++) {
 				const vehikel_besch_t *besch = cnv->get_vehikel(i)->get_besch();
 
@@ -1084,8 +1084,8 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 				total_min_weight += (min_weight*besch->get_zuladung()+499)/1000;
 			}
 			// ensure that argument of sqrt is not negative
-			max_speed = total_power < total_min_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), (uint32) (sqrt( (double)total_power/total_min_weight - 1)*50) );
-			min_speed = total_power < total_max_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), (uint32) (sqrt( (double)total_power/total_max_weight - 1)*50) );
+			max_speed = total_power < total_min_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), sqrt( (double)total_power/total_min_weight - 1)*50 );
+			min_speed = total_power < total_max_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), sqrt( (double)total_power/total_max_weight - 1)*50 );
 			sprintf(txt_convoi_count, "%s %d (%s %i)",
 				translator::translate("Fahrzeuge:"), cnv->get_vehikel_anzahl(),
 				translator::translate("Station tiles:"), cnv->get_tile_length() );
@@ -1175,6 +1175,8 @@ void depot_frame_t::draw_vehicle_info_text(koord pos)
 {
 	char buf[1024];
 	const char *c;
+	const koord size = get_fenstergroesse();
+	PUSH_CLIP(pos.x, pos.y, size.x-1, size.y-1);
 
 	gui_komponente_t const* const tab = tabs.get_aktives_tab();
 	gui_image_list_t const* const lst =
@@ -1300,6 +1302,7 @@ void depot_frame_t::draw_vehicle_info_text(koord pos)
 
 		display_multiline_text( pos.x + 200, pos.y + tabs.get_pos().y + tabs.get_groesse().y + 31 + LINESPACE*2 + 4, buf, COL_BLACK);
 	}
+	POP_CLIP();
 }
 
 

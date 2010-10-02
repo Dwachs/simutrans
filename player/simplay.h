@@ -59,8 +59,7 @@ class spieler_t
 public:
 	enum { MAX_KONTO_VERZUG = 3 };
 
-	enum { EMPTY=0, HUMAN=1, AI_GOODS=2, AI_PASSENGER=3, AI_WAI=4, MAX_AI };
-
+	enum { EMPTY=0, HUMAN=1, AI_GOODS=2, AI_PASSENGER=3, AI_WAI=4, MAX_AI, PASSWORD_PROTECTED=128 };
 protected:
 	char spieler_name_buf[256];
 
@@ -183,7 +182,7 @@ public:
 	pwd_hash_t& get_password_hash() { return pwd_hash; }
 
 	// this type of AIs identifier
-	virtual uint8 get_ai_id() { return HUMAN; }
+	virtual uint8 get_ai_id() const { return HUMAN; }
 
 	// @author hsiegeln
 	simlinemgmt_t simlinemgmt;

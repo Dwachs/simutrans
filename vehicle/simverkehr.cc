@@ -453,7 +453,14 @@ bool stadtauto_t::sync_step(long delta_t)
 	}
 	else {
 		weg_next += current_speed*delta_t;
-		weg_next -= fahre_basis( weg_next );
+		const uint32 distance = fahre_basis( weg_next );
+		// hop_check could have set weg_next to zero, check for possible underflow here
+		if (weg_next > distance) {
+			weg_next -= distance;
+		}
+		else {
+			weg_next = 0;
+		}
 	}
 
 	return time_to_life>0;
@@ -890,8 +897,8 @@ void stadtauto_t::calc_bild()
 void stadtauto_t::calc_current_speed()
 {
 	const weg_t * weg = welt->lookup(get_pos())->get_weg(road_wt);
-	const uint16 max_speed = besch->get_geschw();
-	const uint16 speed_limit = weg ? kmh_to_speed(weg->get_max_speed()) : max_speed;
+	const sint32 max_speed = besch->get_geschw();
+	const sint32 speed_limit = weg ? kmh_to_speed(weg->get_max_speed()) : max_speed;
 	current_speed += max_speed>>2;
 	if(current_speed > max_speed) {
 		current_speed = max_speed;

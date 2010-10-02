@@ -43,6 +43,17 @@ private:
 	sint32 last_schedule_count;
 	uint32 last_vehicle_count;
 
+	// so even japanese can have long enough names ...
+	char line_name[512], old_line_name[512];
+
+	// resets textinput to current line name
+	// necessary after line was renamed
+	void reset_line_name();
+
+	// rename selected line
+	// checks if possible / necessary
+	void rename_line();
+
 	void display(koord pos);
 
 	void update_lineinfo(linehandle_t new_line);
@@ -55,7 +66,7 @@ private:
 
 public:
 	schedule_list_gui_t(spieler_t* sp);
-
+	~schedule_list_gui_t();
 	/**
 	* in top-level fenstern wird der Name in der Titelzeile dargestellt
 	* @return den nicht uebersetzten Namen der Komponente
@@ -113,6 +124,11 @@ public:
 	 * @author isidoro
 	 */
 	void show_lineinfo(linehandle_t line);
+
+	/**
+	 * called after renaming of line
+	 */
+	void update_data(linehandle_t changed_line);
 };
 
 #endif

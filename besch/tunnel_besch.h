@@ -24,6 +24,9 @@
 #include "bildliste2d_besch.h"
 #include "weg_besch.h"
 
+
+class checksum_t;
+
 class tunnel_besch_t : public obj_besch_std_name_t {
 	friend class tunnel_writer_t;
 	friend class tunnel_reader_t;
@@ -32,7 +35,7 @@ class tunnel_besch_t : public obj_besch_std_name_t {
 private:
 	static int hang_indices[16];
 
-	uint32 topspeed;	// speed in km/h
+	sint32 topspeed;	// speed in km/h
 	uint32 preis;	// 1/100 credits
 	uint32 maintenance;	// monthly cost for bits_per_month=18
 	uint8 wegtyp;	// waytype for tunnel
@@ -90,7 +93,7 @@ public:
 
 	sint32 get_wartung() const { return maintenance; }
 
-	uint32  get_topspeed() const { return topspeed; }
+	sint32  get_topspeed() const { return topspeed; }
 
 	uint16 get_intro_year_month() const { return intro_date; }
 
@@ -113,6 +116,8 @@ public:
 	}
 
 	bool has_broad_portals() const { return (broad_portals != 0); };
+
+	void calc_checksum(checksum_t *chk) const;
 };
 
 #endif

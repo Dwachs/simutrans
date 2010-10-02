@@ -25,13 +25,9 @@ protected:
 	spieler_t *sp;
 
 	gui_hidden_textinput_t input;
-	gui_label_t fnlabel;        //filename                // 31-Oct-2001  Markus Weber    Added
+	gui_label_t fnlabel;
 
 public:
-	/**
-	 * @param suffix Filename suffix, i.e. ".sve", must be four characters
-	 * @author Hj. Malthaner
-	 */
 	password_frame_t( spieler_t *sp );
 
 	/**
@@ -43,9 +39,6 @@ public:
 	 * V.Meyer
 	 */
 	virtual bool action_triggered( gui_action_creator_t *komp, value_t extra);
-
-	// must catch open messgae to uptade list, since I am using virtual functions
-//	virtual void infowin_event(const event_t *ev);
 };
 
 #endif

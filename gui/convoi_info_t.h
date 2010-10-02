@@ -17,6 +17,7 @@
 #include "components/action_listener.h"
 #include "../convoihandle_t.h"
 #include "../linehandle_t.h"
+#include "../simconvoi.h"
 
 #include "../utils/cbuffer_t.h"
 
@@ -46,7 +47,7 @@ private:
 	button_t follow_button;
 	button_t go_home_button;
 	button_t no_load_button;
-	button_t filterButtons[7];
+	button_t filterButtons[MAX_CONVOI_COST];
 
 	button_t sort_button;
 	button_t details_button;
@@ -68,11 +69,23 @@ private:
 	*/
 	cbuffer_t freight_info;
 
+	char cnv_name[256],old_cnv_name[256];
+
+	// resets textinput to current cnv name
+	// necessary after cnv was renamed
+	void reset_cnv_name();
+
+	// rename selected cnv
+	// checks if possible / necessary
+	void rename_cnv();
+
 	static bool route_search_in_progress;
 	static const char *sort_text[SORT_MODES];
 
 public:
 	convoi_info_t(convoihandle_t cnv);
+
+	virtual ~convoi_info_t();
 
 	/**
 	 * Manche Fenster haben einen Hilfetext assoziiert.
@@ -104,4 +117,9 @@ public:
 	 * V.Meyer
 	 */
 	bool action_triggered( gui_action_creator_t *komp, value_t extra);
+
+	/**
+	 * called when convoi was renamed
+	 */
+	void update_data() { reset_cnv_name(); set_dirty(); }
 };

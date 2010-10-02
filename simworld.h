@@ -342,6 +342,9 @@ private:
 
 	uint32 tile_counter;
 
+	// to identify different stages of the same game
+	uint32 map_counter;
+
 	// recalculated speed boni for different vehicles
 	void recalc_average_speed();
 
@@ -375,6 +378,10 @@ private:
 	 * @auther Gerd Wachsmuth
 	 */
 	void distribute_groundobjs_cities(int new_cities, sint32 new_mittlere_einwohnerzahl, sint16 old_x, sint16 old_y);
+
+	// announce server and current state to listserver
+	// will be done in step when client number changed
+	void announce_server();
 
 public:
 	/* reads height data from 8 or 25 bit bmp or ppm files
@@ -815,7 +822,7 @@ public:
 	// the convois are also handled each steps => thus we keep track of them too
 	void add_convoi(convoihandle_t &cnv);
 	void rem_convoi(convoihandle_t& cnv);
-	unsigned get_convoi_count() const {return convoi_array.get_count();}
+	uint32 get_convoi_count() const {return convoi_array.get_count();}
 	const convoihandle_t get_convoi(sint32 i) const {return convoi_array[(uint32)i];}
 	vector_tpl<convoihandle_t>::const_iterator convois_begin() const { return convoi_array.begin(); }
 	vector_tpl<convoihandle_t>::const_iterator convois_end()   const { return convoi_array.end();   }
@@ -939,7 +946,7 @@ public:
 	 * @param filename name of the file to write
 	 * @author Hj. Malthaner
 	 */
-	void speichern(const char *filename,bool silent);
+	void speichern(const char *filename, const char *version, bool silent);
 
 	/**
 	 * Loads a map from a file
@@ -969,6 +976,16 @@ public:
 	void command_queue_append(network_world_command_t*);
 
 	void network_disconnect();
+
+	/**
+	 * to identify the current map
+	 */
+	uint32 get_map_counter() const { return map_counter; }
+	void set_map_counter(uint32 new_mc) { map_counter = new_mc; }
+	/**
+	 * called by server before sending the ready-cmds
+	 */
+	void reset_map_counter();
 };
 
 #endif

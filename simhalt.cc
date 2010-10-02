@@ -54,6 +54,7 @@
 #include "dings/label.h"
 
 #include "gui/halt_info.h"
+#include "gui/halt_detail.h"
 #include "gui/karte.h"
 
 #include "utils/simstring.h"
@@ -529,6 +530,15 @@ void haltestelle_t::set_name(const char *new_name)
 				DBG_MESSAGE("haltestelle_t::set_name()","name %s already used!",new_name);
 			}
 		}
+		// Knightly : need to update the title text of the associated halt detail and info dialogs, if present
+		halt_detail_t *const details_frame = dynamic_cast<halt_detail_t *>( win_get_magic( magic_halt_detail + self.get_id() ) );
+		if(  details_frame  ) {
+			details_frame->set_name( get_name() );
+		}
+		halt_info_t *const info_frame = dynamic_cast<halt_info_t *>( win_get_magic( magic_halt_info + self.get_id() ) );
+		if(  info_frame  ) {
+			info_frame->set_name( get_name() );
+		}
 	}
 }
 
@@ -644,12 +654,12 @@ char *haltestelle_t::create_name(const koord k, const char *typ, const int lang)
 			}
 			// now we have a building here
 			if (gb->is_monument()) {
-				building_name = translator::translate(gb->get_name());
+				building_name = translator::translate(gb->get_name(),lang);
 			}
 			else if (gb->ist_rathaus() ||
 				gb->get_tile()->get_besch()->get_utyp() == haus_besch_t::attraction_land || // land attraction
 				gb->get_tile()->get_besch()->get_utyp() == haus_besch_t::attraction_city) { // town attraction
-				building_name = make_single_line_string(translator::translate(gb->get_tile()->get_besch()->get_name()), 2);
+				building_name = make_single_line_string(translator::translate(gb->get_tile()->get_besch()->get_name(),lang), 2);
 			}
 			else {
 				// normal town house => not suitable for naming
@@ -1002,8 +1012,6 @@ sint32 haltestelle_t::rebuild_destinations()
 
 	last_catg_index = 255;	// must reroute everything
 	sint32 connections_searched = 0;
-
-	const bool i_am_public = (get_besitzer()==welt->get_spieler(1));
 
 	vector_tpl<warenzielsorter_t> warenziele_by_stops;
 
@@ -1876,6 +1884,11 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 		besitzer_p->halt_remove(self);
 		besitzer_p = public_owner;
 		public_owner->halt_add(self);
+	}
+
+	// set name to name of first public stop
+	if (!joining.empty()) {
+		set_name( joining.front()->get_name());
 	}
 
 	while(!joining.empty()) {

@@ -102,6 +102,13 @@ ifneq ($(PROFILE),)
   LDFLAGS += -pg
 endif
 
+ifneq ($(WITH_REVISION),)
+  REV = $(shell svnversion)
+  ifneq ($(REV),)
+    CFLAGS  += -DREVISION="$(REV)"
+  endif
+endif
+
 CFLAGS   += -Wall -W -Wcast-qual -Wpointer-arith -Wcast-align $(FLAGS)
 CCFLAGS  += -Wstrict-prototypes
 
@@ -115,8 +122,10 @@ SOURCES += bauer/warenbauer.cc
 SOURCES += bauer/wegbauer.cc
 SOURCES += besch/bild_besch.cc
 SOURCES += besch/bruecke_besch.cc
+SOURCES += besch/fabrik_besch.cc
 SOURCES += besch/grund_besch.cc
 SOURCES += besch/haus_besch.cc
+SOURCES += besch/vehikel_besch.cc
 SOURCES += besch/reader/bridge_reader.cc
 SOURCES += besch/reader/building_reader.cc
 SOURCES += besch/reader/citycar_reader.cc
@@ -165,6 +174,7 @@ SOURCES += dataobj/dingliste.cc
 SOURCES += dataobj/einstellungen.cc
 SOURCES += dataobj/fahrplan.cc
 SOURCES += dataobj/freelist.cc
+SOURCES += dataobj/gameinfo.cc
 SOURCES += dataobj/koord.cc
 SOURCES += dataobj/koord3d.cc
 SOURCES += dataobj/loadsave.cc
@@ -172,6 +182,7 @@ SOURCES += dataobj/marker.cc
 SOURCES += dataobj/network.cc
 SOURCES += dataobj/network_cmd.cc
 SOURCES += dataobj/network_packet.cc
+SOURCES += dataobj/pakset_info.cc
 SOURCES += dataobj/powernet.cc
 SOURCES += dataobj/ribi.cc
 SOURCES += dataobj/route.cc
@@ -253,6 +264,7 @@ SOURCES += gui/kennfarbe.cc
 SOURCES += gui/label_info.cc
 SOURCES += gui/labellist_frame_t.cc
 SOURCES += gui/labellist_stats_t.cc
+SOURCES += gui/line_item.cc
 SOURCES += gui/line_management_gui.cc
 SOURCES += gui/load_relief_frame.cc
 SOURCES += gui/loadsave_frame.cc
@@ -269,8 +281,10 @@ SOURCES += gui/player_frame_t.cc
 SOURCES += gui/savegame_frame.cc
 SOURCES += gui/scenario_frame.cc
 SOURCES += gui/schedule_list.cc
+SOURCES += gui/server_frame.cc
 SOURCES += gui/settings_frame.cc
 SOURCES += gui/settings_stats.cc
+SOURCES += gui/signal_spacing.cc
 SOURCES += gui/sound_frame.cc
 SOURCES += gui/sprachen.cc
 SOURCES += gui/stadt_info.cc
@@ -338,6 +352,7 @@ SOURCES += sucher/platzsucher.cc
 SOURCES += tpl/debug_helper.cc
 SOURCES += unicode.cc
 SOURCES += utils/cbuffer_t.cc
+SOURCES += utils/checksum.cc
 SOURCES += utils/log.cc
 SOURCES += utils/memory_rw.cc
 SOURCES += utils/searchfolder.cc
