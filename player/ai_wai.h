@@ -17,7 +17,7 @@ class wrapper_t;
 class ai_wai_t : public ai_t {
 public:
 	// Needed Interface:
-	virtual uint8 get_ai_id() { return AI_WAI; }
+	virtual uint8 get_ai_id() const { return AI_WAI; }
 	virtual ~ai_wai_t();
 	virtual void step();
 	virtual void neuer_monat();
