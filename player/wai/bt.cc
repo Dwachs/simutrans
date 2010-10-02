@@ -51,7 +51,7 @@ void bt_node_t::rdwr(loadsave_t* file, const uint16 /*version*/)
 		const char *t = NULL;
 		file->rdwr_str(t);
 		name = t;
-		delete [] t;
+		delete t;
 	}
 }
 
