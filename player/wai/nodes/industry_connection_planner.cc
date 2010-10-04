@@ -214,6 +214,9 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	for(uint32 i=0; i<ways->get_count(); i++) {
 		const weg_besch_t *wb = ways->operator [](i);
 
+		// no builder -> player cannot build, ai should not build
+		if (wb  &&  wb->get_builder()==NULL) continue;
+
 		uint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
 
