@@ -94,8 +94,8 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 		return NULL;
 	}
 	// distance
-	koord3d p1 = start_pos!=koord3d::invalid ? start->get_pos() : start_pos;
-	koord3d p2 =  ziel_pos!=koord3d::invalid ?  ziel->get_pos() :  ziel_pos;
+	koord3d p1 = start_pos!=koord3d::invalid ? start_pos : start->get_pos();
+	koord3d p2 =  ziel_pos!=koord3d::invalid ?  ziel_pos : ziel->get_pos();
 	const uint32 dist1 = koord_distance(p1, p2);
 	// wt planner
 	connection_plan_data_t *cpd = calc_plan_data(wt, prod, dist1);
@@ -234,7 +234,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 			cpd->report->gain_per_m               = gain_per_m;
 			cpd->wb                               = wb;
 		}
-		sp->get_log().message("industry_connection_planner_t::plan_connection", "way: %20s(%d) gain/tile=%lld tiles/m=%d nrv=%d gain/v*m=%lld gain/m=%lld", wb ? wb->get_name() : "open water", wb ? wb->get_topspeed() : 0, gain_per_tile, tiles_per_month, nr_vehicles, gain_per_v_m, gain_per_m);
+		sp->get_log().message("industry_connection_planner_t::plan_connection", "way: %20s(%d) gain/tile=%lld tiles/m=%d cost/m=%lld nrv=%d gain/v*m=%lld gain/m=%lld", wb ? wb->get_name() : "open water", wb ? wb->get_topspeed() : 0, gain_per_tile, tiles_per_month, cost_monthly, nr_vehicles, gain_per_v_m, gain_per_m);
 	}
 	delete ways;
 
