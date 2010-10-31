@@ -21,7 +21,7 @@ free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, koor
 	type = BT_FREE_TILE;
 }
 
-void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 version )
+void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 )
 {
 	pos.rdwr(file);
 	file->rdwr_bool(through);

@@ -25,7 +25,7 @@ return_value_t *builder_wayobj_t::step()
 	}
 }
 
-void builder_wayobj_t::rdwr( loadsave_t *file, const uint16 version )
+void builder_wayobj_t::rdwr( loadsave_t *file, const uint16 )
 {
 	start.rdwr( file );
 	ziel.rdwr( file );

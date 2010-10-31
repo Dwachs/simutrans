@@ -140,8 +140,8 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	// find position for harbour
 	koord3d harbour_pos = get_harbour_pos();
 	if (harbour_pos == koord3d::invalid) {
-		sp->get_log().warning("industry_connection_planner_t::step", "no marine rout");
-		NULL;
+		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
+		return NULL;
 	}
 	report_t *report1 = plan_simple_connection(wt, prod, harbour_pos, koord3d::invalid);
 	if (report1) {

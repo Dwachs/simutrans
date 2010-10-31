@@ -246,7 +246,6 @@ koord3d connector_ship_t::get_ship_target()
 	karte_t *welt = sp->get_welt();
 	// sea pos (and not on harbour ... )
 	halthandle_t halt = haltestelle_t::get_halt(welt,harbour_pos,sp);
-	const grund_t *gr = welt->lookup(harbour_pos);
 	koord pos1 = harbour_pos.get_2d();
 	koord3d best_pos = koord3d::invalid;
 	uint8 radius = 1; // welt->get_einstellungen()->get_station_coverage()
