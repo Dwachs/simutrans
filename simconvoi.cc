@@ -250,7 +250,9 @@ uint32 convoi_t::move_to(karte_t const& welt, koord3d const& k, uint16 const sta
 			v.betrete_feld();
 		}
 
-		if (i != anz_vehikel - 1U) train_length += v.get_besch()->get_length();
+		if (i != anz_vehikel - 1U) {
+			train_length += v.get_besch()->get_length();
+		}
 	}
 	return train_length;
 }
@@ -288,6 +290,8 @@ void convoi_t::laden_abschliessen()
 	bool realing_position = false;
 	if(anz_vehikel>0) {
 DBG_MESSAGE("convoi_t::laden_abschliessen()","state=%s, next_stop_index=%d", state_names[state] );
+		sint16 step_pos;
+		koord3d drive_pos;
 		for( uint8 i=0;  i<anz_vehikel;  i++ ) {
 			vehikel_t* v = fahr[i];
 			v->set_erstes( i==0 );
@@ -299,6 +303,24 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","state=%s, next_stop_index=%d", sta
 			if(v->need_realignment()) {
 				// diagonal => convoi must restart
 				realing_position |= (v->get_fahrtrichtung()&0x0A)!=0  &&  (state==DRIVING  ||  is_waiting());
+			}
+			// if version is 99.17 or lower, some convois are broken, i.e. had too large gaps between vehicles
+			if(  !realing_position  &&  state!=INITIAL  ) {
+				if(  i==0  ) {
+					step_pos = v->get_steps();
+				}
+				else {
+					if(  drive_pos!=v->get_pos()  ) {
+						step_pos += ribi_t::ist_kurve(v->get_fahrtrichtung()) ? 130560u/welt->get_einstellungen()->get_pak_diagonal_multiplier() : 255;
+					}
+					if(  abs( v->get_steps() - step_pos )>15  ) {
+						// not where it should be => realing
+						realing_position = true;
+						dbg->warning( "convoi_t::laden_abschliessen()", "convoi (%s) is broken => realign", get_name() );
+					}
+				}
+				step_pos -= v->get_besch()->get_length()*16;
+				drive_pos = v->get_pos();
 			}
 		}
 DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_index );
@@ -440,7 +462,7 @@ void convoi_t::set_name(const char *name, bool with_new_id)
 	if(  with_new_id  ) {
 		char buf[128];
 		name_offset = sprintf(buf,"(%i) ",self.get_id() );
-		tstrncpy(buf+name_offset, translator::translate(name), 116);
+		tstrncpy(buf+name_offset, translator::translate(name,welt->get_einstellungen()->get_name_language_id()), 116);
 		tstrncpy(name_and_id, buf, lengthof(name_and_id));
 	}
 	else {
@@ -560,9 +582,14 @@ void convoi_t::calc_acceleration(long delta_t)
 
 	// obey speed maximum with additional const brake ...
 	if(akt_speed > akt_speed_soll) {
-		akt_speed -= 24;
-		if(akt_speed > akt_speed_soll+kmh_to_speed(20)) {
-			akt_speed = akt_speed_soll+kmh_to_speed(20);
+		if (akt_speed > akt_speed_soll + 24) {
+			akt_speed -= 24;
+			if(akt_speed > akt_speed_soll+kmh_to_speed(20)) {
+				akt_speed = akt_speed_soll+kmh_to_speed(20);
+			}
+		}
+		else {
+			akt_speed = akt_speed_soll;
 		}
 	}
 
@@ -1506,8 +1533,11 @@ bool convoi_t::can_go_alte_richtung()
 		const vehikel_t* v = fahr[i];
 		grund_t *gr = welt->lookup(v->get_pos());
 
-
-		convoi_length += v->get_besch()->get_length();
+		// not last vehicle?
+		// the length of last vehicle does not matter when it comes to positioning of vehicles
+		if ( i+1 < anz_vehikel) {
+			convoi_length += v->get_besch()->get_length();
+		}
 
 		if(gr==NULL  ||  (pred!=NULL  &&  (abs(v->get_pos().x-pred->get_pos().x)>=2  ||  abs(v->get_pos().y-pred->get_pos().y)>=2))  ) {
 			// ending here is an error!
@@ -1678,7 +1708,15 @@ void convoi_t::vorfahren()
 			// in north/west direction, we leave the vehicle away to start as much back as possible
 			ribi_t::ribi neue_richtung = fahr[0]->get_fahrtrichtung();
 			if(neue_richtung==ribi_t::sued  ||  neue_richtung==ribi_t::ost) {
-				train_length += fahr[anz_vehikel-1]->get_besch()->get_length();
+				// drive the convoi to the same position, but do not hop into next tile!
+				if(  train_length%16==0  ) {
+					// any space we need => just add
+					train_length += fahr[anz_vehikel-1]->get_besch()->get_length();
+				}
+				else {
+					// limit train to front of tile
+					train_length += min( (train_length%16)-1, fahr[anz_vehikel-1]->get_besch()->get_length() );
+				}
 			}
 			else {
 				train_length += 1;
@@ -1730,8 +1768,7 @@ void convoi_t::vorfahren()
 }
 
 
-void
-convoi_t::rdwr(loadsave_t *file)
+void convoi_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t t( file, "convoi_t" );
 
@@ -2782,7 +2819,7 @@ void convoi_t::check_pending_updates()
 			fpl->set_aktuell( (fpl->get_aktuell()+fpl->get_count()-1)%fpl->get_count() );
 		}
 
- 		if(state!=INITIAL) {
+		if (state != INITIAL) {
 			if(is_same  ||  is_depot) {
 				/* same destination
 				 * We are already there => remove wrong freight and keep current state
@@ -2836,6 +2873,15 @@ void convoi_t::unregister_stops()
 		}
 	}
 }
+
+
+// set next stop before breaking will occur (or route search etc.)
+// currently only used for tracks
+void convoi_t::set_next_stop_index(uint16 n)
+{
+	next_stop_index = n+1;
+}
+
 
 
 /*

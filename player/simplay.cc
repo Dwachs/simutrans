@@ -160,18 +160,22 @@ const char* spieler_t::get_name(void) const
 }
 
 
+void spieler_t::set_name(const char *new_name)
+{
+	tstrncpy( spieler_name_buf, new_name, lengthof(spieler_name_buf) );
+}
+
+
 /* returns FALSE when unlocking!
  */
-bool spieler_t::set_unlock( uint8 *hash )
+bool spieler_t::set_unlock( const uint8 *hash )
 {
-	if(  locked  ) {
-		if (pwd_hash.empty()) {
-			locked = false;
-		}
-		else if(  hash!=NULL  ) {
-			// matches password?
-			locked = pwd_hash != hash;
-		}
+	if(  pwd_hash.empty()  ) {
+		locked = false;
+	}
+	else if(  hash!=NULL  ) {
+		// matches password?
+		locked = (pwd_hash != hash);
 	}
 	return locked;
 }
@@ -344,8 +348,8 @@ void spieler_t::neuer_monat()
 	// Bankrott ?
 	if(konto < 0) {
 		konto_ueberzogen++;
-		if(!welt->get_einstellungen()->is_freeplay()) {
-			if(this == welt->get_spieler(0)) {
+		if(!welt->get_einstellungen()->is_freeplay()  &&  player_nr!=1  ) {
+			if(  get_ai_id()==HUMAN  &&  !umgebung_t::networkmode  ) {
 				if(finance_history_year[0][COST_NETWEALTH]<0) {
 					destroy_all_win(true);
 					create_win(280, 40, new news_img("Bankrott:\n\nDu bist bankrott.\n"), w_info, magic_none);
@@ -354,14 +358,18 @@ void spieler_t::neuer_monat()
 				else {
 					// tell the player
 					sprintf(buf, translator::translate("On loan since %i month(s)"), konto_ueberzogen );
-//					sprintf(buf,translator::translate("Verschuldet:\n\nDu hast %d Monate Zeit,\ndie Schulden zurueckzuzahlen.\n"), MAX_KONTO_VERZUG-konto_ueberzogen+1 );
 					welt->get_message()->add_message(buf,koord::invalid,message_t::problems,player_nr,IMG_LEER);
 				}
 			}
-			else if(automat  &&  this!=welt->get_spieler(1)) {
+			else {
 				// for AI, we only declare bankrupt, if total assest are below zero
 				if(finance_history_year[0][COST_NETWEALTH]<0) {
 					ai_bankrupt();
+				}
+				// tell the current player
+				if(  welt->get_active_player_nr()==player_nr  ) {
+					sprintf(buf, translator::translate("On loan since %i month(s)"), konto_ueberzogen );
+					welt->get_message()->add_message(buf,koord::invalid,message_t::problems,player_nr,IMG_LEER);
 				}
 			}
 		}
@@ -875,6 +883,11 @@ DBG_DEBUG("spieler_t::rdwr()","player %i: loading %i halts.",welt->sp2num( this 
 			// disallow all actions, if password set (might be unlocked by karte_t::set_werkzeug() )
 			set_unlock( NULL );
 		}
+	}
+
+	// save the name too
+	if(file->get_version()>102003) {
+		file->rdwr_str( spieler_name_buf, lengthof(spieler_name_buf) );
 	}
 }
 

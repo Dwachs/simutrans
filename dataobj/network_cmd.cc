@@ -1,6 +1,8 @@
 #include "network_cmd.h"
 #include "network.h"
 #include "network_packet.h"
+#include "network_socket_list.h"
+#include "network_cmp_pakset.h"
 
 #include "loadsave.h"
 #include "gameinfo.h"
@@ -40,6 +42,7 @@ network_command_t* network_command_t::read_from_socket(SOCKET s)
 		case NWC_READY:       nwc = new nwc_ready_t(); break;
 		case NWC_TOOL:        nwc = new nwc_tool_t(); break;
 		case NWC_CHECK:       nwc = new nwc_check_t(); break;
+		case NWC_PAKSETINFO:  nwc = new nwc_pakset_info_t(); break;
 		default:
 			dbg->warning("network_command_t::read_from_socket", "received unknown packet id %d", p->get_id());
 	}
@@ -50,6 +53,13 @@ network_command_t* network_command_t::read_from_socket(SOCKET s)
 		}
 	}
 	return nwc;
+}
+
+
+// needed by world to kick clients if needed
+SOCKET network_command_t::get_sender()
+{
+	return packet->get_sender();
 }
 
 
@@ -160,7 +170,7 @@ bool nwc_gameinfo_t::execute(karte_t *welt)
 			fclose( fh );
 			remove( "serverinfo.sve" );
 		}
-		network_remove_client( s );
+		socket_list_t::remove_client( s );
 	}
 	else {
 		len = 0;
@@ -186,9 +196,9 @@ bool nwc_join_t::execute(karte_t *welt)
 		dbg->message("nwc_join_t::execute", "");
 		// TODO: check whether we can send a file
 		nwc_join_t nwj;
-		nwj.client_id = network_get_client_id(packet->get_sender());
+		nwj.client_id = socket_list_t::get_client_id(packet->get_sender());
 		// no other joining process active?
-		nwj.answer = nwj.client_id>0  &&  pending_join_client == INVALID_SOCKET ? 1 : 0;
+		nwj.answer = socket_list_t::get_client(nwj.client_id).is_active()  &&  pending_join_client == INVALID_SOCKET ? 1 : 0;
 		nwj.rdwr();
 		nwj.send( packet->get_sender());
 		if (nwj.answer == 1) {
@@ -196,14 +206,6 @@ bool nwc_join_t::execute(karte_t *welt)
 			nwc_sync_t *nws = new nwc_sync_t(welt->get_sync_steps() + umgebung_t::server_frames_ahead, welt->get_map_counter(), nwj.client_id);
 			network_send_all(nws, false);
 			pending_join_client = packet->get_sender();
-			// add message via tool!
-			cbuffer_t buf(256);
-			buf.printf( translator::translate("Now %u clients connected.",welt->get_einstellungen()->get_name_language_id()), network_get_clients() );
-			werkzeug_t *w = create_tool( WKZ_ADD_MESSAGE_TOOL | SIMPLE_TOOL );
-			w->set_default_param( buf );
-			welt->set_werkzeug( w, NULL );
-			// since init always returns false, it is save to delete immediately
-			delete w;
 		}
 	}
 	return true;
@@ -301,9 +303,13 @@ void nwc_sync_t::do_command(karte_t *welt)
 		sprintf( fn, "client%i-network.sve", network_get_client_id() );
 		filename = fn;
 
+		bool old_restore_UI = umgebung_t::restore_UI;
+		umgebung_t::restore_UI = true;
+
 		welt->speichern(filename, SERVER_SAVEGAME_VER_NR, false );
 		long old_sync_steps = welt->get_sync_steps();
 		welt->laden(filename );
+		umgebung_t::restore_UI = old_restore_UI;
 
 		// pause clients, restore steps
 		welt->network_game_set_pause(true, old_sync_steps);
@@ -329,6 +335,8 @@ void nwc_sync_t::do_command(karte_t *welt)
 			}
 		}
 #endif
+		bool old_restore_UI = umgebung_t::restore_UI;
+		umgebung_t::restore_UI = true;
 		welt->speichern(filename, SERVER_SAVEGAME_VER_NR, false );
 
 		// ok, now sending game
@@ -341,6 +349,7 @@ void nwc_sync_t::do_command(karte_t *welt)
 
 		long old_sync_steps = welt->get_sync_steps();
 		welt->laden(filename );
+		umgebung_t::restore_UI = old_restore_UI;
 
 #ifdef DO_NOT_SEND_HASHES
 		// restore password info
@@ -360,8 +369,12 @@ void nwc_sync_t::do_command(karte_t *welt)
 
 		// unpause the client that received the game
 		// we do not want to wait for him (maybe loading failed due to pakset-errors)
-		nwc_ready_t nwc(old_sync_steps, welt->get_map_counter());
-		nwc.send(network_get_socket(client_id));
+		SOCKET sock = socket_list_t::get_socket(client_id);
+		if (sock != INVALID_SOCKET) {
+			nwc_ready_t nwc(old_sync_steps, welt->get_map_counter());
+			nwc.send(sock);
+			socket_list_t::change_state(client_id, socket_info_t::playing);
+		}
 		nwc_join_t::pending_join_client = INVALID_SOCKET;
 	}
 	// restore screen coordinates & offsets
@@ -393,6 +406,8 @@ nwc_tool_t::nwc_tool_t(spieler_t *sp, werkzeug_t *wkz, koord3d pos_, uint32 sync
 	init = init_;
 	tool_client_id = 0;
 	flags = wkz->flags;
+	last_sync_step = sp->get_welt()->get_last_random_seed_sync();
+	last_random_seed = sp->get_welt()->get_last_random_seed();
 }
 
 
@@ -418,6 +433,8 @@ nwc_tool_t::~nwc_tool_t()
 void nwc_tool_t::rdwr()
 {
 	network_world_command_t::rdwr();
+	packet->rdwr_long(last_sync_step);
+	packet->rdwr_long(last_random_seed);
 	packet->rdwr_byte(player_nr);
 	sint16 posx = pos.x; packet->rdwr_short(posx); pos.x = posx;
 	sint16 posy = pos.y; packet->rdwr_short(posy); pos.y = posy;
@@ -456,7 +473,7 @@ bool nwc_tool_t::execute(karte_t *welt)
 			if (welt->is_paused()) {
 				// we cant do unpause in regular sync steps
 				// sent ready-command instead
-				nwc_ready_t *nwt = new nwc_ready_t(welt->get_sync_steps());
+				nwc_ready_t *nwt = new nwc_ready_t(welt->get_sync_steps(), welt->get_map_counter());
 				network_send_all(nwt, true);
 				welt->network_game_set_pause(false, welt->get_sync_steps());
 				// reset pending_join_client to allow connection attempts again
@@ -469,13 +486,15 @@ bool nwc_tool_t::execute(karte_t *welt)
 					return true;
 				}
 				// set pending_join_client to block connection attempts during pause
-				nwc_join_t::pending_join_client = network_get_socket(0);
+				nwc_join_t::pending_join_client = ~INVALID_SOCKET;
 			}
 		}
 		// copy data, sets tool_client_id to sender client_id
 		nwc_tool_t *nwt = new nwc_tool_t(*this);
 		nwt->exec = true;
 		nwt->sync_step = welt->get_sync_steps() + umgebung_t::server_frames_ahead;
+		nwt->last_sync_step = welt->get_last_random_seed_sync();
+		nwt->last_random_seed = welt->get_last_random_seed();
 		dbg->warning("nwc_tool_t::execute", "send sync_steps=%d  wkz=%d %s", nwt->get_sync_step(), wkz_id, init ? "init" : "work");
 		network_send_all(nwt, false);
 	}

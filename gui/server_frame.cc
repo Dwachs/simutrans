@@ -15,10 +15,12 @@
 #include "components/list_button.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/network.h"
+#include "../dataobj/network_cmp_pakset.h"
 #include "../dataobj/umgebung.h"
 #include "../dataobj/pakset_info.h"
 #include "server_frame.h"
 #include "messagebox.h"
+#include "help_frame.h"
 
 
 
@@ -46,7 +48,7 @@ server_frame_t::server_frame_t(karte_t* w) :
 	add_komponente( &add );
 
 	if(  !show_all_rev.pressed  ) {
-		show_all_rev.init( button_t::square_state, "show all", koord( 124, pos_y+2 ), koord( 112, BUTTON_HEIGHT) );
+		show_all_rev.init( button_t::square_state, "Show all", koord( 124, pos_y+2 ), koord( 112, BUTTON_HEIGHT) );
 		show_all_rev.set_tooltip( "Show even servers with wrong version or pakset" );
 		show_all_rev.add_listener(this);
 		add_komponente( &show_all_rev );
@@ -255,9 +257,9 @@ bool server_frame_t::action_triggered( gui_action_creator_t *komp, value_t p )
 {
 	if(  &serverlist == komp  ) {
 		if(  p.i<=-1  ) {
+			join.disable();
 			gi = gameinfo_t(welt);
 			update_info();
-			join.disable();
 		}
 		else {
 			join.disable();
@@ -285,14 +287,31 @@ bool server_frame_t::action_triggered( gui_action_creator_t *komp, value_t p )
 		update_serverlist( gi.get_game_engine_revision()*show_all_rev.pressed, show_all_rev.pressed ? NULL : gi.get_pak_name() );
 	}
 	else if(  &join == komp  ) {
-		std::string filename = "net:";
-		filename += serverlist.get_element(serverlist.get_selection())->get_text();
-		destroy_win(this);
-		welt->get_message()->clear();
-		welt->laden(filename.c_str());
+		if(  serverlist.get_selection()==-1  ) {
+			dbg->error( "server_frame_t::action_triggered()", "join pressed without valid selection" );
+			join.disable();
+		}
+		else {
+			std::string filename = "net:";
+			filename += serverlist.get_element(serverlist.get_selection())->get_text();
+			destroy_win(this);
+			welt->get_message()->clear();
+			welt->laden(filename.c_str());
+		}
 	}
 	else if(  &find_mismatch == komp  ) {
-		// to be implemented
+		if (gui_frame_t *info = win_get_magic(magic_pakset_info_t)) {
+			top_win(info);
+		}
+		else {
+			std::string msg;
+			network_compare_pakset_with_server(serverlist.get_element(serverlist.get_selection())->get_text(), msg);
+			if(  !msg.empty()  ) {
+				help_frame_t *win = new help_frame_t();
+				win->set_text(msg.c_str());
+				create_win(win, w_info, magic_pakset_info_t);
+			}
+		}
 	}
 	return true;
 }

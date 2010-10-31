@@ -334,34 +334,70 @@ const char *wkz_abfrage_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 
 			int old_count = win_get_open_count();
 
-			// show halt and labels first ...
-			if(  gr->get_halt().is_bound()  ) {
-				gr->get_halt()->zeige_info();
-				if(  old_count!=win_get_open_count()  ) {
-					return NULL;
+			if(  is_ctrl_pressed()  ) {
+				// reverse order
+				for(int n=0;  n<gr->get_top();  n++  ) {
+					ding_t *dt = gr->obj_bei(n);
+					if(dt  &&  dt->get_typ()!=ding_t::wayobj  &&  dt->get_typ()!=ding_t::pillar  &&  dt->get_typ()!=ding_t::label) {
+						DBG_MESSAGE("wkz_abfrage()", "index %d", n);
+						dt->zeige_info();
+						// did some new window open?
+						if(old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+							return NULL;
+						}
+					}
 				}
-			}
-			if(  gr->get_flag(grund_t::marked)  ) {
-				label_t *lb = gr->find<label_t>();
-				if(  lb  ) {
-					lb->zeige_info();
+
+				if(  gr->get_flag(grund_t::marked)  ) {
+					label_t *lb = gr->find<label_t>();
+					if(  lb  ) {
+						lb->zeige_info();
+						if(  old_count!=win_get_open_count()  ) {
+							return NULL;
+						}
+					}
+				}
+
+				if(  gr->get_halt().is_bound()  ) {
+					gr->get_halt()->zeige_info();
 					if(  old_count!=win_get_open_count()  ) {
 						return NULL;
 					}
 				}
-			}
 
-			for(int n=gr->get_top()-1;  n>=0;  n--  ) {
-				ding_t *dt = gr->obj_bei(n);
-				if(dt  &&  dt->get_typ()!=ding_t::wayobj  &&  dt->get_typ()!=ding_t::pillar  &&  dt->get_typ()!=ding_t::label) {
-					DBG_MESSAGE("wkz_abfrage()", "index %d", n);
-					dt->zeige_info();
-					// did some new window open?
-					if(old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+			}
+			else {
+
+				// show halt and labels first ...
+				if(  gr->get_halt().is_bound()  ) {
+					gr->get_halt()->zeige_info();
+					if(  old_count!=win_get_open_count()  ) {
 						return NULL;
 					}
 				}
+				if(  gr->get_flag(grund_t::marked)  ) {
+					label_t *lb = gr->find<label_t>();
+					if(  lb  ) {
+						lb->zeige_info();
+						if(  old_count!=win_get_open_count()  ) {
+							return NULL;
+						}
+					}
+				}
+
+				for(int n=gr->get_top()-1;  n>=0;  n--  ) {
+					ding_t *dt = gr->obj_bei(n);
+					if(dt  &&  dt->get_typ()!=ding_t::wayobj  &&  dt->get_typ()!=ding_t::pillar  &&  dt->get_typ()!=ding_t::label) {
+						DBG_MESSAGE("wkz_abfrage()", "index %d", n);
+						dt->zeige_info();
+						// did some new window open?
+						if(old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+							return NULL;
+						}
+					}
+				}
 			}
+
 			// no window yet opened -> try ground info
 			gr->zeige_info();
 		}
@@ -1190,15 +1226,19 @@ const char *wkz_marker_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 // show/repair blocks
 bool wkz_clear_reservation_t::init( karte_t *welt, spieler_t * )
 {
-	schiene_t::show_reservations = true;
-	welt->set_dirty();
+	if (is_local_execution()) {
+		schiene_t::show_reservations = true;
+		welt->set_dirty();
+	}
 	return true;
 }
 
 bool wkz_clear_reservation_t::exit( karte_t *welt, spieler_t * )
 {
-	schiene_t::show_reservations = false;
-	welt->set_dirty();
+	if (is_local_execution()) {
+		schiene_t::show_reservations = false;
+		welt->set_dirty();
+	}
 	return true;
 }
 
@@ -2710,7 +2750,7 @@ DBG_MESSAGE("wkz_station_building_aux()", "building mail office/station building
 	sint64 cost = welt->get_einstellungen()->cst_multiply_post*besch->get_level()*besch->get_b()*besch->get_h();
 	if(sp!=halt->get_besitzer()  &&  halt->get_besitzer()==welt->get_spieler(1)) {
 		// public stops are expensive!
-		cost += ((welt->get_einstellungen()->maint_building*besch->get_level()*besch->get_b()*besch->get_h()*60)<<(welt->ticks_per_world_month_shift-18));
+		cost -= ((welt->get_einstellungen()->maint_building*besch->get_level()*besch->get_b()*besch->get_h()*60)<<(welt->ticks_per_world_month_shift-18));
 	}
 	sp->buche( cost, pos, COST_CONSTRUCTION);
 	halt->recalc_station_type();
@@ -5264,7 +5304,7 @@ bool wkz_change_depot_t::init( karte_t *welt, spieler_t *sp )
 
 
 // sets the password (hash) for a given player
-bool wkz_change_password_hash_t::init( karte_t *, spieler_t *sp)
+bool wkz_change_password_hash_t::init( karte_t *welt, spieler_t *sp)
 {
 	if(  default_param==NULL  ) {
 		return false;
@@ -5305,6 +5345,7 @@ bool wkz_change_password_hash_t::init( karte_t *, spieler_t *sp)
 		}
 	}
 	sp->get_password_hash() = new_hash;
+	sp->set_unlock( welt->get_player_password_hash(sp->get_player_nr()) );
 	return false;
 }
 
@@ -5436,7 +5477,7 @@ bool wkz_change_city_t::init( karte_t *welt, spieler_t * )
 
 /* Handles all action of lines. Needs a default param:
  * [object='c|h|l|m|t'][id|pos],[name]
- * c=convoi, h=halt, l=line,  m=marker, t=town
+ * c=convoi, h=halt, l=line,  m=marker, t=town, p=player
  * in case of marker, id is a pos3d string
  */
 bool wkz_rename_t::init(karte_t* const welt, spieler_t *sp)
@@ -5452,6 +5493,7 @@ bool wkz_rename_t::init(karte_t* const welt, spieler_t *sp)
 		case 'l':
 		case 'c':
 		case 't':
+		case 'p':
 			id = atoi(p);
 			while(  *p>0  &&  *p++!=','  ) {
 			}
@@ -5531,6 +5573,11 @@ bool wkz_rename_t::init(karte_t* const welt, spieler_t *sp)
 				return false;
 			}
 			break;
+
+		case 'p':
+			if(  welt->get_spieler(id)  ) {
+				welt->get_spieler(id)->set_name(p);
+			}
 	}
 	// we are only getting here, if we could not process this request
 	dbg->error( "wkz_rename_t::init", "could not perform (%s)", default_param );
@@ -5547,5 +5594,3 @@ bool wkz_add_message_t::init( karte_t *welt, spieler_t *sp )
 	}
 	return false;
 }
-
-
