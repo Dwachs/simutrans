@@ -300,6 +300,7 @@ private:
 
 	// Variables used in interactive()
 	uint32 sync_steps;
+	uint32 last_random_seed, last_random_seed_sync;
 	uint8  network_frame_count;
 	uint32 fix_ratio_frame_time; // set in reset_timer()
 
@@ -338,7 +339,7 @@ private:
 
 	message_t *msg;
 
-	int average_speed[8];
+	sint32 average_speed[8];
 
 	uint32 tile_counter;
 
@@ -480,7 +481,7 @@ public:
 	einstellungen_t *access_einstellungen() const { return einstellungen; }
 
 	// returns current speed bonus
-	int get_average_speed(waytype_t typ) const { return average_speed[ (typ==16 ? 3 : (int)(typ-1)&7 ) ]; }
+	sint32 get_average_speed(waytype_t typ) const { return average_speed[ (typ==16 ? 3 : (int)(typ-1)&7 ) ]; }
 
 	// speed record management
 	sint32 get_record_speed( waytype_t w ) const;
@@ -972,6 +973,9 @@ public:
 	bool interactive(uint32 quit_month);
 
 	uint32 get_sync_steps() const { return sync_steps; }
+
+	uint32 get_last_random_seed() const { return last_random_seed; }
+	uint32 get_last_random_seed_sync() const { return last_random_seed_sync; }
 
 	void command_queue_append(network_world_command_t*);
 

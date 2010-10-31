@@ -14,7 +14,7 @@ builder_road_station_t::builder_road_station_t( ai_wai_t *sp, const char *name, 
 	type = BT_ROAD_STATION;
 }
 
-void builder_road_station_t::rdwr( loadsave_t *file, const uint16 version )
+void builder_road_station_t::rdwr( loadsave_t *file, const uint16 )
 {
 	place.rdwr( file );
 }

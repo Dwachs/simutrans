@@ -28,13 +28,12 @@ bool water_digger_t::is_allowed_step( const grund_t *from, const grund_t *to, lo
 
 sint64 water_digger_t::calc_costs()
 {
-	sint64 cost = 0;
 	const sint8 sea_level = welt->get_grundwasser();
 	int estimate = 0;
 
 	if (route.get_count()>1) {
 		for(uint32 i=1; i<route.get_count()-1; i++) {
-			bool ok = welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
+			welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
 		}
 	}
 	return  -(estimate*welt->get_einstellungen()->cst_alter_land);
