@@ -10,4 +10,5 @@
 /makeobj/makeobj.exe
 /sim
 /sim.exe
+*.*~
 *.diff
