@@ -69,13 +69,6 @@ bool water_digger_t::terraform()
 				return false;
 			}
 		}
-		// TODO: remove later
-		for(uint32 i=0; i<route.get_count(); i++) {
-			grund_t *gr = welt->lookup_kartenboden(route[i].get_2d());
-			if (gr  &&  gr->ist_wasser()) {
-				gr->calc_bild();  // to get ribis right
-			}
-		}
 		return true;
 	}
 	return false;
