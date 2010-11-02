@@ -44,7 +44,13 @@ return_value_t *industry_connector_t::step()
 		ic->set(forbidden);
 		// kill me
 		rv->code = RT_TOTAL_FAIL;
-		// TODO: remove already established connections
+		// remove already established connections: will be done if report is executed
+		if (connections) {
+			report_t *final = connections->get_final_report(sp);
+			if (final) {
+				sp->get_industry_manager()->append_report(final);
+			}
+		}
 	}
 	else if (rv->code & (RT_SUCCESS | RT_PARTIAL_SUCCESS)) {
 		if (rv->data) {
@@ -67,7 +73,7 @@ return_value_t *industry_connector_t::step()
 			}
 		}
 	}
-	if (rv->code & (RT_SUCCESS | RT_TOTAL_SUCCESS)) {
+	if (rv->code == RT_TOTAL_SUCCESS) {
 		// tell the industry manager
 		industry_link_t *ic = sp->get_industry_manager()->get_connection(*start, *ziel, freight);
 		ic->unset(planned);
