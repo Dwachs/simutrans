@@ -3,7 +3,6 @@
 
 #include "../simtypes.h"
 #include "../simdebug.h"
-#include <string.h>
 
 /**
  * An implementation of the tombstone pointer checking method.
