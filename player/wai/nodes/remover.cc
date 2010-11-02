@@ -31,7 +31,7 @@ uint8 remover_t::check_position(koord3d pos)
 		}
 		wkz_remover_t bulldozer;
 		bulldozer.init(welt, sp);
-		while(gr->get_depot()  &&  bulldozer.work(welt, sp, gr->get_pos())==NULL);
+		while(gr->get_depot()  &&  bulldozer.work(welt, sp, gr->get_pos())==NULL) { /*empty*/ }
 		if (gr->get_depot()) {
 			// depot does not want to go away .. ignore
 			return CP_IGNORE;
