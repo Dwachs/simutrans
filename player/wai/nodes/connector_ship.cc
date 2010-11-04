@@ -27,7 +27,7 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	nr_vehicles = 0;
 	phase = 0;
 	start = koord3d::invalid;
-	harbour_pos = koord3d::invalid;;
+	harbour_pos = koord3d::invalid;
 }
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos_ ) :
 	bt_sequential_t( sp, name ), fab1(fab1_, sp), fab2(fab2_, sp)
@@ -222,7 +222,7 @@ void connector_ship_t::debug( log_t &file, string prefix )
 	if (prototyper && phase<=2) prototyper->debug(file, next_prefix);
 }
 
-const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len)
+const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len) const
 {
 	weighted_vector_tpl<const haus_besch_t*> stops;
 
