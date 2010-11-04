@@ -217,7 +217,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		// no builder -> player cannot build, ai should not build
 		if (wb  &&  wb->get_builder()==NULL) continue;
 
-		uint32 max_speed = proto->max_speed;
+		sint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
 
 		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_world_month) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
