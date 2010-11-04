@@ -138,7 +138,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint32 prod)
 {
 	// find position for harbour
-	koord3d harbour_pos = get_harbour_pos();
+	koord3d harbour_pos = get_harbour_pos(*start, *ziel);
 	if (harbour_pos == koord3d::invalid) {
 		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
 		return NULL;
@@ -270,27 +270,45 @@ sint32 industry_connection_planner_t::calc_production()
 	return prod;
 }
 
-koord3d industry_connection_planner_t::get_harbour_pos() 
+/**
+ * tries to find amphibean route from start to end: 
+ * ships will drive from start to the harbour
+ * trucks will drive from the harbour to the end
+ * @returns position of harbour (or koord3d::invalid if no such route was found)
+ */
+koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend) const
 {
+	karte_t *welt = sp->get_welt();
+	const uint16 station_coverage = welt->get_einstellungen()->get_station_coverage();
 	// find the harbour position
 	vector_tpl<koord> startplatz;
-	start->get_tile_list( startplatz );
-	ai_t::add_neighbourhood( startplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
+	fstart->get_tile_list( startplatz );
+	ai_t::add_neighbourhood( startplatz, station_coverage);
 	vector_tpl<koord3d> startplatz2;
 	for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
-		startplatz2.append( sp->get_welt()->lookup_kartenboden(startplatz[i])->get_pos() );
+		grund_t *gr = welt->lookup_kartenboden(startplatz[i]);
+		if (gr->ist_wasser()) {
+			startplatz2.append( gr->get_pos() );
+		}
 	}
 
 	vector_tpl<koord> zielplatz;
-	ziel->get_tile_list( zielplatz );
-	ai_t::add_neighbourhood( zielplatz, sp->get_welt()->get_einstellungen()->get_station_coverage() );
+	fend->get_tile_list( zielplatz );
+	ai_t::add_neighbourhood( zielplatz, station_coverage );
 	vector_tpl<koord3d> zielplatz2;
 	for( uint32 i = 0; i < zielplatz.get_count(); i++ ) {
-		zielplatz2.append( sp->get_welt()->lookup_kartenboden(zielplatz[i])->get_pos() );
+		grund_t *gr = welt->lookup_kartenboden(zielplatz[i]);
+		if (!gr->ist_wasser()) {
+			zielplatz2.append( gr->get_pos() );
+		}
+	}
+
+	if (startplatz2.empty()  ||  zielplatz2.empty()) {
+		return koord3d::invalid;
 	}
 
 	amphi_searcher_t bauigel(sp->get_welt(), sp );
-	const weg_besch_t *weg_besch = wegbauer_t::weg_search(wt, 0, sp->get_welt()->get_timeline_year_month(), weg_t::type_flat);
+	const weg_besch_t *weg_besch = wegbauer_t::weg_search(wt, 0, welt->get_timeline_year_month(), weg_t::type_flat);
 	bauigel.route_fuer( (wegbauer_t::bautyp_t)wt, weg_besch, NULL, NULL );
 	// we won't destroy cities (and save the money)
 	bauigel.set_keep_existing_faster_ways(true);
@@ -300,9 +318,9 @@ koord3d industry_connection_planner_t::get_harbour_pos()
 
 	koord3d harbour_pos = koord3d::invalid;
 	if( bauigel.get_count() > 2 ) {
-		bool wasser = sp->get_welt()->lookup(bauigel.get_route()[0])->ist_wasser();
+		bool wasser = welt->lookup(bauigel.get_route()[0])->ist_wasser();
 		for( uint32 i = 1; i < bauigel.get_count(); i++ ) {
-			bool next_is_wasser = sp->get_welt()->lookup(bauigel.get_route()[i])->ist_wasser();
+			bool next_is_wasser = welt->lookup(bauigel.get_route()[i])->ist_wasser();
 			if( wasser != next_is_wasser ) {
 				if( next_is_wasser ) {
 					harbour_pos = bauigel.get_route()[i-1];

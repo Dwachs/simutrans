@@ -47,7 +47,7 @@ private:
 	report_t* plan_amph_connection(waytype_t wt, sint32 prod);
 
 
-	koord3d get_harbour_pos();
+	koord3d get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend) const;
 	sint32 calc_production();
 	sint64 calc_building_cost(const haus_besch_t* st);
 	sint64 calc_building_maint(const haus_besch_t* st);
