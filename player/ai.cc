@@ -546,7 +546,7 @@ void ai_t::rdwr_ware_besch(loadsave_t *file, const ware_besch_t * &freight)
 	if (file->is_loading())
 	{
 		freight = s ? warenbauer_t::get_info(s) : NULL;
-		if (s) delete s;
+		if (s) free(const_cast<char*>(s));
 	}
 }
 void ai_t::rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg)
@@ -559,7 +559,7 @@ void ai_t::rdwr_weg_besch(loadsave_t *file, const weg_besch_t * &weg)
 	if (file->is_loading())
 	{
 		weg = s ? wegbauer_t::get_besch(s,0) : NULL;
-		if (s) delete s;
+		if (s) free(const_cast<char*>(s));
 	}
 }
 
@@ -585,6 +585,7 @@ bool ai_t::rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel
 			}
 		}
 	}
+	if (s) free(const_cast<char*>(s));
 	return ok;
 }
 
