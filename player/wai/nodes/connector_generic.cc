@@ -112,6 +112,7 @@ return_value_t *connector_generic_t::step()
 
 				bauigel.calc_route(tile_list[0], tile_list[1]);
 				ok = bauigel.get_count() > 2;
+				// TODO: check whether both lists overlap!
 				if( !ok ) {
 					sp->get_log().warning( "connector_generic_t::step", "didn't found a route (%s) => (%s)", start.get_str(), ziel.get_2d().get_str());
 
