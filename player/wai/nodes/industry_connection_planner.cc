@@ -20,7 +20,7 @@
 class connection_plan_data_t {
 public:
 	connection_plan_data_t() : wb(0), d(0), report(0) {}
-	~connection_plan_data_t() 
+	~connection_plan_data_t()
 	{
 		if (d) { delete d; d=NULL; }
 		if (report) { delete report; report=NULL; }
@@ -35,11 +35,11 @@ public:
 
 return_value_t *industry_connection_planner_t::step()
 {
-	if(!start.is_bound()  ||  !ziel.is_bound()) {	
+	if(!start.is_bound()  ||  !ziel.is_bound()) {
 		sp->get_log().warning("industry_connection_planner_t::step", "%s %s disappeared", start.is_bound() ? "" : "start", ziel.is_bound() ? "" : "ziel");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
-	if(sp->get_industry_manager()->is_connection(unplanable, *start, *ziel, freight)) {		
+	if(sp->get_industry_manager()->is_connection(unplanable, *start, *ziel, freight)) {
 		sp->get_log().warning("industry_connection_planner_t::step", "connection already planned/built/forbidden");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -198,7 +198,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	// cost for stations
 	const sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
 	const sint64 main_buildings = 2*calc_building_maint(st) + calc_building_maint(dep);
-	
+
 	// init report
 	cpd->report = new report_t();
 	cpd->report->gain_per_m = 0x8000000000000000;
@@ -284,7 +284,7 @@ sint32 industry_connection_planner_t::calc_production()
 }
 
 /**
- * tries to find amphibean route from start to end: 
+ * tries to find amphibean route from start to end:
  * ships will drive from start to the harbour
  * trucks will drive from the harbour to the end
  * @returns position of harbour (or koord3d::invalid if no such route was found)
@@ -370,7 +370,7 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 				break;
 			}
 		}
-	
+
 		// where do we have to build the start harbour
 		if(ziel->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser) {
 			koord water_pos = (wasser ? bauigel.get_route()[0] : bauigel.get_route().back()).get_2d();
