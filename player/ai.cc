@@ -585,7 +585,9 @@ bool ai_t::rdwr_vector_vehicle_besch( loadsave_t *file, vector_tpl<const vehikel
 			}
 		}
 	}
-	if (s) free(const_cast<char*>(s));
+	if (file->is_loading()) {
+		if (s) free(const_cast<char*>(s));
+	}
 	return ok;
 }
 
