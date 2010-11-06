@@ -35,11 +35,11 @@ private:
 	uint8 phase;
 	koord3d start, deppos, harbour_pos, start_harbour_pos;
 
-	bool connector_ship_t::build_harbour(koord3d &pos) const;
+	bool build_harbour(koord3d &pos) const;
 	// Helper function:
 	const haus_besch_t* get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len=1) const;
 	// Get position for ship schedule
-	koord3d get_ship_target(koord3d pos);
+	koord3d get_ship_target(koord3d pos, koord3d target) const;
 };
 
 #endif /* CONNECTER_SHIP_H */

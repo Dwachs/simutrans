@@ -101,7 +101,7 @@ return_value_t *connector_ship_t::step()
 					ok = build_harbour(harbour_pos);
 				}
 				if (!ok) {
-					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbours (route %s => %s)", fab1->get_name(), fab2->get_name() );
+					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour (route %s => %s)", fab1->get_name(), fab2->get_name() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
@@ -168,10 +168,10 @@ return_value_t *connector_ship_t::step()
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
 				if (start_harbour_pos != fab1->get_pos()) {
-					start_harbour_pos = get_ship_target(start_harbour_pos);
+					start_harbour_pos = get_ship_target(start_harbour_pos, harbour_pos);
 				}
 				fpl->append(welt->lookup(start_harbour_pos), ladegrad);
-				koord3d ziel =  get_ship_target(harbour_pos);
+				koord3d ziel = get_ship_target(harbour_pos, start_harbour_pos);
 				fpl->append(welt->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -245,7 +245,7 @@ bool connector_ship_t::build_harbour(koord3d &pos) const
 		pos -= zv * (fh->get_h()-1);
 	}
 	else {
-		sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour at %s (route %s => %s)", pos.get_str(), fab1->get_name(), fab2->get_name() );
+		sp->get_log().warning( "connector_ship_t::build_harbour", "failed to build a harbour at %s (route %s => %s)", pos.get_str(), fab1->get_name(), fab2->get_name() );
 	}
 	return ok;
 }
@@ -276,9 +276,12 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 	return stops.empty() ? NULL : stops.at_weight(simrand(stops.get_sum_weight()));
 }
 
-// from ai_goods
-// TODO: parameter ziel position, um dann die beste Startposition zu finden..
-koord3d connector_ship_t::get_ship_target(koord3d pos) 
+/**
+ * from ai_goods
+ * find ship target position near harbout at pos, 
+ * which is as close as possible to target (in Euclidean distance, no route search)
+ */
+koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 {
 	karte_t *welt = sp->get_welt();
 	// sea pos (and not on harbour ... )
@@ -290,7 +293,8 @@ koord3d connector_ship_t::get_ship_target(koord3d pos)
 		for(  int x = pos1.x-radius;  x<=pos1.x+radius;  x++  ) {
 			const grund_t *gr = welt->lookup_kartenboden(koord(x,y));
 			// in water, the water tiles have no halt flag!
-			if(gr  &&  gr->ist_wasser()  &&  !gr->get_depot()  &&  !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)  &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),start)<koord_distance(best_pos,start))  ) {
+			if(gr  &&  gr->ist_wasser()  &&  !gr->get_depot()  &&  !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)
+			       &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),target) < koord_distance(best_pos,target))  ) {
 				best_pos = gr->get_pos();
 			}
 		}
