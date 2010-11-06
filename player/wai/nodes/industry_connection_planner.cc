@@ -118,7 +118,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 	bt_node_t *action = NULL;
 	switch(wt) {
 		case road_wt:
-			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd->wb, cpd->d, report->nr_vehicles, NULL, start_pos);
+			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd->wb, cpd->d, report->nr_vehicles, start_pos);
 			break;
 		case water_wt:
 			// p1, p2 contain positions of harbour
