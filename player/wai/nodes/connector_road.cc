@@ -30,38 +30,33 @@ connector_road_t::connector_road_t( ai_wai_t *sp, const char *name) :
 	bt_sequential_t( sp, name), fab1(NULL, sp), fab2(NULL, sp)
 {
 	type = BT_CON_ROAD;
-	road_besch = NULL;
-	prototyper = NULL;
+	road_besch  = NULL;
+	prototyper  = NULL;
 	nr_vehicles = 0;
-	phase = CREATE_SCHEDULE;
-	start = koord3d::invalid;
-	ziel = koord3d::invalid;
-	harbour_pos = koord3d::invalid;
+	phase  = CREATE_SCHEDULE;
+	start  = koord3d::invalid;
+	ziel   = koord3d::invalid;
+	deppos = koord3d::invalid;
 }
 
-connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, const weg_besch_t *road_besch_, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d harbour_pos_ ) :
+connector_road_t::connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, koord3d start_, koord3d ziel_, const weg_besch_t *road_besch_, simple_prototype_designer_t *d, uint16 nr_veh) :
 	bt_sequential_t( sp, name ), fab1(fab1_, sp), fab2(fab2_, sp)
 {
 	type = BT_CON_ROAD;
-	road_besch = road_besch_;
-	prototyper = d;
+	road_besch  = road_besch_;
+	prototyper  = d;
 	nr_vehicles = nr_veh;
-	phase = CREATE_SCHEDULE;
-	start = koord3d::invalid;
-	ziel = koord3d::invalid;
-	harbour_pos = harbour_pos_;
+	phase  = CREATE_SCHEDULE;
+	start  = koord3d::invalid;
+	ziel   = koord3d::invalid;
+	deppos = koord3d::invalid;
 
-	koord3d start_pos = fab1->get_pos();
-	if( harbour_pos != koord3d::invalid ) {
-		const grund_t *gr = sp->get_welt()->lookup(harbour_pos);
-		start_pos = harbour_pos + koord(gr->get_grund_hang()) + koord3d(0,0,1);
-	}
-	append_child(new connector_generic_t(sp, "connector_generic(road)", start_pos, fab2->get_pos(), road_besch));
+	append_child(new connector_generic_t(sp, "connector_generic(road)", start_, ziel_, road_besch));
 }
 
 connector_road_t::~connector_road_t()
 {
-	if (prototyper && phase<=2) delete prototyper;
+	if (prototyper && phase<=CREATE_SCHEDULE) delete prototyper;
 	prototyper = NULL;
 }
 
@@ -85,7 +80,6 @@ void connector_road_t::rdwr( loadsave_t *file, const uint16 version )
 	start.rdwr(file);
 	ziel.rdwr(file);
 	deppos.rdwr(file);
-	harbour_pos.rdwr(file);
 }
 
 void connector_road_t::rotate90( const sint16 y_size)
@@ -94,7 +88,6 @@ void connector_road_t::rotate90( const sint16 y_size)
 	start.rotate90(y_size);
 	ziel.rotate90(y_size);
 	deppos.rotate90(y_size);
-	harbour_pos.rotate90(y_size);
 }
 
 return_value_t *connector_road_t::step()

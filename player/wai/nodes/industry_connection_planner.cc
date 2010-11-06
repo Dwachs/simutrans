@@ -118,7 +118,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 	bt_node_t *action = NULL;
 	switch(wt) {
 		case road_wt:
-			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd->wb, cpd->d, report->nr_vehicles, start_pos);
+			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, p1, p2, cpd->wb, cpd->d, report->nr_vehicles);
 			break;
 		case water_wt:
 			// p1, p2 contain positions of harbour
@@ -156,7 +156,11 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
 		return NULL;
 	}
-	report_t *report1 = plan_simple_connection(wt, prod, !reverse ? target_harbour : koord3d::invalid, !reverse ? koord3d::invalid : target_harbour);
+	// find position for station on land
+	const grund_t *gr = sp->get_welt()->lookup(target_harbour);
+	koord3d land_pos = target_harbour + koord(gr->get_grund_hang()) + koord3d(0,0,1);
+
+	report_t *report1 = plan_simple_connection(wt, prod, !reverse ? land_pos : koord3d::invalid, !reverse ? koord3d::invalid : land_pos);
 	if (report1) {
 		report_t *report2 = plan_simple_connection(water_wt, prod, start_harbour, target_harbour, false /*no ind_connector*/);
 		if (report2) {

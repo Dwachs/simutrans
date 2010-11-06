@@ -20,7 +20,14 @@ class connector_road_t : public bt_sequential_t
 {
 public:
 	connector_road_t( ai_wai_t *sp, const char *name);
-	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d harbour_pos = koord3d::invalid);
+	/**
+	 * the constructor
+	 * @param fab1, fab2: factories to connect (only to check whether they still exists or not)
+	 * @param start, ziel: coordinates that should be connected by the class, will be passed to connector_generic
+	 * @param road_besch: road type to be built
+	 * @param d, nr_vehicles: passed to vehicle_builder
+	 */
+	connector_road_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, const weg_besch_t *road_besch, simple_prototype_designer_t *d, uint16 nr_veh);
 	~connector_road_t();
 	virtual return_value_t *step();
 
@@ -32,8 +39,10 @@ private:
 	const weg_besch_t *road_besch;
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
+	// entries in the schedule
+	koord3d start, ziel, deppos;
+	// progress counter
 	uint8 phase;
-	koord3d start, ziel, deppos, harbour_pos;
 };
 
 
