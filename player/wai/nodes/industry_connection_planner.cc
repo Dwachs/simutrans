@@ -65,10 +65,16 @@ return_value_t *industry_connection_planner_t::step()
 
 	report = NULL;
 	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
-		report = plan_amph_connection(road_wt, prod);
+		report = plan_amph_connection(road_wt, prod, false);
 	}
 	else {
-		report = plan_simple_connection(road_wt, prod);
+		report = NULL; // plan_simple_connection(road_wt, prod);
+		if (report==NULL) {
+			//report = plan_amph_connection(road_wt, prod, true);
+		}
+		if (report==NULL) {
+			report = plan_amph_connection(road_wt, prod, false);
+		}
 	}
 
 	if (report==NULL) {
@@ -88,6 +94,7 @@ return_value_t *industry_connection_planner_t::step()
 
 report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, sint32 prod, koord3d start_pos, koord3d ziel_pos, bool create_industry_connector)
 {
+	// TODO: check if route exists
 	// check for ways/stations/depots
 	if (!is_infrastructure_available(wt, sp->get_welt(), true)) {
 		sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","no ways/stations/depots found for waytype %d", wt);
@@ -114,7 +121,8 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, cpd->wb, cpd->d, report->nr_vehicles, NULL, start_pos);
 			break;
 		case water_wt:
-			action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd->d, report->nr_vehicles, ziel_pos);
+			// p1, p2 contain positions of harbour
+			action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd->d, report->nr_vehicles, p1, p2);
 			break;
 		default:
 			sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","unhandled waytype %d", wt);
@@ -135,17 +143,22 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 }
 
 
-report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint32 prod)
+/**
+ * plans connection from start to ziel
+ * @param reverse: if true the ships will drive from harbour to ziel (default: from start to harbour)
+ */
+report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint32 prod, bool reverse)
 {
 	// find position for harbour
-	koord3d harbour_pos = get_harbour_pos(*start, *ziel);
-	if (harbour_pos == koord3d::invalid) {
+	koord3d start_harbour;
+	koord3d target_harbour = !reverse ? get_harbour_pos(*start, *ziel, start_harbour) : get_harbour_pos(*ziel, *start, start_harbour);
+	if (target_harbour == koord3d::invalid) {
 		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
 		return NULL;
 	}
-	report_t *report1 = plan_simple_connection(wt, prod, harbour_pos, koord3d::invalid);
+	report_t *report1 = plan_simple_connection(wt, prod, !reverse ? target_harbour : koord3d::invalid, !reverse ? koord3d::invalid : target_harbour);
 	if (report1) {
-		report_t *report2 = plan_simple_connection(water_wt, prod, koord3d::invalid, harbour_pos, false /*no ind_connector*/);
+		report_t *report2 = plan_simple_connection(water_wt, prod, start_harbour, target_harbour, false /*no ind_connector*/);
 		if (report2) {
 			report1->merge_report(report2);
 		}
@@ -276,8 +289,9 @@ sint32 industry_connection_planner_t::calc_production()
  * trucks will drive from the harbour to the end
  * @returns position of harbour (or koord3d::invalid if no such route was found)
  */
-koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend) const
+koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend, koord3d &start_harbour) const
 {
+	start_harbour = koord3d::invalid;
 	karte_t *welt = sp->get_welt();
 	const uint16 station_coverage = welt->get_einstellungen()->get_station_coverage();
 	// find the harbour position
@@ -285,10 +299,35 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 	fstart->get_tile_list( startplatz );
 	ai_t::add_neighbourhood( startplatz, station_coverage);
 	vector_tpl<koord3d> startplatz2;
-	for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
-		grund_t *gr = welt->lookup_kartenboden(startplatz[i]);
-		if (gr->ist_wasser()) {
-			startplatz2.append( gr->get_pos() );
+	if(ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
+		// factory in water -> we do not need to build harbour
+		for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
+			grund_t *gr = welt->lookup_kartenboden(startplatz[i]);
+			if (gr->ist_wasser()) {
+				startplatz2.append( gr->get_pos() );
+			}
+		}
+	}
+	else {
+		// look for suitable place of start_harbour
+		for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
+			grund_t *gr = welt->lookup_kartenboden(startplatz[i]);
+			// find a dry place for the harbour
+			if (!gr->ist_wasser()  &&  gr->get_hoehe() == welt->get_grundwasser()  &&  gr->ist_natur()) {
+				// now look for water in front of it
+				grund_t *grw = welt->lookup_kartenboden(startplatz[i] - koord(gr->get_grund_hang()));
+				if (grw  &&  grw->ist_wasser()) {
+					startplatz2.append( grw->get_pos() );
+				}
+				/* maybe one day we can try this...
+				for(uint8 r=0; r<4; r++) {
+					grund_t *grw = welt->lookup_kartenboden(startplatz[i] + koord::nsow[r]);
+					if (grw  &&  grw->ist_wasser()) {
+						startplatz2.append( grw->get_pos() );
+						break;
+					}
+				}*/
+			}
 		}
 	}
 
@@ -329,6 +368,20 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 					harbour_pos = bauigel.get_route()[i];
 				}
 				break;
+			}
+		}
+	
+		// where do we have to build the start harbour
+		if(ziel->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser) {
+			koord water_pos = (wasser ? bauigel.get_route()[0] : bauigel.get_route().back()).get_2d();
+			// find the dry place
+			for(uint8 r=0; r<4; r++) {
+				grund_t *gr = welt->lookup_kartenboden(water_pos + koord::nsow[r]);
+				if (gr->get_hoehe()==welt->get_grundwasser()  &&  gr->ist_natur()  &&  koord(gr->get_grund_hang())==koord::nsow[r]  &&  startplatz.is_contained(gr->get_pos().get_2d())) {
+					// found!
+					start_harbour = gr->get_pos();
+					break;
+				}
 			}
 		}
 	}

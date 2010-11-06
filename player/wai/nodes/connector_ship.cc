@@ -29,7 +29,7 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	start = koord3d::invalid;
 	harbour_pos = koord3d::invalid;
 }
-connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos_ ) :
+connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, simple_prototype_designer_t *d, uint16 nr_veh, koord3d start_harbour_pos_, koord3d target_harbour_pos_ ) :
 	bt_sequential_t( sp, name ), fab1(fab1_, sp), fab2(fab2_, sp)
 {
 	type = BT_CON_SHIP;
@@ -37,7 +37,8 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik
 	nr_vehicles = nr_veh;
 	phase = 0;
 	start = fab1->get_pos();
-	harbour_pos = harbour_pos_;
+	start_harbour_pos = start_harbour_pos_;
+	harbour_pos = target_harbour_pos_;
 }
 
 connector_ship_t::~connector_ship_t()
@@ -65,6 +66,7 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 	start.rdwr(file);
 	deppos.rdwr(file);
 	harbour_pos.rdwr(file);
+	start_harbour_pos.rdwr(file);
 }
 
 void connector_ship_t::rotate90( const sint16 y_size)
@@ -73,6 +75,7 @@ void connector_ship_t::rotate90( const sint16 y_size)
 	start.rotate90(y_size);
 	deppos.rotate90(y_size);
 	harbour_pos.rotate90(y_size);
+	start_harbour_pos.rotate90(y_size);
 }
 
 return_value_t *connector_ship_t::step()
@@ -87,46 +90,28 @@ return_value_t *connector_ship_t::step()
 		switch(phase) {
 			case 0: {
 				// Our first step: Build a harbour.
-				// calculate space
-				koord zv(welt->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
-				koord test_pos(harbour_pos.get_2d() - zv);
-				for(uint8 i = 1; i<8; i++) {
-					grund_t *gr = welt->lookup_kartenboden(test_pos);
-					// TODO: reicht abfrage?
-					if (gr && gr->ist_wasser() && !gr->get_halt().is_bound() && gr->find<gebaeude_t>()==NULL) {
-						test_pos -= zv;
-					}
-					else {
-						break;
-					}
-				}
-				uint32 len = koord_distance(harbour_pos, test_pos);
-
-				// get a suitable station
-				const haus_besch_t* fh = get_random_harbour(welt->get_timeline_year_month(), haltestelle_t::WARE, len);
-				bool ok = fh!=NULL;
-
-				// build immediately 1x1 stations
-				if (ok) {
-					ok = sp->call_general_tool(WKZ_STATION, harbour_pos.get_2d(), fh->get_name());
-				}
-				// harbour_pos now the Molenende
-				if (ok) {
-					harbour_pos -= zv * (fh->get_h()-1);
+				bool ok = true;
+				if (start_harbour_pos != koord3d::invalid) {
+					ok = build_harbour(start_harbour_pos);
 				}
 				else {
-					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour at %s (route %s => %s)", harbour_pos.get_str(), fab1->get_name(), fab2->get_name() );
+					start_harbour_pos = fab1->get_pos();
+				}
+				if (ok) {
+					ok = build_harbour(harbour_pos);
+				}
+				if (!ok) {
+					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbours (route %s => %s)", fab1->get_name(), fab2->get_name() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
 			}
 			case 1: {
-				koord zv(welt->lookup_kartenboden(harbour_pos.get_2d())->get_grund_hang());
 				// test the digger
 				water_digger_t baubiber(welt, sp);
 				
 				baubiber.route_fuer((wegbauer_t::bautyp_t)water_wt, wegbauer_t::weg_search(water_wt, 1, 0, weg_t::type_flat));
-				baubiber.calc_route(start, harbour_pos-zv);
+				baubiber.calc_route(start_harbour_pos, harbour_pos);
 				const sint64 cost = baubiber.calc_costs();
 				if (baubiber.get_route().get_count()>2  &&  sp->is_cash_available(cost)) {
 					sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start.get_2d().get_str(), harbour_pos.get_str());
@@ -137,8 +122,14 @@ return_value_t *connector_ship_t::step()
 			}
 
 			case 2: {
+				// build depot
 				vector_tpl<koord> tiles;
-				fab1->get_tile_list( tiles );
+				if (start_harbour_pos != fab1->get_pos()) {
+					tiles.append(start_harbour_pos.get_2d());
+				}
+				else {
+					fab1->get_tile_list( tiles );
+				}
 				ai_t::add_neighbourhood( tiles, 5 );
 				koord3d best_tile = koord3d::invalid;
 				uint32 best_dist = 0xffffffff;
@@ -176,8 +167,11 @@ return_value_t *connector_ship_t::step()
 				// full load? or do we have unused capacity?
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
-				fpl->append(welt->lookup(start), ladegrad);
-				koord3d ziel =  get_ship_target(); // harbour_pos - koord(gr->get_grund_hang());
+				if (start_harbour_pos != fab1->get_pos()) {
+					start_harbour_pos = get_ship_target(start_harbour_pos);
+				}
+				fpl->append(welt->lookup(start_harbour_pos), ladegrad);
+				koord3d ziel =  get_ship_target(harbour_pos);
 				fpl->append(welt->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -214,6 +208,48 @@ return_value_t *connector_ship_t::step()
 	}
 }
 
+
+/**
+ * build harbour at pos
+ * pos is changed to be at the end of the newly build harbour mole
+ * return if operation was succesfull
+ */
+bool connector_ship_t::build_harbour(koord3d &pos) const
+{
+	karte_t *welt = sp->get_welt();
+	// calculate space
+	koord zv(welt->lookup_kartenboden(pos.get_2d())->get_grund_hang());
+	koord test_pos(pos.get_2d() - zv);
+	for(uint8 i = 1; i<8; i++) {
+		grund_t *gr = welt->lookup_kartenboden(test_pos);
+		// TODO: reicht abfrage?
+		if (gr && gr->ist_wasser() && !gr->get_halt().is_bound() && gr->find<gebaeude_t>()==NULL) {
+			test_pos -= zv;
+		}
+		else {
+			break;
+		}
+	}
+	uint32 len = koord_distance(pos, test_pos);
+
+	// get a suitable station
+	const haus_besch_t* fh = get_random_harbour(welt->get_timeline_year_month(), haltestelle_t::WARE, len);
+	bool ok = fh!=NULL;
+
+	// build immediately 1x1 stations
+	if (ok) {
+		ok = sp->call_general_tool(WKZ_STATION, pos.get_2d(), fh->get_name());
+	}
+	// harbour_pos now the Molenende
+	if (ok) {
+		pos -= zv * (fh->get_h()-1);
+	}
+	else {
+		sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour at %s (route %s => %s)", pos.get_str(), fab1->get_name(), fab2->get_name() );
+	}
+	return ok;
+}
+
 void connector_ship_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
@@ -241,19 +277,20 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 }
 
 // from ai_goods
-koord3d connector_ship_t::get_ship_target() 
+// TODO: parameter ziel position, um dann die beste Startposition zu finden..
+koord3d connector_ship_t::get_ship_target(koord3d pos) 
 {
 	karte_t *welt = sp->get_welt();
 	// sea pos (and not on harbour ... )
-	halthandle_t halt = haltestelle_t::get_halt(welt,harbour_pos,sp);
-	koord pos1 = harbour_pos.get_2d();
+	halthandle_t halt = haltestelle_t::get_halt(welt,pos,sp);
+	koord pos1 = pos.get_2d();
 	koord3d best_pos = koord3d::invalid;
 	uint8 radius = 1; // welt->get_einstellungen()->get_station_coverage()
 	for(  int y = pos1.y-radius;  y<=pos1.y+radius;  y++  ) {
 		for(  int x = pos1.x-radius;  x<=pos1.x+radius;  x++  ) {
-			const grund_t *gr = welt->lookup(koord3d(x,y,welt->get_grundwasser()));
+			const grund_t *gr = welt->lookup_kartenboden(koord(x,y));
 			// in water, the water tiles have no halt flag!
-			if(gr  &&  gr->ist_wasser() && !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)  &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),start)<koord_distance(best_pos,start))  ) {
+			if(gr  &&  gr->ist_wasser()  &&  !gr->get_depot()  &&  !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)  &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),start)<koord_distance(best_pos,start))  ) {
 				best_pos = gr->get_pos();
 			}
 		}

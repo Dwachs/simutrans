@@ -44,10 +44,10 @@ private:
 	 * plans combined land+sea connection
 	 * @param wt non-water waytype
 	 */
-	report_t* plan_amph_connection(waytype_t wt, sint32 prod);
+	report_t* plan_amph_connection(waytype_t wt, sint32 prod, bool reverse);
 
 
-	koord3d get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend) const;
+	koord3d get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend, koord3d &start_harbour) const;
 	sint32 calc_production();
 	sint64 calc_building_cost(const haus_besch_t* st);
 	sint64 calc_building_maint(const haus_besch_t* st);

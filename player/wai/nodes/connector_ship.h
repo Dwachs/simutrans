@@ -21,7 +21,7 @@ class connector_ship_t : public bt_sequential_t
 {
 public:
 	connector_ship_t( ai_wai_t *sp, const char *name);
-	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, simple_prototype_designer_t *d, uint16 nr_veh, const koord3d &harbour_pos );
+	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, simple_prototype_designer_t *d, uint16 nr_veh, koord3d start_harbour_pos_, koord3d target_harbour_pos_ );
 	~connector_ship_t();
 	virtual return_value_t *step();
 
@@ -33,12 +33,13 @@ private:
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
 	uint8 phase;
-	koord3d start, deppos, harbour_pos;
+	koord3d start, deppos, harbour_pos, start_harbour_pos;
 
+	bool connector_ship_t::build_harbour(koord3d &pos) const;
 	// Helper function:
 	const haus_besch_t* get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len=1) const;
 	// Get position for ship schedule
-	koord3d get_ship_target();
+	koord3d get_ship_target(koord3d pos);
 };
 
 #endif /* CONNECTER_SHIP_H */
