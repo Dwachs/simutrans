@@ -122,7 +122,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 			break;
 		case water_wt:
 			// p1, p2 contain positions of harbour
-			action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, cpd->d, report->nr_vehicles, p1, p2);
+			action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, p1, p2, cpd->d, report->nr_vehicles);
 			break;
 		default:
 			sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","unhandled waytype %d", wt);

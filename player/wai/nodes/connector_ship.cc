@@ -29,16 +29,16 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	start = koord3d::invalid;
 	harbour_pos = koord3d::invalid;
 }
-connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1_, const fabrik_t *fab2_, simple_prototype_designer_t *d, uint16 nr_veh, koord3d start_harbour_pos_, koord3d target_harbour_pos_ ) :
-	bt_sequential_t( sp, name ), fab1(fab1_, sp), fab2(fab2_, sp)
+connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, simple_prototype_designer_t *d, uint16 nr_veh) :
+	bt_sequential_t( sp, name ), fab1(fab1, sp), fab2(fab2, sp)
 {
 	type = BT_CON_SHIP;
 	prototyper = d;
 	nr_vehicles = nr_veh;
 	phase = 0;
 	start = fab1->get_pos();
-	start_harbour_pos = start_harbour_pos_;
-	harbour_pos = target_harbour_pos_;
+	start_harbour_pos = start_;
+	harbour_pos = ziel_;
 }
 
 connector_ship_t::~connector_ship_t()

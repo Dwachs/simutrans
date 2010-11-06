@@ -21,7 +21,13 @@ class connector_ship_t : public bt_sequential_t
 {
 public:
 	connector_ship_t( ai_wai_t *sp, const char *name);
-	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, simple_prototype_designer_t *d, uint16 nr_veh, koord3d start_harbour_pos_, koord3d target_harbour_pos_ );
+	/**
+	 * the constructor
+	 * @param fab1, fab2: factories to connect (only to check whether they still exists or not)
+	 * @param start, ziel: coordinates, where harbours should be built
+	 * @param d, nr_vehicles: passed to vehicle_builder
+	 */
+	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, simple_prototype_designer_t *d, uint16 nr_veh);
 	~connector_ship_t();
 	virtual return_value_t *step();
 
