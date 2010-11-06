@@ -26,7 +26,6 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	prototyper = NULL;
 	nr_vehicles = 0;
 	phase = 0;
-	start = koord3d::invalid;
 	harbour_pos = koord3d::invalid;
 }
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, simple_prototype_designer_t *d, uint16 nr_veh) :
@@ -36,7 +35,6 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik
 	prototyper = d;
 	nr_vehicles = nr_veh;
 	phase = 0;
-	start = fab1->get_pos();
 	start_harbour_pos = start_;
 	harbour_pos = ziel_;
 }
@@ -63,7 +61,6 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 	else {
 		prototyper = NULL;
 	}
-	start.rdwr(file);
 	deppos.rdwr(file);
 	harbour_pos.rdwr(file);
 	start_harbour_pos.rdwr(file);
@@ -72,7 +69,6 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 void connector_ship_t::rotate90( const sint16 y_size)
 {
 	bt_sequential_t::rotate90(y_size);
-	start.rotate90(y_size);
 	deppos.rotate90(y_size);
 	harbour_pos.rotate90(y_size);
 	start_harbour_pos.rotate90(y_size);
@@ -114,7 +110,7 @@ return_value_t *connector_ship_t::step()
 				baubiber.calc_route(start_harbour_pos, harbour_pos);
 				const sint64 cost = baubiber.calc_costs();
 				if (baubiber.get_route().get_count()>2  &&  sp->is_cash_available(cost)) {
-					sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start.get_2d().get_str(), harbour_pos.get_str());
+					sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start_harbour_pos.get_2d().get_str(), harbour_pos.get_str());
 					baubiber.terraform();
 				}
 				// no else branch as a route should exist without digging anyway
@@ -124,12 +120,7 @@ return_value_t *connector_ship_t::step()
 			case 2: {
 				// build depot
 				vector_tpl<koord> tiles;
-				if (start_harbour_pos != fab1->get_pos()) {
-					tiles.append(start_harbour_pos.get_2d());
-				}
-				else {
-					fab1->get_tile_list( tiles );
-				}
+				tiles.append(start_harbour_pos.get_2d());
 				ai_t::add_neighbourhood( tiles, 5 );
 				koord3d best_tile = koord3d::invalid;
 				uint32 best_dist = 0xffffffff;
@@ -140,7 +131,7 @@ return_value_t *connector_ship_t::step()
 					{// look for own depots and prefer them
 						depot_t* d = gr->get_depot();
 						if (d && d->get_besitzer()!=sp) continue;
-						uint32 dist = (d ? 1 : 10)*koord_distance( tiles[j], start );
+						uint32 dist = (d ? 1 : 10)*koord_distance( tiles[j], start_harbour_pos );
 						if( dist < best_dist ) {
 							best_dist = dist;
 							best_tile = gr->get_pos();
@@ -167,10 +158,8 @@ return_value_t *connector_ship_t::step()
 				// full load? or do we have unused capacity?
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
-				if (start_harbour_pos != fab1->get_pos()) {
-					start_harbour_pos = get_ship_target(start_harbour_pos, harbour_pos);
-				}
-				fpl->append(welt->lookup(start_harbour_pos), ladegrad);
+				koord3d start = get_ship_target(start_harbour_pos, harbour_pos);
+				fpl->append(welt->lookup(start), ladegrad);
 				koord3d ziel = get_ship_target(harbour_pos, start_harbour_pos);
 				fpl->append(welt->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );

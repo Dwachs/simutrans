@@ -1,5 +1,5 @@
-#ifndef CONNECTER_SHIP_H
-#define CONNECTER_SHIP_H
+#ifndef CONNECTOR_SHIP_H
+#define CONNECTOR_SHIP_H
 
 /*
  * This node builds a road connection.
@@ -39,7 +39,7 @@ private:
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
 	uint8 phase;
-	koord3d start, deppos, harbour_pos, start_harbour_pos;
+	koord3d deppos, harbour_pos, start_harbour_pos;
 
 	bool build_harbour(koord3d &pos) const;
 	// Helper function:
@@ -48,4 +48,4 @@ private:
 	koord3d get_ship_target(koord3d pos, koord3d target) const;
 };
 
-#endif /* CONNECTER_SHIP_H */
+#endif /* CONNECTOR_SHIP_H */

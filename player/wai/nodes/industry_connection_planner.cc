@@ -156,13 +156,17 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
 		return NULL;
 	}
+	// now:
+	// start_harbour  = !reverse ? load there : unload there
+	// target_harbour = !reverse ? unload there : load there
+
 	// find position for station on land
 	const grund_t *gr = sp->get_welt()->lookup(target_harbour);
 	koord3d land_pos = target_harbour + koord(gr->get_grund_hang()) + koord3d(0,0,1);
 
 	report_t *report1 = plan_simple_connection(wt, prod, !reverse ? land_pos : koord3d::invalid, !reverse ? koord3d::invalid : land_pos);
 	if (report1) {
-		report_t *report2 = plan_simple_connection(water_wt, prod, start_harbour, target_harbour, false /*no ind_connector*/);
+		report_t *report2 = plan_simple_connection(water_wt, prod, !reverse ? start_harbour : target_harbour, !reverse ? target_harbour : start_harbour, false /*no ind_connector*/);
 		if (report2) {
 			report1->merge_report(report2);
 		}

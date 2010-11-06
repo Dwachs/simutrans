@@ -1,5 +1,5 @@
-#ifndef CONNECTER_ROAD_H
-#define CONNECTER_ROAD_H
+#ifndef CONNECTOR_ROAD_H
+#define CONNECTOR_ROAD_H
 
 /*
  * This node builds a road connection.
@@ -46,4 +46,4 @@ private:
 };
 
 
-#endif /* CONNECTER_ROAD_H */
+#endif /* CONNECTOR_ROAD_H */
