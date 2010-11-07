@@ -336,7 +336,7 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 		for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
 			grund_t *gr = welt->lookup_kartenboden(startplatz[i]);
 			// find a dry place for the harbour
-			if (!gr->ist_wasser()  &&  gr->get_hoehe() == welt->get_grundwasser()  &&  gr->ist_natur()) {
+			if (gr  &&  !gr->ist_wasser()  &&  gr->get_hoehe() == welt->get_grundwasser()  &&  gr->ist_natur()) {
 				// now look for water in front of it
 				grund_t *grw = welt->lookup_kartenboden(startplatz[i] - koord(gr->get_grund_hang()));
 				if (grw  &&  grw->ist_wasser()) {
@@ -360,7 +360,7 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 	vector_tpl<koord3d> zielplatz2;
 	for( uint32 i = 0; i < zielplatz.get_count(); i++ ) {
 		grund_t *gr = welt->lookup_kartenboden(zielplatz[i]);
-		if (!gr->ist_wasser()) {
+		if (gr  &&  !gr->ist_wasser()) {
 			zielplatz2.append( gr->get_pos() );
 		}
 	}
@@ -400,7 +400,7 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 			// find the dry place
 			for(uint8 r=0; r<4; r++) {
 				grund_t *gr = welt->lookup_kartenboden(water_pos + koord::nsow[r]);
-				if (gr->get_hoehe()==welt->get_grundwasser()  &&  gr->ist_natur()  &&  koord(gr->get_grund_hang())==koord::nsow[r]  &&  startplatz.is_contained(gr->get_pos().get_2d())) {
+				if (gr  &&  gr->get_hoehe()==welt->get_grundwasser()  &&  gr->ist_natur()  &&  koord(gr->get_grund_hang())==koord::nsow[r]  &&  startplatz.is_contained(gr->get_pos().get_2d())) {
 					// found!
 					start_harbour = gr->get_pos();
 					break;
