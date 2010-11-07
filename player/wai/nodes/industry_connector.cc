@@ -1,6 +1,7 @@
 #include "industry_connector.h"
 #include "connections_manager.h"
 #include "industry_manager.h"
+#include "factory_searcher.h"
 #include "../datablock.h"
 #include "../../ai_wai.h"
 
@@ -12,6 +13,7 @@ bt_sequential_t(sp, name), start(0, sp), ziel(0, sp)
 	connections = NULL;
 	freight = NULL;
 	type = BT_CON_IND;
+	alternative = NULL;
 }
 
 industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) : 
@@ -20,6 +22,7 @@ bt_sequential_t(sp, name), start(s, sp), ziel(z, sp)
 	connections = NULL;
 	freight = f;
 	type = BT_CON_IND;
+	alternative = NULL;
 }
 
 industry_connector_t::~industry_connector_t()
@@ -27,6 +30,21 @@ industry_connector_t::~industry_connector_t()
 	if (connections) {
 		delete connections; 
 		connections = NULL;
+	}
+	if (alternative) {
+		delete alternative;
+		alternative = NULL;
+	}
+}
+
+void industry_connector_t::append_report(report_t *report)
+{
+	if (report) {
+		if (alternative) {	
+			sp->get_log().warning("industry_connector_t::append_report", "delete alternative report");
+			delete alternative;
+		}
+		alternative = report;
 	}
 }
 
@@ -40,8 +58,15 @@ return_value_t *industry_connector_t::step()
 	if (rv->is_failed()) {
 		// tell the industry manager
 		industry_link_t *ic = sp->get_industry_manager()->get_connection(*start, *ziel, freight);
-		ic->unset(planned);
-		ic->set(forbidden);
+
+		if (alternative) {
+			sp->get_factory_searcher()->append_report(alternative);
+			alternative = NULL;
+		}
+		else {
+			ic->set(forbidden);
+			ic->unset(planned);
+		}
 		// kill me
 		rv->code = RT_TOTAL_FAIL;
 		// remove already established connections: will be done if report is executed
@@ -97,12 +122,23 @@ void industry_connector_t::rdwr( loadsave_t *file, const uint16 version )
 	ziel.rdwr(file, version, sp);
 	ai_t::rdwr_ware_besch(file, freight);
 	connection_t::rdwr_connection(file, version, sp, connections);
+	bool have_alternative = alternative != NULL;
+	file->rdwr_bool(have_alternative);
+	if (have_alternative) {
+		if (file->is_loading()) {
+			alternative = new report_t();
+		}
+		alternative->rdwr(file, version, sp);
+	}
 }
 
 void industry_connector_t::rotate90( const sint16 y_size) 
 {
 	if (connections) {
 		connections->rotate90(y_size);
+	}
+	if (alternative) {
+		alternative->rotate90(y_size);
 	}
 }
 

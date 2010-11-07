@@ -19,6 +19,7 @@ public:
 
 	virtual return_value_t *step();
 
+	virtual void append_report(report_t *report);
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual void rotate90( const sint16);
 	virtual void debug( log_t &file, string prefix );
@@ -26,6 +27,8 @@ private:
 	wfabrik_t start, ziel;
 	const ware_besch_t *freight;
 	connection_t *connections;
+	// if build-attempt failed deliver this report to the factory_searcher
+	report_t *alternative;
 };
 
 #endif

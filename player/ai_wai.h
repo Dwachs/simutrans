@@ -31,6 +31,7 @@ public:
 	bool is_cash_available(sint64 money);
 	industry_manager_t* get_industry_manager() { return industry_manager; }
 	void set_industry_manager(industry_manager_t *im) { industry_manager = im; }
+	factory_searcher_t* get_factory_searcher() { return factory_searcher; }
 	void set_factory_searcher(factory_searcher_t *fs) { factory_searcher = fs; }
 
 	void notify_factory(notification_factory_t flag, const fabrik_t*);
