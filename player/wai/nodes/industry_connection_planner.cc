@@ -116,9 +116,12 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 	// distance
 	koord3d p1 = start_pos!=koord3d::invalid ? start_pos : start->get_pos();
 	koord3d p2 =  ziel_pos!=koord3d::invalid ?  ziel_pos : ziel->get_pos();
-	const uint32 dist1 = koord_distance(p1, p2);
+	const uint32 dist = koord_distance(p1, p2);
+	const uint32 dist_paid = max(koord_distance(ziel->get_pos(), p1) - koord_distance(ziel->get_pos(), p2), 0);
+	
+	sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","%s %s %d %d\n", p1.get_str(), p2.get_2d().get_str(), dist, dist_paid);
 	// wt planner
-	connection_plan_data_t *cpd = calc_plan_data(wt, prod, dist1);
+	connection_plan_data_t *cpd = calc_plan_data(wt, prod, dist, dist_paid);
 	if (!cpd->is_ok()) {
 		delete cpd;
 		return NULL;
@@ -165,7 +168,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	// find position for harbour
 	koord3d start_harbour;
 	koord3d target_harbour = !reverse ? get_harbour_pos(*start, *ziel, start_harbour) : get_harbour_pos(*ziel, *start, start_harbour);
-	if (target_harbour == koord3d::invalid) {
+	if (target_harbour == koord3d::invalid  ||  target_harbour == start_harbour) {
 		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
 		return NULL;
 	}
@@ -187,7 +190,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	return report1;
 }
 
-connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist, uint32 dist_way)
+connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist, uint32 dist_paid)
 {
 	// check for depots, station
 	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
@@ -234,15 +237,12 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 
 	// find the best way
 	vector_tpl<const weg_besch_t *> *ways;
-	if (wt!=water_wt  ||  dist_way>0) {
+	if (wt!=water_wt) {
 		ways = wegbauer_t::get_way_list(wt, sp->get_welt());
 	}
 	else {
 		ways = new vector_tpl<const weg_besch_t *>(1);
 		ways->append(NULL);
-	}
-	if (dist_way==0) {
-		dist_way = dist;
 	}
 	// loop over all ways and find the best
 	for(uint32 i=0; i<ways->get_count(); i++) {
@@ -259,12 +259,13 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		// number of vehicles
 		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
 
+		const uint32 real_tiles_per_month = (2*prod*dist) / (proto->get_capacity(freight)*nr_vehicles)+1;
 		// now check
-		const sint64 cost_monthly = (main_buildings + (wb ? dist_way*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
-		const sint64 gain_per_v_m = gain_per_tile * tiles_per_month;
+		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
+		const sint64 gain_per_v_m = (gain_per_tile * real_tiles_per_month * dist_paid) / dist;
 		const sint64 gain_per_m   = gain_per_v_m * nr_vehicles - cost_monthly;
 		if (gain_per_m > cpd->report->gain_per_m) {
-			cpd->report->cost_fix                 = cost_buildings + (wb ? dist_way*wb->get_preis()  : 0);
+			cpd->report->cost_fix                 = cost_buildings + (wb ? dist*wb->get_preis()  : 0);
 			cpd->report->cost_monthly             = cost_monthly;
 			cpd->report->gain_per_v_m             = gain_per_v_m;
 			cpd->report->nr_vehicles              = nr_vehicles;
