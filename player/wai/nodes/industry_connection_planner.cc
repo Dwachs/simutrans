@@ -16,6 +16,10 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../dings/wayobj.h"
 
+bool cmp_reports(report_t *r1, report_t *r2) {
+	return r1 ? (r2 ? r1->gain_per_m > r2->gain_per_m : true) : (r2==NULL);
+}
+
 // container class with designer and filled report
 class connection_plan_data_t {
 public:
@@ -63,24 +67,33 @@ return_value_t *industry_connection_planner_t::step()
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
 
-	report = NULL;
-	if(start->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
-		report = plan_amph_connection(road_wt, prod, false);
+	// plan road and road/water connections
+	vector_tpl<report_t*> reports(3);
+	report_t *report0 = plan_simple_connection(road_wt, prod);
+	if (report0) {
+		reports.insert_ordered(report0, cmp_reports);
 	}
-	else {
-		report = NULL; // plan_simple_connection(road_wt, prod);
-		if (report==NULL) {
-			//report = plan_amph_connection(road_wt, prod, true);
-		}
-		if (report==NULL) {
-			report = plan_amph_connection(road_wt, prod, false);
-		}
+	report0 = plan_amph_connection(road_wt, prod, true);
+	if (report0) {
+		reports.insert_ordered(report0, cmp_reports);
+	}
+	report0 = plan_amph_connection(road_wt, prod, false);
+	if (report0) {
+		reports.insert_ordered(report0, cmp_reports);
 	}
 
-	if (report==NULL) {
+	if (reports.empty()) {
 		sp->get_log().warning("industry_connection_planner_t::step","no report");
 		sp->get_industry_manager()->set_connection(forbidden, *start, *ziel, freight);
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+	}
+	for(uint32 i=0; i<reports.get_count(); i++) {
+		sp->get_log().warning("industry_connection_planner_t::step","report[%d] g/m %d", i, reports[i]->gain_per_m);
+	}
+	// concatenate reports
+	report = reports[0];
+	for(uint32 i=1; i<reports.get_count(); i++) {
+		reports[i-1]->action->append_report(reports[i]);
 	}
 
 	sp->get_log().message("industry_connection_planner_t::step","report delivered, gain /m = %lld", report->gain_per_m/100);
@@ -299,6 +312,7 @@ sint32 industry_connection_planner_t::calc_production()
  */
 koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, const fabrik_t* fend, koord3d &start_harbour) const
 {
+	// TODO: make sure that both harbours have enough distance
 	start_harbour = koord3d::invalid;
 	karte_t *welt = sp->get_welt();
 	const uint16 station_coverage = welt->get_einstellungen()->get_station_coverage();

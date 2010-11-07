@@ -225,7 +225,7 @@ bool connector_ship_t::build_harbour(koord3d &pos) const
 	const haus_besch_t* fh = get_random_harbour(welt->get_timeline_year_month(), haltestelle_t::WARE, len);
 	bool ok = fh!=NULL;
 
-	// build immediately 1x1 stations
+	// build harbour immediately
 	if (ok) {
 		ok = sp->call_general_tool(WKZ_STATION, pos.get_2d(), fh->get_name());
 	}
