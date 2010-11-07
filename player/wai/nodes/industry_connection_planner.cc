@@ -321,7 +321,7 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 	fstart->get_tile_list( startplatz );
 	ai_t::add_neighbourhood( startplatz, station_coverage);
 	vector_tpl<koord3d> startplatz2;
-	if(ziel->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
+	if(fstart->get_besch()->get_platzierung()==fabrik_besch_t::Wasser) {
 		// factory in water -> we do not need to build harbour
 		for( uint32 i = 0; i < startplatz.get_count(); i++ ) {
 			grund_t *gr = welt->lookup_kartenboden(startplatz[i]);
@@ -394,7 +394,7 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 		}
 
 		// where do we have to build the start harbour
-		if(ziel->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser) {
+		if(fstart->get_besch()->get_platzierung()!=fabrik_besch_t::Wasser) {
 			koord water_pos = (wasser ? bauigel.get_route()[0] : bauigel.get_route().back()).get_2d();
 			// find the dry place
 			for(uint8 r=0; r<4; r++) {

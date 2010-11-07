@@ -46,6 +46,7 @@ private:
 	const haus_besch_t* get_random_harbour(const uint16 time, const uint8 enables, uint32 max_len=1) const;
 	// Get position for ship schedule
 	koord3d get_ship_target(koord3d pos, koord3d target) const;
+	koord3d get_water_tile(koord3d pos) const;
 };
 
 #endif /* CONNECTOR_SHIP_H */

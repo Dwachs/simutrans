@@ -87,13 +87,10 @@ return_value_t *connector_ship_t::step()
 			case 0: {
 				// Our first step: Build a harbour.
 				bool ok = true;
-				if (start_harbour_pos != koord3d::invalid) {
+				if (start_harbour_pos != fab1->get_pos()) {
 					ok = build_harbour(start_harbour_pos);
 				}
-				else {
-					start_harbour_pos = fab1->get_pos();
-				}
-				if (ok) {
+				if (ok  &&  harbour_pos != fab2->get_pos()) {
 					ok = build_harbour(harbour_pos);
 				}
 				if (!ok) {
@@ -107,7 +104,10 @@ return_value_t *connector_ship_t::step()
 				water_digger_t baubiber(welt, sp);
 				
 				baubiber.route_fuer((wegbauer_t::bautyp_t)water_wt, wegbauer_t::weg_search(water_wt, 1, 0, weg_t::type_flat));
-				baubiber.calc_route(start_harbour_pos, harbour_pos);
+				// start / end in water
+				koord3d s = get_water_tile(start_harbour_pos);
+				koord3d z = get_water_tile(harbour_pos);
+				baubiber.calc_route(s, z);
 				const sint64 cost = baubiber.calc_costs();
 				if (baubiber.get_route().get_count()>2  &&  sp->is_cash_available(cost)) {
 					sp->get_log().message( "connector_ship_t::step", "digging %s => %s", start_harbour_pos.get_2d().get_str(), harbour_pos.get_str());
@@ -291,4 +291,13 @@ koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 	assert(best_pos != koord3d::invalid);
 	// no copy constructor for koord3d available :P
 	return koord3d(best_pos.get_2d(), best_pos.z);
+}
+
+/**
+ * if pos is water returns pos otherwise the water tile in front of it
+ */
+koord3d connector_ship_t::get_water_tile(koord3d pos) const
+{
+	grund_t *gr = sp->get_welt()->lookup(pos);
+	return gr->ist_wasser() ? pos : pos - koord(gr->get_grund_hang());
 }
