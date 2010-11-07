@@ -40,7 +40,7 @@ public:
 	 * Processes return values
 	 * TODO: append_undo, append_successor etc
 	 */
-	virtual void append_report(report_t * /*report*/) {};
+	virtual void append_report(report_t * /*report*/);
 	virtual report_t* get_report() { return NULL; };
 
 	/*

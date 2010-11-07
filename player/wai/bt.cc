@@ -1,14 +1,22 @@
 #include "bt.h"
 
-#include "../ai_wai.h"
-
 #include <string.h>
+#include "report.h"
+#include "../ai_wai.h"
 #include "../../dataobj/loadsave.h"
 
 // erzeugt einen return-value-instanz mit dem richtigen node-typ
 return_value_t* bt_node_t::new_return_value(return_code rc)
 {
 	return new return_value_t(rc, get_type());
+}
+
+void bt_node_t::append_report(report_t *report)
+{
+	if (report) {
+		sp->get_log().message( name.c_str(), "got a report: deleted" );
+		delete report;
+	}
 }
 
 return_value_t* bt_node_t::step()
