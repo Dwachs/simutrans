@@ -47,6 +47,9 @@ private:
 	// Get position for ship schedule
 	koord3d get_ship_target(koord3d pos, koord3d target) const;
 	koord3d get_water_tile(koord3d pos) const;
+	
+	// called when failed to remove already built infrastructure
+	void cleanup();
 };
 
 #endif /* CONNECTOR_SHIP_H */

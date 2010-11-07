@@ -146,6 +146,7 @@ return_value_t *connector_ship_t::step()
 				}
 				if( !ok ) {
 					sp->get_log().warning( "connector_ship::step()","depot building failed at (%s)", deppos.get_str());
+					cleanup();
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				break;
@@ -159,8 +160,13 @@ return_value_t *connector_ship_t::step()
 				const uint8 ladegrad = ( 100*prototyper->proto->get_capacity(prototyper->freight) )/ prototyper->proto->get_capacity(NULL);
 
 				koord3d start = get_ship_target(start_harbour_pos, harbour_pos);
-				fpl->append(welt->lookup(start), ladegrad);
 				koord3d ziel = get_ship_target(harbour_pos, start_harbour_pos);
+				if (start == koord3d::invalid  ||  ziel == koord3d::invalid) {
+					sp->get_log().warning( "connector_ship::step()","no starting position found");
+					cleanup();
+					return new_return_value(RT_TOTAL_FAIL);
+				}
+				fpl->append(welt->lookup(start), ladegrad);
 				fpl->append(welt->lookup(ziel), 0);
 				fpl->set_aktuell( 0 );
 				fpl->eingabe_abschliessen();
@@ -239,6 +245,25 @@ bool connector_ship_t::build_harbour(koord3d &pos) const
 	return ok;
 }
 
+void connector_ship_t::cleanup()
+{
+	switch (phase) {
+		case 3: { // remove depot
+			sp->call_general_tool(WKZ_REMOVER, deppos.get_2d(), "");
+		} // fall through
+		case 2:
+		case 1: { // remove harbours
+			if (start_harbour_pos != fab1->get_pos()) {
+				sp->call_general_tool(WKZ_REMOVER, start_harbour_pos.get_2d(), "");
+			}
+			if (harbour_pos != fab2->get_pos()) {
+				sp->call_general_tool(WKZ_REMOVER, harbour_pos.get_2d(), "");
+			}
+		} // fall through
+		default: ;
+	}
+}
+
 void connector_ship_t::debug( log_t &file, string prefix )
 {
 	bt_sequential_t::debug(file, prefix);
@@ -288,7 +313,9 @@ koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 			}
 		}
 	}
-	assert(best_pos != koord3d::invalid);
+	if (best_pos == koord3d::invalid) {
+		sp->get_log().warning( "connector_ship::get_ship_target()","no starting position found near (%s)", pos.get_str());
+	}
 	// no copy constructor for koord3d available :P
 	return koord3d(best_pos.get_2d(), best_pos.z);
 }
@@ -301,3 +328,4 @@ koord3d connector_ship_t::get_water_tile(koord3d pos) const
 	grund_t *gr = sp->get_welt()->lookup(pos);
 	return gr->ist_wasser() ? pos : pos - koord(gr->get_grund_hang());
 }
+
