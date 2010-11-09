@@ -119,6 +119,10 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 	const uint32 dist = koord_distance(p1, p2);
 	const uint32 dist_paid = max(koord_distance(ziel->get_pos(), p1) - koord_distance(ziel->get_pos(), p2), 0);
 	
+	if (dist==0) {
+		return new report_t();
+	}
+
 	sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","%s %s %d %d\n", p1.get_str(), p2.get_2d().get_str(), dist, dist_paid);
 	// wt planner
 	connection_plan_data_t *cpd = calc_plan_data(wt, prod, dist, dist_paid);
@@ -169,7 +173,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	koord3d start_harbour;
 	koord3d target_harbour = !reverse ? get_harbour_pos(*start, *ziel, start_harbour) : get_harbour_pos(*ziel, *start, start_harbour);
 	if (target_harbour == koord3d::invalid  ||  target_harbour == start_harbour) {
-		sp->get_log().warning("industry_connection_planner_t::step", "no marine route");
+		sp->get_log().warning("industry_connection_planner_t::plan_amph_connection", "no marine route");
 		return NULL;
 	}
 	// now:
@@ -214,7 +218,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	const vehikel_prototype_t *proto = d->proto;
 
 	if (proto->is_empty()) {
-		sp->get_log().warning("industry_connection_planner_t::step","no vehicle found for waytype %d and freight %s", wt, freight->get_name());
+		sp->get_log().warning("industry_connection_planner_t::calc_plan_data","no vehicle found for waytype %d and freight %s", wt, translator::translate(freight->get_name()));
 		return cpd;
 	}
 	// we checked everything, now the plan can be developed
@@ -244,6 +248,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		ways = new vector_tpl<const weg_besch_t *>(1);
 		ways->append(NULL);
 	}
+	const uint32 capacity = proto->get_capacity(freight);
 	// loop over all ways and find the best
 	for(uint32 i=0; i<ways->get_count(); i++) {
 		const weg_besch_t *wb = ways->operator [](i);
@@ -257,9 +262,9 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_world_month) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
 
 		// number of vehicles
-		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (proto->get_capacity(freight)*tiles_per_month)+1 );
+		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (capacity*tiles_per_month)+1 );
 
-		const uint32 real_tiles_per_month = (2*prod*dist) / (proto->get_capacity(freight)*nr_vehicles)+1;
+		const uint32 real_tiles_per_month = (2*prod*dist) / (capacity*nr_vehicles)+1;
 		// now check
 		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
 		const sint64 gain_per_v_m = (gain_per_tile * real_tiles_per_month * dist_paid) / dist;
