@@ -34,7 +34,8 @@ public:
 							  const uint32 max_weight,
 							  const slist_tpl<const ware_besch_t*> & freights,
 							  const bool include_electric,
-							  const bool not_obsolete );
+							  const bool not_obsolete,
+							  log_t *debug=NULL);
 
 	static convoi_t* baue(koord3d k, spieler_t* sp, const vehikel_prototype_t* proto );
 	/*

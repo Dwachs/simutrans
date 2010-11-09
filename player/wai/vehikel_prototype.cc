@@ -5,6 +5,7 @@
 #include "../../besch/vehikel_besch.h"
 #include "../../bauer/vehikelbauer.h"
 #include "../../dataobj/loadsave.h"
+#include "../../dataobj/translator.h"
 #include "../ai.h"
 #include "../ai_wai.h"
 #include "../../vehicle/simvehikel.h"
@@ -90,10 +91,13 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 							  const uint32 max_weight,
 							  const slist_tpl<const ware_besch_t*> & freights,
 							  const bool include_electric,
-							  const bool not_obsolete )
+							  const bool not_obsolete,
+							  log_t *debug_)
 {
 	// only8 different freight categories supported
 	assert(freights.get_count()<=8);
+
+	log_t *debug = debug_ ? debug_ : dbg;
 
 	// obey timeline
 	const uint32 month_now = (world->use_timeline() ? world->get_current_month() : 0);
@@ -134,7 +138,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 			if (test_besch->get_vorgaenger_count()!=1 || test_besch->get_vorgaenger(0)!=NULL) {
 				vehicles.insert(test_besch);
 			}
-			// dbg->message("VBAI", "approved vehicle %s", test_besch->get_name());
+			debug->message("VBAI", "approved vehicle %s", translator::translate(test_besch->get_name()));
 		}
 	}
 	// now vehicles contains only valid vehicles
@@ -150,7 +154,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 	}
 	// dummy values
 	// .. start with correct initial length
-	convoi_tpl[0].set_data(0, 0, 127, 0xffff, 0, 0xff >> (8-freights.get_count()));
+	convoi_tpl[0].set_data(0, 0, 0, 0xffff, 0, 0xff >> (8-freights.get_count()));
 
 	// the best so far- empty
 	vehikel_prototype_t* best = new vehikel_prototype_t();
@@ -180,32 +184,47 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				|| (i>0 && prev_besch->can_lead(test_besch) && test_besch->can_follow(prev_besch) && !blacklist.is_contained(test_besch))) {
 				// avoid some permutations - do we lose something here?
 				if ( i>0 && prev_besch->can_follow(test_besch) && test_besch->can_lead(prev_besch) && prev_besch->get_gewicht()<test_besch->get_gewicht()) {
-					// dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
+					debug->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
 					continue;
 				}
 				// avoid vehicles with wrong freight that do not allow new couplings
-				if (i>0 && test_besch->get_zuladung()>0 && !freights.is_contained(test_besch->get_ware())) {
-					if (test_besch->get_nachfolger_count()!=0) {
-						bool ignore = true;
-						for(uint16 j=0; ignore && j<test_besch->get_nachfolger_count(); j++) {
-							ignore = prev_besch->can_lead(test_besch->get_nachfolger(j));
+				if (i>0 && test_besch->get_zuladung()>0) {
+					// check for freight
+					bool ok = false;
+					slist_iterator_tpl<const ware_besch_t*> waren(freights);
+					while(!ok  &&  waren.next()){
+						const ware_besch_t* ware = waren.get_current();
+						if (test_besch->get_ware()->is_interchangeable(ware)) {
+							ok = true;
 						}
-						if (ignore) continue;
 					}
-					else {
-						if (prev_besch->get_nachfolger_count()==0) continue;
+					if (!ok) {
+						if (test_besch->get_nachfolger_count()!=0) {
+							bool ignore = true;
+							for(uint16 j=0; ignore && j<test_besch->get_nachfolger_count(); j++) {
+								ignore = prev_besch->can_lead(test_besch->get_nachfolger(j));
+							}
+							debug->message("VBAI", "[%2d] vehicle %20s ignored 1", i, test_besch->get_name());
+							if (ignore) continue;
+						}
+						else {
+							if (prev_besch->get_nachfolger_count()==0) {
+								debug->message("VBAI", "[%2d] vehicle %20s ignored 2", i, test_besch->get_name());
+								continue;
+							}
+						}
 					}
 				}
 				// avoid loks in the middle of a convoi
 				if (i>0 && test_besch->get_leistung()>0 && test_besch->can_follow_any() && prev_besch->get_leistung()==0){					dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
-					// dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
+					debug->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
 					continue;
 				}
 				// test for valid convoi
 				// .. max_len
-				if (i>0  &&  convoi_tpl[i].length + 16*convoi_tpl[i].besch[i-1]->get_length() > 256*max_length) {
-					// last vehicle does not count
-					//dbg->message("VBAI", "[%2d] vehicle %20s too long (%d+%d>%d)", i, test_besch->get_name(), convoi_tpl[i].length , 16*convoi_tpl[i].besch[i-1]->get_length(), 256*max_length);
+				// see convoi_t::get_tile_length()
+				if (i>0  &&  convoi_tpl[i].length + max(8, test_besch->get_length()) > 16*max_length) {
+					debug->message("VBAI", "[%2d] vehicle %20s too long (%d+%d>%d)", i, test_besch->get_name(), convoi_tpl[i].length, max(8, test_besch->get_length()), 16*max_length);
 					continue;
 				}
 				// .. max_weight and freights
@@ -228,7 +247,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				w = (w*test_besch->get_zuladung() + 499)/1000 + test_besch->get_gewicht();
 
 				if (convoi_tpl[i].weight + w > max_weight) {
-					// dbg->message("VBAI", "[%2d] vehicle %20s too heavy", i, test_besch->get_name());
+					debug->message("VBAI", "[%2d] vehicle %20s too heavy", i, test_besch->get_name());
 					continue;
 				}
 				convoi_tpl[i+1].weight = convoi_tpl[i].weight + w;
@@ -240,19 +259,17 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				convoi_tpl[i+1].max_speed = min(speed_to_kmh(convoi_tpl[i+1].min_top_speed),
 										(sint32) sqrt((((double)convoi_tpl[i+1].power/convoi_tpl[i+1].weight)-1)*2500));
 
-
-				// last vehicle does not count
-				convoi_tpl[i+1].length = convoi_tpl[i].length + (i>0 ? 16*convoi_tpl[i].besch[i-1]->get_length() : 0);
+				convoi_tpl[i+1].length = convoi_tpl[i].length + test_besch->get_length();
 				
 				convoi_tpl[i+1].besch.store_at(i, test_besch);
 
-				dbg->message("VBAI", "[%2d] test vehicle %20s, Fr=%d, W=%d, L=%d(%d), P=%d, Vmin=%d, Vmax=%d", i, test_besch->get_name(), convoi_tpl[i+1].missing_freights,
+				debug->message("VBAI", "[%2d] test vehicle %20s, Fr=%d, W=%d, L=%d(%d), P=%d, Vmin=%d, Vmax=%d", i, translator::translate(test_besch->get_name()), convoi_tpl[i+1].missing_freights,
 					convoi_tpl[i+1].weight, convoi_tpl[i+1].length, (convoi_tpl[i+1].length+255)/256, convoi_tpl[i+1].power, speed_to_kmh(convoi_tpl[i+1].min_top_speed), convoi_tpl[i+1].max_speed );
 
 				if (convoi_tpl[i+1].missing_freights==0 && convoi_tpl[i+1].max_speed >= min_speed ) {
 					// evaluate
 					sint64 value = eval->valuate(convoi_tpl[i+1]);
-					dbg->message("VBAI", "[%2d] evalutated: %d", i, value);
+					debug->message("VBAI", "[%2d] evalutated: %d", i, value);
 
 					// take best
 					if (value > best_value) {
@@ -272,7 +289,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 					// ignore something to reduce posible permutations
 					if ((i>0) && (convoi_tpl[i+1].besch[i-1]!=test_besch) && (convoi_tpl[i+1].besch[i-1]->can_follow_any()) ){
 						blacklist[i-1] = convoi_tpl[i+1].besch[i-1];
-						// dbg->message("VBAI", "[%2d] ignore: %s", i, convoi_tpl[i+1].besch[i-1]->get_name());
+						debug->message("VBAI", "[%2d] ignore: %s", i, convoi_tpl[i+1].besch[i-1]->get_name());
 					}
 					i++;
 					// copy tpl
@@ -287,11 +304,12 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				}
 			}
 			else {/*
-				if (i>0)
-					dbg->message("VBAI", "[%2d] vehicle %20s not suitable %d %d", i, test_besch->get_name(),convoi_tpl[i-1]->get_nachfolger_count(), test_besch->get_vorgaenger_count());
-				else
-					dbg->message("VBAI", "[%2d] vehicle %20s not suitable %d", i, test_besch->get_name(),test_besch->get_vorgaenger_count());
-		*/
+				if (i>0) {
+					debug->message("VBAI", "[%2d] vehicle %20s not suitable after %20s nf=%d vg=%d", i, translator::translate(test_besch->get_name()),translator::translate(convoi_tpl[i].besch[i-1]->get_name()),convoi_tpl[i].besch[i-1]->get_nachfolger_count(), test_besch->get_vorgaenger_count());
+				}
+				else {
+					debug->message("VBAI", "[%2d] vehicle %20s not suitable %d", i, test_besch->get_name(),test_besch->get_vorgaenger_count());
+				}*/
 			}
 		}
 		else {
@@ -306,10 +324,10 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 		steps++;
 		if ( (steps&16)==0) INT_CHECK("convoi_t* vehikelprototype_t::vehikel_search");
 	}
-	dbg->message("VBAI", "== Steps: %d", steps);
-	dbg->message("VBAI", "== Best : %d", best_value);
+	debug->message("VBAI", "== Steps: %d", steps);
+	debug->message("VBAI", "== Best : %d", best_value);
 	for (uint8 i=0; i<best->besch.get_count(); i++) {
-		dbg->message("VBAI", "-- [%2d]: %s", i, best->besch[i]->get_name() );
+		debug->message("VBAI", "-- [%2d]: %s", i, best->besch[i]->get_name() );
 
 	}
 
@@ -366,8 +384,9 @@ void simple_prototype_designer_t::update()
 	slist_tpl<const ware_besch_t *> freights;
 	freights.append(freight);
 
+	ai_wai_t* ai = dynamic_cast<ai_wai_t*>(sp);
 	proto = vehikel_prototype_t::vehikel_search(this, sp->get_welt(),
-							  wt, min_speed, max_length, max_weight, freights, include_electric, not_obsolete );
+		wt, min_speed, max_length, max_weight, freights, include_electric, not_obsolete, ai ? &(ai->get_log()) : NULL );
 }
 
 void simple_prototype_designer_t::rdwr(loadsave_t *file)
