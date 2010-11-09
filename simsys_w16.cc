@@ -155,8 +155,8 @@ int dr_query_screen_height()
 // open the window
 int dr_os_open(int w, int h, int bpp, int fullscreen)
 {
-	MaxSize.right = (w+16)&0x7FF0;
-	MaxSize.bottom = h;
+	MaxSize.right = (w+15)&0x7FF0;
+	MaxSize.bottom = h+1;
 
 	// fake fullscreen
 	if (fullscreen) {
@@ -230,7 +230,7 @@ int dr_os_open(int w, int h, int bpp, int fullscreen)
 	*((DWORD*)(AllDib + 1) + 1) = 0x000007E0;
 	*((DWORD*)(AllDib + 1) + 2) = 0x0000001F;
 #endif
-	return TRUE;
+	return MaxSize.right;
 }
 
 
@@ -254,22 +254,23 @@ int dr_textur_resize(unsigned short **textur, int w, int h, int bpp)
 	WAIT_FOR_SCREEN();
 
 	// some cards need those alignments
-	w = (w + 15) & 0x7FF8;
+	w = (w + 15) & 0x7FF0;
 	if(  w<=0  ) {
 		w = 16;
 	}
 
-	if(w>MaxSize.right  ||  h>MaxSize.bottom) {
+	if(w>MaxSize.right  ||  h>=MaxSize.bottom) {
 		// since the query routines that return the desktop data do not take into account a change of resolution
 		free(AllDibData);
 		AllDibData = NULL;
 		MaxSize.right = w;
-		MaxSize.bottom = h;
+		MaxSize.bottom = h+1;
 		AllDibData = MALLOCN(unsigned short, MaxSize.right * MaxSize.bottom );
 		*textur = AllDibData;
 	}
 
 	AllDib->biWidth   = w;
+	AllDib->biHeight  = h;
 	WindowSize.right  = w;
 	WindowSize.bottom = h;
 	return w;
@@ -349,6 +350,7 @@ void dr_flush()
 
 void dr_textur(int xp, int yp, int w, int h)
 {
+	h = min( yp+h, WindowSize.bottom ) - yp;
 	AllDib->biHeight = h+1;
 	StretchDIBits(
 		hdc,
