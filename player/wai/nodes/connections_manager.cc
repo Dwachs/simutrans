@@ -164,10 +164,8 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 		return NULL;
 	}
 	karte_t* welt = sp->get_welt();
-	// check wether freight is available at loading stations (with ladegrad >0)
-	// calculate capacities
-	bool freight_available = false;
 
+	// calculate capacities
 	convoihandle_t cnv0 = line->get_convoy(0);
 	uint32 cap_cnv = 0;
 	for(uint8 i=0; i<cnv0->get_vehikel_anzahl(); i++) {
@@ -179,27 +177,53 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			}
 		}
 	}
+	// we iterate through schedule
 	schedule_t* fpl = line->get_schedule();
+	// check wether freight is available //WAS: at loading stations (with ladegrad >0)
+	// sum of halts with freight for us
+	uint8 freight_available = 0;
+	bool foreign_freight = false;
+	uint32 loading_station = fpl->get_count();
 	for(uint32 i=0; i<fpl->get_count(); i++) {
 		if (fpl->eintrag[i].ladegrad>0) {
-			grund_t* gr = welt->lookup(fpl->eintrag[i].pos);
-			if (!gr) {
-				// TODO: correct schedule
-				sp->get_log().error( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
-				return NULL;
-			}
-			halthandle_t h = gr->get_halt();
-			if (!h.is_bound()) {
-				// TODO: correct schedule
-				sp->get_log().error( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
-				return NULL;
-			}
-			uint32 cap_halt = h->get_capacity(2);
-			uint32 goods_halt = h->get_ware_fuer_zielpos(freight, ziel->get_pos().get_2d());
-			// freight available ?
-			// either start is 2/3 full or more good available as one cnv can transort
-			freight_available = (3*goods_halt > 2*cap_halt) || (goods_halt > (fpl->eintrag[i].ladegrad*cap_cnv)/100 );
-			sp->get_log().message( "freight_connection_t::get_report()","line '%s' freight_available=%d (cap_cnv: %d, cap_halt: %d, goods_halt: %d)", line->get_name(), freight_available, cap_cnv, cap_halt, goods_halt);
+			loading_station = i;
+		}
+		grund_t* gr = welt->lookup(fpl->eintrag[i].pos);
+		if (!gr) {
+			// TODO: correct schedule
+			sp->get_log().error( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
+			return NULL;
+		}
+		halthandle_t h = gr->get_halt();
+		if (!h.is_bound()) {
+			// TODO: correct schedule
+			sp->get_log().error( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
+			return NULL;
+		}
+		uint32 cap_halt = h->get_capacity(2);
+		// freight to the next our
+		koord3d next_pos =  (i+1 < fpl->get_count() ? fpl->eintrag[i+1] : fpl->eintrag[0]).pos;
+		halthandle_t next_halt = haltestelle_t::get_halt(welt, next_pos.get_2d(), sp);
+		uint32 goods_halt = h->get_ware_fuer_zwischenziel(freight, next_halt);
+		// freight available ?
+		// either start is 2/3 full or more good available as one cnv can transport
+		bool has_freight = (3*goods_halt > 2*cap_halt) || (goods_halt > (fpl->eintrag[i].ladegrad*cap_cnv)/100 );
+		freight_available += has_freight;
+		// unexpected freight at non-loading stations
+		if (has_freight  &&  fpl->eintrag[i].ladegrad==0) {
+			foreign_freight = true;
+		}
+		sp->get_log().message( "freight_connection_t::get_report()","line '%s' at '%s' freight_available=%d (cap_cnv: %d, cap_halt: %d, goods_halt: %d)", line->get_name(), h->get_name(), has_freight, cap_cnv, cap_halt, goods_halt);
+	}
+	// do we need to correct max-waiting time?
+	// convention: ladegrad > 0 at loading station, only adjust waiting time
+	if (loading_station < fpl->get_count()) {
+		const bool adjust_schedule = foreign_freight ^ (fpl->eintrag[loading_station].waiting_time_shift>0);
+		if (adjust_schedule) {
+			schedule_t *new_fpl = fpl->copy();
+			new_fpl->eintrag[loading_station].waiting_time_shift = foreign_freight ? 4 /*  ??  */ : 0 /* inf wait time */;
+			line->set_schedule(new_fpl);
+			sp->simlinemgmt.update_line(line);
 		}
 	}
 
