@@ -18,6 +18,57 @@
 #include "../../../besch/vehikel_besch.h"
 #include "../../../besch/weg_besch.h"
 #include "../../../dataobj/loadsave.h"
+#include "../../../ifc/fahrer.h"
+
+
+class shipyard_searcher_t : public fahrer_t
+{
+private:
+	karte_t *welt;
+	spieler_t *sp;
+
+public:
+	shipyard_searcher_t(karte_t *w_, spieler_t *s_) : welt(w_), sp(s_), find_depot(false) {}
+
+	// force to find existing depot
+	bool find_depot;
+
+	bool ist_befahrbar(const grund_t *gr) const { return gr->ist_wasser(); }
+	ribi_t::ribi get_ribi(const grund_t *gr) const { return gr->get_weg_ribi(water_wt); }
+	waytype_t get_waytype() const { return water_wt; }
+
+	int get_kosten(const grund_t *gr,const sint32) const // ignored in find_route
+	{
+		// our depot?
+		depot_t *dep = gr->get_depot();
+		return (dep  &&  dep->get_besitzer() == sp)  ?  1  : 10;
+	}
+
+	// returns true for the way search to an unknown target.
+	// first is current ground, second is starting ground
+	virtual bool ist_ziel(const grund_t *gr, const grund_t * /*previous*/) const
+	{
+		if (gr  &&  gr->ist_wasser()) {
+			// our depot?
+			depot_t *dep = gr->get_depot();
+			if (dep) {
+				return dep->get_besitzer() == sp;
+				// TODO: check whether we can enter depot from the previous ground (given by unused parameter)
+			}
+			if (find_depot) {
+				return false;
+			}
+			// no halt
+			const planquadrat_t *plan = welt->lookup(gr->get_pos().get_2d());
+			if (plan->get_haltlist_count() > 0) {
+				return false;
+			}
+			return true;
+		}
+		return false;
+	}
+};
+
 
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	bt_sequential_t( sp, name ), fab1(NULL, sp), fab2(NULL, sp)
@@ -119,30 +170,23 @@ return_value_t *connector_ship_t::step()
 
 			case 2: {
 				// build depot
-				vector_tpl<koord> tiles;
-				tiles.append(start_harbour_pos.get_2d());
-				ai_t::add_neighbourhood( tiles, 5 );
-				koord3d best_tile = koord3d::invalid;
-				uint32 best_dist = 0xffffffff;
-				// Test which tiles are the best:
-				for( uint32 j = 0; j < tiles.get_count(); j++ ) {
-					const grund_t* gr = welt->lookup_kartenboden( tiles[j] );
-					if(  gr  &&  gr->ist_wasser()  &&  !gr->find<gebaeude_t>()  &&  !gr->get_leitung())
-					{// look for own depots and prefer them
-						depot_t* d = gr->get_depot();
-						if (d && d->get_besitzer()!=sp) continue;
-						uint32 dist = (d ? 1 : 10)*koord_distance( tiles[j], start_harbour_pos );
-						if( dist < best_dist ) {
-							best_dist = dist;
-							best_tile = gr->get_pos();
-						}
-					}
+				route_t route;
+				shipyard_searcher_t *werfti = new shipyard_searcher_t(welt, sp);
+				koord3d start = get_water_tile(start_harbour_pos);
+				// first try to find own depot
+				werfti->find_depot = true;
+				bool ok = route.find_route(welt, start, werfti, 1000, ribi_t::alle, 10);
+				if (!ok) {
+					werfti->find_depot = false;
+					ok = route.find_route(welt, start, werfti, 1000, ribi_t::alle, 100);
 				}
-				deppos = best_tile;
+				if (ok) {
+					deppos = route.back();
+				}
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, welt->get_timeline_year_month(), 0);
-				bool ok = dep!=NULL && deppos!=koord3d::invalid;
+				ok = ok  &&  dep!=NULL  &&  deppos!=koord3d::invalid;
 				if (ok && welt->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
-					ok &= sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
 				if( !ok ) {
 					sp->get_log().warning( "connector_ship::step()","depot building failed at (%s)", deppos.get_str());
@@ -328,4 +372,3 @@ koord3d connector_ship_t::get_water_tile(koord3d pos) const
 	grund_t *gr = sp->get_welt()->lookup(pos);
 	return gr->ist_wasser() ? pos : pos - koord(gr->get_grund_hang());
 }
-
