@@ -184,7 +184,7 @@ return_value_t *connector_ship_t::step()
 					deppos = route.back();
 				}
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, welt->get_timeline_year_month(), 0);
-				ok = ok  &&  dep!=NULL  &&  deppos!=koord3d::invalid;
+				ok = ok  &&  dep!=NULL;
 				if (ok && welt->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
 					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
 				}
