@@ -887,7 +887,7 @@ bool toolbar_t::exit( karte_t *, spieler_t *)
 
 bool two_click_werkzeug_t::init( karte_t *welt, spieler_t *sp )
 {
-	dbg->warning("two_click_werkzeug_t::init", "" );
+	DBG_MESSAGE("two_click_werkzeug_t::init", "" );
 	first_click_var[sp->get_player_nr()] = true;
 	welt->show_distance = start[sp->get_player_nr()] = koord3d::invalid;
 	cleanup( sp, true );
