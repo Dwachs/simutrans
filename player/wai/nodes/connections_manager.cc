@@ -381,9 +381,8 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		// find route start->end, start->depot
 		route_t verbindung_e, verbindung_d;
 		// get a default vehikel
-		fahrer_t* test_driver;
 		vehikel_besch_t remover_besch(wt, 500, vehikel_besch_t::diesel );
-		test_driver = vehikelbauer_t::baue(start, sp, NULL, &remover_besch);
+		vehikel_t *test_driver = vehikelbauer_t::baue(start, sp, NULL, &remover_besch);
 		// .. first start->end
 		sp->get_log().warning("freight_connection_t::get_final_report", "start %s", start.get_str());
 		sp->get_log().warning("freight_connection_t::get_final_report", "end %s", end.get_str());
@@ -441,6 +440,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 			}
 			root->append_child( new remover_t(sp, wt, depot, depot_end));
 		}
+		test_driver->set_flag(ding_t::not_on_map);
 		delete test_driver;
 	}
 	// immediately sell all convois
