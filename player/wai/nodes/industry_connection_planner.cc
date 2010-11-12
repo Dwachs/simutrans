@@ -207,7 +207,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	d->freight = freight;
 	d->production = prod;
 	d->include_electric = false; // wt != road_wt;
-	d->max_length = 1;
+	d->max_length = wt != water_wt ? 1 : 4;
 	d->max_weight = 0xffffffff;
 	d->min_speed  = 1;
 	d->not_obsolete = true;
