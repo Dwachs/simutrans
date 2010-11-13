@@ -81,27 +81,8 @@ return_value_t* remover_t::step()
 	karte_t *welt = sp->get_welt();
 	// remove harbours at end
 	if (wt==water_wt  &&  first_step) {
-		// find harbour
-		grund_t *harbour = NULL;
-		grund_t *gr = welt->lookup(end);
-		if (gr  &&  !gr->is_halt()) {
-			for (uint8 r=0; r<8; r++) {
-				grund_t *test=welt->lookup_kartenboden(end.get_2d() + koord::neighbours[r]);
-				if (test  &&  test->is_halt()  &&  test->get_halt()->get_besitzer()==sp  
-					&&  (!test->hat_wege()  ||  test->hat_weg(water_wt))) {
-					harbour = test;
-					break;
-				}
-			}
-		}
-		if (harbour) {
-			wkz_remover_t bulldozer;
-			const char *msg;
-			do {
-				msg = bulldozer.work(welt, sp, harbour->get_pos());
-			} while (msg==NULL  ||  harbour->is_halt());
-			sp->get_log().warning("remover_t::step", "harbour at (%s) deleted, msg = %s", harbour->get_pos().get_str(), msg);
-		}
+		remove_harbour(start);
+		remove_harbour(end);
 	}
 	first_step = false;
 	if(  wt==powerline_wt  ) {
@@ -211,6 +192,33 @@ void remover_t::remove_way_end(koord3d &pos)
 				}
 			}
 		}
+	}
+}
+
+void remover_t::remove_harbour(koord3d pos) const
+{
+	karte_t *welt = sp->get_welt();
+	// find harbour
+	grund_t *harbour = NULL;
+	grund_t *gr = welt->lookup(pos);
+	halthandle_t halt = haltestelle_t::get_halt(welt, pos, sp);
+	if (gr  &&  !gr->is_halt()  &&  halt.is_bound()  &&  halt->get_besitzer()==sp) {
+		for (uint8 r=0; r<8; r++) {
+			grund_t *test=welt->lookup_kartenboden(pos.get_2d() + koord::neighbours[r]);
+			if (test  &&  test->is_halt()  &&  test->get_halt() == halt
+				&&  (!test->hat_wege()  ||  test->hat_weg(water_wt))) {
+				harbour = test;
+				break;
+			}
+		}
+	}
+	if (harbour) {
+		wkz_remover_t bulldozer;
+		const char *msg;
+		do {
+			msg = bulldozer.work(welt, sp, harbour->get_pos());
+		} while (msg==NULL  ||  harbour->is_halt());
+		sp->get_log().warning("remover_t::step", "harbour at (%s) deleted, msg = %s", harbour->get_pos().get_str(), msg);
 	}
 }
 

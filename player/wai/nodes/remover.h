@@ -25,6 +25,7 @@ public:
 private:
 	uint8 check_position(koord3d pos);
 	void remove_way_end(koord3d &pos);
+	void remove_harbour(koord3d pos) const;
 	bool first_step;
 };
 
