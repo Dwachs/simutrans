@@ -137,6 +137,11 @@ return_value_t* remover_t::step()
 					const char *err1 = wkz.work(welt, sp, verbindung.position_bei(min(i,i-step)));
 					const char *err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(max(i,i-step))) : err1;
 					sp->get_log().warning("remover_t::step", "from %s to %s, res %d/%s/%s", verbindung.position_bei(min(i,i-step)).get_str(),verbindung.position_bei(max(i,i-step)).get_2d().get_str(), res, err1, err2);
+					if (err2!=NULL) {
+						// maybe end tile owned by other player, remove way directly on the tile
+						err1 = wkz.work(welt, sp, verbindung.position_bei(i-step));
+						err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(i-step)) : err1;
+					}
 					if (err1!=NULL	||  err2!=NULL) {
 							ok = false;
 					}
