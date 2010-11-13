@@ -383,9 +383,10 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 			// TODO: what if a new route is build in the meanwhile that needs this depot?
 			if (ok) {
 				depot = try_depot;
+				report->cost_fix   += -welt->get_einstellungen()->cst_multiply_remove_haus;
+				report->gain_per_m += industry_connection_planner_t::calc_building_maint(dep->get_tile()->get_besch(), welt);
+
 			}
-			report->cost_fix   += -welt->get_einstellungen()->cst_multiply_remove_haus;
-			report->gain_per_m += industry_connection_planner_t::calc_building_maint(dep->get_tile()->get_besch(), welt);
 		}
 		// now find the stations
 		schedule_t *fpl = cnv0->get_schedule();
