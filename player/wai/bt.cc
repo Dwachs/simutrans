@@ -58,8 +58,14 @@ void bt_node_t::rdwr(loadsave_t* file, const uint16 /*version*/)
 	else {
 		const char *t = NULL;
 		file->rdwr_str(t);
-		name = t;
-		free(const_cast<char*>(t));
+		if (t) {
+			name = t;
+			free(const_cast<char*>(t));
+		}
+		else {
+			name = "Unnamed node";
+			sp->get_log().warning("bt_node_t::rdwr", "Unnamed node (type=%d)", type);
+		}
 	}
 }
 
