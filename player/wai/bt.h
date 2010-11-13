@@ -27,7 +27,6 @@ protected:
 	ai_wai_t *sp;
 	virtual return_value_t* new_return_value(return_code rc);
 public:
-	bt_node_t( ai_wai_t *sp_) : type(BT_NODE), sp(sp_) {}
 	bt_node_t( ai_wai_t *sp_, const char* name_) : name( name_ ), type(BT_NODE), sp(sp_) {};
 	virtual ~bt_node_t() {};
 

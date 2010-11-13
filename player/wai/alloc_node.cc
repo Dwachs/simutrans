@@ -20,7 +20,7 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 {
 	switch(type) {
 		case BT_NULL:           return NULL;
-		case BT_NODE:           return new bt_node_t(sp);
+		case BT_NODE:           return new bt_node_t(sp, "");
 		case BT_SEQUENTIAL:     return new bt_sequential_t(sp, "");
 
 		case BT_PLANNER:        return new planner_t(sp, "");
@@ -39,7 +39,7 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 		case BT_CON_IND:        return new industry_connector_t(sp, "");
 		case BT_CON_GENERIC:    return new connector_generic_t(sp, "");
 
-		case BT_REMOVER:        return new remover_t(sp);
+		case BT_REMOVER:        return new remover_t(sp, "");
 		default:
 			assert(0);
 			return NULL;

@@ -428,7 +428,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 					}
 				}
 			}
-			root->append_child( new remover_t(sp, wt, start, end));
+			root->append_child( new remover_t(sp, "remove start->end", wt, start, end));
 		}
 		// ..  then start->depot
 		if (start!=koord3d::invalid  &&  depot!=koord3d::invalid) {
@@ -462,7 +462,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 					depot_end = verbindung_d.position_bei(j>0 ? j-1 : 0);
 				}
 			}
-			root->append_child( new remover_t(sp, wt, depot, depot_end));
+			root->append_child( new remover_t(sp, "remove depot->start", wt, depot, depot_end));
 		}
 		test_driver->set_flag(ding_t::not_on_map);
 		delete test_driver;
