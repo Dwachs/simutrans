@@ -108,10 +108,24 @@ return_value_t* remover_t::step()
 			bool ready = true;
 			for(sint32 i = step==-1 ? verbindung.get_count()-2 : 1; (i>=0) && (i<=imax); i+=step) {
 				// TODO: what happens with harbours?
-				uint8 res = check_position(verbindung.position_bei(i-step));
-				sp->get_log().warning("remover_t::step", "check %s(%d)", verbindung.position_bei(i-step).get_str(), res);
+				const koord3d pos = verbindung.position_bei(i-step);
+				uint8 res = check_position(pos);
+				sp->get_log().warning("remover_t::step", "check %s(%d)", pos.get_str(), res);
 				// if fatal: maybe we want to go over already deleted bridge
-				if (res==CP_IGNORE  ||  res==CP_FATAL) continue;
+				if (res==CP_IGNORE  ||  res==CP_FATAL) {
+					if (start == pos) {
+						start = verbindung.position_bei(i);
+						imax = i;
+						sp->get_log().warning("remover_t::step", "set start to %s", start.get_str());
+					}
+					else if (end == pos) {
+						end = verbindung.position_bei(i);
+						imax = i;
+						sp->get_log().warning("remover_t::step", "set end to %s", end.get_str());
+					}
+					ready = false;
+					continue;
+				}
 				bool ok = res >= CP_REMOVE;
 				if (ok) {
 					wkz.init(welt, sp);
@@ -120,8 +134,8 @@ return_value_t* remover_t::step()
 					sp->get_log().warning("remover_t::step", "from %s to %s, res %d/%s/%s", verbindung.position_bei(min(i,i-step)).get_str(),verbindung.position_bei(max(i,i-step)).get_2d().get_str(), res, err1, err2);
 					if (err2!=NULL) {
 						// maybe end tile owned by other player, remove way directly on the tile
-						err1 = wkz.work(welt, sp, verbindung.position_bei(i-step));
-						err2 = (err1==NULL) ? wkz.work(welt, sp, verbindung.position_bei(i-step)) : err1;
+						err1 = wkz.work(welt, sp, pos);
+						err2 = (err1==NULL) ? wkz.work(welt, sp, pos) : err1;
 					}
 					if (err1!=NULL	||  err2!=NULL) {
 							ok = false;
@@ -130,11 +144,11 @@ return_value_t* remover_t::step()
 				if (!ok){
 					// failed, reset start, end
 					if (step==-1) {
-						end = verbindung.position_bei(i-step);
+						end = pos;
 						sp->get_log().warning("remover_t::step", "set end to %s", end.get_str());
 					}
 					else {
-						start = verbindung.position_bei(i-step);
+						start = pos;
 						sp->get_log().warning("remover_t::step", "set start to %s", start.get_str());
 					}
 					imax = i-step;
@@ -143,6 +157,10 @@ return_value_t* remover_t::step()
 				}
 			}
 			if (ready) {
+				if (imax==0) {
+					// remove everything on start tile
+					remove_way_end(start);
+				}
 				// removed everything
 				return new_return_value(RT_TOTAL_SUCCESS);
 			}
