@@ -2781,6 +2781,29 @@ void karte_t::neuer_monat()
 	INT_CHECK("simworld 1282");
 
 //	DBG_MESSAGE("karte_t::neuer_monat()","players");
+	if(  letzter_monat == 0  &&  !get_einstellungen()->is_freeplay()  ) {
+		// remove all player (but first and second) who went bankrupt during last year
+		for(int i=2; i<MAX_PLAYER_COUNT-1; i++) {
+			if(  spieler[i] != NULL  &&  (spieler[i]->get_ai_id()==spieler_t::HUMAN  ||  !umgebung_t::networkmode)  &&
+				spieler[i]->get_finance_history_year(0,COST_NETWEALTH)<=0  &&
+				spieler[i]->get_finance_history_year(0,COST_MAINTENANCE)==0  &&
+				spieler[i]->get_finance_history_year(0,COST_ALL_CONVOIS)==0  )
+			{
+				delete spieler[i];
+				spieler[i] = 0;
+				// if currently still active => reset to default human
+				if(  i == active_player_nr  ) {
+					i = 0;
+					active_player = spieler[0];
+				}
+			}
+		}
+		// update the window
+		ki_kontroll_t* playerwin = (ki_kontroll_t*)win_get_magic(magic_ki_kontroll_t);
+		if (playerwin) {
+			playerwin->update_data();
+		}
+	}
 	// spieler
 	for(int i=0; i<MAX_PLAYER_COUNT; i++) {
 		if(  spieler[i] != NULL  ) {
@@ -3173,10 +3196,12 @@ void karte_t::step()
 	}
 
 	// number of playing clients changed
-	if(  umgebung_t::announce_server  &&  last_clients!=socket_list_t::get_playing_clients()  ) {
+	if(  umgebung_t::server  &&  last_clients!=socket_list_t::get_playing_clients()  ) {
 		last_clients = socket_list_t::get_playing_clients();
-		// inform the master server
-		announce_server();
+		if(  umgebung_t::announce_server  ) {
+			// inform the master server
+			announce_server();
+		}
 		// add message via tool
 		cbuffer_t buf(256);
 		buf.printf( translator::translate("Now %u clients connected.", einstellungen->get_name_language_id()), last_clients );
@@ -5420,7 +5445,8 @@ bool karte_t::interactive(uint32 quit_month)
 				network_disconnect();
 			}
 
-			if(  nwc  ) {
+			// process all the received commands at once
+			while (nwc) {
 				// check timing
 				if (nwc->get_id()==NWC_CHECK) {
 					// checking for synchronisation
@@ -5438,13 +5464,13 @@ bool karte_t::interactive(uint32 quit_month)
 					}
 					dbg->message("NWC_CHECK","time difference to server %lli",difftime);
 				}
-				// check timing
+				// check random number generator states
 				if(  umgebung_t::server  &&  nwc->get_id()==NWC_TOOL  ) {
 					nwc_tool_t *nwt = dynamic_cast<nwc_tool_t *>(nwc);
 					if(  nwt->last_sync_step > last_random_seed_sync  ) {
 						dbg->warning("karte_t::interactive", "client was too fast (skipping command)" );
 						delete nwc;
-						continue;
+						nwc = NULL;
 					}
 					// out of sync => drop client (but we can only compare if nwt->last_sync_step is not too old)
 					if(nwt->last_sync_step + LAST_RANDOMS_COUNT > last_random_seed_sync  &&  LRAND(nwt->last_sync_step) != nwt->last_random_seed) {
@@ -5459,20 +5485,30 @@ bool karte_t::interactive(uint32 quit_month)
 							socket_list_t::remove_client( nwc->get_sender() );
 						}
 						delete nwc;
-						continue;
+						nwc = NULL;
 					}
 				}
-				if (nwc->execute(this)) {
+
+				// execute command, append to command queue if necessary
+				if(nwc  &&  nwc->execute(this)) {
+					// network_world_command_t's will be appended to command queue in execute
+					// all others have to be deleted here
 					delete nwc;
+
 				}
-				// when execute next command?
-				if(  !command_queue.empty()  ) {
-					next_command_step = command_queue.front()->get_sync_step();
-				}
-				else {
-					next_command_step = 0xFFFFFFFFu;
-				}
+				// fetch the next command
+				nwc = network_get_received_command();
 			}
+			// when execute next command?
+			if(  !command_queue.empty()  ) {
+				next_command_step = command_queue.front()->get_sync_step();
+			}
+			else {
+				next_command_step = 0xFFFFFFFFu;
+			}
+
+			// send data
+			network_process_send_queues(min(5u,next_step_time-dr_time()));
 		}
 		else {
 			// we wait here for maximum 9ms
@@ -5514,7 +5550,6 @@ bool karte_t::interactive(uint32 quit_month)
 					}
 				}
 				else {
-					// check timiming
 					if(  nwc->get_id()==NWC_TOOL  ) {
 						nwc_tool_t *nwt = dynamic_cast<nwc_tool_t *>(nwc);
 						if (LRAND(nwt->last_sync_step) != nwt->last_random_seed) {
