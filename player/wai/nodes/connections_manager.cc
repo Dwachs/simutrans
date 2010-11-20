@@ -177,6 +177,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			}
 		}
 	}
+	waytype_t wt = cnv0->get_vehikel(0)->get_waytype();
 	// we iterate through schedule
 	schedule_t* fpl = line->get_schedule();
 	// check wether freight is available //WAS: at loading stations (with ladegrad >0)
@@ -191,13 +192,15 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 		grund_t* gr = welt->lookup(fpl->eintrag[i].pos);
 		if (!gr) {
 			// TODO: correct schedule
-			sp->get_log().error( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
+			state |= broken;
+			sp->get_log().warning( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
 			return NULL;
 		}
-		halthandle_t h = gr->get_halt();
+		halthandle_t h = wt != water_wt ? gr->get_halt() : haltestelle_t::get_halt(welt, gr->get_pos().get_2d(), sp);
 		if (!h.is_bound()) {
 			// TODO: correct schedule
-			sp->get_log().error( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
+			state |= broken;
+			sp->get_log().warning( "freight_connection_t::get_report()","illegal entry[%d] in schedule of line '%s'", i, line->get_name() );
 			return NULL;
 		}
 		uint32 cap_halt = h->get_capacity(2);
