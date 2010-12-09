@@ -33,7 +33,7 @@ public:
 	// force to find existing depot
 	bool find_depot;
 
-	bool ist_befahrbar(const grund_t *gr) const { return gr->ist_wasser(); }
+	bool ist_befahrbar(const grund_t *gr) const { return gr->get_weg_ribi(water_wt)!=ribi_t::keine; }
 	ribi_t::ribi get_ribi(const grund_t *gr) const { return gr->get_weg_ribi(water_wt); }
 	waytype_t get_waytype() const { return water_wt; }
 
@@ -46,14 +46,19 @@ public:
 
 	// returns true for the way search to an unknown target.
 	// first is current ground, second is starting ground
-	virtual bool ist_ziel(const grund_t *gr, const grund_t * /*previous*/) const
+	virtual bool ist_ziel(const grund_t *gr, const grund_t *from) const
 	{
-		if (gr  &&  gr->ist_wasser()) {
+		if (gr  &&  (gr->ist_wasser()  ||  ribi_t::ist_einfach(gr->get_weg_ribi_unmasked(water_wt)))) {
 			// our depot?
 			depot_t *dep = gr->get_depot();
 			if (dep) {
-				return dep->get_besitzer() == sp;
-				// TODO: check whether we can enter depot from the previous ground (given by unused parameter)
+				if (dep->get_besitzer() != sp) {
+					return false;
+				}
+				if (!gr->ist_wasser()) {
+					// check whether we can enter depot from the previous ground
+					return ribi_typ(gr->get_pos(), from->get_pos()) == gr->get_weg_ribi_unmasked(water_wt);
+				}
 			}
 			if (find_depot) {
 				return false;
@@ -62,6 +67,14 @@ public:
 			const planquadrat_t *plan = welt->lookup(gr->get_pos().get_2d());
 			if (plan->get_haltlist_count() > 0) {
 				return false;
+			}
+			// can we build on the canal?
+			if (!gr->ist_wasser()) {
+				weg_t *canal = gr->get_weg(water_wt);
+				assert(canal);
+				if (canal->ist_entfernbar(sp)!=NULL) {
+					return false;
+				}
 			}
 			return true;
 		}
@@ -325,7 +338,7 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 		if(besch->get_utyp()==haus_besch_t::hafen  &&  besch->get_extra()==water_wt  &&  (enables==0  ||  (besch->get_enabled()&enables)!=0)) {
 			// ok, now check timeline
 			if(time==0  ||  (besch->get_intro_year_month()<=time  &&  besch->get_retire_year_month()>time)) {
-				if( besch->get_b() == 1  &&  besch->get_h() <= max_len  ) {
+				if( besch->get_b() == 1  &&  (uint32)besch->get_h() <= max_len  ) {
 					stops.append(besch,max(1,16-besch->get_level()),16);
 				}
 			}
