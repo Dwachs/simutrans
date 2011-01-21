@@ -28,7 +28,7 @@
 #include "../dings/zeiger.h"
 
 #include "../dataobj/loadsave.h"
-
+#include "../utils/cbuffer_t.h"
 #include "../vehicle/simvehikel.h"
 
 
