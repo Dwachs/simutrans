@@ -59,6 +59,8 @@ public:
 					// check whether we can enter depot from the previous ground
 					return ribi_typ(gr->get_pos(), from->get_pos()) == gr->get_weg_ribi_unmasked(water_wt);
 				}
+				// depot found
+				return true;
 			}
 			if (find_depot) {
 				return false;
