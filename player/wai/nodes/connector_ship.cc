@@ -277,7 +277,7 @@ bool connector_ship_t::build_harbour(koord3d &pos) const
 	for(uint8 i = 1; i<8; i++) {
 		grund_t *gr = welt->lookup_kartenboden(test_pos);
 		// TODO: reicht abfrage?
-		if (gr && gr->ist_wasser() && !gr->get_halt().is_bound() && gr->find<gebaeude_t>()==NULL) {
+		if (gr && gr->ist_wasser() && !gr->get_halt().is_bound() && gr->find<gebaeude_t>()==NULL  &&  gr->get_depot()==NULL  &&  gr->kann_alle_obj_entfernen(sp)==NULL) {
 			test_pos -= zv;
 		}
 		else {
