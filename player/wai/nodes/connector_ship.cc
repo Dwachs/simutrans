@@ -372,6 +372,9 @@ koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 				}
 			}
 		}
+		if (best_pos != koord3d::invalid) {
+			break;
+		}
 	}
 	if (best_pos == koord3d::invalid) {
 		sp->get_log().warning( "connector_ship::get_ship_target()","no starting position found near (%s)", pos.get_str());
