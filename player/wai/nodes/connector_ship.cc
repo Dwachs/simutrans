@@ -93,6 +93,7 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	nr_vehicles = 0;
 	phase = 0;
 	harbour_pos = koord3d::invalid;
+	ourdepot = false;
 }
 connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, simple_prototype_designer_t *d, uint16 nr_veh) :
 	bt_sequential_t( sp, name ), fab1(fab1, sp), fab2(fab2, sp)
@@ -103,6 +104,7 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik
 	phase = 0;
 	start_harbour_pos = start_;
 	harbour_pos = ziel_;
+	ourdepot = false;
 }
 
 connector_ship_t::~connector_ship_t()
@@ -118,7 +120,7 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 	fab1.rdwr(file, version, sp);
 	fab2.rdwr(file, version, sp);
 	file->rdwr_short(nr_vehicles);
-	if (phase<=2) {
+	if (phase<=3) {
 		if (file->is_loading()) {
 			prototyper = new simple_prototype_designer_t(sp);
 		}
@@ -130,6 +132,7 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 	deppos.rdwr(file);
 	harbour_pos.rdwr(file);
 	start_harbour_pos.rdwr(file);
+	file->rdwr_bool(ourdepot);
 }
 
 void connector_ship_t::rotate90( const sint16 y_size)
@@ -202,6 +205,7 @@ return_value_t *connector_ship_t::step()
 				ok = ok  &&  dep!=NULL;
 				if (ok && welt->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
 					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+					ourdepot = true;
 				}
 				if( !ok ) {
 					sp->get_log().warning( "connector_ship::step()","depot building failed at (%s)", deppos.get_str());
@@ -308,7 +312,9 @@ void connector_ship_t::cleanup()
 {
 	switch (phase) {
 		case 3: { // remove depot
-			sp->call_general_tool(WKZ_REMOVER, deppos.get_2d(), "");
+			if (ourdepot) {
+				sp->call_general_tool(WKZ_REMOVER, deppos.get_2d(), "");
+			}
 		} // fall through
 		case 2:
 		case 1: { // remove harbours

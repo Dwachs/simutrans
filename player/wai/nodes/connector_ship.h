@@ -40,6 +40,7 @@ private:
 	uint16 nr_vehicles;
 	uint8 phase;
 	koord3d deppos, harbour_pos, start_harbour_pos;
+	bool ourdepot;
 
 	bool build_harbour(koord3d &pos) const;
 	// Helper function:
