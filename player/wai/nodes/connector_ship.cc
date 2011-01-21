@@ -361,14 +361,15 @@ koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 	halthandle_t halt = haltestelle_t::get_halt(welt,pos,sp);
 	koord pos1 = pos.get_2d();
 	koord3d best_pos = koord3d::invalid;
-	uint8 radius = 1; // welt->get_einstellungen()->get_station_coverage()
-	for(  int y = pos1.y-radius;  y<=pos1.y+radius;  y++  ) {
-		for(  int x = pos1.x-radius;  x<=pos1.x+radius;  x++  ) {
-			const grund_t *gr = welt->lookup_kartenboden(koord(x,y));
-			// in water, the water tiles have no halt flag!
-			if(gr  &&  gr->ist_wasser()  &&  !gr->get_depot()  &&  !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)
-			       &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),target) < koord_distance(best_pos,target))  ) {
-				best_pos = gr->get_pos();
+	for(uint8 radius = 1; radius<=2 /* welt->get_einstellungen()->get_station_coverage() */; radius++) {
+		for(  int y = pos1.y-radius;  y<=pos1.y+radius;  y++  ) {
+			for(  int x = pos1.x-radius;  x<=pos1.x+radius;  x++  ) {
+				const grund_t *gr = welt->lookup_kartenboden(koord(x,y));
+				// in water, the water tiles have no halt flag!
+				if(gr  &&  gr->ist_wasser()  &&  !gr->get_depot()  &&  !gr->get_halt().is_bound()  &&  halt == haltestelle_t::get_halt(welt,gr->get_pos(),sp)
+					   &&  (best_pos==koord3d::invalid || koord_distance(gr->get_pos(),target) < koord_distance(best_pos,target))  ) {
+					best_pos = gr->get_pos();
+				}
 			}
 		}
 	}
