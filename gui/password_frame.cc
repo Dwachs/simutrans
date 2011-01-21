@@ -16,6 +16,7 @@
 
 #include "components/list_button.h"
 #include "password_frame.h"
+#include "player_frame_t.h"
 
 #define DIALOG_WIDTH (360)
 
@@ -66,14 +67,18 @@ password_frame_t::password_frame_t( spieler_t *sp ) :
  */
 bool password_frame_t::action_triggered( gui_action_creator_t *komp, value_t p )
 {
-	if(komp == &password) {
+	if(komp == &password  &&  (ibuf[0]!=0  ||  p.i == 1)) {
 		// Enter-Key pressed
 		// test for matching password to unlock
 		SHA1 sha1;
-		sha1.Input( password.get_text(), strlen( password.get_text() ) );
+		size_t len = strlen( password.get_text() );
+		sha1.Input( password.get_text(), len );
 		uint8 hash[20];
 		MEMZERO(hash);
-		sha1.Result( hash );
+		// remove hash to re-open slot if password is empty
+		if(len>0) {
+			sha1.Result( hash );
+		}
 		/* if current active player is player 1 and this is unlocked, he may reset passwords
 		 * otherwise you need the valid previous password
 		 */
@@ -94,6 +99,11 @@ bool password_frame_t::action_triggered( gui_action_creator_t *komp, value_t p )
 			// set this to world to unlock
 			sp->get_welt()->set_player_password_hash( sp->get_player_nr(), hash );
 			sp->set_unlock( hash );
+			// update the player window
+			ki_kontroll_t* playerwin = (ki_kontroll_t*)win_get_magic(magic_ki_kontroll_t);
+			if (playerwin) {
+				playerwin->update_data();
+			}
 		}
 	}
 

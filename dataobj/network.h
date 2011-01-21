@@ -3,7 +3,7 @@
 
 
 // windows headers
-#ifdef WIN32
+#ifdef _WIN32
 // must be include before all simutrans stuff!
 
 // first: we must find out version number
@@ -30,6 +30,7 @@
 #	endif
 
 #	define GET_LAST_ERROR() WSAGetLastError()
+#	include <errno.h>
 #	undef  EWOULDBLOCK
 #	define EWOULDBLOCK WSAEWOULDBLOCK
 #else
@@ -77,7 +78,7 @@ const char *network_download_http( const char *address, const char *name, const 
 const char *network_gameinfo(const char *cp, gameinfo_t *gi);
 
 // connects to server at (cp), receives game, save to client%i-network.sve
-const char* network_connect(const char *cp);
+const char* network_connect(const char *cp, karte_t *world);
 
 void network_close_socket( SOCKET sock );
 
@@ -97,23 +98,39 @@ network_command_t* network_get_received_command();
  * - all: receive commands and puts them to the received_command_queue
  *
  * @param timeout in milliseconds
- * @returns pointer to first received commmand
+ * @return pointer to first received commmand
  * more commands can be obtained by call to network_get_received_command
  */
 network_command_t* network_check_activity(karte_t *welt, int timeout);
+
+/**
+ * send data to dest:
+ * if timeout_ms is positive:
+ *    try to send all data, return true if all data are sent otherwise false
+ * if timeout_ms is not positive:
+ *    try to send as much as possible but return after one send attempt
+ *    return true if connection is still open and sending can be continued later
+ *
+ * @param buf the data
+ * @param count length of buffer and number of bytes to be sent
+ * @param sent number of bytes sent
+ * @param timeout_ms time-out in milli-seconds
+ */
+bool network_send_data( SOCKET dest, const char *buf, const uint16 size, uint16 &count, const int timeout_ms );
 
 /**
  * receive data from sender
  * @param dest the destination buffer
  * @param len length of destination buffer and number of bytes to be received
  * @param received number of received bytes is returned here
- * @returns true if connection is still valid, false if an error occurs and connection needs to be closed
+ * @param timeout_ms time-out in milli-seconds
+ * @return true if connection is still valid, false if an error occurs and connection needs to be closed
  */
-bool network_receive_data( SOCKET sender, void *dest, const uint16 len, uint16 &received );
+bool network_receive_data( SOCKET sender, void *dest, const uint16 len, uint16 &received, const int timeout_ms );
 
 void network_process_send_queues(int timeout);
 
-// before calling this, the server should have saved the current game as "server-network.sve"
+// sending file over network
 const char *network_send_file( uint32 client_id, const char *filename );
 
 // true, if I can wrinte on the server connection

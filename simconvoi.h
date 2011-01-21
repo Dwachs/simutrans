@@ -300,6 +300,11 @@ private:
 	bool can_go_alte_richtung();
 
 	/**
+	 * remove all track reservations (trains only)
+	 */
+	void unreserve_route();
+
+	/**
 	* Mark first and last vehicle.
 	* @author Hanjsörg Malthaner
 	*/
@@ -327,12 +332,6 @@ private:
 	 * needed for driving, entering and leaving a depot)
 	 */
 	void calc_acceleration(long delta_t);
-
-	/**
-	* Convoi haelt an Haltestelle und setzt quote fuer Fracht
-	* @author Hj. Malthaner
-	*/
-	void hat_gehalten(koord k, halthandle_t halt);
 
 	/*
 	* struct holds new financial history for convoi
@@ -376,6 +375,12 @@ private:
 	uint32 move_to(karte_t const&, koord3d const& k, uint16 start_index);
 
 public:
+	/**
+	* Convoi haelt an Haltestelle und setzt quote fuer Fracht
+	* @author Hj. Malthaner
+	*/
+	void hat_gehalten(halthandle_t halt);
+
 	const route_t* get_route() const { return &route; }
 	route_t* access_route() { return &route; }
 

@@ -121,7 +121,7 @@ verkehrsteilnehmer_t::verkehrsteilnehmer_t(karte_t *welt, koord3d pos) :
 		from->get_neighbour(to, road_wt, fahrtrichtung);
 		pos_next = to->get_pos();
 	} else {
-		pos_next = welt->lookup(pos.get_2d() + koord(fahrtrichtung))->get_kartenboden()->get_pos();
+		pos_next = welt->lookup_kartenboden(pos.get_2d() + koord(fahrtrichtung))->get_pos();
 	}
 	set_besitzer( welt->get_spieler(1) );
 }
@@ -445,7 +445,7 @@ bool stadtauto_t::sync_step(long delta_t)
 			else {
 				if(ms_traffic_jam>welt->ticks_per_world_month  &&  old_ms_traffic_jam<=welt->ticks_per_world_month) {
 					// message after two month, reset waiting timer
-					welt->get_message()->add_message( translator::translate("To heavy traffic\nresults in traffic jam.\n"), get_pos().get_2d(), message_t::warnings, COL_ORANGE );
+					welt->get_message()->add_message( translator::translate("To heavy traffic\nresults in traffic jam.\n"), get_pos().get_2d(), message_t::traffic_jams, COL_ORANGE );
 				}
 			}
 		}

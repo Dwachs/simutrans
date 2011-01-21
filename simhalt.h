@@ -114,7 +114,16 @@ private:
 	static uint8 markers[65536];
 	static uint8 current_mark;
 
+	slist_tpl<convoihandle_t> loading_here;
+	long last_loading_step;
+
 public:
+	// add convoi to loading queue
+	void request_loading( convoihandle_t cnv );
+
+	// removes convoi from laoding quee
+	void finish_loading( convoihandle_t cnv ) { loading_here.remove(cnv); }
+
 	/* recalculates the station bar */
 	void recalc_status();
 
@@ -566,7 +575,7 @@ public:
 	void zeige_info();
 
 	/**
-	 * @returns the type of a station
+	 * @return the type of a station
 	 * (combination of: railstation, loading bay, dock)
 	 * @author Markus Weber
 	 */
@@ -642,7 +651,7 @@ public:
 	 * return a specified element from the financial history
 	 * @author hsiegeln
 	 */
-	sint64 get_finance_history(int month, int cost_type) { return financial_history[month][cost_type]; }
+	sint64 get_finance_history(int month, int cost_type) const { return financial_history[month][cost_type]; }
 
 	// flags station for a crowded message at the beginning of next month
 	void bescheid_station_voll() { enables |= CROWDED; status_color = COL_RED; }

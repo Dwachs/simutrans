@@ -98,7 +98,7 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 
 	add_komponente(&view);
 
-	// this convoi belongs not to an AI
+	// this convoi doesn't belong to an AI
 	button.set_groesse(koord(BUTTON_WIDTH, BUTTON_HEIGHT));
 	button.set_text("Fahrplan");
 	button.set_typ(button_t::roundbox);
@@ -364,7 +364,7 @@ bool convoi_info_t::action_triggered( gui_action_creator_t *komp,value_t /* */)
 		return true;
 	}
 
-	// datails?
+	// details?
 	if(komp == &details_button) {
 		create_win(20, 20, new convoi_detail_t(cnv), w_info, magic_convoi_detail+cnv.get_id() );
 		return true;
@@ -574,7 +574,7 @@ void convoi_info_t::rdwr(loadsave_t *file)
 				flags |= (1<<i);
 			}
 		}
-		tstrncpy( name, cnv->get_name(), 128 );
+		tstrncpy(name, cnv->get_name(), lengthof(name));
 	}
 	cnv_pos.rdwr( file );
 	file->rdwr_str( name, lengthof(name) );
@@ -589,7 +589,7 @@ void convoi_info_t::rdwr(loadsave_t *file)
 		if(  grund_t *gr = welt->lookup(cnv_pos)  ) {
 			for(  uint8 i=0;  i<gr->get_top();  i++  ) {
 				if(  gr->obj_bei(i)->is_moving()  ) {
-					vehikel_t *v = dynamic_cast<vehikel_t *>(gr->obj_bei(i));
+					vehikel_t const* const v = ding_cast<vehikel_t>(gr->obj_bei(i));
 					if(  v  &&  v->get_convoi()  ) {
 						if(  strcmp(v->get_convoi()->get_name(),name)==0  ) {
 							cnv = v->get_convoi()->self;

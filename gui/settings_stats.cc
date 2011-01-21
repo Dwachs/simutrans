@@ -28,7 +28,7 @@ static const char *version[6]=
 	"0.101.0",
 	"0.102.1",
 	"0.102.2",
-	"0.102.4"
+	"0.102.5"
 };
 
 
@@ -71,9 +71,10 @@ void settings_general_stats_t::init(einstellungen_t *sets)
 	INIT_BOOL( "numbered_stations", sets->get_numbered_stations() );
 	INIT_NUM( "show_names", umgebung_t::show_names, 0, 3, gui_numberinput_t::AUTOLINEAR, true );
 	INIT_NUM( "show_month", umgebung_t::show_month, 0, 7, gui_numberinput_t::AUTOLINEAR, true );
+	INIT_BOOL( "add_player_name_to_message", umgebung_t::add_player_name_to_message );
 	SEPERATOR
 	INIT_NUM( "bits_per_month", sets->get_bits_per_month(), 16, 24, gui_numberinput_t::AUTOLINEAR, false );
-	INIT_NUM( "use_timeline", sets->get_use_timeline(), 0, 2, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "use_timeline", sets->get_use_timeline(), 0, 3, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "starting_year", sets->get_starting_year(), 0, 2999, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "starting_month", sets->get_starting_month(), 0, 11, gui_numberinput_t::AUTOLINEAR, false );
 	SEPERATOR
@@ -133,6 +134,7 @@ void settings_general_stats_t::read(einstellungen_t *sets)
 	READ_BOOL_VALUE( sets->numbered_stations );
 	READ_NUM_VALUE( umgebung_t::show_names );
 	READ_NUM_VALUE( umgebung_t::show_month );
+	READ_BOOL_VALUE( umgebung_t::add_player_name_to_message );
 
 	READ_NUM_VALUE( sets->bits_per_month );
 	READ_NUM_VALUE( sets->use_timeline );
@@ -165,7 +167,10 @@ void settings_general_stats_t::read(einstellungen_t *sets)
 	READ_NUM_VALUE( umgebung_t::cursor_overlay_color );
 	READ_BOOL_VALUE( umgebung_t::left_to_right_graphs );
 
-	umgebung_t::savegame_version_str = version[ savegame.get_selection() ];
+	int selected = savegame.get_selection();
+	if(  0 <= selected  &&  selected < lengthof(version)  ) {
+		umgebung_t::savegame_version_str = version[ selected ];
+	}
 }
 
 
@@ -254,7 +259,7 @@ void settings_economy_stats_t::init(einstellungen_t *sets)
 	SEPERATOR
 	INIT_BOOL( "random_pedestrians", sets->get_random_pedestrians() );
 	INIT_BOOL( "stop_pedestrians", sets->get_show_pax() );
-	INIT_NUM( "citycar_level", sets->get_verkehr_level(), 0, 16, 12, false );
+	INIT_NUM( "citycar_level", sets->get_verkehr_level(), 0, 16, 1, false );
 	INIT_NUM( "default_citycar_life", sets->get_stadtauto_duration(), 1, 1200, 12, false );
 
 	clear_dirty();

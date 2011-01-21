@@ -69,8 +69,9 @@
 class simwin_gadget_flags_t
 {
 public:
-	simwin_gadget_flags_t( void ) : close( false ) , help( false ) , prev( false ), size( false ), next( false ), sticky( false ) { }
+	simwin_gadget_flags_t( void ) : title(true), close( false ), help( false ), prev( false ), size( false ), next( false ), sticky( false ) { }
 
+	bool title:1;
 	bool close:1;
 	bool help:1;
 	bool prev:1;
@@ -501,6 +502,7 @@ int create_win(int x, int y, gui_frame_t* const gui, wintype const wt, long cons
 		// (Mathew Hounsell) Make Sure Closes Aren't Forgotten.
 		// Must Reset as the entries and thus flags are reused
 		win.flags.close = true;
+		win.flags.title = gui->has_title();
 		win.flags.help = ( gui->get_hilfe_datei() != NULL );
 		win.flags.prev = gui->has_prev();
 		win.flags.next = gui->has_next();
@@ -725,21 +727,24 @@ void display_win(int win)
 
 	// %HACK (Mathew Hounsell) So draw will know if gadget is needed.
 	wins[win].flags.help = ( komp->get_hilfe_datei() != NULL );
-	win_draw_window_title(wins[win].pos,
-			gr,
-			title_color,
-			translator::translate(komp->get_name()),
-			text_color,
-			wins[win].closing,
-			wins[win].sticky,
-			( & wins[win].flags ) );
+	if(  wins[win].flags.title  ) {
+		win_draw_window_title(wins[win].pos,
+				gr,
+				title_color,
+				translator::translate(komp->get_name()),
+				text_color,
+				wins[win].closing,
+				wins[win].sticky,
+				( & wins[win].flags ) );
+	}
 	// mark top window, if requested
 	if(umgebung_t::window_frame_active  &&  (unsigned)win==wins.get_count()-1) {
+		const int y_off = wins[win].flags.title ? 0 : 16;
 		if(!wins[win].rollup) {
-			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1, gr.x+2, gr.y+2 , title_color, title_color+1 );
+			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1 + y_off, gr.x+2, gr.y+2 - y_off, title_color, title_color+1 );
 		}
 		else {
-			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1, gr.x+2, 18, title_color, title_color+1 );
+			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1 + y_off, gr.x+2, 18 - y_off, title_color, title_color+1 );
 		}
 	}
 	if(!wins[win].rollup) {
@@ -806,49 +811,204 @@ static void remove_old_win()
 }
 
 
-void move_win(int win, event_t *ev)
+static inline void snap_check_distance( sint16 *r, const sint16 a, const sint16 b )
 {
-	koord gr = wins[win].gui->get_fenstergroesse();
-
-	// need to mark all old position dirty
-	mark_rect_dirty_wc( wins[win].pos.x, wins[win].pos.y, wins[win].pos.x+gr.x, wins[win].pos.y+gr.y );
-
-	int xfrom = ev->cx;
-	int yfrom = ev->cy;
-	int xto = ev->mx;
-	int yto = ev->my;
-	int x,y, xdelta, ydelta;
-
-	// CLIP(wert,min,max)
-	x = CLIP(wins[win].pos.x + (xto-xfrom), 8-gr.x, display_get_width()-16);
-	y = CLIP(wins[win].pos.y + (yto-yfrom), 32, display_get_height()-24);
-
-	// delta is actual window movement.
-	xdelta = x - wins[win].pos.x;
-	ydelta = y - wins[win].pos.y;
-
-	wins[win].pos.x += xdelta;
-	wins[win].pos.y += ydelta;
-
-	// and to mark new position also dirty ...
-	mark_rect_dirty_wc( wins[win].pos.x, wins[win].pos.y, wins[win].pos.x+gr.x, wins[win].pos.y+gr.y );
-
-	change_drag_start(xdelta, ydelta);
+	if(  abs(a-b)<=umgebung_t::window_snap_distance  ) {
+		*r = a;
+	}
 }
 
 
-void resize_win(int i, event_t *ev)
+void snap_check_win( const int win, koord *r, const koord from_pos, const koord from_gr, const koord to_pos, const koord to_gr )
+{
+	bool resize;
+	if(  from_gr==to_gr  &&  from_pos!=to_pos  ) { // check if we're moving
+		resize = false;
+	}
+	else if(  from_gr!=to_gr  &&  from_pos==from_pos  ) { // or resizing the window
+		resize = true;
+	}
+	else {
+		return; // or nothing to do.
+	}
+
+	const int wins_count = wins.get_count();
+
+	for(  int i=0;  i<=wins_count;  i++  ) {
+		if(  i==win  ) {
+			// Don't snap to self
+			continue;
+		}
+
+		koord other_gr, other_pos;
+		if(  i==wins_count  ) {
+			// Allow snap to screen edge
+			other_pos.x = 0;
+			other_pos.y = 32;
+			other_gr.x = display_get_width();
+			other_gr.y = display_get_height()-16-32;
+			if(  show_ticker  ) {
+				other_gr.y -= 16;
+			}
+		}
+		else {
+			// Snap to other window
+			other_gr = wins[i].gui->get_fenstergroesse();
+			other_pos = wins[i].pos;
+			if(  wins[i].rollup  ) {
+				other_gr.y = 18;
+			}
+		}
+
+		// my bottom below other top  and  my top above other bottom  ---- in same vertical band
+		if(  from_pos.y+from_gr.y>=other_pos.y  &&  from_pos.y<=other_pos.y+other_gr.y  ) {
+			if(  resize  ) {
+				// other right side and my new right side within snap
+				snap_check_distance( &r->x, other_pos.x+other_gr.x-from_pos.x, to_gr.x );  // snap right - align right sides
+			}
+			else {
+				// other right side and my new right side within snap
+				snap_check_distance( &r->x, other_pos.x+other_gr.x-from_gr.x, to_pos.x );  // snap right - align right sides
+
+				// other left side and my new left side within snap
+				snap_check_distance( &r->x, other_pos.x, to_pos.x );  // snap left - align left sides
+			}
+		}
+
+		// my new bottom below other top  and  my new top above other bottom  ---- in same vertical band
+		if(  resize  ) {
+			if(  from_pos.y+to_gr.y>other_pos.y  &&  from_pos.y<other_pos.y+other_gr.y  ) {
+				// other left side and my new right side within snap
+				snap_check_distance( &r->x, other_pos.x-from_pos.x, to_gr.x );  // snap right - align my right to other left
+			}
+		}
+		else {
+			if(  to_pos.y+from_gr.y>other_pos.y  &&  to_pos.y<other_pos.y+other_gr.y  ) {
+				// other left side and my new right side within snap
+				snap_check_distance( &r->x, other_pos.x-from_gr.x, to_pos.x );  // snap right - align my right to other left
+
+				// other right side and my new left within snap
+				snap_check_distance( &r->x, other_pos.x+other_gr.x, to_pos.x );  // snap left - align my left to other right
+			}
+		}
+
+		// my right side right of other left side  and  my left side left of other right side  ---- in same horizontal band
+		if(  from_pos.x+from_gr.x>=other_pos.x  &&  from_pos.x<=other_pos.x+other_gr.x  ) {
+			if(  resize  ) {
+				// other bottom and my new bottom within snap
+				snap_check_distance( &r->y, other_pos.y+other_gr.y-from_pos.y, to_gr.y );  // snap down - align bottoms
+			}
+			else {
+				// other bottom and my new bottom within snap
+				snap_check_distance( &r->y, other_pos.y+other_gr.y-from_gr.y, to_pos.y );  // snap down - align bottoms
+
+				// other top and my new top within snap
+				snap_check_distance( &r->y, other_pos.y, to_pos.y );  // snap up - align tops
+			}
+		}
+
+		// my new right side right of other left side  and  my new left side left of other right side  ---- in same horizontal band
+		if (  resize  ) {
+			if(  from_pos.x+to_gr.x>other_pos.x  &&  from_pos.x<other_pos.x+other_gr.x  ) {
+				// other top and my new bottom within snap
+				snap_check_distance( &r->y, other_pos.y-from_pos.y, to_gr.y );  // snap down - align my bottom to other top
+			}
+		}
+		else {
+			if(  to_pos.x+from_gr.x>other_pos.x  &&  to_pos.x<other_pos.x+other_gr.x  ) {
+				// other top and my new bottom within snap
+				snap_check_distance( &r->y, other_pos.y-from_gr.y, to_pos.y );  // snap down - align my bottom to other top
+
+				// other bottom and my new top within snap
+				snap_check_distance( &r->y, other_pos.y+other_gr.y, to_pos.y );  // snap up - align my top to other bottom
+			}
+		}
+	}
+}
+
+
+void move_win(int win, event_t *ev)
+{
+	const koord mouse_from( ev->cx, ev->cy );
+	const koord mouse_to( ev->mx, ev->my );
+
+	const koord from_pos = wins[win].pos;
+	koord from_gr = wins[win].gui->get_fenstergroesse();
+	if(  wins[win].rollup  ) {
+		from_gr.y = 18;
+	}
+
+	koord to_pos = wins[win].pos+(mouse_to-mouse_from);
+	const koord to_gr = from_gr;
+
+	if(  umgebung_t::window_snap_distance>0  ) {
+		snap_check_win( win, &to_pos, from_pos, from_gr, to_pos, to_gr );
+	}
+
+	// CLIP(wert,min,max)
+	to_pos.x = CLIP( to_pos.x, 8-to_gr.x, display_get_width()-16 );
+	to_pos.y = CLIP( to_pos.y, 32, display_get_height()-24 );
+
+	// delta is actual window movement.
+	const koord delta = to_pos - from_pos;
+
+	wins[win].pos += delta;
+
+	// need to mark all of old and new positions dirty
+	mark_rect_dirty_wc( from_pos.x, from_pos.y, from_pos.x+from_gr.x, from_pos.y+from_gr.y );
+	mark_rect_dirty_wc( to_pos.x, to_pos.y, to_pos.x+to_gr.x, to_pos.y+to_gr.y );
+
+	change_drag_start( delta.x, delta.y );
+}
+
+
+void resize_win(int win, event_t *ev)
 {
 	event_t wev = *ev;
 	wev.ev_class = WINDOW_RESIZE;
 	wev.ev_code = 0;
 
+	const koord mouse_from( wev.cx, wev.cy );
+	const koord mouse_to( wev.mx, wev.my );
+
+	const koord from_pos = wins[win].pos;
+	const koord from_gr = wins[win].gui->get_fenstergroesse();
+
+	const koord to_pos = from_pos;
+	koord to_gr = from_gr+(mouse_to-mouse_from);
+
+	if(  umgebung_t::window_snap_distance>0  ) {
+		snap_check_win( win, &to_gr, from_pos, from_gr, to_pos, to_gr );
+	}
+
 	// since we may be smaller afterwards
-	koord gr = wins[i].gui->get_fenstergroesse();
-	mark_rect_dirty_wc( wins[i].pos.x, wins[i].pos.y, wins[i].pos.x+gr.x, wins[i].pos.y+gr.y );
-	translate_event(&wev, -wins[i].pos.x, -wins[i].pos.y);
-	wins[i].gui->infowin_event( &wev );
+	mark_rect_dirty_wc( from_pos.x, from_pos.y, from_pos.x+from_gr.x, from_pos.y+from_gr.y );
+
+	// adjust event mouse koord per snap
+	wev.mx = wev.cx + to_gr.x - from_gr.x;
+	wev.my = wev.cy + to_gr.y - from_gr.y;
+
+	wins[win].gui->infowin_event( &wev );
 }
+
+
+
+// returns true, if gui is a open window handle
+bool win_is_open(gui_frame_t *gui)
+{
+	for(  uint i=0;  i<wins.get_count();  i++  ) {
+		if(  wins[i].gui == gui  ) {
+			for(  uint j = 0;  j < kill_list.get_count();  j++  ) {
+				if(  kill_list[i].gui == gui  ) {
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
 
 
 int win_get_posx(gui_frame_t *gui)
@@ -924,19 +1084,8 @@ bool check_pos_win(event_t *ev)
 		tooltip_register_time = 0;
 	}
 
-	// swallow all events in the infobar
-	if(  y>display_get_height()-32  ) {
-		// goto infowin koordinate, if ticker is active
-		if(  show_ticker  &&  y<=display_get_height()-16  &&  IS_LEFTCLICK(ev)  ) {
-			koord p = ticker::get_welt_pos();
-			if(wl->ist_in_kartengrenzen(p)) {
-				wl->change_world_position(koord3d(p,wl->min_hgt(p)));
-			}
-			return true;
-		}
-	}
-	else if(  werkzeug_t::toolbar_tool.get_count()>0  &&  werkzeug_t::toolbar_tool[0]->get_werkzeug_waehler()  &&  y<werkzeug_t::toolbar_tool[0]->iconsize.y  &&  ev->ev_class!=EVENT_KEYBOARD  ) {
-		// click in main menu
+	// click in main menu?
+	if(  werkzeug_t::toolbar_tool.get_count()>0  &&  werkzeug_t::toolbar_tool[0]->get_werkzeug_waehler()  &&  y<werkzeug_t::toolbar_tool[0]->iconsize.y  &&  ev->ev_class!=EVENT_KEYBOARD  ) {
 		event_t wev = *ev;
 		inside_event_handling = werkzeug_t::toolbar_tool[0];
 		werkzeug_t::toolbar_tool[0]->get_werkzeug_waehler()->infowin_event( &wev );
@@ -967,6 +1116,25 @@ bool check_pos_win(event_t *ev)
 		return true;
 	}
 
+	// swallow all other events in the infobar
+	if(  y > display_get_height()-16  ) {
+		// swallow event
+		return true;
+	}
+
+	// swallow all other events in ticker (if there)
+	if(  show_ticker  &&  y > display_get_height()-32  ) {
+		if(  IS_LEFTCLICK(ev)  ) {
+			// goto infowin koordinate, if ticker is active
+			koord p = ticker::get_welt_pos();
+			if(wl->ist_in_kartengrenzen(p)) {
+				wl->change_world_position(koord3d(p,wl->min_hgt(p)));
+			}
+		}
+		// swallow event
+		return true;
+	}
+
 	// handle all the other events
 	for(  int i=wins.get_count()-1;  i>=0  &&  !swallowed;  i=min(i,wins.get_count())-1  ) {
 
@@ -983,7 +1151,7 @@ bool check_pos_win(event_t *ev)
 			}
 
 			// Hajo: if within title bar && window needs decoration
-			if(  y<wins[i].pos.y+16  ) {
+			if(  y<wins[i].pos.y+16  &&  wins[i].flags.title  ) {
 				// no more moving
 				is_moving = -1;
 

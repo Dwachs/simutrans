@@ -429,8 +429,8 @@ void ai_goods_t::create_road_transport_vehikel(fabrik_t *qfab, int anz_vehikel)
 	const haus_besch_t* fh = hausbauer_t::get_random_station(haus_besch_t::generic_stop, road_wt, welt->get_timeline_year_month(), haltestelle_t::WARE);
 	// succeed in frachthof creation
 	if(fh  &&  call_general_tool(WKZ_STATION, platz1, fh->get_name())  &&  call_general_tool(WKZ_STATION, platz2, fh->get_name())  ) {
-		koord3d pos1 = welt->lookup(platz1)->get_kartenboden()->get_pos();
-		koord3d pos2 = welt->lookup(platz2)->get_kartenboden()->get_pos();
+		koord3d pos1 = welt->lookup_kartenboden(platz1)->get_pos();
+		koord3d pos2 = welt->lookup_kartenboden(platz2)->get_pos();
 
 		int	start_location=0;
 		// sometimes, when factories are very close, we need exakt calculation
@@ -444,7 +444,7 @@ void ai_goods_t::create_road_transport_vehikel(fabrik_t *qfab, int anz_vehikel)
 		koord3d startpos=(start_location==0)?pos1:pos2;
 		ribi_t::ribi w_ribi = welt->lookup(startpos)->get_weg_ribi_unmasked(road_wt);
 		// now start all vehicle one field before, so they load immediately
-		startpos = welt->lookup(koord(startpos.get_2d())+koord(w_ribi))->get_kartenboden()->get_pos();
+		startpos = welt->lookup_kartenboden(koord(startpos.get_2d())+koord(w_ribi))->get_pos();
 
 		// since 86.01 we use lines for road vehicles ...
 		schedule_t *fpl=new autofahrplan_t();
@@ -487,8 +487,8 @@ void ai_goods_t::create_rail_transport_vehikel(const koord platz1, const koord p
 		return;
 	}
 	convoi_t* cnv = new convoi_t(this);
-	koord3d pos1= welt->lookup(platz1)->get_kartenboden()->get_pos();
-	koord3d pos2 = welt->lookup(platz2)->get_kartenboden()->get_pos();
+	koord3d pos1= welt->lookup_kartenboden(platz1)->get_pos();
+	koord3d pos2 = welt->lookup_kartenboden(platz2)->get_pos();
 
 	// probably need to electrify the track?
 	if(  rail_engine->get_engine_type()==vehikel_besch_t::electric  ) {
@@ -1082,11 +1082,14 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 							schedule_t *fpl=line->get_schedule();
 							if(fpl->get_count()>1  &&  haltestelle_t::get_halt(welt,fpl->eintrag[0].pos,this)==start_halt) {
 								while(line->count_convoys()>0) {
-									line->get_convoy(0)->self_destruct();
-									line->get_convoy(0)->step();
+									convoihandle_t cnv = line->get_convoy(0);
+									cnv->self_destruct();
+									if(cnv.is_bound()) {
+										cnv->step();
+									}
 								}
+								simlinemgmt.delete_line( line );
 							}
-							simlinemgmt.delete_line( line );
 						}
 						// delete harbour
 						call_general_tool( WKZ_REMOVER, platz1+koord::nsow[r], NULL );
@@ -1439,33 +1442,12 @@ void ai_goods_t::fabconnection_t::rdwr(loadsave_t *file)
  */
 void ai_goods_t::bescheid_vehikel_problem(convoihandle_t cnv,const koord3d ziel)
 {
-	switch(cnv->get_state()) {
-
-		case convoi_t::NO_ROUTE:
-DBG_MESSAGE("ai_goods_t::bescheid_vehikel_problem","Vehicle %s can't find a route to (%i,%i)!", cnv->get_name(),ziel.x,ziel.y);
-			if(this==welt->get_active_player()) {
-				char buf[256];
-				sprintf(buf,translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
-				welt->get_message()->add_message(buf, cnv->get_pos().get_2d(), message_t::convoi, PLAYER_FLAG | player_nr, cnv->front()->get_basis_bild());
-			}
-			else {
-				cnv->self_destruct();
-			}
-			break;
-
-		case convoi_t::WAITING_FOR_CLEARANCE_ONE_MONTH:
-		case convoi_t::CAN_START_ONE_MONTH:
-DBG_MESSAGE("ai_goods_t::bescheid_vehikel_problem","Vehicle %s stucked!", cnv->get_name(),ziel.x,ziel.y);
-			if(this==welt->get_active_player()) {
-				char buf[256];
-				sprintf(buf,translator::translate("Vehicle %s is stucked!"), cnv->get_name());
-				welt->get_message()->add_message(buf, cnv->get_pos().get_2d(), message_t::convoi, PLAYER_FLAG | player_nr, cnv->front()->get_basis_bild());
-			}
-			break;
-
-		default:
-DBG_MESSAGE("ai_goods_t::bescheid_vehikel_problem","Vehicle %s, state %i!", cnv->get_name(), cnv->get_state());
+	if(  cnv->get_state() == convoi_t::NO_ROUTE  &&  this!=welt->get_active_player()  ) {
+			DBG_MESSAGE("ai_passenger_t::bescheid_vehikel_problem","Vehicle %s can't find a route to (%i,%i)!", cnv->get_name(),ziel.x,ziel.y);
+			cnv->self_destruct();
+			return;
 	}
+	spieler_t::bescheid_vehikel_problem( cnv, ziel );
 }
 
 

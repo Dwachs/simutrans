@@ -319,14 +319,14 @@ bool wegbauer_t::check_crossing(const koord zv, const grund_t *bd, waytype_t wty
 			return true;
 		}
 	}
-	// right owner of the other way
-	if(!check_owner(w->get_besitzer(),sp)) {
-		return false;
-	}
 	// special case: tram track on road
 	if ( (wtyp==road_wt  &&  w->get_waytype()==track_wt  &&  w->get_besch()->get_styp()==7)  ||
 		     (wtyp0==tram_wt  &&  w->get_waytype()==road_wt) ) {
 		return true;
+	}
+	// right owner of the other way
+	if(!check_owner(w->get_besitzer(),sp)) {
+		return false;
 	}
 	// check for existing crossing
 	crossing_t *cr = bd->find<crossing_t>();
@@ -345,7 +345,7 @@ bool wegbauer_t::check_crossing(const koord zv, const grund_t *bd, waytype_t wty
 		return false;
 	}
 	// crossing available and ribis ok
-	if(crossing_logic_t::get_crossing(wtyp, w->get_waytype(), welt->get_timeline_year_month())!=NULL) {
+	if(crossing_logic_t::get_crossing(wtyp, w->get_waytype(), 0, welt->get_timeline_year_month())!=NULL) {
 		ribi_t::ribi w_ribi = w->get_ribi_unmasked();
 		// it is our way we want to cross: can we built a crossing here?
 		// both ways must be straight and no ends
@@ -768,7 +768,7 @@ bool wegbauer_t::is_allowed_step( const grund_t *from, const grund_t *to, long *
 		case leitung:
 			ok = !to->ist_wasser()  &&  (to->get_weg(air_wt)==NULL);
 			if(to->get_weg_nr(0)!=NULL) {
-				// only 90 deg crossings, only a signle way
+				// only 90 deg crossings, only a single way
 				ribi_t::ribi w_ribi= to->get_weg_nr(0)->get_ribi_unmasked();
 				ok &= ribi_t::ist_gerade(w_ribi)  &&  !ribi_t::ist_einfach(w_ribi)  &&  ribi_t::ist_gerade(ribi_typ(zv))  &&  (w_ribi&ribi_typ(zv))==0;
 			}
@@ -1343,10 +1343,10 @@ wegbauer_t::intern_calc_straight_route(const koord3d start, const koord3d ziel)
 		if(bautyp&tunnel_flag) {
 #ifdef ONLY_TUNNELS_BELOW_GROUND
 			// ground must be above tunnel
-			ok &= (welt->lookup(pos.get_2d())->get_kartenboden()->get_hoehe() > pos.z);
+			ok &= (welt->lookup_kartenboden(pos.get_2d())->get_hoehe() > pos.z);
 #else
 			// at least tunnel not in the sea
-			const grund_t *gr = welt->lookup(pos.get_2d())->get_kartenboden();
+			const grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
 			ok = ok && (!gr->ist_wasser()  ||  min( welt->lookup_hgt(pos.get_2d()), welt->get_grundwasser() ) > pos.z);
 #endif
 			// create fake tunnel grounds if needed
@@ -1381,7 +1381,7 @@ wegbauer_t::intern_calc_straight_route(const koord3d start, const koord3d ziel)
 			// check for last tile
 			if(  ok  &&  bd_nach->get_pos().get_2d()==ziel.get_2d()  ) {
 				// at least tunnel not in the sea
-				const grund_t *gr = welt->lookup(bd_nach->get_pos().get_2d())->get_kartenboden();
+				const grund_t *gr = welt->lookup_kartenboden(bd_nach->get_pos().get_2d());
 				ok = ok  &&  (!gr->ist_wasser()  ||  min( welt->lookup_hgt(pos.get_2d()+diff), welt->get_grundwasser() ) > pos.z);
 			}
 
@@ -1454,14 +1454,14 @@ wegbauer_t::intern_calc_route_runways(koord3d start3d, const koord3d ziel3d)
 	// now try begin and endpoint
 	const koord zv(ribi);
 	// end start
-	const grund_t *gr = welt->lookup(start)->get_kartenboden();
+	const grund_t *gr = welt->lookup_kartenboden(start);
 	const weg_t *weg=gr->get_weg(air_wt);
 	if(weg  &&  (weg->get_besch()->get_styp()==0  ||  ribi_t::ist_kurve(weg->get_ribi()|ribi))) {
 		// cannot connect to taxiway at the start and no curve possible
 		return false;
 	}
 	// check end
-	gr = welt->lookup(ziel)->get_kartenboden();
+	gr = welt->lookup_kartenboden(ziel);
 	weg=gr->get_weg(air_wt);
 	if(weg  &&  (weg->get_besch()->get_styp()==1  ||  ribi_t::ist_kurve(weg->get_ribi()|ribi))) {
 		// cannot connect to taxiway at the end and no curve at the end
@@ -1469,9 +1469,9 @@ wegbauer_t::intern_calc_route_runways(koord3d start3d, const koord3d ziel3d)
 	}
 	// now try a straight line with no crossings and no curves at the end
 	const int dist=koord_distance( ziel, start );
-	grund_t *from = welt->lookup(start)->get_kartenboden();
+	grund_t *from = welt->lookup_kartenboden(start);
 	for(  int i=0;  i<=dist;  i++  ) {
-		grund_t *to = welt->lookup(start+zv*i)->get_kartenboden();
+		grund_t *to = welt->lookup_kartenboden(start+zv*i);
 		long dummy;
 		if (!is_allowed_step(from, to, &dummy)) {
 			return false;
@@ -1482,7 +1482,7 @@ wegbauer_t::intern_calc_route_runways(koord3d start3d, const koord3d ziel3d)
 	route.clear();
 	route.resize(dist + 2);
 	for(  int i=0;  i<=dist;  i++  ) {
-		route.append(welt->lookup(start + zv * i)->get_kartenboden()->get_pos());
+		route.append(welt->lookup_kartenboden(start + zv * i)->get_pos());
 	}
 	return true;
 }
@@ -2063,7 +2063,7 @@ class fluss_fahrer_t : public fahrer_t
 	bool ist_befahrbar(const grund_t* gr) const { return gr->get_weg_ribi_unmasked(water_wt)!=0; }
 	virtual ribi_t::ribi get_ribi(const grund_t* gr) const { return gr->get_weg_ribi_unmasked(water_wt); }
 	virtual waytype_t get_waytype() const { return invalid_wt; }
-	virtual int get_kosten(const grund_t *,const sint32) const { return 1; }
+	virtual int get_kosten(const grund_t *, const sint32, koord) const { return 1; }
 	virtual bool ist_ziel(const grund_t *cur,const grund_t *) const { return cur->ist_wasser()  &&  cur->get_grund_hang()==hang_t::flach; }
 };
 

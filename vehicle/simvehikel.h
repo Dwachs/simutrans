@@ -397,12 +397,12 @@ public:
 	* fahrzeug an haltestelle entladen
 	* @author Hj. Malthaner
 	*/
-	bool entladen(koord k, halthandle_t halt);
+	bool entladen(halthandle_t halt);
 
 	/**
 	* fahrzeug an haltestelle beladen
 	*/
-	bool beladen(koord k, halthandle_t halt);
+	bool beladen(halthandle_t halt);
 
 	// sets or querey begin and end of convois
 	void set_erstes(bool janein) {ist_erstes = janein;}
@@ -441,6 +441,12 @@ public:
 };
 
 
+template<> inline vehikel_t* ding_cast<vehikel_t>(ding_t* const d)
+{
+	return dynamic_cast<vehikel_t*>(d);
+}
+
+
 /**
  * Eine Klasse für Strassenfahrzeuge. Verwaltet das Aussehen der
  * Fahrzeuge und die Befahrbarkeit des Untergrundes.
@@ -464,7 +470,7 @@ public:
 	virtual void set_convoi(convoi_t *c);
 
 	// how expensive to go here (for way search)
-	virtual int get_kosten(const grund_t *,const sint32 ) const;
+	virtual int get_kosten(const grund_t *, const sint32, koord) const;
 
 	virtual bool calc_route(koord3d start, koord3d ziel, sint32 max_speed, route_t* route);
 
@@ -517,7 +523,7 @@ public:
 	bool calc_route(koord3d start, koord3d ziel, sint32 max_speed, route_t* route);
 
 	// how expensive to go here (for way search)
-	virtual int get_kosten(const grund_t *,const sint32 ) const;
+	virtual int get_kosten(const grund_t *, const sint32, koord) const;
 
 	// returns true for the way search to an unknown target.
 	virtual bool ist_ziel(const grund_t *,const grund_t *) const;
@@ -526,8 +532,8 @@ public:
 	virtual bool ist_weg_frei(int &restart_speed);
 
 	// reserves or unreserves all blocks and returns the handle to the next block (if there)
-	// returns ture on successful reservation
-	bool block_reserver(const route_t *route, uint16 start_index, uint16 &next_singal, uint16 &next_crossing, int signal_count, bool reserve ) const;
+	// returns true on successful reservation
+	bool block_reserver(const route_t *route, uint16 start_index, uint16 &next_signal, uint16 &next_crossing, int signal_count, bool reserve, bool force_unreserve ) const;
 
 	void verlasse_feld();
 
@@ -618,7 +624,7 @@ class schiff_t : public vehikel_t
 {
 protected:
 	// how expensive to go here (for way search)
-	virtual int get_kosten(const grund_t *, const sint32) const { return 1; }
+	virtual int get_kosten(const grund_t *, const sint32, koord) const { return 1; }
 
 	void calc_akt_speed(const grund_t *gr);
 
@@ -701,7 +707,7 @@ public:
 	virtual ribi_t::ribi get_ribi(const grund_t* ) const;
 
 	// how expensive to go here (for way search)
-	virtual int get_kosten(const grund_t *,const sint32 ) const;
+	virtual int get_kosten(const grund_t *, const sint32, koord) const;
 
 	virtual bool ist_weg_frei(int &restart_speed);
 

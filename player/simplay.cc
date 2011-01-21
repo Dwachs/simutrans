@@ -24,6 +24,7 @@
 #include "../simmesg.h"
 #include "../simskin.h"
 #include "../simsound.h"
+#include "../simticker.h"
 #include "../simtools.h"
 #include "../simware.h"
 #include "../simwerkz.h"
@@ -176,6 +177,11 @@ bool spieler_t::set_unlock( const uint8 *hash )
 	else if(  hash!=NULL  ) {
 		// matches password?
 		locked = (pwd_hash != hash);
+	}
+	if(  !locked  &&  player_nr==1  ) {
+		// public player unlocked:
+		// allow to change active player
+		welt->access_einstellungen()->set_allow_player_change(true);
 	}
 	return locked;
 }
@@ -350,13 +356,14 @@ void spieler_t::neuer_monat()
 			if(  welt->get_active_player_nr()==player_nr  &&  !umgebung_t::networkmode  ) {
 				if(finance_history_year[0][COST_NETWEALTH]<0) {
 					destroy_all_win(true);
-					create_win(280, 40, new news_img("Bankrott:\n\nDu bist bankrott.\n"), w_info, magic_none);
+					create_win( display_get_width()/2-128, 40, new news_img("Bankrott:\n\nDu bist bankrott.\n"), w_info, magic_none);
+					ticker::add_msg( translator::translate("Bankrott:\n\nDu bist bankrott.\n"), koord::invalid, PLAYER_FLAG + kennfarbe1 + 1 );
 					welt->beenden(false);
 				}
 				else {
 					// tell the player
 					sprintf(buf, translator::translate("On loan since %i month(s)"), konto_ueberzogen );
-					welt->get_message()->add_message(buf,koord::invalid,message_t::problems,player_nr,IMG_LEER);
+					welt->get_message()->add_message( buf, koord::invalid, message_t::problems, player_nr, IMG_LEER );
 				}
 			}
 			// no assets => nothing to go bankrupt about again
@@ -595,6 +602,26 @@ void spieler_t::ai_bankrupt()
 		haltestelle_t::destroy( h );
 	}
 
+	// transfer all ways in public stops belonging to me to no one
+	slist_iterator_tpl<halthandle_t>iter(haltestelle_t::get_alle_haltestellen());
+	while(  iter.next()  ) {
+		halthandle_t halt = iter.get_current();
+		if(  halt->get_besitzer()==welt->get_spieler(1)  ) {
+			// only concerns public stops tiles
+			for(  slist_tpl<haltestelle_t::tile_t>::const_iterator iter_tiles = halt->get_tiles().begin(), end = halt->get_tiles().end();  iter_tiles != end;  ++iter_tiles  ) {
+				for(  uint8 wnr=0;  wnr<2;  wnr++  ) {
+					weg_t *w = iter_tiles->grund->get_weg_nr(wnr);
+					if(  w  &&  w->get_besitzer()==this  ) {
+						// take ownership
+						spieler_t::add_maintenance( this, -w->get_besch()->get_wartung() );
+						w->set_besitzer(NULL); // make public
+					}
+				}
+			}
+		}
+	}
+
+
 	// next remove all ways, depot etc, that are not road or channels
 	for( int y=0;  y<welt->get_groesse_y();  y++  ) {
 		for( int x=0;  x<welt->get_groesse_x();  x++  ) {
@@ -608,10 +635,14 @@ void spieler_t::ai_bankrupt()
 					tunnelbauer_t::remove( welt, this, gr->get_pos(), gr->get_weg_nr(0)->get_waytype() );
 				}
 				else {
+					bool count_signs = false;
 					for(  int i=gr->get_top()-1;  i>=0;  i--  ) {
 						ding_t *dt = gr->obj_bei(i);
 						if(dt->get_besitzer()==this) {
 							switch(dt->get_typ()) {
+								case ding_t::roadsign:
+								case ding_t::signal:
+									count_signs = true;
 								case ding_t::airdepot:
 								case ding_t::bahndepot:
 								case ding_t::monoraildepot:
@@ -621,9 +652,7 @@ void spieler_t::ai_bankrupt()
 								case ding_t::leitung:
 								case ding_t::senke:
 								case ding_t::pumpe:
-								case ding_t::signal:
 								case ding_t::wayobj:
-								case ding_t::roadsign:
 									dt->entferne(this);
 									delete dt;
 									break;
@@ -633,7 +662,7 @@ void spieler_t::ai_bankrupt()
 								case ding_t::way:
 								{
 									weg_t *w=(weg_t *)dt;
-									if(!gr->ist_karten_boden()  ||  w->get_waytype()==road_wt  ||  w->get_waytype()==water_wt) {
+									if(!gr->ist_karten_boden()  ||  w->get_waytype()==road_wt  ||  w->get_waytype()==water_wt  ) {
 										add_maintenance( -w->get_besch()->get_wartung() );
 										w->set_besitzer( NULL );
 									}
@@ -645,6 +674,12 @@ void spieler_t::ai_bankrupt()
 								default:
 									gr->obj_bei(i)->set_besitzer( welt->get_spieler(1) );
 							}
+						}
+					}
+					if (count_signs  &&  gr->hat_wege()) {
+						gr->get_weg_nr(0)->count_sign();
+						if (gr->has_two_ways()) {
+							gr->get_weg_nr(1)->count_sign();
 						}
 					}
 				}
@@ -941,20 +976,21 @@ void spieler_t::bescheid_vehikel_problem(convoihandle_t cnv,const koord3d ziel)
 
 		case convoi_t::NO_ROUTE:
 DBG_MESSAGE("spieler_t::bescheid_vehikel_problem","Vehicle %s can't find a route to (%i,%i)!", cnv->get_name(),ziel.x,ziel.y);
-			if(this==welt->get_active_player()) {
-				char buf[256];
-				sprintf(buf,translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
-				welt->get_message()->add_message(buf, cnv->get_pos().get_2d(), message_t::convoi, PLAYER_FLAG | player_nr, cnv->front()->get_basis_bild());
+			{
+				cbuffer_t buf(256);
+				buf.printf( translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
+				welt->get_message()->add_message( (const char *)buf, cnv->get_pos().get_2d(), message_t::problems, PLAYER_FLAG | player_nr, cnv->front()->get_basis_bild());
 			}
 			break;
 
 		case convoi_t::WAITING_FOR_CLEARANCE_ONE_MONTH:
 		case convoi_t::CAN_START_ONE_MONTH:
+		case convoi_t::CAN_START_TWO_MONTHS:
 DBG_MESSAGE("spieler_t::bescheid_vehikel_problem","Vehicle %s stucked!", cnv->get_name(),ziel.x,ziel.y);
-			if(this==welt->get_active_player()) {
-				char buf[256];
-				sprintf(buf,translator::translate("Vehicle %s is stucked!"), cnv->get_name());
-				welt->get_message()->add_message(buf, cnv->get_pos().get_2d(), message_t::convoi, PLAYER_FLAG | player_nr, cnv->front()->get_basis_bild());
+			{
+				cbuffer_t buf(256);
+				buf.printf( translator::translate("Vehicle %s is stucked!"), cnv->get_name());
+				welt->get_message()->add_message( (const char *)buf, cnv->get_pos().get_2d(), message_t::warnings, PLAYER_FLAG | player_nr, cnv->front()->get_basis_bild());
 			}
 			break;
 
@@ -969,8 +1005,7 @@ DBG_MESSAGE("spieler_t::bescheid_vehikel_problem","Vehicle %s, state %i!", cnv->
  * @date 7-Feb-2005
  * @author prissi
  */
-void
-spieler_t::init_undo( waytype_t wtype, unsigned short max )
+void spieler_t::init_undo( waytype_t wtype, unsigned short max )
 {
 	// only human player
 	// prissi: allow for UNDO for real player
@@ -1065,6 +1100,7 @@ spieler_t::undo()
 	last_built.clear();
 	return cost!=0;
 }
+
 
 void spieler_t::tell_tool_result(werkzeug_t *tool, koord3d, const char *err, bool local)
 {

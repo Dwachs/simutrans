@@ -41,7 +41,7 @@ public:
 	// true, if we are in networkmode
 	static bool networkmode;
 	static long server_frames_ahead;
-	static long server_ms_ahead;
+	static long additional_client_frames_behind;
 	static long network_frames_per_step;
 	// how often to synchronize
 	static uint32 server_sync_steps_between_checks;
@@ -51,11 +51,17 @@ public:
 	static uint16 server;
 
 	static uint32 announce_server;
+	static sint32 announce_server_intervall;
 	static std::string server_name;
 	static std::string server_comment;
 
 	// scrollrichtung
 	static sint16 scroll_multi;
+
+	// messages with player name
+	static bool add_player_name_to_message;
+
+	static sint16 window_snap_distance;
 
 	/**
 	* tag-nacht wechsel zeigen ?

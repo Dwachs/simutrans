@@ -103,6 +103,20 @@
 	ADD: dialogue can be changed (currently only minimap)
 	ADD: possibility to compare pakset of client and server
 	CHANGE: one year after bankrupt, clear slot for new player
+	CHANGE: first load convoi waiting the longest time at a stop
+	FIX: after bankruptsy, ways on public stops will remain unowned, so new people can connect to them
+	FIX: transfer statistics too, when joining stops
+	CHANGE: In order to lock a game the public player must be password protected. Unlocking the public player allows player change again.
+	CHANGE: (Knightly) message system has now tabs for faster overview of categories
+	CHANGE: cities try some terraforming to be able to build roads
+	ADD: messages are saved in save games
+	CHANGE: passwords are only checked/changed if <enter> is pressed in the password input box
+	ADD: more messages for headquarters and making stops public
+	CHANGE: application folder for simutrans now under /Library/Simutrans (default MAC standard)
+	ADD: (TurfIt) rightclick closes all toolbars, all dialogues and deselects all tools
+	ADD: (TurfIt/Dwachs) Windows snap onto each other when they are close (controlled by window_snap_distance)
+	ADD: server can do monthly announcements
+	ADD: announcements can be configured on command line
 
 
 Release of 102.2.2 (r3131 on 8-Mar-2010):
@@ -129,6 +143,7 @@ Release of 102.2.2 (r3131 on 8-Mar-2010):
 	FIX: (TurfIt) really empty factories input even in consumption factors not 100%
 	FIX: stop factory building if more than 10 attempts failed
 	FIX: (Dwachs) display correct length in depot
+	FIX: isometric map repaired
 
 
 
@@ -1420,7 +1435,7 @@ Release of 88.06.1
 	FIX: monorail ground saves slope (otherwise the slope could be changed by building below)
 	CHANGE: schedules are now recalculated more often
 	FIX: no tunnel or bridge destroyed by slopes anymore
-	ADD: indicator for covois stucked for more than a month
+	ADD: indicator for convois stucked for more than a month
 	FIX: much less redraw troubles with slopes (will be drawn as foreground, if any object is behind them)
 	ADD: season indicator
 	FIX: UNDO did remove tracks but no electricfication

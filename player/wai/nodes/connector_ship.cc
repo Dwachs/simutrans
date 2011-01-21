@@ -37,7 +37,7 @@ public:
 	ribi_t::ribi get_ribi(const grund_t *gr) const { return gr->get_weg_ribi(water_wt); }
 	waytype_t get_waytype() const { return water_wt; }
 
-	int get_kosten(const grund_t *gr,const sint32) const // ignored in find_route
+	int get_kosten(const grund_t *gr,const sint32, koord /*from_pos*/) const // ignored in find_route
 	{
 		// our depot?
 		depot_t *dep = gr->get_depot();

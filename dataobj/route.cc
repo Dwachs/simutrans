@@ -37,6 +37,11 @@
 #include "../tpl/binary_heap_tpl.h" // fastest
 
 
+#ifdef DEBUG_ROUTES
+#include "../simsys.h"
+#endif
+
+
 
 void route_t::kopiere(const route_t *r)
 {
@@ -107,7 +112,7 @@ DBG_MESSAGE("route_t::append_straight_route()","start from (%i,%i) to (%i,%i)",p
 		if(!welt->ist_in_kartengrenzen(pos)) {
 			break;
 		}
-		route.append(welt->lookup(pos)->get_kartenboden()->get_pos());
+		route.append(welt->lookup_kartenboden(pos)->get_pos());
 	}
 	DBG_MESSAGE("route_t::append_straight_route()","to (%i,%i) found.",ziel.x,ziel.y);
 
@@ -125,9 +130,7 @@ bool route_t::node_in_use=false;
 /* find the route to an unknow location
  * @author prissi
  */
-bool route_t::find_route(karte_t *welt,
-                    const koord3d start,
-                    fahrer_t *fahr, const uint32 /*max_khm*/, uint8 start_dir, uint32 max_depth )
+bool route_t::find_route(karte_t *welt, const koord3d start, fahrer_t *fahr, const uint32 /*max_khm*/, uint8 start_dir, uint32 max_depth )
 {
 	bool ok = false;
 
@@ -159,7 +162,7 @@ bool route_t::find_route(karte_t *welt,
 	route.clear();
 
 	// first tile is not valid?!?
-	if (!fahr->ist_befahrbar(g)) {
+	if(  !fahr->ist_befahrbar(g)  ) {
 		return false;
 	}
 
@@ -190,14 +193,14 @@ bool route_t::find_route(karte_t *welt,
 
 //DBG_DEBUG("add to close","(%i,%i,%i) f=%i",gr->get_pos().x,gr->get_pos().y,gr->get_pos().z,tmp->f);
 		// already there
-		if(fahr->ist_ziel(gr,tmp->parent==NULL?NULL:tmp->parent->gr)) {
+		if(  fahr->ist_ziel( gr, tmp->parent==NULL ? NULL : tmp->parent->gr )  ) {
 			// we added a target to the closed list: check for length
 			break;
 		}
 
 		// testing all four possible directions
 		const ribi_t::ribi ribi =  fahr->get_ribi(gr);
-		for(int r=0; r<4; r++) {
+		for(  int r=0;  r<4;  r++  ) {
 			// a way goes here, and it is not marked (i.e. in the closed list)
 			grund_t* to;
 			if(  (ribi & ribi_t::nsow[r] & start_dir)!=0  // allowed dir (we can restrict the first step by start_dir)
@@ -246,7 +249,7 @@ bool route_t::find_route(karte_t *welt,
 		// ok, now no more restrains
 		start_dir = ribi_t::alle;
 
-	} while (!open.empty() && step < MAX_STEP && open.get_count() < max_depth);
+	} while(  !open.empty()  &&  step < MAX_STEP  &&  open.get_count() < max_depth  );
 
 	INT_CHECK("route 194");
 
@@ -416,8 +419,8 @@ bool route_t::intern_calc_route(karte_t *welt, const koord3d ziel, const koord3d
 						continue;
 				}
 
-				// new values for cost g
-				uint32 new_g = tmp->g + fahr->get_kosten(to,max_speed);
+				// new values for cost g (without way it is either in the air or in water => no costs)
+				uint32 new_g = tmp->g + (w ? fahr->get_kosten(to, max_speed, tmp->gr->get_pos().get_2d()) : 1);
 
 				// check for curves (usually, one would need the lastlast and the last;
 				// if not there, then we could just take the last
@@ -426,7 +429,7 @@ bool route_t::intern_calc_route(karte_t *welt, const koord3d ziel, const koord3d
 					current_dir = ribi_typ( tmp->parent->gr->get_pos().get_2d(), to->get_pos().get_2d() );
 					if(tmp->dir!=current_dir) {
 						new_g += 3;
-						if(tmp->parent->dir!=tmp->dir) {
+						if(tmp->parent->dir!=tmp->dir  &&  tmp->parent->parent!=NULL) {
 							// discourage 90° turns
 							new_g += 10;
 						}
@@ -469,7 +472,9 @@ bool route_t::intern_calc_route(karte_t *welt, const koord3d ziel, const koord3d
 	INT_CHECK("route 194");
 	// target reached?
 	if(!ziel_erreicht  || step >= MAX_STEP  ||  tmp->parent==NULL) {
-		dbg->warning("route_t::intern_calc_route()","Too many steps (%i>=max %i) in route (too long/complex)",step,MAX_STEP);
+		if(  step >= MAX_STEP  ) {
+			dbg->warning("route_t::intern_calc_route()","Too many steps (%i>=max %i) in route (too long/complex)",step,MAX_STEP);
+		}
 	}
 	else {
 		// reached => construct route

@@ -219,7 +219,7 @@ koord3d brueckenbauer_t::finde_ende(karte_t *welt, koord3d pos, koord zv, const 
 					// no or one way
 					const weg_t* weg = gr1->get_weg_nr(0);
 					if(  weg==NULL  ||  weg->get_waytype()==wegtyp
-						|| (crossing_logic_t::get_crossing(wegtyp, weg->get_waytype(), welt->get_timeline_year_month())  &&  (ribi_typ(zv)&weg->get_ribi_unmasked())==0)
+						|| (crossing_logic_t::get_crossing( wegtyp, weg->get_waytype(), besch->get_topspeed(), welt->get_timeline_year_month())  &&  (ribi_typ(zv)&weg->get_ribi_unmasked())==0)
 					) {
 						return gr1->get_pos();
 					}
@@ -470,7 +470,7 @@ void brueckenbauer_t::baue_bruecke(karte_t *welt, spieler_t *sp, koord3d pos, ko
 		if(besch->get_pillar()>0) {
 			// make a new pillar here
 			if(besch->get_pillar()==1  ||  (pos.x*zv.x+pos.y*zv.y)%besch->get_pillar()==0) {
-				grund_t *gr = welt->lookup(pos.get_2d())->get_kartenboden();
+				grund_t *gr = welt->lookup_kartenboden(pos.get_2d());
 //DBG_MESSAGE("bool brueckenbauer_t::baue_bruecke()","h1=%i, h2=%i",pos.z,gr->get_pos().z);
 				sint16 height = (pos.z - gr->get_pos().z)/Z_TILE_STEP+1;
 				while(height-->0) {
@@ -663,7 +663,7 @@ const char *brueckenbauer_t::remove(karte_t *welt, spieler_t *sp, koord3d pos, w
 		delete gr;
 
 		// finally delete all pillars (if there)
-		gr = welt->lookup(pos.get_2d())->get_kartenboden();
+		gr = welt->lookup_kartenboden(pos.get_2d());
 		ding_t *p;
 		while ((p = gr->find<pillar_t>()) != 0) {
 			p->entferne(p->get_besitzer());

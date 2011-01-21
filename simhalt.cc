@@ -306,6 +306,7 @@ haltestelle_t::haltestelle_t(karte_t* wl, loadsave_t* file)
 {
 	self = halthandle_t(this);
 	markers[ self.get_id() ] = current_mark;
+	last_loading_step = wl->get_steps();
 
 	welt = wl;
 
@@ -346,6 +347,7 @@ haltestelle_t::haltestelle_t(karte_t* wl, koord k, spieler_t* sp)
 
 	markers[ self.get_id() ] = current_mark;
 
+	last_loading_step = wl->get_steps();
 	welt = wl;
 
 	this->init_pos = k;
@@ -631,7 +633,7 @@ char *haltestelle_t::create_name(const koord k, const char *typ, const int lang)
 		slist_iterator_tpl<fabrik_t*> fab_iter(fabs);
 		while (fab_iter.next()) {
 			// with factories
-			sprintf(buf, fab_base, city_name, fab_iter.get_current()->get_name(), stop );
+			sprintf(buf, fab_base, city_name, translator::translate(fab_iter.get_current()->get_besch()->get_name(),lang), stop );
 			if(  !all_names.get(buf).is_bound()  ) {
 				return strdup(buf);
 			}
@@ -783,6 +785,32 @@ char *haltestelle_t::create_name(const koord k, const char *typ, const int lang)
 	// emergency measure: But before we should run out of handles anyway ...
 	assert(0);
 	return strdup("Unnamed");
+}
+
+
+
+// add convoi to loading
+void haltestelle_t::request_loading( convoihandle_t cnv )
+{
+	if(  !loading_here.is_contained(cnv)  ) {
+		loading_here.append (cnv );
+	}
+	if(  last_loading_step != welt->get_steps()  ) {
+		last_loading_step = welt->get_steps();
+		// now iterate over all convois
+		for(  slist_tpl<convoihandle_t>::iterator i = loading_here.begin(), end = loading_here.end();  i != end;  ) {
+			if(  (*i).is_bound()  &&  (*i)->get_state()==convoi_t::LOADING  ) {
+				// now we load into convoi
+				(*i)->hat_gehalten( self );
+			}
+			if(  (*i).is_bound()  &&  (*i)->get_state()==convoi_t::LOADING  ) {
+				++i;
+			}
+			else {
+				i = loading_here.erase( i );
+			}
+		}
+	}
 }
 
 
@@ -1873,7 +1901,7 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 				const planquadrat_t *pl2 = welt->lookup(gr->get_pos().get_2d()+koord::neighbours[i]);
 				if(  pl2  ) {
 					halthandle_t halt = pl2->get_halt();
-					if(  halt.is_bound()  &&  halt->get_besitzer()==public_owner  &&  !joining.is_contained(halt)) {
+					if(  halt.is_bound()  &&  halt->get_besitzer()==public_owner  &&  !joining.is_contained(halt)  ) {
 						joining.append(halt);
 					}
 				}
@@ -1897,6 +1925,14 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 
 		// now with the second stop
 		while(halt.is_bound()  &&  halt!=self) {
+			// add statistics
+			for(  int month=0;  month<MAX_MONTHS;  month++  ) {
+				for(  int type=0;  type<MAX_HALT_COST;  type++  ) {
+					financial_history[month][type] += halt->financial_history[month][type];
+					halt->financial_history[month][type] = 0;	// to avoind counting twice
+				}
+			}
+
 			// we always take the first remaining tile and transfer it => more safe
 			koord3d t = halt->get_basis_pos3d();
 			grund_t *gr = welt->lookup(t);
@@ -1925,6 +1961,13 @@ void haltestelle_t::make_public_and_join( spieler_t *sp )
 				destroy(halt);
 			}
 		}
+	}
+
+	// tell the world of it ...
+	if(  sp->get_player_nr()!=1  &&  umgebung_t::networkmode  ) {
+		cbuffer_t buf(256);
+		buf.printf( translator::translate("%s at (%i,%i) now public stop."), get_name(), get_basis_pos().x, get_basis_pos().y );
+		welt->get_message()->add_message( buf, get_basis_pos(), message_t::ai, PLAYER_FLAG|sp->get_player_nr(), IMG_LEER );
 	}
 
 	recalc_station_type();
@@ -2117,7 +2160,7 @@ void haltestelle_t::rdwr(loadsave_t *file)
 			grund_t *gr = welt->lookup(k);
 			if(!gr) {
 				dbg->error("haltestelle_t::rdwr()", "invalid position %s", k.get_str() );
-				gr = welt->lookup(k.get_2d())->get_kartenboden();
+				gr = welt->lookup_kartenboden(k.get_2d());
 				dbg->error("haltestelle_t::rdwr()", "setting to %s", gr->get_pos().get_str() );
 			}
 			// during loading and saving halts will be referred by their base postion
@@ -2432,9 +2475,10 @@ bool haltestelle_t::add_grund(grund_t *gr)
 	for (int y = -cov; y <= cov; y++) {
 		for (int x = -cov; x <= cov; x++) {
 			koord p=pos+koord(x,y);
-			if(welt->ist_in_kartengrenzen(p)) {
-				welt->access(p)->add_to_haltlist( self );
-				welt->lookup(p)->get_kartenboden()->set_flag(grund_t::dirty);
+			planquadrat_t *plan = welt->access(p);
+			if(plan) {
+				plan->add_to_haltlist( self );
+				plan->get_kartenboden()->set_flag(grund_t::dirty);
 			}
 		}
 	}

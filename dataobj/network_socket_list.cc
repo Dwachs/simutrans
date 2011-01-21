@@ -53,7 +53,7 @@ void socket_info_t::process_send_queue()
 {
 	while(!send_queue.empty()) {
 		packet_t *p = send_queue.front();
-		p->send(socket);
+		p->send(socket, false);
 		if (p->has_failed()) {
 			// close this client, clear the send_queue
 			socket_list_t::remove_client(socket);
@@ -120,12 +120,15 @@ void socket_list_t::book_state_change(uint8 state, sint8 incr)
 			break;
 	}
 }
+
+
 void socket_list_t::change_state(uint32 id, uint8 new_state)
 {
 	book_state_change(list[id].state, -1);
 	list[id].state = new_state;
 	book_state_change(list[id].state, +1);
 }
+
 
 void socket_list_t::reset()
 {
@@ -137,6 +140,7 @@ void socket_list_t::reset()
 	server_sockets = 0;
 }
 
+
 void socket_list_t::reset_clients()
 {
 	for(uint32 j=server_sockets; j<list.get_count(); j++) {
@@ -146,27 +150,29 @@ void socket_list_t::reset_clients()
 	playing_clients = 0;
 }
 
+
 void socket_list_t::add_client( SOCKET sock )
 {
 	dbg->message("socket_list_t::add_client", "add client socket[%d]", sock);
 	uint32 i = list.get_count();
 	// check whether socket already added
-	for(uint32 j=server_sockets; j<list.get_count(); j++) {
-		if (list[j].socket == sock  &&  list[j].state != socket_info_t::inactive) {
+	for(  uint32 j=server_sockets;  j<list.get_count();  j++  ) {
+		if(  list[j].socket == sock  &&  list[j].state != socket_info_t::inactive  ) {
 			return;
 		}
-		if (list[j].state == socket_info_t::inactive  &&  i == list.get_count()) {
+		if(  list[j].state == socket_info_t::inactive  &&  i == list.get_count()  ) {
 			i = j;
 		}
 	}
-	if (i == list.get_count()) {
-		list.append(socket_info_t());
+	if(  i == list.get_count()  ) {
+		list.append( socket_info_t() );
 	}
 	list[i].socket = sock;
-	change_state(i, socket_info_t::connected);
+	change_state( i, socket_info_t::connected );
 
 	network_set_socket_nodelay( sock );
 }
+
 
 void socket_list_t::add_server( SOCKET sock )
 {
@@ -224,6 +230,7 @@ uint32 socket_list_t::get_client_id( SOCKET sock ){
 	return list.get_count();
 }
 
+
 void socket_list_t::send_all(network_command_t* nwc, bool only_playing_clients)
 {
 	if (nwc == NULL) {
@@ -240,13 +247,13 @@ void socket_list_t::send_all(network_command_t* nwc, bool only_playing_clients)
 }
 
 
-int socket_list_t::fill_set(fd_set *fds)
+SOCKET socket_list_t::fill_set(fd_set *fds)
 {
-	int s_max = 0;
+	SOCKET s_max = 0;
 	for(uint32 i=0; i<list.get_count(); i++) {
-		if (list[i].state != socket_info_t::inactive  &&  list[i].socket!=INVALID_SOCKET) {
+		if(  list[i].state != socket_info_t::inactive  &&  list[i].socket!=INVALID_SOCKET  ) {
 			SOCKET s = list[i].socket;
-			s_max = max( (int)s, (int)s_max );
+			s_max = max( s, s_max );
 			FD_SET( s, fds );
 		}
 	}

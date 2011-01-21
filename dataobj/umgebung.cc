@@ -5,6 +5,7 @@
 #include "../simconst.h"
 #include "../simtypes.h"
 #include "../simcolor.h"
+#include "../simmesg.h"
 
 // since this is used at load time and not to be changed afterwards => extra init!
 bool umgebung_t::drive_on_left = false;
@@ -17,11 +18,16 @@ uint16 umgebung_t::server = 0;
 
 // if !=0 contains ID from simutrans-germany.com
 uint32 umgebung_t::announce_server = 0;
+// how often to announce
+// ==0 off
+// ==-1: only on join/leave
+// otherwise: every xx months
+sint32 umgebung_t::announce_server_intervall = 0;
 std::string umgebung_t::server_name;
 std::string umgebung_t::server_comment;
 
-long umgebung_t::server_frames_ahead = 1;
-long umgebung_t::server_ms_ahead = 250;
+long umgebung_t::server_frames_ahead = 4;
+long umgebung_t::additional_client_frames_behind = 0;
 long umgebung_t::network_frames_per_step = 4;
 uint32 umgebung_t::server_sync_steps_between_checks = 256;
 
@@ -33,6 +39,7 @@ sint16 umgebung_t::midi_volume = 127;
 bool umgebung_t::mute_sound = false;
 bool umgebung_t::mute_midi = false;
 bool umgebung_t::shuffle_midi = true;
+sint16 umgebung_t::window_snap_distance = 8;
 
 // only used internally => do not touch further
 bool umgebung_t::quit_simutrans = false;
@@ -85,6 +92,8 @@ sint8 umgebung_t::daynight_level;
 bool umgebung_t::left_to_right_graphs;
 uint32 umgebung_t::tooltip_delay;
 uint32 umgebung_t::tooltip_duration;
+
+bool umgebung_t::add_player_name_to_message = true;
 
 uint8 umgebung_t::front_window_bar_color;
 uint8 umgebung_t::front_window_text_color;
@@ -277,4 +286,19 @@ void umgebung_t::rdwr(loadsave_t *file)
 		file->rdwr_byte( bottom_window_bar_color );
 		file->rdwr_byte( bottom_window_text_color );
 	}
+
+	if(  file->get_version()>=110000  ) {
+		file->rdwr_bool( add_player_name_to_message );
+		file->rdwr_short( window_snap_distance );
+	}
+	else if(  file->is_loading()  ) {
+		// did not know about chat message, so we enable it
+		message_flags[0] |= (1 << message_t::chat);	// ticker
+		message_flags[1] &= ~(1 << message_t::chat); // permanent window off
+		message_flags[2] &= ~(1 << message_t::chat); // tiem window off
+		message_flags[3] &= ~(1 << message_t::chat); // do not ignore completely
+
+	}
+
+	// server settings are not saved, since the are server specific and could be different on different servers on the save computers
 }

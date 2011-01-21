@@ -1,5 +1,5 @@
 /*
- * Copyright 1997, 2001 Hansjörg Malthaner
+ * Copyright 1997, 2001 Hj. Malthaner
  * hansjoerg.malthaner@gmx.de
  * Copyright 2010 Simutrans contributors
  * Available under the Artistic License (see license.txt)
@@ -32,6 +32,24 @@
 #	include <sys/stat.h>
 #	include <fcntl.h>
 #	include <unistd.h>
+#endif
+
+// first: find out, which copy routines we may use!
+#ifndef  __GNUC__
+# undef USE_C
+# define USE_C
+# ifndef  _M_IX86
+#  define ALIGN_COPY
+# endif
+#else
+# if defined(USE_C)  ||  !defined(__i386__)
+#  undef USE_C
+#  define USE_C
+#  if (__GNUC__>=4  &&  __GNUC_MINOR__>=2)  ||  !defined(__i386__)
+#   define ALIGN_COPY
+#   warning "Needs to use slower copy with GCC > 4.2.x"
+#  endif
+# endif
 #endif
 
 #include "simgraph.h"
@@ -872,7 +890,7 @@ inline void get_xrange_and_step_y(int &xmin, int &xmax)
 
 
 /*
- * simutrans keeps a list of dirty areas, i.e. places that recieved new graphics
+ * simutrans keeps a list of dirty areas, i.e. places that received new graphics
  * and must be copied to the screen after an update
  */
 static inline void mark_tile_dirty(const int x, const int y)
@@ -1077,7 +1095,7 @@ static void recode(void)
 	unsigned n;
 
 	for (n = 0; n < anz_images; n++) {
-		// tut jetzt on demand recode_img() für jedes Bild einzeln
+		// recode images only if the recoded image is needed
 		images[n].recode_flags |= FLAG_NORMAL_RECODE;
 		images[n].player_flags = NEED_PLAYER_RECODE;
 	}
@@ -1254,7 +1272,6 @@ static void rezoom_img(const image_id n)
 			static PIXVAL *baseimage2 = NULL;
 			PIXVAL *src = images[n].base_data;
 			PIXVAL *dest = NULL;
-			sint32 x, y;
 			// embed the baseimage in an image with margin ~ remainder
 			const sint16 x_rem = (images[n].base_x*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
 			const sint16 y_rem = (images[n].base_y*zoom_num[zoom_factor]) % zoom_den[zoom_factor];
@@ -1274,17 +1291,17 @@ static void rezoom_img(const image_id n)
 			// we will upack, resample, pack it
 
 			// thus the unpack buffer must at least fit the window => find out maximum size
-			x = newzoomwidth*(newzoomheight+3)*sizeof(PIXVAL);
-			y = (xl_margin+orgzoomwidth+xr_margin)*(yl_margin+orgzoomheight+yr_margin)*4;
-			if(y>x) {
-				x = y;
+			size_t new_size = newzoomwidth*(newzoomheight+6)*sizeof(PIXVAL);
+			size_t unpack_size = (xl_margin+orgzoomwidth+xr_margin)*(yl_margin+orgzoomheight+yr_margin)*4;
+			if( unpack_size > new_size ) {
+				new_size = unpack_size;
 			}
-			if(size < (uint32)x) {
+			if(size < new_size) {
 				free( baseimage );
 				free( baseimage2 );
-				size = x;
-				baseimage  = MALLOCN(uint8, size);
-				baseimage2 = (PIXVAL*)malloc(size);
+				size = new_size;
+				baseimage  = MALLOCN( uint8, size );
+				baseimage2 = (PIXVAL *)MALLOCN( uint8, size );
 			}
 			memset( baseimage, 255, size ); // fill with invalid data to mark transparent regions
 
@@ -1293,7 +1310,7 @@ static void rezoom_img(const image_id n)
 			sint32 basewidth = xl_margin+orgzoomwidth+xr_margin;
 
 			// now: unpack the image
-			for(  y=0;  y<images[n].base_h;  y++  ) {
+			for (sint32 y = 0; y < images[n].base_h; ++y) {
 				uint16 runlen;
 				uint8 *p = baseimage + baseoff + y*(basewidth*4);
 
@@ -1749,9 +1766,6 @@ void display_set_player_color_scheme(const int player, const COLOR_VAL col1, con
 }
 
 
-/**
- * Fügt ein Image aus anderer Quelle hinzu
- */
 void register_image(struct bild_t* bild)
 {
 	struct imd* image;
@@ -2053,7 +2067,7 @@ static void display_img_nc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 				// jetzt kommen farbige pixel
 				runlen = *sp++;
 #ifdef USE_C
-#if 1
+#ifndef ALIGN_COPY
 				{
 					// "classic" C code (why is it faster!?!)
 					const uint32 *ls;
@@ -2076,6 +2090,7 @@ static void display_img_nc(KOORD_VAL h, const KOORD_VAL xp, const KOORD_VAL yp, 
 				// some architectures: faster with inline of memory functions!
 				memcpy( p, sp, runlen*sizeof(PIXVAL) );
 				sp += runlen;
+				p += runlen;
 #endif
 #else
 				// this code is sometimes slower, mostly 5% faster, not really clear why and when (cache alignment?)
@@ -3118,23 +3133,35 @@ static void display_fb_internal(KOORD_VAL xp, KOORD_VAL yp, KOORD_VAL w, KOORD_V
 		PIXVAL *p = textur + xp + yp * disp_width;
 		int dx = disp_width - w;
 		const PIXVAL colval = specialcolormap_all_day[color & 0xFF];
-		const unsigned int longcolval = (colval << 16) | colval;
+		const uint32 longcolval = (colval << 16) | colval;
 
-		if (dirty) mark_rect_dirty_nc(xp, yp, xp + w - 1, yp + h - 1);
+		if (dirty) {
+			mark_rect_dirty_nc(xp, yp, xp + w - 1, yp + h - 1);
+		}
 
 		do {
-			unsigned int count = w;
 #ifdef USE_C
+			KOORD_VAL count = w;
+#ifdef ALIGN_COPY
+			// unfourtunately the GCC > 4.1.x has a bug in the optimizer
+			while(  count-- != 0  ) {
+				*p++ = colval;
+			}
+#else
 			uint32 *lp;
 
-			if (count & 1) *p++ = longcolval;
+			if(  count & 1  ) {
+				*p++ = colval;
+			}
 			count >>= 1;
 			lp = (uint32 *)p;
-			while (count-- != 0) {
+			while(  count-- != 0  ) {
 				*lp++ = longcolval;
 			}
 			p = (PIXVAL *)lp;
+#endif
 #else
+			unsigned int count = w;
 			asm volatile (
 				// uneven words to copy?
 				"shrl %1\n\t"
@@ -3150,7 +3177,6 @@ static void display_fb_internal(KOORD_VAL xp, KOORD_VAL yp, KOORD_VAL w, KOORD_V
 				: "cc", "memory"
 			);
 #endif
-
 			p += dx;
 		} while (--h != 0);
 	}
@@ -3468,7 +3494,7 @@ int display_text_proportional_len_clip(KOORD_VAL x, KOORD_VAL y, const char* txt
 	const PIXVAL color = specialcolormap_all_day[color_index & 0xFF];
 #ifndef USE_C
 	// faster drawing with assembler
-	const unsigned long color2 = (color << 16) | color;
+	const uint32 color2 = (color << 16) | color;
 #endif
 
 	// TAKE CARE: Clipping area may be larger than actual screen size ...
@@ -3858,7 +3884,7 @@ void display_flush_buffer(void)
 			x++;
 		} while (x < tiles_per_line);
 	}
-	dr_textur(0, 0, disp_width, disp_height);
+	dr_textur(0, 0, disp_actual_width, disp_height);
 #else
 	for (y = 0; y < tile_lines; y++) {
 		x = 0;
@@ -4115,7 +4141,7 @@ void display_snapshot()
 
 	char buf[80];
 
-#ifdef WIN32
+#ifdef _WIN32
 	mkdir(SCRENSHOT_PATH);
 #else
 	mkdir(SCRENSHOT_PATH, 0700);

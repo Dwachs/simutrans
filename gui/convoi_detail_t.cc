@@ -168,7 +168,7 @@ void convoi_detail_t::rdwr(loadsave_t *file)
 	sint32 yoff = scrolly.get_scroll_y();
 	if(  file->is_saving()  ) {
 		cnv_pos = cnv->front()->get_pos();
-		tstrncpy( name, cnv->get_name(), 128 );
+		tstrncpy(name, cnv->get_name(), lengthof(name));
 	}
 	cnv_pos.rdwr( file );
 	file->rdwr_str( name, lengthof(name) );
@@ -180,7 +180,7 @@ void convoi_detail_t::rdwr(loadsave_t *file)
 		if(  grund_t *gr = welt->lookup(cnv_pos)  ) {
 			for(  uint8 i=0;  i<gr->get_top();  i++  ) {
 				if(  gr->obj_bei(i)->is_moving()  ) {
-					vehikel_t *v = dynamic_cast<vehikel_t *>(gr->obj_bei(i));
+					vehikel_t const* const v = ding_cast<vehikel_t>(gr->obj_bei(i));
 					if(  v  &&  v->get_convoi()  ) {
 						if(  strcmp(v->get_convoi()->get_name(),name)==0  ) {
 							cnv = v->get_convoi()->self;
