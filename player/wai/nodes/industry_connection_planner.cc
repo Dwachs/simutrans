@@ -307,6 +307,8 @@ sint32 industry_connection_planner_t::calc_production()
 	const sint32 prod_s = ((start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor())>> shift) - start->get_abgabe_letzt(start_ware);
 	const sint32 prod = min(  prod_z,prod_s);
 
+	sp->get_log().message("industry_connection_planner_t::calc_production", "prod: %d consum: %d", prod_z, prod_s);
+
 	return prod;
 }
 
