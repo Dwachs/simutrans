@@ -132,10 +132,9 @@ void ai_wai_t::bescheid_vehikel_problem( convoihandle_t /*cnv*/, const koord3d /
 
 ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	ai_t( welt, nr ),
-	log(names[nr],true,true),
+	log(names[nr],true,true,true,"ai_wai_t: log started"),
 	bt_root(this, "root node" )
 {
-	log.message("ai_wai_t","log started.");
 	industry_manager = NULL;
 	factory_searcher = NULL;
 }

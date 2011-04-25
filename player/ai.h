@@ -15,6 +15,7 @@
 #include "../sucher/bauplatz_sucher.h"
 
 class karte_t;
+class vehikel_besch_t;
 class ware_besch_t;
 
 /**

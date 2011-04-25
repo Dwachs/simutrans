@@ -9,6 +9,7 @@
 #include "../vehikel_prototype.h"
 #include "../utils/water_digger.h"
 #include "../../ai_wai.h"
+#include "../../../simdepot.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
 #include "../../../simmenu.h"
@@ -18,6 +19,7 @@
 #include "../../../besch/vehikel_besch.h"
 #include "../../../besch/weg_besch.h"
 #include "../../../dataobj/loadsave.h"
+#include "../../../dataobj/route.h"
 #include "../../../ifc/fahrer.h"
 
 

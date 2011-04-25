@@ -74,7 +74,7 @@ public:
 		tunnel_flag=0x800				// underground structure
 	};
 
-private:
+protected:
 	enum build_type_t {
 		build_straight = 1
 	};

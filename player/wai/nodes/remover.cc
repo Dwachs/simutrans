@@ -5,6 +5,7 @@
 #include "../../../dataobj/route.h"
 #include "../../../dataobj/loadsave.h"
 #include "../../../vehicle/simvehikel.h"
+#include "../../../simdepot.h"
 #include "../../../simhalt.h"
 #include "../../../simwerkz.h"
 

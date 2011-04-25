@@ -12,6 +12,7 @@
 #include "../../ai_wai.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
+#include "../../../simline.h"
 #include "../../../simmenu.h"
 #include "../../../simmesg.h"
 #include "../../../bauer/brueckenbauer.h"
@@ -19,6 +20,7 @@
 #include "../../../bauer/tunnelbauer.h"
 #include "../../../bauer/wegbauer.h"
 #include "../../../besch/vehikel_besch.h"
+#include "../../../dataobj/fahrplan.h"
 #include "../../../dataobj/loadsave.h"
 
 enum connector_road_phases {

@@ -1,4 +1,5 @@
 #include "vehikel_builder.h"
+#include "../../../simdepot.h"
 #include "../../../simworld.h"
 #include "../../../bauer/vehikelbauer.h"
 #include "../../../besch/vehikel_besch.h"
@@ -108,19 +109,7 @@ void vehikel_builder_t::rdwr( loadsave_t *file, const uint16 version )
 	}
 	prototyper->rdwr(file);
 	// save linehandle
-	uint16 line_id;
-	if (file->is_saving()) {
-		line_id = line.is_bound() ? line->get_line_id() : INVALID_LINE_ID;
-	}
-	file->rdwr_short(line_id);
-	if (file->is_loading()) {
-		if (line_id != INVALID_LINE_ID) {
-			line = sp->simlinemgmt.get_line_by_id(line_id);
-		} 
-		else {
-			line = linehandle_t();
-		}
-	}
+	simline_t::rdwr_linehandle_t(file, line);
 	// cannot save convoihandle - try to reconstruct during loading
 	if (file->is_loading() && line.is_bound()) {
 		for(uint32 i=0; i<line->count_convoys(); i++) {

@@ -11,6 +11,7 @@
 #include "../../vehicle/simvehikel.h"
 #include "../../simconvoi.h"
 #include "../../simdebug.h"
+#include "../../simintr.h"
 #include "../../simworld.h"
 
 // returns capacity for given freight

@@ -88,10 +88,10 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 		const ware_besch_t *ware = fab->get_besch()->get_lieferant(i)->get_ware();
 
 		// find out how much is there
-		const vector_tpl<ware_production_t>& eingang = fab->get_eingang();
+		const array_tpl<ware_production_t>& eingang = fab->get_eingang();
 		uint ware_nr;
-		for(  ware_nr=0;  ware_nr<eingang.get_count()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
-		if(ware_nr >= eingang.get_count()) {
+		for(  ware_nr=0;  ware_nr<eingang.get_size()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
+		if(ware_nr >= eingang.get_size()) {
 			// something wrong here.
 			return false;
 		}
@@ -109,12 +109,12 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 					  &&  is_planable( fabrik_t::get_fab(sp->get_welt(),sources[q]), fab, ware )
 					  &&  !ai_t::is_connected( sources[q], fab->get_pos().get_2d(), ware )  ) {
 					// find out how much is there
-					const vector_tpl<ware_production_t>& ausgang = qfab->get_ausgang();
+					const array_tpl<ware_production_t>& ausgang = qfab->get_ausgang();
 					uint ware_nr;
-					for(ware_nr=0;  ware_nr<ausgang.get_count()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
+					for(ware_nr=0;  ware_nr<ausgang.get_size()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
 						;
 					// no suppliers for this good!
-					if (ware_nr>=ausgang.get_count()) {
+					if (ware_nr>=ausgang.get_size()) {
 						assert(fab->get_besch()->get_produkte()==0);
 						continue;
 					}

@@ -292,19 +292,19 @@ sint32 industry_connection_planner_t::calc_production()
 	karte_t *welt = sp->get_welt();
 
 	// properly calculate production & consumption
-	const vector_tpl<ware_production_t>& ausgang = start->get_ausgang();
+	const array_tpl<ware_production_t>& ausgang = start->get_ausgang();
 	uint start_ware=0;
-	while(  start_ware<ausgang.get_count()  &&  ausgang[start_ware].get_typ()!=freight  ) {
+	while(  start_ware<ausgang.get_size()  &&  ausgang[start_ware].get_typ()!=freight  ) {
 		start_ware++;
 	}
-	const vector_tpl<ware_production_t>& eingang = ziel->get_eingang();
+	const array_tpl<ware_production_t>& eingang = ziel->get_eingang();
 	uint ziel_ware=0;
-	while(  ziel_ware<eingang.get_count()  &&  eingang[ziel_ware].get_typ()!=freight  ) {
+	while(  ziel_ware<eingang.get_size()  &&  eingang[ziel_ware].get_typ()!=freight  ) {
 		ziel_ware++;
 	}
 	const uint8  shift = 8 - welt->ticks_per_world_month_shift +10 +8; // >>(simfab) * welt::monatslaenge /PRODUCTION_DELTA_T +dummy
 	const sint32 prod_z = (ziel->get_base_production()  *  ziel->get_besch()->get_lieferant(ziel_ware)->get_verbrauch() )>>shift;
-	const sint32 prod_s = ((start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor())>> shift) - start->get_abgabe_letzt(start_ware);
+	const sint32 prod_s = ((start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor())>> shift) - ausgang[start_ware].get_stat(1, FAB_GOODS_DELIVERED);
 	const sint32 prod = min(  prod_z,prod_s);
 
 	sp->get_log().message("industry_connection_planner_t::calc_production", "prod: %d consum: %d", prod_z, prod_s);

@@ -2,9 +2,10 @@
 #include "vehikel_builder.h"
 #include "industry_connection_planner.h"
 #include "../../ai_wai.h"
+#include "../../../simdepot.h"
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
-#include "../../../simlinemgmt.h"
+#include "../../../simline.h"
 #include "../../../dataobj/loadsave.h"
 #include "../../../vehicle/simvehikel.h"
 #include "../../../bauer/vehikelbauer.h"
@@ -52,23 +53,14 @@ connection_t* connection_t::alloc_connection(connection_types t, ai_wai_t *sp)
 
 void connection_t::rdwr(loadsave_t* file, const uint16 /*version*/, ai_wai_t *sp)
 {
-	uint16 line_id;
-	if (file->is_saving()) {
-		line_id = line.is_bound() ? line->get_line_id() : INVALID_LINE_ID;
-	}
-	file->rdwr_short(line_id);
-	if (file->is_loading()) {
-		if (line_id != INVALID_LINE_ID) {
-			line = sp->simlinemgmt.get_line_by_id(line_id);
-		}
-	}
+	simline_t::rdwr_linehandle_t(file, line);
 	file->rdwr_byte(state);
 }
 
 void connection_t::debug( log_t &file, string prefix )
 {
 	if (line.is_bound()) {
-		file.message("conn", "%s line(%d) (state %d) %s", prefix.c_str(), line->get_line_id(), state, line->get_name() );
+		file.message("conn", "%s line(%d) (state %d) %s", prefix.c_str(), line.get_id(), state, line->get_name() );
 	}
 }
 
