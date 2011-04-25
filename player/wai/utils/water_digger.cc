@@ -47,6 +47,12 @@ bool water_digger_t::terraform()
 
 	if (route.get_count()>1) {
 		for(uint32 i=1; i<route.get_count()-1; i++) {
+			// do not raise ocean tiles
+			grund_t *gr = welt->lookup(route[i]);
+			if (gr  &&  gr->ist_wasser()) {
+				continue;
+			}
+
 			int estimate = 0;
 			bool ok = welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
 			sint64 money_before = sp->get_finance_history_month(0, COST_CASH);
