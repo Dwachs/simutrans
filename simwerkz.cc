@@ -12,11 +12,8 @@
 #include <math.h>
 
 #include "simdebug.h"
-#include "simworld.h"
-#include "player/simplay.h"
 #include "simsound.h"
 #include "simevent.h"
-#include "simskin.h"
 #include "simcity.h"
 #include "simtools.h"
 #include "simmesg.h"
@@ -35,14 +32,12 @@
 
 #include "simdepot.h"
 #include "simfab.h"
-#include "simwin.h"
 #include "simimg.h"
 #include "simintr.h"
 #include "simhalt.h"
 
 #include "besch/grund_besch.h"
 #include "besch/haus_besch.h"
-#include "besch/way_obj_besch.h"
 #include "besch/skin_besch.h"
 #include "besch/roadsign_besch.h"
 #include "besch/tunnel_besch.h"
@@ -59,6 +54,8 @@
 #include "gui/karte.h"	// to update map after construction of new industry
 #include "gui/depot_frame.h"
 #include "gui/fahrplan_gui.h"
+#include "gui/player_frame_t.h"
+#include "gui/schedule_list.h"
 #include "gui/signal_spacing.h"
 #include "gui/stadt_info.h"
 #include "gui/trafficlight_info.h"
@@ -342,7 +339,7 @@ const char *wkz_abfrage_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 						DBG_MESSAGE("wkz_abfrage()", "index %d", n);
 						dt->zeige_info();
 						// did some new window open?
-						if(old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+						if(old_count!=win_get_open_count()) {
 							return NULL;
 						}
 					}
@@ -391,7 +388,7 @@ const char *wkz_abfrage_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 						DBG_MESSAGE("wkz_abfrage()", "index %d", n);
 						dt->zeige_info();
 						// did some new window open?
-						if(old_count!=win_get_open_count()  &&  !gr->ist_wasser()) {
+						if(old_count!=win_get_open_count()) {
 							return NULL;
 						}
 					}
@@ -1146,6 +1143,10 @@ const char *wkz_setslope_t::wkz_set_slope_work( karte_t *welt, spieler_t *sp, ko
 				gr1 = welt->lookup_kartenboden(new_pos.get_2d());
 			}
 			else if(gr1->ist_wasser()  &&  (new_pos.z>welt->get_grundwasser()  ||  new_slope!=0)) {
+				// build underwater hill first
+				if (!welt->ebne_planquadrat(sp, pos.get_2d(), welt->get_grundwasser())) {
+					return "Tile not empty.";
+				}
 				gr1->obj_loesche_alle(sp);
 				welt->access(pos.get_2d())->kartenboden_setzen( new boden_t(welt,new_pos,new_slope) );
 				gr1 = welt->lookup_kartenboden(new_pos.get_2d());
@@ -4280,7 +4281,7 @@ uint8 wkz_link_factory_t::is_valid_pos( karte_t *welt, spieler_t *, const koord3
 }
 
 
-const char *wkz_link_factory_t::do_work( karte_t *welt, spieler_t *sp, const koord3d &start, const koord3d &pos )
+const char *wkz_link_factory_t::do_work( karte_t *welt, spieler_t *, const koord3d &start, const koord3d &pos )
 {
 	fabrik_t *last_fab = fabrik_t::get_fab( welt, start.get_2d() );
 	fabrik_t *fab = fabrik_t::get_fab( welt, pos.get_2d() );
@@ -4993,6 +4994,7 @@ void wkz_show_underground_t::draw_after( karte_t *welt, koord pos ) const
  * 'n' : toggle 'no load'
  * 'w' : toggle withdraw
  * 'd' : dissassemble convoi and store vehicle in this depot
+ * 's' : change state to [number] (and maybe set open schedule flag)
  * 'l' : apply new line [number]
  */
 bool wkz_change_convoi_t::init( karte_t *welt, spieler_t *sp )
@@ -5095,6 +5097,18 @@ bool wkz_change_convoi_t::init( karte_t *welt, spieler_t *sp )
 			}
 			break;
 
+		case 's': // change state
+			{
+				int new_state = atoi(p);
+				if(  new_state>0  ) {
+					cnv->set_state( new_state );
+					if(  new_state==convoi_t::FAHRPLANEINGABE  ) {
+						cnv->get_schedule()->eingabe_beginnen();
+					}
+				}
+			}
+			break;
+
 		case 'w': // change withdraw
 			if(  sp!=welt->get_active_player()  &&  !umgebung_t::networkmode  ) {
 				// pop up error message here!
@@ -5156,7 +5170,7 @@ bool wkz_change_line_t::init( karte_t *, spieler_t *sp )
 					if(  fg  ) {
 						fg->init_line_selector();
 					}
-					schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic((long)&(sp->simlinemgmt)));
+					schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic(magic_line_management_t+sp->get_player_nr()));
 					if(  sl  ) {
 						sl->show_lineinfo( line );
 					}
@@ -5184,9 +5198,9 @@ bool wkz_change_line_t::init( karte_t *, spieler_t *sp )
 		case 'g': // change schedule
 			{
 				if (line.is_bound()) {
-					line->get_schedule()->eingabe_abschliessen();
 					schedule_t *fpl = line->get_schedule()->copy();
 					if (fpl->sscanf_schedule( p )) {
+						fpl->eingabe_abschliessen();
 						line->set_schedule( fpl );
 						line->get_besitzer()->simlinemgmt.update_line(line);
 					}
@@ -5456,8 +5470,9 @@ bool wkz_change_password_hash_t::init( karte_t *welt, spieler_t *sp)
  * 'a' : activate/deactivate player (depends on state)
  * 'n' : create player at id of type state
  * 'f' : activates/deactivates freeplay
+ * 'c' : change player color
  */
-bool wkz_change_player_t::init( karte_t *welt, spieler_t *sp)
+bool wkz_change_player_t::init( karte_t *welt, spieler_t *sp )
 {
 	if(  default_param==NULL  ) {
 		dbg->error( "wkz_change_player_t::init()", "nothing to do!" );
@@ -5496,6 +5511,13 @@ bool wkz_change_player_t::init( karte_t *welt, spieler_t *sp)
 			}
 			break;
 		}
+		case 'c': // change player color
+			if(  welt->get_spieler(id)  ) {
+				int c1, c2, dummy;
+				sscanf( p, "%c,%i,%i,%i", &tool, &dummy, &c1, &c2 );
+				welt->get_spieler(id)->set_player_color( c1, c2 );
+			}
+			break;
 		case 'f': // activate/deactivate freeplay
 			if(  welt->get_spieler(1)->is_locked()  ||  !welt->get_einstellungen()->get_allow_player_change()  ) {
 				dbg->error( "wkz_change_player_t::init()", "Only public player can enable freeplay!" );
@@ -5639,7 +5661,7 @@ bool wkz_rename_t::init(karte_t* const welt, spieler_t *sp)
 			if(  line.is_bound()  ) {
 				line->set_name( p );
 
-				schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic((long)&(sp->simlinemgmt)));
+				schedule_list_gui_t *sl = dynamic_cast<schedule_list_gui_t *>(win_get_magic(magic_line_management_t+sp->get_player_nr()));
 				if(  sl  ) {
 					sl->update_data( line );
 				}
@@ -5679,6 +5701,7 @@ bool wkz_rename_t::init(karte_t* const welt, spieler_t *sp)
 		case 'p':
 			if(  welt->get_spieler(id)  ) {
 				welt->get_spieler(id)->set_name(p);
+				return false;
 			}
 	}
 	// we are only getting here, if we could not process this request

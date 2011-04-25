@@ -219,7 +219,7 @@ koord3d brueckenbauer_t::finde_ende(karte_t *welt, koord3d pos, koord zv, const 
 					// no or one way
 					const weg_t* weg = gr1->get_weg_nr(0);
 					if(  weg==NULL  ||  weg->get_waytype()==wegtyp
-						|| (crossing_logic_t::get_crossing( wegtyp, weg->get_waytype(), besch->get_topspeed(), welt->get_timeline_year_month())  &&  (ribi_typ(zv)&weg->get_ribi_unmasked())==0)
+						|| (crossing_logic_t::get_crossing( wegtyp, weg->get_waytype(), besch->get_topspeed(), weg->get_besch()->get_topspeed(), welt->get_timeline_year_month())  &&  (ribi_typ(zv)&weg->get_ribi_unmasked())==0)
 					) {
 						return gr1->get_pos();
 					}
@@ -572,7 +572,7 @@ void brueckenbauer_t::baue_auffahrt(karte_t* welt, spieler_t* sp, koord3d end, k
 			bruecke->obj_add( lt );
 		}
 		else {
-			// remove maintainance - it will be added in leitung_t::laden_abschliessen
+			// remove maintenance - it will be added in leitung_t::laden_abschliessen
 			spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung());
 		}
 		// connect to neighbor tiles and networks, add maintenance
@@ -682,6 +682,17 @@ const char *brueckenbauer_t::remove(karte_t *welt, spieler_t *sp, koord3d pos, w
 			while ((br = gr->find<bruecke_t>()) != 0) {
 				br->entferne(sp);
 				delete br;
+			}
+			leitung_t *lt = gr->get_leitung();
+			if (lt) {
+				spieler_t *old_owner = lt->get_besitzer();
+				// first delete powerline to decouple from the bridge powernet
+				lt->entferne(old_owner);
+				delete lt;
+				// .. now create powerline to create new powernet
+				lt = new leitung_t(welt, gr->get_pos(), old_owner);
+				lt->laden_abschliessen();
+				gr->obj_add(lt);
 			}
 		}
 		else {

@@ -22,7 +22,6 @@
 #include "../convoihandle_t.h"
 #include "../ifc/fahrer.h"
 #include "../boden/grund.h"
-#include "../boden/wege/weg.h"
 #include "../besch/vehikel_besch.h"
 #include "../vehicle/overtaker.h"
 #include "../tpl/slist_tpl.h"
@@ -235,6 +234,7 @@ protected:
 	bool ist_letztes:1;				// flags auskunft über die position
 	bool rauchen:1;
 	bool check_for_finish:1;		// true, if on the last tile
+	bool has_driven:1;
 
 	virtual void calc_bild();
 
@@ -271,8 +271,6 @@ public:
 	virtual bool calc_route(koord3d start, koord3d ziel, sint32 max_speed, route_t* route);
 	uint16 get_route_index() const {return route_index;}
 	const koord3d get_pos_prev() const {return pos_prev;}
-
-	void set_offsets(int x, int y);
 
 	/**
 	* gibt das Basisbild zurueck
@@ -410,6 +408,9 @@ public:
 
 	void set_letztes(bool janein) {ist_letztes = janein;}
 	bool is_last() {return ist_letztes;}
+
+	// marks the vehicle as really used
+	void set_driven() { has_driven = true; }
 
 	virtual void set_convoi(convoi_t *c);
 

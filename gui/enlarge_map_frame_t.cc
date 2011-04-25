@@ -18,6 +18,7 @@
 #include "../simimg.h"
 #include "../simtools.h"
 #include "../simskin.h"
+#include "../simintr.h"
 
 #include "../dataobj/einstellungen.h"
 #include "../dataobj/translator.h"
@@ -27,6 +28,7 @@
 #include "../dings/baum.h"
 #include "../simcity.h"
 #include "../vehicle/simvehikel.h"
+#include "../player/simplay.h"
 
 #include "../simcolor.h"
 

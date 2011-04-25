@@ -18,6 +18,7 @@
 #include "../simgraph.h"
 #include "../simline.h"
 #include "../simlinemgmt.h"
+#include "../simmenu.h"
 
 #include "../tpl/slist_tpl.h"
 
@@ -34,6 +35,8 @@
 #include "../dataobj/fahrplan.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/umgebung.h"
+
+#include "../player/simplay.h"
 
 #include "../utils/simstring.h"
 #include "../utils/cbuffer_t.h"
@@ -100,6 +103,7 @@ DBG_DEBUG("depot_frame_t::depot_frame_t()","get_max_convoi_length()=%i",depot->g
 	bt_prev.add_listener(this);
 	add_komponente(&bt_prev);
 
+	inp_name.add_listener(this);
 	add_komponente(&inp_name);
 
 	bt_next.set_typ(button_t::arrowright);
@@ -230,6 +234,12 @@ DBG_DEBUG("depot_frame_t::depot_frame_t()","get_max_convoi_length()=%i",depot->g
 	set_resizemode(diagonal_resize);
 }
 
+
+depot_frame_t::~depot_frame_t()
+{
+	// change convoy name if necessary
+	rename_convoy( depot->get_convoi(icnv) );
+}
 
 
 void depot_frame_t::layout(koord *gr)
@@ -707,13 +717,18 @@ void depot_frame_t::update_data()
 	* Reset counts and check for valid vehicles
 	*/
 	convoihandle_t cnv = depot->get_convoi(icnv);
+
+	// if select convoy is changed -> apply name changes, as well as reset text buffers and text input
+	if(  cnv!=prev_cnv  ) {
+		rename_convoy( prev_cnv );
+		reset_convoy_name( cnv );
+		prev_cnv = cnv;
+	}
+
 	const vehikel_besch_t *veh = NULL;
 
 	convoi_pics.clear();
 	if(cnv.is_bound() && cnv->get_vehikel_anzahl() > 0) {
-
-		tstrncpy(txt_cnv_name, cnv->get_internal_name(), lengthof(txt_cnv_name));
-		inp_name.set_text(txt_cnv_name, lengthof(txt_cnv_name));
 
 		unsigned i;
 		for(i=0; i<cnv->get_vehikel_anzahl(); i++) {
@@ -828,6 +843,39 @@ void depot_frame_t::update_data()
 }
 
 
+void depot_frame_t::reset_convoy_name(convoihandle_t cnv)
+{
+	// reset convoy name only if the convoy is currently selected
+	if(  cnv.is_bound()  &&  cnv==depot->get_convoi(icnv)  ) {
+		tstrncpy(txt_old_cnv_name, cnv->get_name(), lengthof(txt_old_cnv_name));
+		tstrncpy(txt_cnv_name, cnv->get_name(), lengthof(txt_cnv_name));
+		inp_name.set_text(txt_cnv_name, lengthof(txt_cnv_name));
+	}
+}
+
+
+void depot_frame_t::rename_convoy(convoihandle_t cnv)
+{
+	if(  cnv.is_bound()  ) {
+		const char *t = inp_name.get_text();
+		// only change if old name and current name are the same
+		// otherwise some unintended undo if renaming would occur
+		if(  t  &&  t[0]  &&  strcmp(t, cnv->get_name())  &&  strcmp(txt_old_cnv_name, cnv->get_name())==0  ) {
+			// text changed => call tool
+			cbuffer_t buf(300);
+			buf.printf( "c%u,%s", cnv.get_id(), t );
+			werkzeug_t *w = create_tool( WKZ_RENAME_TOOL | SIMPLE_TOOL );
+			w->set_default_param( buf );
+			cnv->get_welt()->set_werkzeug( w, cnv->get_besitzer() );
+			// since init always returns false, it is safe to delete immediately
+			delete w;
+			// do not trigger this command again
+			tstrncpy(txt_old_cnv_name, t, lengthof(txt_old_cnv_name));
+		}
+	}
+}
+
+
 sint32 depot_frame_t::calc_restwert(const vehikel_besch_t *veh_type)
 {
 	sint32 wert = 0;
@@ -885,9 +933,7 @@ void depot_frame_t::image_from_convoi_list(uint nr)
 bool depot_frame_t::action_triggered( gui_action_creator_t *komp,value_t p)
 {
 	convoihandle_t cnv = depot->get_convoi(icnv);
-	if(cnv.is_bound()) {
-		cnv->set_name(txt_cnv_name);
-	}
+	rename_convoy( cnv );
 
 	if(komp != NULL) {	// message from outside!
 		if(komp == &bt_start) {
@@ -904,6 +950,8 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *komp,value_t p)
 			depot->call_depot_tool( 'd', cnv, NULL );
 		} else if(komp == &bt_sell) {
 			depot->call_depot_tool( 'v', cnv, NULL );
+		} else if(komp == &inp_name) {
+			return true;	// already call rename_convoy() above
 		} else if(komp == &bt_next) {
 			if(++icnv == (int)depot->convoi_count()) {
 				icnv = -1;
@@ -1022,6 +1070,10 @@ bool depot_frame_t::infowin_event(const event_t *ev)
 			win_set_pos( win_get_magic((long)next_dep), x, y );
 			get_welt()->change_world_position(next_dep->get_pos());
 		}
+		else {
+			// recenter on current depot
+			get_welt()->change_world_position(depot->get_pos());
+		}
 
 		return true;
 
@@ -1059,8 +1111,10 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 	if(cnv.is_bound()) {
 		if(cnv->get_vehikel_anzahl() > 0) {
 			uint32 total_power=0;
+			uint32 total_empty_weight=0;
 			uint32 total_max_weight=0;
 			uint32 total_min_weight=0;
+			sint32 empty_speed=0;
 			sint32 max_speed=0;
 			sint32 min_speed=0;
 			for( unsigned i=0;  i<cnv->get_vehikel_anzahl();  i++) {
@@ -1069,6 +1123,7 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 				total_power += besch->get_leistung()*besch->get_gear()/64;
 				total_min_weight += besch->get_gewicht();
 				total_max_weight += besch->get_gewicht();
+				total_empty_weight += besch->get_gewicht();
 
 				uint32 max_weight =0;
 				uint32 min_weight =100000;
@@ -1084,12 +1139,25 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 				total_min_weight += (min_weight*besch->get_zuladung()+499)/1000;
 			}
 			// ensure that argument of sqrt is not negative
-			max_speed = total_power < total_min_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), sqrt( (double)total_power/total_min_weight - 1)*50 );
-			min_speed = total_power < total_max_weight ? 0 : min( speed_to_kmh(cnv->get_min_top_speed()), sqrt( (double)total_power/total_max_weight - 1)*50 );
+			const sint32 cnv_min_top_speed = speed_to_kmh( cnv->get_min_top_speed() );
+			empty_speed = total_power < total_empty_weight ? 0 : min( cnv_min_top_speed, sqrt( (double)total_power/total_empty_weight - 1)*50 );
+			max_speed = total_power < total_min_weight ? 0 : min( cnv_min_top_speed, sqrt( (double)total_power/total_min_weight - 1)*50 );
+			min_speed = total_power < total_max_weight ? 0 : min( cnv_min_top_speed, sqrt( (double)total_power/total_max_weight - 1)*50 );
+
 			sprintf(txt_convoi_count, "%s %d (%s %i)",
 				translator::translate("Fahrzeuge:"), cnv->get_vehikel_anzahl(),
 				translator::translate("Station tiles:"), cnv->get_tile_length() );
-			sprintf(txt_convoi_speed,  "%s %d(%d)km/h", translator::translate("Max. speed:"), min_speed, max_speed );
+			if(  empty_speed != min_speed  ) {
+				if(  max_speed != min_speed  ) {
+					sprintf( txt_convoi_speed, "%s %d km/h, %d-%d km/h %s", translator::translate("Max. speed:"), empty_speed, min_speed, max_speed, translator::translate("loaded") );
+				}
+				else {
+					sprintf( txt_convoi_speed, "%s %d km/h, %d km/h %s", translator::translate("Max. speed:"), empty_speed, min_speed, translator::translate("loaded") );
+				}
+			}
+			else {
+					sprintf( txt_convoi_speed, "%s %d km/h", translator::translate("Max. speed:"), empty_speed );
+			}
 			sprintf(txt_convoi_value, "%s %ld$", translator::translate("Restwert:"), (long)(cnv->calc_restwert()/100) );
 			if(  cnv->get_line().is_bound()  &&  cnv->get_line()->get_schedule()->matches( get_welt(),cnv->get_schedule() )  ) {
 				sprintf(txt_convoi_line, "%s %s", translator::translate("Serves Line:"), cnv->get_line()->get_name());

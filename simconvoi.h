@@ -84,7 +84,6 @@ private:
 	* @author hsiegeln
 	*/
 	linehandle_t line;
-	uint16 line_id;
 
 	/**
 	* holds id of line with pendig update
@@ -214,6 +213,7 @@ private:
 	// cached values
 	// will be recalculated if
 	// recalc_data is true
+	bool recalc_brake_soll;
 	bool recalc_data;
 	sint32 sum_friction_weight;
 	sint32 speed_limit;
@@ -268,6 +268,7 @@ private:
 	koord record_pos;
 
 	// needed for speed control/calculation
+	sint32 brake_speed_soll;    // brake target speed
 	sint32 akt_speed_soll;    // target speed
 	sint32 akt_speed;	        // current speed
 	sint32 sp_soll;           // steps to go
@@ -409,6 +410,12 @@ public:
 	 * for list of commands and parameter see werkzeug_t::wkz_change_convoi_t
 	 */
 	void call_convoi_tool( const char function, const char *extra ) const;
+
+	/**
+	* set state: only use by werkzeug_t convoi tool, or not networking!
+	* @author hsiegeln
+	*/
+	void set_state( uint16 new_state ) { assert(new_state<MAX_STATES); state = (states)new_state; }
 
 	/**
 	* get state
@@ -802,6 +809,7 @@ public:
 	void set_no_load(bool new_no_load) { no_load = new_no_load; }
 
 	void must_recalc_data() { recalc_data = true; }
+	void must_recalc_brake_soll() { recalc_brake_soll = true; }
 
 	// Overtaking for convois
 	virtual bool can_overtake(overtaker_t *other_overtaker, int other_speed, int steps_other, int diagonal_length);

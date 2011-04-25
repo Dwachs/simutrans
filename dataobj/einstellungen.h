@@ -14,6 +14,7 @@
  * April 2000
  */
 
+class spieler_t;
 class loadsave_t;
 class tabfile_t;
 class weg_besch_t;
@@ -82,6 +83,12 @@ private:
 	sint16 factory_worker_radius;
 	sint32 factory_worker_minimum_towns;
 	sint32 factory_worker_maximum_towns;
+
+	// Knightly : number of periods for averaging the amount of arrived pax/mail at factories
+	uint16 factory_arrival_periods;
+
+	// Knightly : whether factory pax/mail demands are enforced
+	bool factory_enforce_demand;
 
 	uint16 station_coverage_size;
 
@@ -226,6 +233,8 @@ private:
 
 	// if true, you can buy obsolete stuff
 	bool allow_buying_obsolete_vehicles;
+	// vehicle value is decrease by this factor/1000 when a vehicle leaved the depot
+	sint16 used_vehicle_reduction;
 
 	uint32 random_counter;
 	uint32 frames_per_second;	// only used in network mode ...
@@ -273,6 +282,10 @@ public:
 	bool automaten[MAX_PLAYER_COUNT];
 	// 0 = emtpy, otherwise some vaule from simplay
 	uint8 spieler_type[MAX_PLAYER_COUNT];
+
+	// player color suggestions for new games
+	bool default_player_color_random;
+	uint8 default_player_color[MAX_PLAYER_COUNT][2];
 
 public:
 	/**
@@ -451,6 +464,12 @@ public:
 	uint32 get_factory_worker_maximum_towns() const { return factory_worker_maximum_towns; }
 	void set_factory_worker_maximum_towns(uint32 n) { factory_worker_maximum_towns = n; }
 
+	// Knightly : number of periods for averaging the amount of arrived pax/mail at factories
+	uint16 get_factory_arrival_periods() const { return factory_arrival_periods; }
+
+	// Knightly : whether factory pax/mail demands are enforced
+	bool get_factory_enforce_demand() const { return factory_enforce_demand; }
+
 	// disallow using obsolete vehicles in depot
 	bool get_allow_buying_obsolete_vehicles() const { return allow_buying_obsolete_vehicles; }
 
@@ -467,6 +486,10 @@ public:
 
 	uint32 get_industry_increase_every() const { return industry_increase; }
 	uint32 get_minimum_city_distance() const { return minimum_city_distance; }
+
+	sint16 get_used_vehicle_reduction() const { return used_vehicle_reduction; }
+
+	void set_default_player_color( spieler_t *sp ) const;
 
 	// usually only used in network mode => no need to set them!
 	uint32 get_random_counter() const { return random_counter; }

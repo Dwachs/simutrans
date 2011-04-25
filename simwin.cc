@@ -58,6 +58,9 @@
 #include "gui/halt_info.h"
 #include "gui/convoi_detail_t.h"
 #include "gui/convoi_info_t.h"
+#include "gui/fahrplan_gui.h"
+#include "gui/line_management_gui.h"
+#include "gui/schedule_list.h"
 
 
 
@@ -150,12 +153,12 @@ static int display_gadget_box(simwin_gadget_et const  code,
 			      int const color,
 			      bool const pushed)
 {
-	display_vline_wh(x,    y,   16, color+1, false);
-	display_vline_wh(x+15, y+1, 14, COL_BLACK, false);
-	display_vline_wh(x+16, y+1, 14, color+1, false);
+	display_vline_wh_clip(x,    y,   16, color+1, false);
+	display_vline_wh_clip(x+15, y+1, 14, COL_BLACK, false);
+	display_vline_wh_clip(x+16, y+1, 14, color+1, false);
 
 	if(pushed) {
-		display_fillbox_wh(x+1, y+1, 14, 14, color+1, false);
+		display_fillbox_wh_clip(x+1, y+1, 14, 14, color+1, false);
 	}
 
 	if(  skinverwaltung_t::window_skin  ) {
@@ -389,7 +392,7 @@ bool win_is_top(const gui_frame_t *ig)
 
 
 // save/restore all dialogues
-void rwdr_all_win(loadsave_t *file)
+void rdwr_all_win(loadsave_t *file)
 {
 	if(  file->get_version()>102003  ) {
 		if(  file->is_saving()  ) {
@@ -426,33 +429,43 @@ void rwdr_all_win(loadsave_t *file)
 					case magic_halt_detail:    w = new halt_detail_t(wl); break;
 					case magic_reliefmap:      w = new map_frame_t(wl); break;
 					case magic_ki_kontroll_t:  w = new ki_kontroll_t(wl); break;
+					case magic_schedule_rdwr_dummy: w = new fahrplan_gui_t(wl); break;
+					case magic_line_schedule_rdwr_dummy: w = new line_management_gui_t(wl); break;
+
 
 					default:
 						if(  id>=magic_finances_t  &&  id<magic_finances_t+MAX_PLAYER_COUNT  ) {
 							w = new money_frame_t( wl->get_spieler(id-magic_finances_t) );
+						}
+						else if(  id>=magic_line_management_t  &&  id<magic_line_management_t+MAX_PLAYER_COUNT  ) {
+							w = new schedule_list_gui_t( wl->get_spieler(id-magic_line_management_t) );
 						}
 						else if(  id>=magic_toolbar  &&  id<magic_toolbar+256  ) {
 							werkzeug_t::toolbar_tool[id-magic_toolbar]->update(wl,wl->get_active_player());
 							w = werkzeug_t::toolbar_tool[id-magic_toolbar]->get_werkzeug_waehler();
 						}
 						else {
-							dbg->fatal( "rwdr_all_win()", "No idea how to restore magic $%Xlu", id );
+							dbg->fatal( "rdwr_all_win()", "No idea how to restore magic $%Xlu", id );
 						}
 				}
 				/* sequece is now the same for all dialogues
 				 * restore coordinates
 				 * create window
-				 * restore state
+				 * read state
 				 * restore content
+				 * restore state - gui_frame_t::rdwr() might create its own window ->> want to restore state to that window
 				 */
 				koord p;
 				p.rdwr(file);
 				uint8 win_type;
 				file->rdwr_byte( win_type );
 				create_win( p.x, p.y, w, (wintype)win_type, id );
-				file->rdwr_bool( wins.back().sticky );
-				file->rdwr_bool( wins.back().rollup );
+				bool sticky, rollup;
+				file->rdwr_bool( sticky );
+				file->rdwr_bool( rollup );
 				w->rdwr( file );
+				wins.back().sticky = sticky;
+				wins.back().rollup = rollup;
 			}
 		}
 	}
@@ -620,6 +633,14 @@ static void destroy_framed_win(simwin_t *wins)
 	}
 
 	if(  (wins->wt&w_do_not_delete)==0  ) {
+		// remove from kill list first
+		// otherwise delete will be called again on that window
+		for(  uint j = 0;  j < kill_list.get_count();  j++  ) {
+			if(  kill_list[j].gui == wins->gui  ) {
+				kill_list.remove_at(j);
+				break;
+			}
+		}
 		delete wins->gui;
 	}
 	windows_dirty = true;
@@ -645,8 +666,9 @@ void destroy_win(const gui_frame_t *gui)
 				kill_list.append_unique(wins[i]);
 			}
 			else {
-				destroy_framed_win(&wins[i]);
+				simwin_t win = wins[i];
 				wins.remove_at(i);
+				destroy_framed_win(&win);
 			}
 			break;
 		}
@@ -999,7 +1021,7 @@ bool win_is_open(gui_frame_t *gui)
 	for(  uint i=0;  i<wins.get_count();  i++  ) {
 		if(  wins[i].gui == gui  ) {
 			for(  uint j = 0;  j < kill_list.get_count();  j++  ) {
-				if(  kill_list[i].gui == gui  ) {
+				if(  kill_list[j].gui == gui  ) {
 					return false;
 				}
 			}
@@ -1311,6 +1333,8 @@ void win_display_flush(double konto)
 		}
 		else {
 			show_ticker = true;
+			// need to adapt tooltip_y coordinates
+			tooltip_ypos = min(tooltip_ypos, disp_height-15-10-16);
 		}
 	}
 

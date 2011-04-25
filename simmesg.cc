@@ -18,6 +18,7 @@
 
 #include "dataobj/loadsave.h"
 #include "dataobj/umgebung.h"
+#include "player/simplay.h"
 #include "utils/simstring.h"
 #include "tpl/slist_tpl.h"
 #include "gui/messagebox.h"
@@ -118,7 +119,7 @@ DBG_MESSAGE("message_t::add_msg()","%40s (at %i,%i)", text, pos.x, pos.y );
 		return;
 	}
 
-	/* we will not add messages two times to the list
+	/* we will not add traffic jam messages two times to the list
 	 * if it was within the last 20 messages
 	 * or within last months
 	 * and is not a general (BLACK) message

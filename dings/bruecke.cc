@@ -7,17 +7,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../simworld.h"
 #include "../simdings.h"
-#include "../boden/grund.h"
-#include "../boden/wege/strasse.h"
-#include "../boden/wege/schiene.h"
 #include "../boden/grund.h"
 #include "../player/simplay.h"
 #include "../simimg.h"
 #include "../simmem.h"
 #include "../bauer/brueckenbauer.h"
-#include "../bauer/wegbauer.h"
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"
 
@@ -96,7 +91,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 
 
 
-// correct speed and maitainace
+// correct speed and maintenance
 void bruecke_t::laden_abschliessen()
 {
 	grund_t *gr = welt->lookup(get_pos());
@@ -112,7 +107,7 @@ void bruecke_t::laden_abschliessen()
 
 	spieler_t *sp=get_besitzer();
 	if(sp) {
-		// change maintainance
+		// change maintenance
 		if(besch->get_waytype()!=powerline_wt) {
 			weg_t *weg = gr->get_weg(besch->get_waytype());
 			if(weg==NULL) {
@@ -121,8 +116,9 @@ void bruecke_t::laden_abschliessen()
 				gr->neuen_weg_bauen( weg, 0, welt->get_spieler(1) );
 			}
 			weg->set_max_speed(besch->get_topspeed());
+			// take ownership of way
+			spieler_t::add_maintenance( weg->get_besitzer(), -weg->get_besch()->get_wartung());
 			weg->set_besitzer(sp);
-			spieler_t::add_maintenance( sp, -weg->get_besch()->get_wartung());
 		}
 		spieler_t::add_maintenance( sp,  besch->get_wartung() );
 	}
@@ -130,12 +126,12 @@ void bruecke_t::laden_abschliessen()
 
 
 
-// correct speed and maitainace
+// correct speed and maintenance
 void bruecke_t::entferne( spieler_t *sp2 )
 {
 	spieler_t *sp = get_besitzer();
 	if(sp) {
-		// on bridge => do nothing but change maintainance
+		// on bridge => do nothing but change maintenance
 		const grund_t *gr = welt->lookup(get_pos());
 		if(gr) {
 			weg_t *weg = gr->get_weg( besch->get_waytype() );

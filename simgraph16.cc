@@ -10,7 +10,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include <limits.h>
 
 #include "macros.h"
 #include "simtypes.h"
@@ -91,7 +90,8 @@ static struct clip_dimension clip_rect;
  * associated to some clipline
  */
 struct xrange {
-	int xmin,xmax,sx,sy,y;
+	int sx,sy;
+	KOORD_VAL y;
 	bool non_convex_active;
 };
 
@@ -726,62 +726,56 @@ public:
 	// -- initialize the clipping
 	//    has to be called before image will be drawn
 	//    return interval for x coordinate
-	inline void get_x_range(int y, xrange &r) const {
+	inline void get_x_range(KOORD_VAL y, xrange &r) const {
+		// do everything for the previous row
+		y--;
 		r.y = y;
 		r.non_convex_active = false;
 		if (non_convex  &&  y<y0  &&  y<(y0+dy)) {
 			r.non_convex_active = true;
-			const bool left = dy<0;
-			r.xmin = left ? INT_MIN : x0+1;
-			r.xmax = left ? x0+dx   : INT_MAX;
 		}
 		else if (dy != 0) {
+			// init Bresenham algorithm
 			const int t = ((y-y0) << 16) / sdy;
 			// sx >> 16 = x
 			// sy >> 16 = y
 			r.sx = t * sdx + inc + (x0 << 16);
 			r.sy = t * sdy + (y0 << 16);
-			if (dy > 0) {
-				r.xmin = r.sx >> 16;
-				r.xmax = INT_MAX;
-			}
-			else {
-				r.xmin = INT_MIN;
-				r.xmax = r.sx >> 16;
-			}
-		}
-		else {
-			const bool clip = dx*(y-y0)>0;
-			r.xmin = clip ? INT_MAX : INT_MIN;
-			r.xmax = clip ? INT_MIN : INT_MAX;
 		}
 	}
 
 	// -- step one line down, return interval for x coordinate
-	inline void inc_y(xrange &r) const {
+	inline void inc_y(xrange &r, int &xmin, int &xmax) const {
 		r.y ++;
 		// switch between clip vertical and along ray
 		if (r.non_convex_active) {
 			if (r.y==min(y0,y0+dy)) {
 				r.non_convex_active = false;
 				if (dy != 0) {
+					// init Bresenham algorithm
 					const int t = ((r.y-y0) << 16) / sdy;
 					// sx >> 16 = x
 					// sy >> 16 = y
 					r.sx = t * sdx + inc + (x0 << 16);
 					r.sy = t * sdy + (y0 << 16);
 					if (dy > 0) {
-						r.xmin = r.sx >> 16;
-						r.xmax = INT_MAX;
+						const int r_xmin = r.sx >> 16;
+						if (xmin < r_xmin) xmin = r_xmin;
 					}
 					else {
-						r.xmin = INT_MIN;
-						r.xmax = r.sx >> 16;
+						const int r_xmax = r.sx >> 16;
+						if (xmax > r_xmax) xmax = r_xmax;
 					}
 				}
+			}
+			else {
+				if (dy<0) {
+					const int r_xmax = x0+dx;
+					if (xmax > r_xmax) xmax = r_xmax;
+				}
 				else {
-					r.xmin = INT_MIN;
-					r.xmax = INT_MAX;
+					const int r_xmin = x0+1;
+					if (xmin < r_xmin) xmin = r_xmin;
 				}
 			}
 		}
@@ -792,21 +786,26 @@ public:
 					r.sx += sdx;
 					r.sy += sdy;
 				} while ((r.sy >> 16) < r.y);
-				r.xmin = r.sx >> 16;
+				const int r_xmin = r.sx >> 16;
+				if (xmin < r_xmin) xmin = r_xmin;
 			}
 			else {
 				do {
 					r.sx -= sdx;
 					r.sy -= sdy;
 				} while ((r.sy >> 16) < r.y);
-				r.xmax = r.sx >> 16;
+				const int r_xmax = r.sx >> 16;
+				if (xmax > r_xmax) xmax = r_xmax;
 			}
 		}
 		// horicontal clip
 		else {
 			const bool clip = dx*(r.y-y0)>0;
-			r.xmin = clip ? INT_MAX : INT_MIN;
-			r.xmax = clip ? INT_MIN : INT_MAX;
+			if (clip) {
+				// invisible row
+				xmin = +1;
+				xmax = -1;
+			}
 		}
 	}
 };
@@ -874,13 +873,7 @@ inline void get_xrange_and_step_y(int &xmin, int &xmax)
 	xmax = clip_rect.xx;
 	for (uint8 i=0; i<number_of_clips; i++) {
 		if (clip_ribi[i] & active_ribi) {
-			if (xmin < xranges[i].xmin) {
-				xmin = xranges[i].xmin;
-			}
-			if (xmax > xranges[i].xmax) {
-				xmax = xranges[i].xmax;
-			}
-			poly_clips[i].inc_y(xranges[i]);
+			poly_clips[i].inc_y(xranges[i], xmin, xmax);
 		}
 	}
 }
@@ -1777,13 +1770,17 @@ void register_image(struct bild_t* bild)
 		return;
 	}
 
-	if(  anz_images >= 65535  ) {
-		fprintf(stderr, "FATAL:\n*** Out of images (more than 65534!) ***\n");
-		abort();
-	}
-
 	if(  anz_images == alloc_images  ) {
-		alloc_images += 128;
+		if(  images==NULL  ) {
+			alloc_images = 510;
+		}
+		else {
+			alloc_images += 512;
+		}
+		if(  anz_images > alloc_images  ) {
+			// overflow
+			dbg->fatal( "register_image", "*** Out of images (more than 65534!) ***" );
+		}
 		images = REALLOC(images, imd, alloc_images);
 	}
 
@@ -3133,7 +3130,9 @@ static void display_fb_internal(KOORD_VAL xp, KOORD_VAL yp, KOORD_VAL w, KOORD_V
 		PIXVAL *p = textur + xp + yp * disp_width;
 		int dx = disp_width - w;
 		const PIXVAL colval = specialcolormap_all_day[color & 0xFF];
+#if !defined( USE_C )  ||  !defined( ALIGN_COPY )
 		const uint32 longcolval = (colval << 16) | colval;
+#endif
 
 		if (dirty) {
 			mark_rect_dirty_nc(xp, yp, xp + w - 1, yp + h - 1);
@@ -4108,25 +4107,27 @@ void simgraph_resize(KOORD_VAL w, KOORD_VAL h)
 	}
 	// only resize, if internal values are different
 	if (disp_width != w || disp_height != h) {
-		disp_width = w;
-		disp_height = h;
+		KOORD_VAL new_width = dr_textur_resize(&textur, w, h, 16);
+		if(  new_width!=disp_width  ||  disp_height != h) {
 
-		guarded_free(tile_dirty);
-		guarded_free(tile_dirty_old);
+			disp_width = new_width;
+			disp_height = h;
 
-		disp_width = dr_textur_resize(&textur, disp_width, disp_height, 16);
+			guarded_free(tile_dirty);
+			guarded_free(tile_dirty_old);
 
-		tiles_per_line     = (disp_width  + DIRTY_TILE_SIZE - 1) / DIRTY_TILE_SIZE;
-		tile_lines         = (disp_height + DIRTY_TILE_SIZE - 1) / DIRTY_TILE_SIZE;
-		tile_buffer_length = (tile_lines * tiles_per_line + 7) / 8;
+			tiles_per_line     = (disp_width  + DIRTY_TILE_SIZE - 1) / DIRTY_TILE_SIZE;
+			tile_lines         = (disp_height + DIRTY_TILE_SIZE - 1) / DIRTY_TILE_SIZE;
+			tile_buffer_length = (tile_lines * tiles_per_line + 7) / 8;
 
-		tile_dirty     = MALLOCN(unsigned char, tile_buffer_length);
-		tile_dirty_old = MALLOCN(unsigned char, tile_buffer_length);
+			tile_dirty     = MALLOCN(unsigned char, tile_buffer_length);
+			tile_dirty_old = MALLOCN(unsigned char, tile_buffer_length);
 
-		memset(tile_dirty,     255, tile_buffer_length);
-		memset(tile_dirty_old, 255, tile_buffer_length);
+			memset(tile_dirty,     255, tile_buffer_length);
+			memset(tile_dirty_old, 255, tile_buffer_length);
 
-		display_set_clip_wh(0, 0, disp_width, disp_height);
+			display_set_clip_wh(0, 0, disp_actual_width, disp_height);
+		}
 	}
 }
 

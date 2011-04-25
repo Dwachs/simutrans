@@ -112,21 +112,16 @@ protected:
 	class income_message_t {
 	public:
 		char str[33];
-		sint8 alter;
 		koord pos;
-		income_message_t() { str[0]=0; alter=127; pos==koord::invalid; }
+		sint32 amount;
+		sint8 alter;
+		income_message_t() { str[0]=0; alter=127; pos==koord::invalid; amount=0; }
 		income_message_t( sint32 betrag, koord pos );
 		void * operator new(size_t s);
 		void operator delete(void *p);
 	};
 
 	slist_tpl<income_message_t *>messages;
-
-	char  texte[50][32];
-	sint8 text_alter[50];
-	koord text_pos[50];
-
-	int last_message_index;
 
 	void add_message(koord k, sint32 summe);
 
@@ -405,7 +400,4 @@ public:
 	void ai_bankrupt();
 };
 
-
-
-/**************************************** AI-sutff from here ******************************************/
 #endif

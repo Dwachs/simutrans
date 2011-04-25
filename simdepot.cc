@@ -18,7 +18,6 @@
 #include "simhalt.h"
 #include "player/simplay.h"
 #include "simworld.h"
-#include "simio.h"
 #include "simdepot.h"
 #include "simline.h"
 #include "simlinemgmt.h"
@@ -39,6 +38,8 @@
 #include "boden/wege/schiene.h"
 
 #include "besch/haus_besch.h"
+
+#include "utils/cbuffer_t.h"
 
 
 slist_tpl<depot_t *> depot_t::all_depots;
@@ -181,12 +182,6 @@ void depot_t::zeige_info()
 }
 
 
-bool depot_t::can_convoi_start(convoihandle_t /*cnv*/) const
-{
-	return true;
-}
-
-
 vehikel_t* depot_t::buy_vehicle(const vehikel_besch_t* info)
 {
 	DBG_DEBUG("depot_t::buy_vehicle()", info->get_name());
@@ -254,12 +249,12 @@ convoihandle_t depot_t::add_convoi()
 {
 	convoi_t* new_cnv = new convoi_t(get_besitzer());
 	new_cnv->set_home_depot(get_pos());
-    convois.append(new_cnv->self);
+	convois.append(new_cnv->self);
 	depot_frame_t *win = dynamic_cast<depot_frame_t *>(win_get_magic( (long)this ));
 	if(  win  ) {
 		win->activate_convoi( new_cnv->self );
 	}
-    return new_cnv->self;
+	return new_cnv->self;
 }
 
 
@@ -276,7 +271,7 @@ convoihandle_t depot_t::copy_convoi(convoihandle_t old_cnv)
 				vehikel_t* oldest_vehicle = get_oldest_vehicle(info);
 				if (oldest_vehicle != NULL) {
 					// append existing vehicle
-					append_vehicle(convois.back(), oldest_vehicle, false);
+					append_vehicle(new_cnv, oldest_vehicle, false);
 				}
 				else {
 					// buy new vehicle
@@ -302,7 +297,7 @@ convoihandle_t depot_t::copy_convoi(convoihandle_t old_cnv)
 			win->activate_convoi( new_cnv );
 		}
 
-		return new_cnv->self;
+		return new_cnv;
 	}
 	return convoihandle_t();
 }
@@ -352,6 +347,7 @@ bool depot_t::start_convoi(convoihandle_t cnv, bool local_execution)
 			destroy_win((long)cnv->get_schedule());
 		}
 	}
+
 	// convoi not in depot anymore, maybe user double-clicked on start-button
 	if(!convois.is_contained(cnv)) {
 		return false;
@@ -369,14 +365,16 @@ bool depot_t::start_convoi(convoihandle_t cnv, bool local_execution)
 			if (local_execution) {
 				create_win( new news_img("Diese Zusammenstellung kann nicht fahren!\n"), w_time_delete, magic_none);
 			}
-		} else if (!cnv->front()->calc_route(this->get_pos(), cur_pos, cnv->get_min_top_speed(), cnv->access_route())) {
+		}
+		else if(  !cnv->front()->calc_route(this->get_pos(), cur_pos, cnv->get_min_top_speed(), cnv->access_route())  ) {
 			// no route to go ...
-			if (local_execution) {
+			if(local_execution) {
 				static char buf[256];
 				sprintf(buf,translator::translate("Vehicle %s can't find a route!"), cnv->get_name());
 				create_win( new news_img(buf), w_time_delete, magic_none);
 			}
-		} else if (can_convoi_start(cnv)) {
+		}
+		else {
 			// convoi can start now
 			welt->sync_add( cnv.get_rep() );
 			cnv->start();
@@ -399,11 +397,6 @@ bool depot_t::start_convoi(convoihandle_t cnv, bool local_execution)
 			}
 
 			return true;
-		}
-		else {
-			if (local_execution) {
-				create_win(new news_img("Blockstrecke ist\nbelegt\n"), w_time_delete, magic_none);
-			}
 		}
 	}
 	else {
@@ -561,53 +554,10 @@ void depot_t::set_selected_line(const linehandle_t sel_line)
 	}
 }
 
+
 linehandle_t depot_t::get_selected_line()
 {
 	return selected_line;
-}
-
-bool bahndepot_t::can_convoi_start(convoihandle_t cnv) const
-{
-	waytype_t const wt = cnv->front()->get_waytype();
-	schiene_t* sch0 = (schiene_t *)welt->lookup(get_pos())->get_weg(wt);
-	if(sch0==NULL) {
-		// no rail here???
-		return false;
-	}
-
-	if(!sch0->reserve(cnv,ribi_t::keine)) {
-		// could not even reserve first tile ...
-		return false;
-	}
-
-	// reserve the next segments of the train
-	const route_t *route=cnv->get_route();
-	bool success = true;
-	uint16 tiles = cnv->get_tile_length();
-	uint32 i;
-	for(  i=0;  success  &&  i<tiles  &&  i<route->get_count();  i++  ) {
-		schiene_t * sch1 = (schiene_t *) welt->lookup( route->position_bei(i))->get_weg(wt);
-		if(sch1==NULL) {
-			dbg->warning("waggon_t::is_next_block_free()","invalid route");
-			success = false;
-			break;
-		}
-		// otherwise we might check one tile too much
-		if(  !sch1->reserve( cnv, ribi_typ( route->position_bei(max(1,i)-1), route->position_bei(min(route->get_count()-1,i+1)) ) )  ) {
-			success = false;
-		}
-	}
-
-	if(!success  &&  i>0) {
-		// free reservation, since we were not sucessful
-		i--;
-		sch0->unreserve(cnv);
-		for(uint32 j=0; j<i; j++) {
-			schiene_t *sch1 = (schiene_t *)(welt->lookup(route->position_bei(j))->get_weg(wt));
-			sch1->unreserve(cnv);
-		}
-	}
-	return  success;
 }
 
 

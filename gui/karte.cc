@@ -1,7 +1,6 @@
 #include "../simevent.h"
 #include "../simcolor.h"
 #include "../simworld.h"
-#include "../vehicle/simvehikel.h"
 #include "../simdepot.h"
 #include "../simhalt.h"
 #include "../boden/grund.h"
@@ -18,6 +17,7 @@
 #include "../dataobj/powernet.h"
 #include "../utils/cbuffer_t.h"
 #include "../simgraph.h"
+#include "../player/simplay.h"
 
 
 sint32 reliefkarte_t::max_departed=0;

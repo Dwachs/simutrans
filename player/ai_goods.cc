@@ -9,6 +9,8 @@
 #include "simplay.h"
 
 #include "../simhalt.h"
+#include "../simintr.h"
+#include "../simline.h"
 #include "../simmesg.h"
 #include "../simtools.h"
 #include "../simworld.h"
@@ -85,6 +87,7 @@ void ai_goods_t::rotate90( const sint16 y_size )
 	platz2.rotate90( y_size );
 	size1.rotate90( 0 );
 	size2.rotate90( 0 );
+	harbour.rotate90( y_size );
 }
 
 
@@ -124,9 +127,9 @@ bool ai_goods_t::get_factory_tree_lowest_missing( fabrik_t *fab )
 		const ware_besch_t *ware = fab->get_besch()->get_lieferant(i)->get_ware();
 
 		// find out how much is there
-		const vector_tpl<ware_production_t>& eingang = fab->get_eingang();
+		const array_tpl<ware_production_t>& eingang = fab->get_eingang();
 		uint ware_nr;
-		for(  ware_nr=0;  ware_nr<eingang.get_count()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
+		for(  ware_nr=0;  ware_nr<eingang.get_size()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
 		if(  eingang[ware_nr].menge > eingang[ware_nr].max/10  ) {
 			// already enough supplied to
 			continue;
@@ -141,9 +144,9 @@ bool ai_goods_t::get_factory_tree_lowest_missing( fabrik_t *fab )
 					  &&  !is_forbidden( fabrik_t::get_fab(welt,sources[q]), fab, ware )
 					  &&  !is_connected( sources[q], fab->get_pos().get_2d(), ware )  ) {
 					// find out how much is there
-					const vector_tpl<ware_production_t>& ausgang = qfab->get_ausgang();
+					const array_tpl<ware_production_t>& ausgang = qfab->get_ausgang();
 					uint ware_nr;
-					for(ware_nr=0;  ware_nr<ausgang.get_count()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
+					for(ware_nr=0;  ware_nr<ausgang.get_size()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
 						;
 					// ok, there is no connection and it is not banned, so we if there is enough for us
 					if(  ((ausgang[ware_nr].menge*4)/3) > ausgang[ware_nr].max  ) {
@@ -825,14 +828,14 @@ DBG_MESSAGE("do_ki()","road vehicle %p",road_vehicle);
 
 
 			// properly calculate production
-			const vector_tpl<ware_production_t>& ausgang = start->get_ausgang();
+			const array_tpl<ware_production_t>& ausgang = start->get_ausgang();
 			uint start_ware=0;
-			while(  start_ware<ausgang.get_count()  &&  ausgang[start_ware].get_typ()!=freight  ) {
+			while(  start_ware<ausgang.get_size()  &&  ausgang[start_ware].get_typ()!=freight  ) {
 				start_ware++;
 			}
-			assert(  start_ware<ausgang.get_count()  );
+			assert(  start_ware<ausgang.get_size()  );
 			const int prod = min((uint32)ziel->get_base_production(),
-			                 ( start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor() )/256u - (uint32)start->get_abgabe_letzt(start_ware) );
+			                 ( start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor() )/256u - (uint32)(start->get_ausgang()[start_ware].get_stat(1, FAB_GOODS_DELIVERED)) );
 
 DBG_MESSAGE("do_ki()","check railway");
 			/* calculate number of cars for railroad */
@@ -960,18 +963,19 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 			}
 			else {
 				// properly calculate production
-				const vector_tpl<ware_production_t>& ausgang = start->get_ausgang();
+				const array_tpl<ware_production_t>& ausgang = start->get_ausgang();
 				uint start_ware=0;
-				while(  start_ware<ausgang.get_count()  &&  ausgang[start_ware].get_typ()!=freight  ) {
+				while(  start_ware<ausgang.get_size()  &&  ausgang[start_ware].get_typ()!=freight  ) {
 					start_ware++;
 				}
-				koord harbour=platz1;
-				const int prod = min( ziel->get_base_production(), (start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor()) - start->get_abgabe_letzt(start_ware) );
+				const int prod = min( ziel->get_base_production(), (start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor()) - (sint32)(start->get_ausgang()[start_ware].get_stat(1, FAB_GOODS_DELIVERED)) );
 				if(prod<0) {
 					// too much supplied last time?!? => retry
 					state = CHECK_CONVOI;
 					break;
 				}
+				// just remember the position, where the harbour will be built
+				harbour=platz1;
 				int ships_needed = 1 + (prod*koord_distance(harbour,start->get_pos().get_2d())) / (ship_vehicle->get_zuladung()*max(20,ship_vehicle->get_geschw()));
 				if(create_ship_transport_vehikel(start,ships_needed)) {
 					if(welt->lookup(harbour)->get_halt()->get_fab_list().is_contained(ziel)) {
@@ -987,7 +991,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 				}
 				else {
 					ship_vehicle = NULL;
-					state = CHECK_CONVOI;
+					state = NR_BAUE_CLEAN_UP;
 				}
 			}
 			break;
@@ -1070,33 +1074,30 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 			}
 			if(ship_vehicle) {
 				// only here, if we could built ships but no connection
-				halthandle_t start_halt;
-				for( int r=0;  r<4;  r++  ) {
-					start_halt = haltestelle_t::get_halt(welt,platz1+koord::nsow[r],this);
-					if(start_halt.is_bound()  &&  (start_halt->get_station_type()&haltestelle_t::dock)!=0) {
-						// delete all ships on this line
-						vector_tpl<linehandle_t> lines;
-						simlinemgmt.get_lines( simline_t::shipline, &lines );
-						if(!lines.empty()) {
-							linehandle_t line = lines.back();
-							schedule_t *fpl=line->get_schedule();
-							if(fpl->get_count()>1  &&  haltestelle_t::get_halt(welt,fpl->eintrag[0].pos,this)==start_halt) {
-								while(line->count_convoys()>0) {
-									convoihandle_t cnv = line->get_convoy(0);
-									cnv->self_destruct();
-									if(cnv.is_bound()) {
-										cnv->step();
-									}
+				halthandle_t start_halt = haltestelle_t::get_halt(welt,harbour,this);
+				if(start_halt.is_bound()  &&  (start_halt->get_station_type()&haltestelle_t::dock)!=0) {
+					// delete all ships on this line
+					vector_tpl<linehandle_t> lines;
+					simlinemgmt.get_lines( simline_t::shipline, &lines );
+					if(!lines.empty()) {
+						linehandle_t line = lines.back();
+						schedule_t *fpl=line->get_schedule();
+						if(fpl->get_count()>1  &&  haltestelle_t::get_halt(welt,fpl->eintrag[0].pos,this)==start_halt) {
+							while(line->count_convoys()>0) {
+								convoihandle_t cnv = line->get_convoy(0);
+								cnv->self_destruct();
+								if(cnv.is_bound()) {
+									cnv->step();
 								}
-								simlinemgmt.delete_line( line );
 							}
+							simlinemgmt.delete_line( line );
 						}
-						// delete harbour
-						call_general_tool( WKZ_REMOVER, platz1+koord::nsow[r], NULL );
-						break;
 					}
 				}
+				// delete harbour
+				call_general_tool( WKZ_REMOVER, harbour, NULL );
 			}
+			harbour = koord::invalid;
 			// otherwise it may always try to built the same route!
 			ziel = NULL;
 			// schilder aufraeumen
@@ -1116,6 +1117,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 			sprintf(buf, translator::translate("%s\nopened a new railway\nbetween %s\nat (%i,%i) and\n%s at (%i,%i)."), get_name(), translator::translate(start->get_name()), spos.x, spos.y, translator::translate(ziel->get_name()), zpos.x, zpos.y);
 			welt->get_message()->add_message(buf, spos.get_2d(), message_t::ai, PLAYER_FLAG|player_nr, rail_engine->get_basis_bild());
 
+			harbour = koord::invalid;
 			state = CHECK_CONVOI;
 		}
 		break;
@@ -1129,6 +1131,8 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 			const koord3d& zpos = ziel->get_pos();
 			sprintf(buf, translator::translate("%s\nnow operates\n%i trucks between\n%s at (%i,%i)\nand %s at (%i,%i)."), get_name(), count_road, translator::translate(start->get_name()), spos.x, spos.y, translator::translate(ziel->get_name()), zpos.x, zpos.y);
 			welt->get_message()->add_message(buf, spos.get_2d(), message_t::ai, PLAYER_FLAG|player_nr, road_vehicle->get_basis_bild());
+
+			harbour = koord::invalid;
 			state = CHECK_CONVOI;
 		}
 		break;
@@ -1266,7 +1270,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 void ai_goods_t::rdwr(loadsave_t *file)
 {
 	if(  file->get_version()<102002  ) {
-		// do to an error the player was never saved correctly
+		// due to an error the player was never saved correctly
 		spieler_t::rdwr(file);
 		return;
 	}
@@ -1392,6 +1396,10 @@ void ai_goods_t::rdwr(loadsave_t *file)
 				delete fc;
 			}
 		}
+	}
+	// save harbour position
+	if (file->get_version() > 110000) {
+		harbour.rdwr(file);
 	}
 }
 

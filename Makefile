@@ -4,7 +4,7 @@ CONFIG ?= config.default
 
 BACKENDS      = allegro gdi sdl mixer_sdl x11 posix
 COLOUR_DEPTHS = 0 8 16
-OSTYPES       = beos cygwin freebsd haiku linux mingw mac
+OSTYPES       = amiga beos cygwin freebsd haiku linux mingw mac
 
 ifeq ($(findstring $(BACKEND), $(BACKENDS)),)
   $(error Unkown BACKEND "$(BACKEND)", must be one of "$(BACKENDS)")
@@ -23,6 +23,12 @@ ifeq ($(BACKEND), x11)
   $(warning ATTENTION: X11 backend is broken)
 endif
 
+
+ifeq ($(OSTYPE),amiga)
+  STD_LIBS ?= -lz -lbz2 -lunix -lpthread -lSDL_mixer -lsmpeg -lvorbisfile -lvorbis -logg
+  CFLAGS += -mcrt=newlib -DUSE_C -DBIG_ENDIAN -gstabs+
+  LDFLAGS += -Bstatic -non_shared
+endif
 
 ifeq ($(OSTYPE),beos)
   LIBS += -lz -lnet -lbz2
@@ -180,8 +186,11 @@ SOURCES += dataobj/koord3d.cc
 SOURCES += dataobj/loadsave.cc
 SOURCES += dataobj/marker.cc
 SOURCES += dataobj/network.cc
+SOURCES += dataobj/network_address.cc
 SOURCES += dataobj/network_cmd.cc
+SOURCES += dataobj/network_cmd_ingame.cc
 SOURCES += dataobj/network_cmp_pakset.cc
+SOURCES += dataobj/network_file_transfer.cc
 SOURCES += dataobj/network_packet.cc
 SOURCES += dataobj/network_socket_list.cc
 SOURCES += dataobj/pakset_info.cc
@@ -244,6 +253,7 @@ SOURCES += gui/depot_frame.cc
 SOURCES += gui/enlarge_map_frame_t.cc
 SOURCES += gui/extend_edit.cc
 SOURCES += gui/fabrik_info.cc
+SOURCES += gui/factory_chart.cc
 SOURCES += gui/factory_edit.cc
 SOURCES += gui/factorylist_frame_t.cc
 SOURCES += gui/factorylist_stats_t.cc

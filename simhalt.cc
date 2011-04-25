@@ -23,6 +23,7 @@
 #include "simgraph.h"
 #include "simhalt.h"
 #include "simintr.h"
+#include "simline.h"
 #include "simmem.h"
 #include "simmesg.h"
 #include "simplan.h"
@@ -902,7 +903,7 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 					// since also the factory halt list is added to the ground, we can use just this ...
 					if(  welt->lookup(ware.get_zielpos())->is_connected(self)  ) {
 						// we are already there!
-						if(ware.is_freight()) {
+						if(  ware.to_factory  ) {
 							liefere_an_fabrik(ware);
 						}
 						continue;
@@ -1417,18 +1418,9 @@ void haltestelle_t::add_pax_no_route(int n)
 
 void haltestelle_t::liefere_an_fabrik(const ware_t& ware)
 {
-	slist_iterator_tpl<fabrik_t *> fab_iter(fab_list);
-
-	while(fab_iter.next()) {
-		fabrik_t * fab = fab_iter.get_current();
-
-		const vector_tpl<ware_production_t>& eingang = fab->get_eingang();
-		for (uint32 i = 0; i < eingang.get_count(); i++) {
-			if (eingang[i].get_typ() == ware.get_besch() && ware.get_zielpos() == fab->get_pos().get_2d()) {
-				fab->liefere_an(ware.get_besch(), ware.menge);
-				return;
-			}
-		}
+	fabrik_t *const factory = fabrik_t::get_fab( welt, ware.get_zielpos() );
+	if(  factory  ) {
+		factory->liefere_an(ware.get_besch(), ware.menge);
 	}
 }
 
@@ -1552,7 +1544,7 @@ ware_t haltestelle_t::hole_ab(const ware_besch_t *wtyp, uint32 maxi, const sched
 uint32 haltestelle_t::get_ware_summe(const ware_besch_t *wtyp) const
 {
 	int sum = 0;
-	vector_tpl<ware_t> * warray = waren[wtyp->get_catg_index()];
+	const vector_tpl<ware_t> * warray = waren[wtyp->get_catg_index()];
 	if(warray!=NULL) {
 		for(unsigned i=0;  i<warray->get_count();  i++ ) {
 			if(wtyp->get_index()==(*warray)[i].get_index()) {
@@ -1567,10 +1559,10 @@ uint32 haltestelle_t::get_ware_summe(const ware_besch_t *wtyp) const
 
 uint32 haltestelle_t::get_ware_fuer_zielpos(const ware_besch_t *wtyp, const koord zielpos) const
 {
-	vector_tpl<ware_t> * warray = waren[wtyp->get_catg_index()];
+	const vector_tpl<ware_t> * warray = waren[wtyp->get_catg_index()];
 	if(warray!=NULL) {
 		for(unsigned i=0;  i<warray->get_count();  i++ ) {
-			ware_t &ware = (*warray)[i];
+			const ware_t &ware = (*warray)[i];
 			if(wtyp->get_index()==ware.get_index()  &&  ware.get_zielpos()==zielpos) {
 				return ware.menge;
 			}
@@ -1584,10 +1576,10 @@ uint32 haltestelle_t::get_ware_fuer_zielpos(const ware_besch_t *wtyp, const koor
 uint32 haltestelle_t::get_ware_fuer_zwischenziel(const ware_besch_t *wtyp, const halthandle_t zwischenziel) const
 {
 	uint32 sum = 0;
-	vector_tpl<ware_t> * warray = waren[wtyp->get_catg_index()];
+	const vector_tpl<ware_t> * warray = waren[wtyp->get_catg_index()];
 	if(warray!=NULL) {
 		for(unsigned i=0;  i<warray->get_count();  i++ ) {
-			ware_t &ware = (*warray)[i];
+			const ware_t &ware = (*warray)[i];
 			if(wtyp->get_index()==ware.get_index()  &&  ware.get_zwischenziel()==zwischenziel) {
 				sum += ware.menge;
 			}
@@ -1657,7 +1649,7 @@ void haltestelle_t::add_ware_to_halt(ware_t ware)
 uint32 haltestelle_t::starte_mit_route(ware_t ware)
 {
 	if(ware.get_ziel()==self) {
-		if(ware.is_freight()) {
+		if(  ware.to_factory  ) {
 			// muss an fabrik geliefert werden
 			liefere_an_fabrik(ware);
 		}
@@ -1704,7 +1696,7 @@ dbg->warning("haltestelle_t::liefere_an()","%d %s delivered to %s have no longer
 
 	// did we arrived?
 	if(welt->lookup(ware.get_zielpos())->is_connected(self)) {
-		if(ware.is_freight()) {
+		if(  ware.to_factory  ) {
 			// muss an fabrik geliefert werden
 			liefere_an_fabrik(ware);
 		}
@@ -1802,9 +1794,9 @@ void haltestelle_t::get_freight_info(cbuffer_t & buf)
 		buf.clear();
 
 		for(unsigned i=0; i<warenbauer_t::get_max_catg_index(); i++) {
-			vector_tpl<ware_t> * warray = waren[i];
+			const vector_tpl<ware_t> * warray = waren[i];
 			if(warray) {
-				freight_list_sorter_t::sort_freight(warray, buf, (freight_list_sorter_t::sort_mode_t)sortierung, NULL, "waiting");
+				freight_list_sorter_t::sort_freight(warray, buf, (freight_list_sorter_t::sort_mode_t)sortierung, NULL, "waiting", welt);
 			}
 		}
 	}
@@ -1981,7 +1973,7 @@ void haltestelle_t::transfer_goods(halthandle_t halt)
 	}
 	// transfer goods to halt
 	for(uint8 i=0; i<warenbauer_t::get_max_catg_index(); i++) {
-		vector_tpl<ware_t> * warray = waren[i];
+		const vector_tpl<ware_t> * warray = waren[i];
 		if (warray) {
 			for(uint32 j=0; j<warray->get_count(); j++) {
 				halt->add_ware_to_halt( (*warray)[j] );

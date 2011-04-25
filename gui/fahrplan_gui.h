@@ -22,12 +22,16 @@
 
 #include "../convoihandle_t.h"
 #include "../linehandle_t.h"
+#include "../simwin.h"
+#include "../tpl/vector_tpl.h"
 
 
 class schedule_t;
 struct linieneintrag_t;
 class spieler_t;
 class cbuffer_t;
+class karte_t;
+class loadsave_t;
 
 
 class fahrplan_gui_stats_t : public gui_komponente_t
@@ -114,6 +118,7 @@ private:
 	void update_selection();
 
 protected:
+	static karte_t *welt;
 	schedule_t *fpl;
 	schedule_t* old_fpl;
 	spieler_t *sp;
@@ -124,7 +129,7 @@ protected:
 public:
 	fahrplan_gui_t(schedule_t* fpl, spieler_t* sp, convoihandle_t cnv);
 
-	~fahrplan_gui_t();
+	virtual ~fahrplan_gui_t();
 
 	// for updating info ...
 	void init_line_selector();
@@ -144,10 +149,10 @@ public:
 	void zeichnen(koord pos, koord gr);
 
 	/**
-	 * resize window in response to a resize event
+	 * Set window size and adjust component sizes and/or positions accordingly
 	 * @author Hj. Malthaner
 	 */
-	void resize(const koord delta);
+	virtual void set_fenstergroesse(koord groesse);
 
 	/**
 	 * show or hide the line selector combobox and its associated label
@@ -172,6 +177,13 @@ public:
 	 * Map rotated, rotate schedules too
 	 */
 	void map_rotate90( sint16 );
+
+	// this contructor is only used during loading
+	fahrplan_gui_t(karte_t *welt);
+
+	virtual void rdwr( loadsave_t *file );
+
+	uint32 get_rdwr_id() { return magic_schedule_rdwr_dummy; }
 };
 
 #endif

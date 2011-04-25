@@ -92,7 +92,7 @@ uint32 simrand_plain(void)
 /* generates a random number on [0,max-1]-interval */
 uint32 simrand(const uint32 max)
 {
-	assert( (random_origin&1) == 0  );
+	assert( (random_origin&INTERACTIVE_RANDOM) == 0  );
 
 	if(max<=1) {	// may rather assert this?
 		return 0;
@@ -101,9 +101,21 @@ uint32 simrand(const uint32 max)
 }
 
 
+void clear_random_mode( uint16 mode )
+{
+	random_origin &= ~mode;
+}
+
+
 void set_random_mode( uint16 mode )
 {
 	random_origin |= mode;
+}
+
+
+uint16 get_random_mode()
+{
+	return random_origin;
 }
 
 
@@ -121,12 +133,6 @@ uint32 sim_async_rand( uint32 max )
 	return (rand_seed >> 8) % max;
 }
 
-
-
-void clear_random_mode( uint16 mode )
-{
-	random_origin &= ~mode;
-}
 
 
 static uint32 noise_seed = 0;

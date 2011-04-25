@@ -65,10 +65,13 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 		player_select[i].set_groesse( koord(120,BUTTON_HEIGHT) );
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("slot empty"), COL_BLACK ) );
 		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Manual (Human)"), COL_BLACK ) );
-		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Goods AI"), COL_BLACK ) );
-		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Passenger AI"), COL_BLACK ) );
-		player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("WAI"), COL_BLACK ) );
+		if(  !welt->get_spieler(1)->is_locked()  ||  !umgebung_t::networkmode  ) {
+			player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Goods AI"), COL_BLACK ) );
+			player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Passenger AI"), COL_BLACK ) );
+			player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("WAI"), COL_BLACK ) );
+		}
 		assert(  spieler_t::MAX_AI==5  );
+
 		// when adding new players, add a name here ...
 		player_select[i].set_selection(welt->get_einstellungen()->get_player_type(i) );
 		player_select[i].add_listener(this);
@@ -91,7 +94,7 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 
 		// income label
 		ai_income[i] = new gui_label_t(account_str[i], MONEY_PLUS, gui_label_t::money);
-		ai_income[i]->set_pos( koord( 225, 8+i*2*LINESPACE ) );
+		ai_income[i]->set_pos( koord( 261, 8+i*2*LINESPACE ) );
 		add_komponente( ai_income[i] );
 	}
 
@@ -104,7 +107,7 @@ ki_kontroll_t::ki_kontroll_t(karte_t *wl) :
 	freeplay.pressed = welt->get_einstellungen()->is_freeplay();
 	add_komponente( &freeplay );
 
-	set_fenstergroesse(koord(260, (MAX_PLAYER_COUNT-1)*LINESPACE*2+16+14+4));
+	set_fenstergroesse(koord(295, (MAX_PLAYER_COUNT-1)*LINESPACE*2+16+14+4));
 	update_data();
 }
 
@@ -192,7 +195,30 @@ bool ki_kontroll_t::action_triggered( gui_action_creator_t *komp,value_t p )
 void ki_kontroll_t::update_data()
 {
 	for(int i=0; i<MAX_PLAYER_COUNT-1; i++) {
-		if(  welt->get_spieler(i)==NULL  ) {
+		if(  spieler_t *sp = welt->get_spieler(i)  ) {
+			// active player -> remove selection
+			if (player_select[i].is_visible()) {
+				player_select[i].set_visible(false);
+				player_get_finances[i].set_visible(true);
+				add_komponente(player_get_finances+i);
+				if(welt->get_einstellungen()->get_allow_player_change()  ||  !welt->get_spieler(1)->is_locked()) {
+					add_komponente(player_change_to+i);
+				}
+				player_get_finances[i].set_text(sp->get_name());
+			}
+			// always update locking status
+			player_get_finances[i].background = PLAYER_FLAG | (sp->get_player_color1()+4);
+			player_lock[i].background = sp->is_locked() ? COL_RED : COL_GREEN;
+			// human players cannot be deactivated
+			if (i>1) {
+				remove_komponente( player_active+i-2 );
+				if(  sp->get_ai_id()!=spieler_t::HUMAN  ) {
+					add_komponente( player_active+i-2 );
+				}
+			}
+		}
+		else {
+			// inactive player => button needs removal?
 			if (player_get_finances[i].is_visible()) {
 				player_get_finances[i].set_visible(false);
 				remove_komponente(player_get_finances+i);
@@ -205,23 +231,20 @@ void ki_kontroll_t::update_data()
 					add_komponente( player_active+i-2 );
 				}
 			}
-		}
-		else {
-			// active player -> remove selection
-			if (player_select[i].is_visible()) {
-				player_select[i].set_visible(false);
-				player_get_finances[i].set_visible(true);
-				add_komponente(player_get_finances+i);
-				if(welt->get_einstellungen()->get_allow_player_change()    ||  !welt->get_spieler(1)->is_locked()) {
-					add_komponente(player_change_to+i);
+			if(  umgebung_t::networkmode  ) {
+				// change available selection of AIs
+				if(  !welt->get_spieler(1)->is_locked()  ) {
+					if(  player_select[i].count_elements()==2  ) {
+						player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Goods AI"), COL_BLACK ) );
+						player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Passenger AI"), COL_BLACK ) );
+					}
 				}
-				player_get_finances[i].set_text(welt->get_spieler(i)->get_name());
-			}
-			// human players cannot be deactivated
-			if (i>1) {
-				remove_komponente( player_active+i-2 );
-				if (welt->get_spieler(i)->get_ai_id()!=spieler_t::HUMAN) {
-					add_komponente( player_active+i-2 );
+				else {
+					if(  player_select[i].count_elements()==4  ) {
+						player_select[i].clear_elements();
+						player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("slot empty"), COL_BLACK ) );
+						player_select[i].append_element( new gui_scrolled_list_t::const_text_scrollitem_t( translator::translate("Manual (Human)"), COL_BLACK ) );
+					}
 				}
 			}
 		}
@@ -264,7 +287,7 @@ void ki_kontroll_t::zeichnen(koord pos, koord gr)
 				double account=sp->get_konto_als_double();
 				money_to_string(account_str[i], account );
 				ai_income[i]->set_color( account>=0.0 ? MONEY_PLUS : MONEY_MINUS );
-				ai_income[i]->set_pos( koord( 225, 8+i*2*LINESPACE ) );
+				ai_income[i]->set_pos( koord( 261, 8+i*2*LINESPACE ) );
 			}
 		}
 		else {

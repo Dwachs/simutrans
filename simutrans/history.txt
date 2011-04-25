@@ -1,3 +1,30 @@
+	ADD: factory charts
+	ADD: storage capacities scale with base production for factories which do not support fields
+	ADD: factory-going passengers/mail are handled separately
+	ADD: new boost mechanism at factories for passenger, mail and electricity
+	ADD: new factory expansion settings for factories without fields
+	ADD: command-line tool NETTOOL to administrate server
+	ADD: start as many trains as you like in a depot without waiting
+	CHG: when building artificial slopes on water, create underwater hill first
+
+
+Release of 110.0.1 (r4359 on 12-Mar-2011):
+
+	ADD: try to build crossing that match maxspeed of the ways to be crossed
+	ADD: sheep will not walk in cities anymore
+	CHANGE: much smaller savegames in online mode with trees
+	FIX: broken townhalls when the land was flattend before
+	FIX: AI better cleans up when building of shipping lines fails
+	FIX: line IDs are now tied to line handles => no double line ID any more
+	FIX: crashes with window resizing under SDL
+	FIX: convois stuck after modifying schedule of line
+	ADD: pak set specific pre-defined player colors and random player colors
+	FIX: world enlargement
+	FIX: loading lines with ID zero again
+
+
+Release of 110.0 (r4303 on 14-Feb-2011):
+
 	CHANGE: default savegame now bzip2 (games 33% smaller)
 	ADD: Odometer and distance per month available for convois/lines
 	ADD: (gerw) built tunnel without ways
@@ -117,6 +144,8 @@
 	ADD: (TurfIt/Dwachs) Windows snap onto each other when they are close (controlled by window_snap_distance)
 	ADD: server can do monthly announcements
 	ADD: announcements can be configured on command line
+	ADD: also schedules and line windows are kept during joining
+	ADD: vehicles can immeadtily loose part of their value when starting running (used_vehicle_reduction) to make expensive vehicle unattractive when starting a game
 
 
 Release of 102.2.2 (r3131 on 8-Mar-2010):

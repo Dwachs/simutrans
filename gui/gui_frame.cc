@@ -16,6 +16,7 @@
 #include "../simintr.h"
 #include "../simgraph.h"
 #include "../simwin.h"
+#include "../player/simplay.h"
 
 #include "../besch/reader/obj_reader.h"
 #include "../simskin.h"
@@ -61,6 +62,16 @@ void gui_frame_t::set_fenstergroesse(koord groesse)
 }
 
 
+/**
+ * gibt farbinformationen fuer Fenstertitel, -ränder und -körper
+ * zurück
+ * @author Hj. Malthaner
+ */
+PLAYER_COLOR_VAL gui_frame_t::get_titelcolor() const
+{
+	return owner ? PLAYER_FLAG|(owner->get_player_color1()+1) : WIN_TITEL;
+}
+
 
 /**
  * Events werden hiermit an die GUI-Komponenten
@@ -71,7 +82,8 @@ bool gui_frame_t::infowin_event(const event_t *ev)
 {
 	// %DB0 printf( "\nMessage: gui_frame_t::infowin_event( event_t const * ev ) : Fenster|Window %p : Event is %d", (void*)this, ev->ev_class );
 	if(IS_WINDOW_RESIZE(ev)) {
-		koord delta (ev->mx - ev->cx, ev->my - ev->cy);
+		koord delta (  resize_mode & horizonal_resize ? ev->mx - ev->cx : 0,
+		               resize_mode & vertical_resize  ? ev->my - ev->cy : 0);
 		resize(delta);
 		return true;	// not pass to childs!
 	} else if(IS_WINDOW_MAKE_MIN_SIZE(ev)) {

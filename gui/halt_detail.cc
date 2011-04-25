@@ -19,6 +19,8 @@
 #include "../dataobj/translator.h"
 #include "../dataobj/loadsave.h"
 
+#include "../player/simplay.h"
+
 #include "schedule_list.h"
 
 #include "halt_detail.h"
@@ -68,6 +70,29 @@ halt_detail_t::~halt_detail_t()
 		cont.remove_komponente( b );
 		delete b;
 	}
+	while(!linelabels.empty()) {
+		gui_label_t *l = linelabels.remove_first();
+		cont.remove_komponente( l );
+		delete l;
+	}
+	while(!linebuttons.empty()) {
+		button_t *b = linebuttons.remove_first();
+		cont.remove_komponente( b );
+		delete b;
+	}
+	while(!convoylabels.empty()) {
+		gui_label_t *l = convoylabels.remove_first();
+		cont.remove_komponente( l );
+		delete l;
+	}
+	while(!convoybuttons.empty()) {
+		button_t *b = convoybuttons.remove_first();
+		cont.remove_komponente( b );
+		delete b;
+	}
+	while(!label_names.empty()) {
+		free( (void *)(label_names.remove_first()) );
+	}
 }
 
 
@@ -103,12 +128,15 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 		cont.remove_komponente( b );
 		delete b;
 	}
+	while(!label_names.empty()) {
+		free( (void *)(label_names.remove_first()) );
+	}
 	buf.clear();
 
 	const slist_tpl<fabrik_t *> & fab_list = halt->get_fab_list();
 	slist_tpl<const ware_besch_t *> nimmt_an;
 
-	sint16 offset_y = 20;
+	sint16 offset_y = 22;
 	buf.append(translator::translate("Fabrikanschluss"));
 	buf.append("\n");
 	offset_y += LINESPACE;
@@ -138,8 +166,8 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 			buf.append(")\n");
 			offset_y += LINESPACE;
 
-			const vector_tpl<ware_production_t>& eingang = fab->get_eingang();
-			for (uint32 i = 0; i < eingang.get_count(); i++) {
+			const array_tpl<ware_production_t>& eingang = fab->get_eingang();
+			for (uint32 i = 0; i < eingang.get_size(); i++) {
 				const ware_besch_t* ware = eingang[i].get_typ();
 
 				if(!nimmt_an.is_contained(ware)) {
@@ -202,7 +230,8 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 			}
 
 			// Line labels with color of player
-			gui_label_t *l = new gui_label_t(halt->registered_lines[i]->get_name(),PLAYER_FLAG|(halt->registered_lines[i]->get_besitzer()->get_player_color1()+0));
+			label_names.append( strdup(halt->registered_lines[i]->get_name()) );
+			gui_label_t *l = new gui_label_t( label_names.back(), PLAYER_FLAG|(halt->registered_lines[i]->get_besitzer()->get_player_color1()+0) );
 			l->set_pos( koord(26, offset_y) );
 			linelabels.append( l );
 			cont.add_komponente( l );
@@ -236,7 +265,8 @@ void halt_detail_t::halt_detail_info(cbuffer_t & buf)
 			cont.add_komponente( b );
 
 			// Line labels with color of player
-			gui_label_t *l = new gui_label_t( halt->registered_convoys[i]->get_name(), PLAYER_FLAG|(halt->registered_convoys[i]->get_besitzer()->get_player_color1()+0) );
+			label_names.append( strdup(halt->registered_convoys[i]->get_name()) );
+			gui_label_t *l = new gui_label_t( label_names.back(), PLAYER_FLAG|(halt->registered_convoys[i]->get_besitzer()->get_player_color1()+0) );
 			l->set_pos( koord(26, offset_y) );
 			convoylabels.append( l );
 			cont.add_komponente( l );

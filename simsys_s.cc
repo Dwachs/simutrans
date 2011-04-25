@@ -103,8 +103,8 @@ static Uint8 hourglass_cursor_mask[] = {
 
 
 static SDL_Surface *screen;
-static int width = 640;
-static int height = 480;
+static int width = 16;
+static int height = 16;
 
 // switch off is a little faster (<3%)
 static int sync_blit = 0;
@@ -258,6 +258,8 @@ int dr_textur_resize(unsigned short** textur, int w, int h, int bpp)
 #endif
 	int flags = screen->flags;
 
+
+	display_set_actual_width( w );
 	// some cards need those alignments
 	// especially 64bit want a border of 8bytes
 	w = (w + 15) & 0x7FF0;
@@ -265,22 +267,24 @@ int dr_textur_resize(unsigned short** textur, int w, int h, int bpp)
 		w = 16;
 	}
 
-	width = w;
-	height = h;
+	if(  w!=screen->w  ||  h!=screen->h  ) {
 
-	screen = SDL_SetVideoMode(width, height, bpp, flags);
-	printf("textur_resize()::screen=%p\n", screen);
-	if (screen) {
-		DBG_MESSAGE("dr_textur_resize(SDL)", "SDL realized screen size width=%d, height=%d (requested w=%d, h=%d)", screen->w, screen->h, w, h);
-	}
-	else {
-		if (dbg) {
-			dbg->warning("dr_textur_resize(SDL)", "screen is NULL. Good luck!");
+		width = w;
+		height = h;
+
+		screen = SDL_SetVideoMode(w, h, bpp, flags);
+		printf("textur_resize()::screen=%p\n", screen);
+		if (screen) {
+			DBG_MESSAGE("dr_textur_resize(SDL)", "SDL realized screen size width=%d, height=%d (requested w=%d, h=%d)", screen->w, screen->h, w, h);
 		}
+		else {
+			if (dbg) {
+				dbg->warning("dr_textur_resize(SDL)", "screen is NULL. Good luck!");
+			}
+		}
+		fflush(NULL);
 	}
-	fflush(NULL);
 	*textur = (unsigned short*)screen->pixels;
-	display_set_actual_width( w );
 	return w;
 }
 
@@ -738,18 +742,20 @@ int main(int argc, char **argv)
 	}
 	argv[argc] = NULL;
 #elif !defined __BEOS__
-#	if defined __GLIBC__
+#  if defined(__GLIBC__)  &&  !defined(__AMIGA__)
 	/* glibc has a non-standard extension */
 	char* buffer2 = NULL;
-#	else
+#  else
 	char buffer2[PATH_MAX];
-#	endif
+#  endif
+#  ifndef __AMIGA__
 	char buffer[PATH_MAX];
 	int length = readlink("/proc/self/exe", buffer, lengthof(buffer) - 1);
 	if (length != -1) {
 		buffer[length] = '\0'; /* readlink() does not NUL-terminate */
 		argv[0] = buffer;
 	}
+#  endif
 	// no process file system => need to parse argv[0]
 	/* should work on most unix or gnu systems */
 	argv[0] = realpath(argv[0], buffer2);

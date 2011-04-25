@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2004 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2004 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -11,12 +11,13 @@
 #include "../simskin.h"
 #include "../simwin.h"
 #include "../simgraph.h"
-#include "../simwerkz.h"
+#include "../simmenu.h"
 #include "../besch/skin_besch.h"
 #include "../besch/sound_besch.h"
 #include "../dataobj/umgebung.h"
 #include "werkzeug_waehler.h"
 
+#define MIN_WIDTH (80)
 
 
 werkzeug_waehler_t::werkzeug_waehler_t(karte_t* welt, const char* titel, const char *helpfile, uint32 toolbar_id, koord icon, bool allow_break) :
@@ -29,7 +30,8 @@ werkzeug_waehler_t::werkzeug_waehler_t(karte_t* welt, const char* titel, const c
 	this->icon = icon;
 	this->tool_icon_disp_start = 0;
 	this->tool_icon_disp_end = 0;
-	set_fenstergroesse( icon );
+	has_prev_next= false;
+	set_fenstergroesse( koord(max(icon.x,MIN_WIDTH), TITLEBAR_HEIGHT) );
     dirty = true;
 }
 
@@ -50,11 +52,11 @@ void werkzeug_waehler_t::add_werkzeug(werkzeug_t *w)
 
 	int ww = max(2,(display_get_width()/icon.x)-2);	// to avoid zero or negative ww on posix (no graphic) backends
 	tool_icon_width = tools.get_count();
-DBG_DEBUG("werkzeug_waehler_t::add_tool()","ww=%i, tool_icon_width=%i",ww,tool_icon_width);
+DBG_DEBUG4("werkzeug_waehler_t::add_tool()","ww=%i, tool_icon_width=%i",ww,tool_icon_width);
 	if(allow_break  &&  (ww<tool_icon_width  ||  (umgebung_t::toolbar_max_width>0  &&  umgebung_t::toolbar_max_width<tool_icon_width))) {
 		//break them
 		int rows = (tool_icon_width/ww)+1;
-DBG_DEBUG("werkzeug_waehler_t::add_tool()","ww=%i, rows=%i",ww,rows);
+DBG_DEBUG4("werkzeug_waehler_t::add_tool()","ww=%i, rows=%i",ww,rows);
 		// assure equal distribution if more than a single row is needed
 		tool_icon_width = (tool_icon_width+rows-1)/rows;
 		if(  umgebung_t::toolbar_max_width > 0  ) {
@@ -67,12 +69,12 @@ DBG_DEBUG("werkzeug_waehler_t::add_tool()","ww=%i, rows=%i",ww,rows);
 		tool_icon_height = min(tool_icon_height, umgebung_t::toolbar_max_height);
 	}
 	dirty = true;
-	gui_frame_t::set_fenstergroesse( koord( tool_icon_width*icon.x, min(tool_icon_height, ((tools.get_count()-1)/tool_icon_width)+1)*icon.y+16 ) );
+	gui_frame_t::set_fenstergroesse( koord( tool_icon_width*icon.x, min(tool_icon_height, ((tools.get_count()-1)/tool_icon_width)+1)*icon.y+TITLEBAR_HEIGHT ) );
 	tool_icon_disp_start = 0;
 	tool_icon_disp_end = min( tool_icon_disp_start+tool_icon_width*tool_icon_height, tools.get_count() );
-	has_prev_next = (tool_icon_width*tool_icon_height < tools.get_count());
+	has_prev_next = ((uint32)tool_icon_width*tool_icon_height < tools.get_count());
 
-DBG_DEBUG("werkzeug_waehler_t::add_tool()", "at position %i (width %i)", tools.get_count(), tool_icon_width);
+DBG_DEBUG4("werkzeug_waehler_t::add_tool()", "at position %i (width %i)", tools.get_count(), tool_icon_width);
 }
 
 
@@ -84,7 +86,7 @@ void werkzeug_waehler_t::reset_tools()
 		i--;
 		tools.remove_at(i);
 	}
-	gui_frame_t::set_fenstergroesse( koord( icon.x, TITLEBAR_HEIGHT ) );
+	gui_frame_t::set_fenstergroesse( koord(max(icon.x,MIN_WIDTH), TITLEBAR_HEIGHT) );
 	tool_icon_width = 0;
 	tool_icon_disp_start = 0;
 	tool_icon_disp_end = 0;
@@ -95,7 +97,8 @@ bool werkzeug_waehler_t::getroffen(int x, int y)
 {
 	int dx = x/icon.x;
 	int	dy = (y-16)/icon.y;
-	if(  x>=0 && dx<tool_icon_width  &&  y>=0  &&  (y<TITLEBAR_HEIGHT  ||  dy<tool_icon_height)  ) {
+	// either click in titlebar or on an icon
+	if(  x>=0   &&  y>=0  &&  (y<TITLEBAR_HEIGHT  ||  (dx<tool_icon_width  &&  dy<tool_icon_height) )  ) {
 		return y < TITLEBAR_HEIGHT || dx + tool_icon_width * dy + tool_icon_disp_start < (int)tools.get_count();
 	}
 	return false;

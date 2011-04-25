@@ -24,6 +24,7 @@
 
 #include "../dataobj/einstellungen.h"
 #include "../dataobj/umgebung.h"
+#include "../dataobj/pakset_info.h"
 #include "../dataobj/translator.h"
 
 #include "../tpl/vector_tpl.h"
@@ -217,9 +218,24 @@ DBG_DEBUG("fabrikbauer_t::register_besch()","Correction for old factory: Increas
 }
 
 
+bool fabrikbauer_t::alles_geladen()
+{
+	stringhashtable_iterator_tpl<const fabrik_besch_t *> iter(table);
+	while(iter.next()) {
+		const fabrik_besch_t *current=iter.get_current_value();
+		if(  field_group_besch_t * fg = const_cast<field_group_besch_t *>(current->get_field_group())  ) {
+			// initialize weighted vector for the field class indices
+			fg->init_field_class_indices();
+		}
+		checksum_t *chk = new checksum_t();
+		current->calc_checksum(chk);
+		pakset_info_t::append(current->get_name(), chk);
+	}
+	return true;
+}
 
-int
-fabrikbauer_t::finde_anzahl_hersteller(const ware_besch_t *ware, uint16 timeline)
+
+int fabrikbauer_t::finde_anzahl_hersteller(const ware_besch_t *ware, uint16 timeline)
 {
 	stringhashtable_iterator_tpl<const fabrik_besch_t *> iter(table);
 	int anzahl=0;
@@ -465,9 +481,9 @@ fabrik_t* fabrikbauer_t::baue_fabrik(karte_t* welt, koord3d* parent, const fabri
 		for(  weighted_vector_tpl<stadt_t*>::const_iterator iter = staedte.begin(), end = staedte.end();  iter != end;  ++iter  ) {
 			distance_stadt.insert_ordered( *iter, RelativeDistanceOrdering(fab->get_pos().get_2d()) );
 		}
-		for(  uint32 i = 0;  i<distance_stadt.get_count()  &&  fab->get_arbeiterziele().get_count() < welt->get_einstellungen()->get_factory_worker_maximum_towns();  i++   ) {
-			if(  fab->get_arbeiterziele().get_count() < welt->get_einstellungen()->get_factory_worker_minimum_towns()  ||  koord_distance( fab->get_pos(), distance_stadt[i]->get_pos() ) < welt->get_einstellungen()->get_factory_worker_radius()  ) {
-				distance_stadt[i]->add_factory_arbeiterziel(fab);
+		for(  uint32 i = 0;  i<distance_stadt.get_count()  &&  fab->get_target_cities().get_count() < welt->get_einstellungen()->get_factory_worker_maximum_towns();  i++   ) {
+			if(  fab->get_target_cities().get_count() < welt->get_einstellungen()->get_factory_worker_minimum_towns()  ||  koord_distance( fab->get_pos(), distance_stadt[i]->get_pos() ) < welt->get_einstellungen()->get_factory_worker_radius()  ) {
+				fab->add_target_city(distance_stadt[i]);
 			}
 		}
 	}

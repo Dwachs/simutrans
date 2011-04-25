@@ -22,14 +22,11 @@
 #include "tpl/weighted_vector_tpl.h"
 #include "tpl/vector_tpl.h"
 #include "tpl/slist_tpl.h"
-#include "tpl/ptrhashtable_tpl.h"
 
 #include "dataobj/marker.h"
 #include "dataobj/einstellungen.h"
 
 #include "simplan.h"
-
-#include "simintr.h"
 
 #include "simdebug.h"
 
@@ -49,6 +46,29 @@ class scenario_t;
 class message_t;
 class weg_besch_t;
 class network_world_command_t;
+class memory_rw_t;
+
+
+struct checklist_t
+{
+	uint32 random_seed;
+	uint16 halt_entry;
+	uint16 line_entry;
+	uint16 convoy_entry;
+
+	checklist_t() : random_seed(0), halt_entry(0), line_entry(0), convoy_entry(0) { }
+	checklist_t(uint32 _random_seed, uint16 _halt_entry, uint16 _line_entry, uint16 _convoy_entry)
+		: random_seed(_random_seed), halt_entry(_halt_entry), line_entry(_line_entry), convoy_entry(_convoy_entry) { }
+
+	bool operator == (const checklist_t &other) const
+	{
+		return ( random_seed==other.random_seed && halt_entry==other.halt_entry && line_entry==other.line_entry && convoy_entry==other.convoy_entry );
+	}
+	bool operator != (const checklist_t &other) const { return !( (*this)==other ); }
+
+	void rdwr(memory_rw_t *buffer);
+	int print(char *buffer, const char *entity) const;
+};
 
 
 /**
@@ -294,7 +314,9 @@ private:
 
 	// Variables used in interactive()
 	uint32 sync_steps;
-	uint32 last_random_seed, last_random_seed_sync;
+#define LAST_CHECKLISTS_COUNT 64
+	checklist_t last_checklists[LAST_CHECKLISTS_COUNT];
+#define LCHKLST(x) (last_checklists[(x) % LAST_CHECKLISTS_COUNT])
 	uint8  network_frame_count;
 	uint32 fix_ratio_frame_time; // set in reset_timer()
 
@@ -377,11 +399,11 @@ private:
 	// when this month is reached, server will do next announcement
 	uint32 server_next_announce_month;
 
+public:
 	// announce server and current state to listserver
 	// will be done in step when client number changed
 	void announce_server();
 
-public:
 	/* reads height data from 8 or 25 bit bmp or ppm files
 	 * @return either pointer to heightfield (use delete [] for it) or NULL
 	 */
@@ -519,7 +541,7 @@ public:
 	// if a schedule is changed, it will increment the schedule counter
 	// every step the haltestelle will check and reroute the goods if needed
 	uint8 get_schedule_counter() const { return schedule_counter; }
-	void set_schedule_counter() { schedule_counter++; }
+	void set_schedule_counter();
 
 	// often used, therefore found here
 	bool use_timeline() const { return einstellungen->get_use_timeline(); }
@@ -979,8 +1001,13 @@ public:
 
 	uint32 get_sync_steps() const { return sync_steps; }
 
-	uint32 get_last_random_seed() const { return last_random_seed; }
-	uint32 get_last_random_seed_sync() const { return last_random_seed_sync; }
+	// check whether checklist is available, ie given sync_step is not too far into past
+	bool is_checklist_available(const uint32 sync_step) const { return sync_step + LAST_CHECKLISTS_COUNT > sync_steps; }
+	const checklist_t& get_checklist_at(const uint32 sync_step) const { return LCHKLST(sync_step); }
+	void set_checklist_at(const uint32 sync_step, const checklist_t &chklst) { LCHKLST(sync_step) = chklst; }
+
+	const checklist_t& get_last_checklist() const { return LCHKLST(sync_steps); }
+	uint32 get_last_checklist_sync_step() const { return sync_steps; }
 
 	void command_queue_append(network_world_command_t*) const;
 

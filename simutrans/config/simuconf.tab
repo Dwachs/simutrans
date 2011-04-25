@@ -171,7 +171,26 @@ just_in_time = 1
 # use beginner mode for new maps (can be switched anyway on the new map dialog)
 first_beginner = 0
 
+# number of periods for averaging the amount of arrived pax/mail at factories for boost calculation
+# one period represents a fixed interval of 2^18 ms in-game time
+# value can range from 1 to 16, inclusive; 1 means no averaging; default is 4
+factory_arrival_periods = 4
+
+# whether factory's pax/mail demands are enforced or not; default is on
+factory_enforce_demand = 1
+
 ##################################display stuff#################################
+
+# player color can be fixed for several players or set totally random
+# in the latter case each player will get unique but random coloring
+# (default 0)
+random_player_colors = 0
+
+# when set here, the player will always get these player colors, even
+# if random colors were enabled.
+# color values range from 0 to 27 for first and second player color
+# and there are 0...15 player in the game
+player_color[1] = 1,4
 
 # how long is a diagonal (512: faktor 2=1024/512, old way, 724: sqrt(2)=1024/724
 # THIS WILL BE ONLY USED, WHEN THIS FILE IS IN THE pakxyz/config!
@@ -308,6 +327,10 @@ left_to_right_graphs  = 0
 
 # allow buying obsolete vehicles (=1) in depot
 allow_buying_obsolete_vehicles = 1
+
+# vehicle can loose a part of their value, when the are once used
+# the loss is given in 1/1000th, i.e 300 mean the value will be 70%
+used_vehicle_reduction = 0
 
 # Maintenance costs of buildings
 #maintenance_building = 2000
@@ -536,3 +559,6 @@ fast_forward = 50
 
 # Additionally comment on your server; will be shown on game-info
 #server_comment = Testserver
+
+# Admin password for server; if not set, command-line tool nettool not usable
+#server_admin_pw = abc

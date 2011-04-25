@@ -77,6 +77,8 @@
 #include "music/music.h"
 #include "sound/sound.h"
 
+#include "utils/cbuffer_t.h"
+
 #include "bauer/vehikelbauer.h"
 #include "vehicle/simvehikel.h"
 #include "vehicle/simverkehr.h"
@@ -240,17 +242,25 @@ void modal_dialogue( gui_frame_t *gui, long magic, karte_t *welt, bool (*quit)()
 			// do not move, do not close it!
 			dr_prepare_flush();
 			gui->zeichnen( koord(win_get_posx(gui),win_get_posy(gui)), gui->get_fenstergroesse() );
-			display_poll_event(&ev);
-			// main window resized
-			check_pos_win(&ev);
 			dr_flush();
-			dr_sleep(50);
-			// main window resized
-			if(ev.ev_class==EVENT_SYSTEM  &&  ev.ev_code==SYSTEM_RESIZE) {
-				// main window resized
-				simgraph_resize( ev.mx, ev.my );
-				display_fillbox_wh( 0, 0, ev.mx, ev.my, COL_BLACK, true );
+
+			display_poll_event(&ev);
+			if(ev.ev_class==EVENT_SYSTEM) {
+				if (ev.ev_code==SYSTEM_RESIZE) {
+					// main window resized
+					simgraph_resize( ev.mx, ev.my );
+					display_fillbox_wh( 0, 0, ev.mx, ev.my, COL_BLACK, true );
+				}
+				else if (ev.ev_code == SYSTEM_QUIT) {
+					umgebung_t::quit_simutrans = true;
+					break;
+				}
 			}
+			else {
+				// other events
+				check_pos_win(&ev);
+			}
+			dr_sleep(50);
 		}
 		set_pointer(1);
 		display_fillbox_wh( 0, 0, display_get_width(), display_get_height(), COL_BLACK, true );
@@ -404,6 +414,7 @@ int simu_main(int argc, char** argv)
 			" -server_id NUM      ID for server announcements\n"
 			" -server_name NAME   name for server announcements\n"
 			" -server_comment TXT comment for server announcements\n"
+			" -server_admin_pw PW password for server administration\n"
 			" -singleuser         Save everything in program directory (portable version)\n"
 #ifdef DEBUG
 			" -sizes              Show current size of some structures\n"
@@ -548,6 +559,11 @@ int simu_main(int argc, char** argv)
 		}
 	}
 
+#ifdef REVISION
+	const char *version = "Simutrans version " VERSION_NUMBER " from " VERSION_DATE " r" QUOTEME(REVISION) "\n";
+#else
+	const char *version = "Simutrans version " VERSION_NUMBER " from " VERSION_DATE "\n";
+#endif
 	if (gimme_arg(argc, argv, "-log", 0)) {
 		chdir( umgebung_t::user_dir );
 		char temp_log_name[256];
@@ -558,11 +574,11 @@ int simu_main(int argc, char** argv)
 			sprintf( temp_log_name, "simu-server%d.log", portadress==0 ? 13353 : portadress );
 			logname = temp_log_name;
 		}
-		init_logging( logname, true, gimme_arg(argc, argv, "-log", 0) != NULL);
+		init_logging( logname, true, gimme_arg(argc, argv, "-log", 0 ) != NULL, version );
 	} else if (gimme_arg(argc, argv, "-debug", 0) != NULL) {
-		init_logging( "stderr", true, gimme_arg(argc, argv, "-debug", 0) != NULL);
+		init_logging( "stderr", true, gimme_arg(argc, argv, "-debug", 0 ) != NULL, version );
 	} else {
-		init_logging(NULL, false, false);
+		init_logging(NULL, false, false, version);
 	}
 
 	// starting a server?
@@ -575,9 +591,6 @@ int simu_main(int argc, char** argv)
 		// will fail fatal on the opening routine ...
 		dbg->message( "simmain()", "Server started on port %i", portadress );
 		umgebung_t::networkmode = network_init_server( portadress );
-		if(  umgebung_t::networkmode  ) {
-			umgebung_t::server = portadress;
-		}
 	}
 	else {
 		// no announce for clients ...
@@ -672,6 +685,10 @@ int simu_main(int argc, char** argv)
 	if(  umgebung_t::objfilename.empty()  ) {
 		show_pointer(1);
 		ask_objfilename();
+		if(  umgebung_t::quit_simutrans  ) {
+			simgraph_exit();
+			return 0;
+		}
 		if(  umgebung_t::objfilename.empty()  ) {
 			// nothing to be loaded => exit
 			fprintf(stderr, "*** No pak set found ***\n\nMost likely, you have no pak set installed.\nPlease download and install also graphics (pak).\n");
@@ -913,7 +930,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		umgebung_t::announce_server = atoi(ref_str);
 	}
 
-	ref_str = gimme_arg(argc, argv, "-server_comment", 1);
+	ref_str = gimme_arg(argc, argv, "-server_name", 1);
 	if (ref_str != NULL) {
 		umgebung_t::server_name = ref_str;
 	}
@@ -921,6 +938,11 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 	ref_str = gimme_arg(argc, argv, "-server_comment", 1);
 	if (ref_str != NULL) {
 		umgebung_t::server_comment = ref_str;
+	}
+
+	ref_str = gimme_arg(argc, argv, "-server_admin_pw", 1);
+	if (ref_str != NULL) {
+		umgebung_t::server_admin_pw = ref_str;
 	}
 
 	chdir(umgebung_t::user_dir);
@@ -1014,7 +1036,9 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 	sprachengui_t::init_font_from_lang();
 
 	destroy_all_win(true);
-	welt->get_message()->clear();
+	if(  !umgebung_t::server  ) {
+		welt->get_message()->clear();
+	}
 	while(  !umgebung_t::quit_simutrans  ) {
 		// play next tune?
 		check_midi();

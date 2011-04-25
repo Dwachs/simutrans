@@ -18,7 +18,6 @@
 #include "karte.h"
 
 #include "../simdebug.h"
-#include "../simio.h"
 #include "../simworld.h"
 #include "../simwin.h"
 #include "../simimg.h"
@@ -41,6 +40,7 @@
 #include "../dings/baum.h"
 #include "../simcity.h"
 #include "../vehicle/simvehikel.h"
+#include "../player/simplay.h"
 
 #include "../simcolor.h"
 
@@ -83,19 +83,25 @@ DBG_MESSAGE("","sizeof(stat)=%d, sizeof(tm)=%d",sizeof(struct stat),sizeof(struc
 	this->old_lang = -1;
 	this->sets->beginner_mode = umgebung_t::default_einstellungen.get_beginner_mode();
 
-	// find earliest start date ...
-	uint16 game_start = 2999;
+	// find earliest start and end date ...
+	uint16 game_start = 4999;
+	uint16 game_ends = 0;
 	// first townhalls
 	const vector_tpl<const haus_besch_t *> *s = hausbauer_t::get_list(haus_besch_t::rathaus);
 	for (uint32 i = 0; i<s->get_count(); i++) {
 		const haus_besch_t *besch = (*s)[i];
-		uint16 year = (besch->get_intro_year_month()+11)/12;
-		if(  year<game_start  ) {
-			game_start = year;
+		uint16 intro_year = (besch->get_intro_year_month()+11)/12;
+		if(  intro_year<game_start  ) {
+			game_start = intro_year;
+		}
+		uint16 retire_year = (besch->get_retire_year_month()+11)/12;
+		if(  retire_year>game_ends  ) {
+			game_ends = retire_year;
 		}
 	}
 	// then streets
 	game_start = max( game_start, (wegbauer_t::get_earliest_way(road_wt)->get_intro_year_month()+11)/12 );
+	game_ends = min( game_ends, (wegbauer_t::get_latest_way(road_wt)->get_retire_year_month()+11)/12 );
 
 	loaded_heightfield = load_heightfield = false;
 	load = start = close = scenario = quit = false;
@@ -197,7 +203,7 @@ DBG_MESSAGE("","sizeof(stat)=%d, sizeof(tm)=%d",sizeof(struct stat),sizeof(struc
 	inp_intro_date.set_pos(koord(RIGHT_COLUMN,intTopOfButton) );
 	inp_intro_date.set_groesse(koord(RIGHT_COLUMN_WIDTH, 12));
 	inp_intro_date.add_listener(this);
-	inp_intro_date.set_limits(game_start,2999);
+	inp_intro_date.set_limits(game_start,game_ends);
 	inp_intro_date.set_increment_mode(10);
 	inp_intro_date.set_value(abs(sets->get_starting_year()) );
 	add_komponente( &inp_intro_date );
@@ -532,6 +538,9 @@ void welt_gui_t::zeichnen(koord pos, koord gr)
 
 	open_climate_gui.pressed = win_get_magic( magic_climate );
 	open_setting_gui.pressed = win_get_magic( magic_settings_frame_t );
+
+	use_intro_dates.pressed = sets->get_use_timeline()&1;
+	use_beginner_mode.pressed = sets->get_beginner_mode();
 
 	gui_frame_t::zeichnen(pos, gr);
 

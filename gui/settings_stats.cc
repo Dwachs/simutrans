@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997 - 2003 Hansjörg Malthaner
+ * Copyright (c) 1997 - 2003 Hj. Malthaner
  *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
@@ -21,14 +21,16 @@ INIT_NUM( "diagonal_multiplier", pak_diagonal_multiplier);
 */
 
 
-static const char *version[6]=
+static const char *version[8]=
 {
 	"0.99.17",
 	"0.100.0",
 	"0.101.0",
 	"0.102.1",
 	"0.102.2",
-	"0.102.5"
+	"0.102.5",
+	"0.110.0",
+	"0.110.1"
 };
 
 
@@ -108,7 +110,7 @@ void settings_general_stats_t::init(einstellungen_t *sets)
 	// combobox for savegame version
 	savegame.set_pos( koord(2,ypos-2) );
 	savegame.set_groesse( koord(70,BUTTON_HEIGHT) );
-	for(  int i=0;  i<lengthof(version);  i++  ) {
+	for(  uint32 i=0;  i<lengthof(version);  i++  ) {
 		savegame.append_element( new gui_scrolled_list_t::const_text_scrollitem_t( version[i]+2, COL_BLACK ) );
 		if(  strcmp(version[i],umgebung_t::savegame_version_str)==0  ) {
 			savegame.set_selection( i );
@@ -168,7 +170,7 @@ void settings_general_stats_t::read(einstellungen_t *sets)
 	READ_BOOL_VALUE( umgebung_t::left_to_right_graphs );
 
 	int selected = savegame.get_selection();
-	if(  0 <= selected  &&  selected < lengthof(version)  ) {
+	if(  0 <= selected  &&  (uint32)selected < lengthof(version)  ) {
 		umgebung_t::savegame_version_str = version[ selected ];
 	}
 }
@@ -232,6 +234,7 @@ void settings_economy_stats_t::init(einstellungen_t *sets)
 	INIT_BOOL( "first_beginner", sets->get_beginner_mode() );
 	INIT_NUM( "beginner_price_factor", sets->get_beginner_price_factor(), 1, 25000, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_BOOL( "allow_buying_obsolete_vehicles", sets->get_allow_buying_obsolete_vehicles() );
+	INIT_NUM( "used_vehicle_reduction", sets->get_used_vehicle_reduction(), 0, 1000, gui_numberinput_t::AUTOLINEAR, false );
 	SEPERATOR
 	INIT_BOOL( "just_in_time", sets->get_just_in_time() );
 	INIT_BOOL( "crossconnect_factories", sets->is_crossconnect_factories() );
@@ -245,6 +248,8 @@ void settings_economy_stats_t::init(einstellungen_t *sets)
 	INIT_NUM( "factory_worker_radius", sets->get_factory_worker_radius(), 0, 32767, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "factory_worker_minimum_towns", sets->get_factory_worker_minimum_towns(), 0, 32767, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "factory_worker_maximum_towns", sets->get_factory_worker_maximum_towns(), 0, 32767, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "factory_arrival_periods", sets->get_factory_arrival_periods(), 1, 16, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_BOOL( "factory_enforce_demand", sets->get_factory_enforce_demand() );
 	INIT_NUM( "factory_worker_percentage", sets->get_factory_worker_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "tourist_percentage", sets->get_tourist_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
 	SEPERATOR
@@ -279,6 +284,7 @@ void settings_economy_stats_t::read( einstellungen_t *sets )
 	READ_BOOL_VALUE( sets->beginner_mode );
 	READ_NUM_VALUE( sets->beginner_price_factor );
 	READ_BOOL_VALUE( sets->allow_buying_obsolete_vehicles );
+	READ_NUM_VALUE( sets->used_vehicle_reduction );
 
 	READ_BOOL_VALUE( sets->just_in_time );
 	READ_BOOL_VALUE( sets->crossconnect_factories );
@@ -291,6 +297,8 @@ void settings_economy_stats_t::read( einstellungen_t *sets )
 	READ_NUM_VALUE( sets->factory_worker_radius );
 	READ_NUM_VALUE( sets->factory_worker_minimum_towns );
 	READ_NUM_VALUE( sets->factory_worker_maximum_towns );
+	READ_NUM_VALUE( sets->factory_arrival_periods );
+	READ_BOOL_VALUE( sets->factory_enforce_demand );
 	READ_NUM_VALUE( sets->factory_worker_percentage );
 	READ_NUM_VALUE( sets->tourist_percentage );
 	READ_NUM_VALUE( sets->passenger_multiplier );

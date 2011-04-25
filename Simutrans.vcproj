@@ -126,7 +126,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
-				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN"
+				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;NDEBUG;REVISION=&quot;4353&quot;"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -394,6 +394,10 @@
 			</File>
 			<File
 				RelativePath=".\bauer\fabrikbauer.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\gui\factory_chart.cc"
 				>
 			</File>
 			<File
@@ -753,11 +757,23 @@
 				>
 			</File>
 			<File
+				RelativePath=".\dataobj\network_address.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\network_cmd.cc"
 				>
 			</File>
 			<File
+				RelativePath=".\dataobj\network_cmd_ingame.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\network_cmp_pakset.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_file_transfer.cc"
 				>
 			</File>
 			<File
@@ -1493,6 +1509,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\factory_chart.h"
+				>
+			</File>
+			<File
 				RelativePath=".\gui\factory_edit.h"
 				>
 			</File>
@@ -1929,11 +1949,23 @@
 				>
 			</File>
 			<File
+				RelativePath=".\dataobj\network_address.h"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\network_cmd.h"
 				>
 			</File>
 			<File
+				RelativePath=".\dataobj\network_cmd_ingame.h"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\network_cmp_pakset.h"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_file_transfer.h"
 				>
 			</File>
 			<File
@@ -2262,6 +2294,10 @@
 			</File>
 			<File
 				RelativePath=".\simware.h"
+				>
+			</File>
+			<File
+				RelativePath=".\simwerkz-dialogs.h"
 				>
 			</File>
 			<File

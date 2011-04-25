@@ -49,6 +49,8 @@ public:
 
 	static vector_tpl<const weg_besch_t *>* get_way_list( const waytype_t wtyp, const karte_t *welt );
 
+	static const weg_besch_t *get_latest_way(const waytype_t wtyp);
+
 	/**
 	 * Fill menu with icons of given waytype
 	 * @author Hj. Malthaner
@@ -72,14 +74,19 @@ public:
 		tunnel_flag=0x800				// underground structure
 	};
 
-protected:
+private:
+	enum build_type_t {
+		build_straight = 1
+	};
+
 	struct next_gr_t
 	{
 		next_gr_t() {}
-		next_gr_t(grund_t* gr_, long cost_) : gr(gr_), cost(cost_) {}
+		next_gr_t(grund_t* gr_, long cost_, uint8 flag_=0) : gr(gr_), cost(cost_), flag(flag_) {}
 
 		grund_t* gr;
-		long		cost;
+		long     cost;
+		uint8    flag;
 	};
 	vector_tpl<next_gr_t> next_gr;
 
@@ -124,9 +131,6 @@ protected:
 	uint32 maximum;    // hoechste Suchtiefe
 
 	koord3d_vector_t route;
-
-	// allowed slope?
-	bool check_slope( const grund_t *from, const grund_t *to );
 
 	/* This is the core routine for the way search
 	* it will check
@@ -209,6 +213,8 @@ public:
 	bool check_owner( const spieler_t *sp1, const spieler_t *sp2 ) const;
 	// checks whether buildings on the tile allow to leave in direction dir
 	bool check_building( const grund_t *to, const koord dir ) const;
+	// allowed slope?
+	static bool check_slope( const grund_t *from, const grund_t *to );
 
 	void baue();
 };

@@ -13,6 +13,7 @@
 #include "../simtools.h"
 #include "../simtypes.h"
 #include "../simdebug.h"
+#include "../simworld.h"
 #include "../bauer/wegbauer.h"
 #include "../besch/weg_besch.h"
 #include "../utils/simstring.h"
@@ -21,6 +22,8 @@
 #include "loadsave.h"
 #include "tabfile.h"
 #include "translator.h"
+
+#include "../tpl/minivec_tpl.h"
 
 
 #define NEVER 0xFFFFU
@@ -111,6 +114,10 @@ einstellungen_t::einstellungen_t() :
 	// not more than four towns should supply to a factory
 	factory_worker_maximum_towns = 4;
 
+	factory_arrival_periods = 4;
+
+	factory_enforce_demand = true;
+
 	electric_promille = 330;
 
 #ifdef OTTD_LIKE
@@ -169,7 +176,11 @@ einstellungen_t::einstellungen_t() :
 			automaten[i] = false;
 			spieler_type[i] = spieler_t::EMPTY;
 		}
+		// undefined colors
+		default_player_color[i][0] = 255;
+		default_player_color[i][1] = 255;
 	}
+	default_player_color_random = false;
 
 	/* the big cost section */
 	freeplay = false;
@@ -228,6 +239,8 @@ einstellungen_t::einstellungen_t() :
 
 	// default: load also private extensions of the pak file
 	with_private_paks = true;
+
+	used_vehicle_reduction = 0;
 
 	// some network thing to keep client in sync
 	random_counter = 0;	// will be set when actually saving
@@ -635,6 +648,28 @@ void einstellungen_t::rdwr(loadsave_t *file)
 			if(  !umgebung_t::networkmode  ||  umgebung_t::server  ) {
 				server_frames_ahead = umgebung_t::server_frames_ahead;
 			}
+			file->rdwr_short( used_vehicle_reduction );
+		}
+
+		if(  file->get_version()>=110001  ) {
+			file->rdwr_bool( default_player_color_random );
+			for(  int i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+				file->rdwr_byte( default_player_color[i][0] );
+				file->rdwr_byte( default_player_color[i][1] );
+			}
+		}
+		else if(  file->is_loading()  ) {
+			default_player_color_random = false;
+			for(  int i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+				// default colors for player ...
+				default_player_color[i][0] = 255;
+				default_player_color[i][1] = 255;
+			}
+		}
+
+		if(  file->get_version()>=110005  ) {
+			file->rdwr_short(factory_arrival_periods);
+			file->rdwr_bool(factory_enforce_demand);
 		}
 	}
 }
@@ -698,6 +733,9 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	}
 	if(  *contents.get("server_comment")  ) {
 		umgebung_t::server_comment = ltrim(contents.get("server_comment"));
+	}
+	if(  *contents.get("server_admin_pw")  ) {
+		umgebung_t::server_admin_pw = ltrim(contents.get("server_admin_pw"));
 	}
 
 	// up to ten rivers are possible
@@ -769,18 +807,17 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 		num_city_roads = 1;
 	}
 
-	// intercity road
+	// intercity roads
 	// old syntax for single intercity road
 	str = ltrim(contents.get("intercity_road_type") );
-	if(str[0]==0) {
-		str = "asphalt_road";
+	if(  str[0]  ) {
+		num_intercity_roads = 1;
+		tstrncpy(intercity_roads[0].name, str, lengthof(intercity_roads[0].name) );
+		rtrim( intercity_roads[0].name );
+		// default her: always available
+		intercity_roads[0].intro = 1;
+		intercity_roads[0].retire = NEVER;
 	}
-	num_intercity_roads = 1;
-	tstrncpy(intercity_roads[0].name, str, lengthof(intercity_roads[0].name) );
-	rtrim( intercity_roads[0].name );
-	// default her: always available
-	intercity_roads[0].intro = 0;
-	intercity_roads[0].retire = NEVER;
 
 	// new: up to ten intercity_roads are possible
 	if(  *contents.get("intercity_road[0]")  ) {
@@ -814,6 +851,16 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 			}
 		}
 	}
+	if (num_intercity_roads == 0) {
+		// take fallback value: "asphalt_road"
+		tstrncpy(intercity_roads[0].name, "asphalt_road", lengthof(intercity_roads[0].name) );
+		rtrim( intercity_roads[0].name );
+		// default her: always available
+		intercity_roads[0].intro = 1;
+		intercity_roads[0].retire = NEVER;
+		num_intercity_roads = 1;
+	}
+
 
 	umgebung_t::autosave = (contents.get_int("autosave", umgebung_t::autosave) );
 	umgebung_t::fps = contents.get_int("frames_per_second",umgebung_t::fps );
@@ -829,6 +876,8 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	factory_worker_radius = contents.get_int("factory_worker_radius", factory_worker_radius );
 	factory_worker_minimum_towns = contents.get_int("factory_worker_minimum_towns", factory_worker_minimum_towns );
 	factory_worker_maximum_towns = contents.get_int("factory_worker_maximum_towns", factory_worker_maximum_towns );
+	factory_arrival_periods = clamp( contents.get_int("factory_arrival_periods", factory_arrival_periods), 1, 16 );
+	factory_enforce_demand = contents.get_int("factory_enforce_demand", factory_enforce_demand) != 0;
 	tourist_percentage = contents.get_int("tourist_percentage", tourist_percentage );
 	seperate_halt_capacities = contents.get_int("seperate_halt_capacities", seperate_halt_capacities ) != 0;
 	pay_for_total_distance = contents.get_int("pay_for_total_distance", pay_for_total_distance );
@@ -850,6 +899,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	verkehr_level = contents.get_int("citycar_level", verkehr_level );	// ten normal years
 	stadtauto_duration = contents.get_int("default_citycar_life", stadtauto_duration );	// ten normal years
 	allow_buying_obsolete_vehicles = contents.get_int("allow_buying_obsolete_vehicles", allow_buying_obsolete_vehicles );
+	used_vehicle_reduction  = clamp( contents.get_int("used_vehicle_reduction", used_vehicle_reduction ), 0, 1000 );
 
 	// starting money
 	starting_money = contents.get_int64("starting_money", starting_money );
@@ -885,7 +935,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 			else {
 				startingmoneyperyear[k].interpol = false;
 			}
-			printf("smpy[%d] year=%d money=%lld\n",k,startingmoneyperyear[k].year,startingmoneyperyear[k].money);
+//			printf("smpy[%d] year=%d money=%lld\n",k,startingmoneyperyear[k].year,startingmoneyperyear[k].money);
 			j++;
 		}
 		else {
@@ -901,6 +951,19 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 			startingmoneyperyear[i].year = 0;
 			startingmoneyperyear[i].money = 0;
 			startingmoneyperyear[i].interpol = 0;
+		}
+	}
+
+	// player colors
+	default_player_color_random = contents.get_int("random_player_colors", default_player_color_random ) != 0;
+	for(  int i = 0;  i<MAX_PLAYER_COUNT;  i++  ) {
+		char name[32];
+		sprintf( name, "player_color[%i]", i );
+		const char *command = contents.get(name);
+		int c1, c2;
+		if(  sscanf( command, "%i,%i", &c1, &c2 )==2  ) {
+			default_player_color[i][0] = c1;
+			default_player_color[i][1] = c2;
 		}
 	}
 
@@ -1124,3 +1187,77 @@ void einstellungen_t::copy_city_road( einstellungen_t &other )
 		city_roads[i] = other.city_roads[i];
 	}
 }
+
+
+// returns default player colors for new players
+void einstellungen_t::set_default_player_color( spieler_t *sp ) const
+{
+	COLOR_VAL color1 = default_player_color[sp->get_player_nr()][0];
+	if(  color1 == 255  ) {
+		if(  default_player_color_random  ) {
+			// build a vector with all colors
+			minivec_tpl<uint8>all_colors1(28);
+			for(  uint8 i=0;  i<28;  i++  ) {
+				all_colors1.append(i);
+			}
+			// remove all used colors
+			for(  uint8 i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+				spieler_t *test_sp = sp->get_welt()->get_spieler(i);
+				if(  test_sp  &&  sp!=test_sp  ) {
+					uint8 rem = 1<<(sp->get_player_color1()/8);
+					if(  all_colors1.is_contained(rem)  ) {
+						all_colors1.remove( rem );
+					}
+				}
+				else if(  default_player_color[i][0]!=255  ) {
+					uint8 rem = default_player_color[i][0];
+					if(  all_colors1.is_contained(rem)  ) {
+						all_colors1.remove( rem );
+					}
+				}
+			}
+			// now choose a random empty color
+			color1 = all_colors1[simrand(all_colors1.get_count())];
+		}
+		else {
+			color1 = sp->get_player_nr();
+		}
+	}
+
+	COLOR_VAL color2 = default_player_color[sp->get_player_nr()][1];
+	if(  color2 == 255  ) {
+		if(  default_player_color_random  ) {
+			// build a vector with all colors
+			minivec_tpl<uint8>all_colors2(28);
+			for(  uint8 i=0;  i<28;  i++  ) {
+				all_colors2.append(i);
+			}
+			// remove color1
+			all_colors2.remove( color1/8 );
+			// remove all used colors
+			for(  uint8 i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+				spieler_t *test_sp = sp->get_welt()->get_spieler(i);
+				if(  test_sp  &&  sp!=test_sp  ) {
+					uint8 rem = 1<<(sp->get_player_color2()/8);
+					if(  all_colors2.is_contained(rem)  ) {
+						all_colors2.remove( rem );
+					}
+				}
+				else if(  default_player_color[i][1]!=255  ) {
+					uint8 rem = default_player_color[i][1];
+					if(  all_colors2.is_contained(rem)  ) {
+						all_colors2.remove( rem );
+					}
+				}
+			}
+			// now choose a random empty color
+			color2 = all_colors2[simrand(all_colors2.get_count())];
+		}
+		else {
+			color2 = sp->get_player_nr() + 3;
+		}
+	}
+
+	sp->set_player_color( color1*8, color2*8 );
+}
+

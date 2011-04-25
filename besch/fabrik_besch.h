@@ -22,7 +22,7 @@ class checksum_t;
 class field_class_besch_t : public obj_besch_t {
 	friend class factory_field_class_writer_t;
 	friend class factory_field_class_reader_t;
-	friend class factory_field_reader_t;		// Knightly : this is a special case due to besch restructuring
+	friend class factory_field_group_reader_t;		// Knightly : this is a special case due to besch restructuring
 
 private:
 	uint8  snow_image;			// 0 or 1 for snow
@@ -45,9 +45,9 @@ public:
 
 
 // Knightly : this besch now only contains common, shared data regarding fields
-class field_besch_t : public obj_besch_t {
-	friend class factory_field_writer_t;
-	friend class factory_field_reader_t;
+class field_group_besch_t : public obj_besch_t {
+	friend class factory_field_group_writer_t;
+	friend class factory_field_group_reader_t;
 
 private:
 	uint16 probability;		// between 0 ...10000
@@ -56,9 +56,13 @@ private:
 	uint16 field_classes;	// number of field classes
 
 	weighted_vector_tpl<uint16> field_class_indices;
+
+public:
+	// fills the array, is only called once during alles_geladen() after resolve xrefs
 	void init_field_class_indices()
 	{
 		if(  field_classes>0  ) {
+			field_class_indices.clear();
 			field_class_indices.resize( field_classes );
 			for(  uint16 i=0  ;  i<field_classes  ;  ++i  ) {
 				field_class_indices.append( i, get_field_class(i)->get_spawn_weight() );
@@ -66,7 +70,6 @@ private:
 		}
 	}
 
-public:
 	uint16 get_probability() const { return probability; }
 	uint16 get_max_fields() const { return max_fields; }
 	uint16 get_min_fields() const { return min_fields; }
@@ -224,6 +227,16 @@ private:
 	uint8 fields;	// only if there are any ...
 	uint16 pax_level;
 	bool electricity_producer;
+	uint16 expand_probability;
+	uint16 expand_minimum;
+	uint16 expand_range;
+	uint16 expand_times;
+	uint16 electric_boost;
+	uint16 pax_boost;
+	uint16 mail_boost;
+	uint16 electric_amount;
+	uint16 pax_demand;
+	uint16 mail_demand;
 
 public:
 	/*
@@ -243,9 +256,11 @@ public:
 	{
 		return 0 <= i && i < produkte ? get_child<fabrik_produkt_besch_t>(2 + lieferanten + i) : 0;
 	}
-	const field_besch_t *get_field() const {
-		if(!fields) return NULL;
-		return get_child<field_besch_t>(2 + lieferanten + produkte);
+	const field_group_besch_t *get_field_group() const {
+		if(!fields) {
+			return NULL;
+		}
+		return get_child<field_group_besch_t>(2 + lieferanten + produkte);
 	}
 
 	int get_lieferanten() const { return lieferanten; }
@@ -265,6 +280,18 @@ public:
 	int get_pax_level() const { return pax_level; }
 
 	int is_electricity_producer() const { return electricity_producer; }
+
+	uint16 get_expand_probability() const { return expand_probability; }
+	uint16 get_expand_minumum() const { return expand_minimum; }
+	uint16 get_expand_range() const { return expand_range; }
+	uint16 get_expand_times() const { return expand_times; }
+
+	uint16 get_electric_boost() const { return electric_boost; }
+	uint16 get_pax_boost() const { return pax_boost; }
+	uint16 get_mail_boost() const { return mail_boost; }
+	uint16 get_electric_amount() const { return electric_amount; }
+	uint16 get_pax_demand() const { return pax_demand; }
+	uint16 get_mail_demand() const { return mail_demand; }
 
 	void calc_checksum(checksum_t *chk) const;
 };
