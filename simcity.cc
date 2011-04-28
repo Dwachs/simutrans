@@ -2698,7 +2698,7 @@ bool stadt_t::baue_strasse(const koord k, spieler_t* sp, bool forced)
 	if (!hang_t::ist_wegbar(slope)) {
 		int dummy;
 		if (welt->can_ebne_planquadrat(k, bd->get_hoehe()+1, dummy, true)) {
-			welt->ebne_planquadrat(NULL, k, bd->get_hoehe()+1);
+			welt->ebne_planquadrat(NULL, k, bd->get_hoehe()+1, true);
 		}
 		else if (bd->get_hoehe() > welt->get_grundwasser()  &&  welt->can_ebne_planquadrat(k, bd->get_hoehe(), dummy)) {
 			welt->ebne_planquadrat(NULL, k, bd->get_hoehe());
