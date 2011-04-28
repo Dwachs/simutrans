@@ -294,12 +294,12 @@ sint32 industry_connection_planner_t::calc_production()
 	// properly calculate production & consumption
 	const array_tpl<ware_production_t>& ausgang = start->get_ausgang();
 	uint start_ware=0;
-	while(  start_ware<ausgang.get_size()  &&  ausgang[start_ware].get_typ()!=freight  ) {
+	while(  start_ware<ausgang.get_count()  &&  ausgang[start_ware].get_typ()!=freight  ) {
 		start_ware++;
 	}
 	const array_tpl<ware_production_t>& eingang = ziel->get_eingang();
 	uint ziel_ware=0;
-	while(  ziel_ware<eingang.get_size()  &&  eingang[ziel_ware].get_typ()!=freight  ) {
+	while(  ziel_ware<eingang.get_count()  &&  eingang[ziel_ware].get_typ()!=freight  ) {
 		ziel_ware++;
 	}
 	const uint8  shift = 8 - welt->ticks_per_world_month_shift +10 +8; // >>(simfab) * welt::monatslaenge /PRODUCTION_DELTA_T +dummy

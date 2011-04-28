@@ -90,8 +90,8 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 		// find out how much is there
 		const array_tpl<ware_production_t>& eingang = fab->get_eingang();
 		uint ware_nr;
-		for(  ware_nr=0;  ware_nr<eingang.get_size()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
-		if(ware_nr >= eingang.get_size()) {
+		for(  ware_nr=0;  ware_nr<eingang.get_count()  &&  eingang[ware_nr].get_typ()!=ware;  ware_nr++  ) ;
+		if(ware_nr >= eingang.get_count()) {
 			// something wrong here.
 			return false;
 		}
@@ -111,10 +111,10 @@ bool factory_searcher_t::get_factory_tree_lowest_missing( const fabrik_t *fab )
 					// find out how much is there
 					const array_tpl<ware_production_t>& ausgang = qfab->get_ausgang();
 					uint ware_nr;
-					for(ware_nr=0;  ware_nr<ausgang.get_size()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
+					for(ware_nr=0;  ware_nr<ausgang.get_count()  &&  ausgang[ware_nr].get_typ()!=ware;  ware_nr++  )
 						;
 					// no suppliers for this good!
-					if (ware_nr>=ausgang.get_size()) {
+					if (ware_nr>=ausgang.get_count()) {
 						assert(fab->get_besch()->get_produkte()==0);
 						continue;
 					}
