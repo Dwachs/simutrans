@@ -290,7 +290,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 
 				if (d->proto->is_empty()) {
 					sp->get_log().message( "freight_connection_t::get_report()","no bigger vehicles available for line '%s'", line->get_name());
-					status |= 1;
+					status |= fcst_no_bigger_convois;
 					// TODO: clear this bit eventually
 				}
 				else {
@@ -388,6 +388,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		if (fpl  &&   fpl->get_count()>1) {
 			for(uint8 i=0; i<fpl->get_count();i++) {
 				// TODO: do something smarter here
+				// TODO: find harbours
 				if (start==koord3d::invalid  &&  fpl->eintrag[i].ladegrad > 0) {
 					start = fpl->eintrag[i].pos;
 				}

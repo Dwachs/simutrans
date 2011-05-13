@@ -99,7 +99,10 @@ private:
 	wfabrik_t ziel;
 	const ware_besch_t *freight;
 	uint8 status; // 1: keine groesseren Fahrzeuge verfuegbar
-	bool bigger_convois_impossible() { return status&1; }
+	enum {
+		fcst_no_bigger_convois = 1
+	} fcst_states;
+	bool bigger_convois_impossible() { return status & fcst_no_bigger_convois; }
 };
 
 /*
