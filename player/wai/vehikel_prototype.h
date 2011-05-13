@@ -46,11 +46,11 @@ public:
 
 	explicit vehikel_prototype_t(uint8 len) : besch(len) { for (uint16 i=0;i<len;i++) besch[i]=NULL; }
 
-	explicit vehikel_prototype_t(vehikel_prototype_t &proto) : besch() {
+	explicit vehikel_prototype_t(const vehikel_prototype_t &proto) : besch() {
 		set_data(proto);
 	}
 	// copies data
-	void set_data(vehikel_prototype_t &proto)
+	void set_data(const vehikel_prototype_t &proto)
 	{
 		besch.clear();
 		besch.resize(proto.besch.get_count());
