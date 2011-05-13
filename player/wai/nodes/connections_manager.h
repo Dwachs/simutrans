@@ -87,8 +87,8 @@ public:
  */
 class freight_connection_t : public connection_t {
 public:
-	freight_connection_t(ai_wai_t *sp) : connection_t(), ziel(NULL,sp) { type=CONN_FREIGHT; }
-	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f, ai_wai_t *sp) : connection_t(), ziel(z,sp), freight(f), status(0) { type=CONN_FREIGHT; }
+	freight_connection_t(ai_wai_t *sp) : connection_t(), ziel(NULL,sp), last_upgrade_check(0) { type=CONN_FREIGHT; }
+	freight_connection_t(const fabrik_t *z,	const ware_besch_t *f, ai_wai_t *sp) : connection_t(), ziel(z,sp), freight(f), last_upgrade_check(0), status(0) { type=CONN_FREIGHT; }
 	virtual report_t* get_report(ai_wai_t *sp);
 	// prepare report to remove all infrastructure
 	virtual report_t* get_final_report(ai_wai_t *sp);
@@ -98,11 +98,20 @@ public:
 private:
 	wfabrik_t ziel;
 	const ware_besch_t *freight;
+	uint16 last_upgrade_check; // check for modernization of line
 	uint8 status; // 1: keine groesseren Fahrzeuge verfuegbar
 	enum {
 		fcst_no_bigger_convois = 1
 	} fcst_states;
 	bool bigger_convois_impossible() { return status & fcst_no_bigger_convois; }
+	
+	/**
+	 * prepare report to upgrade line to use modern (or bigger) vehicles
+	 * @returns zero if nothing better / bigger / different from cnv found
+	 */
+	report_t* get_upgrade_report(ai_wai_t *sp, convoihandle_t cnv, bool better_capacity) const;
+
+	sint64 calc_gain_p_m() const;
 };
 
 /*

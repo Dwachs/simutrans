@@ -156,9 +156,20 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 		return NULL;
 	}
 	karte_t* welt = sp->get_welt();
+	convoihandle_t cnv0 = line->get_convoy(0);
+	// check for modernization of fleet ...
+	if (last_upgrade_check != welt->get_timeline_year_month() ) {
+		last_upgrade_check = welt->get_timeline_year_month();
+		report_t *report = get_upgrade_report(sp, cnv0, false);
+		if (report) {
+			status &= ~fcst_no_bigger_convois;
+			// force upgrade
+			report->gain_per_m = max(1000, report->gain_per_m);
+			return report;
+		}
+	}
 
 	// calculate capacities
-	convoihandle_t cnv0 = line->get_convoy(0);
 	uint32 cap_cnv = 0;
 	for(uint8 i=0; i<cnv0->get_vehikel_anzahl(); i++) {
 		const vehikel_besch_t* besch = cnv0->get_vehikel(i)->get_besch();
@@ -225,7 +236,6 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	// count status of convois
 	vector_tpl<convoihandle_t> stopped, empty, loss; 
 	uint32 newc=0, no_route=0;
-	sint64 mitt_gewinn = 0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
 		if (cnv->get_state()==convoi_t::SELF_DESTRUCT) {
@@ -246,7 +256,6 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 		for( int j=0;  j<12;  j++  ) {
 			gewinn += cnv->get_finance_history( j, CONVOI_PROFIT );
 		}
-		mitt_gewinn+=gewinn;
 		if (welt->get_current_month()-cnv->get_vehikel(0)->get_insta_zeit()>2  &&  gewinn<=0  ) {
 			loss.append(cnv);
 		}
@@ -281,28 +290,14 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			// traffic jam ..
 			if (!bigger_convois_impossible()) {
 				// try to find the bigger convois
-				simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv0, freight);
-				d->proto->calc_data(freight);
-				d->max_length = 1;
-				d->production = 0;
-				d->min_trans  = d->proto->max_speed * d->proto->get_capacity(freight)+1;
-				d->update();
-
-				if (d->proto->is_empty()) {
+				report_t *report = get_upgrade_report(sp, cnv0, true);
+				if (report == NULL) {
 					sp->get_log().message( "freight_connection_t::get_report()","no bigger vehicles available for line '%s'", line->get_name());
 					status |= fcst_no_bigger_convois;
-					// TODO: clear this bit eventually
 				}
 				else {
-					sp->get_log().message( "freight_connection_t::get_report()","line '%s' get %d new and bigger vehicles", line->get_name(), 3);
-					// build three new vehicles
-					vehikel_builder_t *v = new vehikel_builder_t(sp, d->proto->besch[0]->get_name(), d, line, cnv0->get_home_depot(), 3);
-					v->set_withdraw(true);
-					report_t *report = new report_t();
-					report->action = v;
-					// TODO: better estimation of the gain
-					report->gain_per_v_m = min( 1000, mitt_gewinn/(12*line->count_convoys()) );
-					report->nr_vehicles = 3;
+					// force upgrade
+					report->gain_per_m = max(1000, report->gain_per_m);
 					return report;
 				}
 			}
@@ -324,7 +319,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 			vehikel_builder_t *v = new vehikel_builder_t(sp, cnv0->get_name(), d, line, cnv0->get_home_depot(), 1);
 			report_t *report = new report_t();
 			report->action = v;
-			report->gain_per_v_m = mitt_gewinn/(12*line->count_convoys());
+			report->gain_per_m = calc_gain_p_m();
 			report->nr_vehicles = 1;
 			return report;
 		}
@@ -342,6 +337,54 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 	return NULL;
 }
+
+
+report_t* freight_connection_t::get_upgrade_report(ai_wai_t *sp, convoihandle_t cnv, bool better_capacity) const
+{
+	simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv, freight);
+	d->proto->calc_data(freight);
+	d->max_length = 1;
+	d->production = 0;
+	if (better_capacity) {
+		d->min_trans  = d->proto->max_speed * d->proto->get_capacity(freight)+1;
+	}
+	d->update();
+
+	if (d->proto->is_empty()) {
+		sp->get_log().message( "freight_connection_t::get_upgrade_report()","no vehicles available for line '%s'", line->get_name());
+		return NULL;
+	}
+
+	// check if identical with convoi
+	bool different = cnv->get_vehikel_anzahl() != d->proto->besch.get_count();
+	for(uint8 i = 0; !different  &&  i < cnv->get_vehikel_anzahl(); i++) {
+		different = cnv->get_vehikel(i)->get_besch() == d->proto->besch[i];
+	}
+	if (!different) {
+		sp->get_log().message( "freight_connection_t::get_upgrade_report()","best vehicle already in use for line '%s'", line->get_name());
+		return NULL;
+	}
+	// now we found something
+	sp->get_log().message( "freight_connection_t::get_report()","line '%s' get %d new and bigger vehicles", line->get_name(), 3);
+	// build three new vehicles
+	vehikel_builder_t *v = new vehikel_builder_t(sp, d->proto->besch[0]->get_name(), d, line, cnv->get_home_depot(), 3);
+	v->set_withdraw(true);
+	report_t *report = new report_t();
+	report->action = v;
+	report->gain_per_m = calc_gain_p_m();
+	report->nr_vehicles = 3;
+	return report;
+}
+
+sint64 freight_connection_t::calc_gain_p_m() const
+{
+	sint64 sum = 0;
+	for(uint8 i=0; i < MAX_MONTHS; i++) {
+		sum += line->get_finance_history(i, LINE_PROFIT);
+	}
+	return sum / 12;
+}
+
 report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 {
 	// nothing to do ?
