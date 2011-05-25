@@ -56,7 +56,7 @@ return_value_t *factory_searcher_t::work()
 	}
 	const fabrik_t *root = NULL;
 	if(start_fabs.get_count()>0) {
-		root = start_fabs.at_weight( simrand( start_fabs.get_sum_weight() ) );
+		root = pick_any_weighted(start_fabs);
 	}
 
 	if( root && get_factory_tree_lowest_missing( root ) ) {

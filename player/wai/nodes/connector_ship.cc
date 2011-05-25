@@ -354,7 +354,7 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 			}
 		}
 	}
-	return stops.empty() ? NULL : stops.at_weight(simrand(stops.get_sum_weight()));
+	return stops.empty() ? NULL : pick_any_weighted(stops);
 }
 
 /**
