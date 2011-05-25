@@ -27,6 +27,7 @@
 
 #include "../simworld.h"
 #include "../simdebug.h"
+#include "../simunits.h"
 
 #include "../player/simplay.h"
 #include "../simfab.h"
@@ -88,9 +89,9 @@ sint8 vehikel_basis_t::dxdy[ 8*2 ] = {
 };
 
 
-
-uint8 vehikel_basis_t::old_diagonal_length = 127;
-uint8 vehikel_basis_t::diagonal_length = 180;
+// Constants
+uint8 vehikel_basis_t::old_diagonal_vehicle_steps_per_tile = 128;
+uint8 vehikel_basis_t::diagonal_vehicle_steps_per_tile = 181;
 uint16 vehikel_basis_t::diagonal_multiplier = 724;
 
 
@@ -98,15 +99,15 @@ uint16 vehikel_basis_t::diagonal_multiplier = 724;
 void vehikel_basis_t::set_diagonal_multiplier( uint32 multiplier, uint32 old_diagonal_multiplier )
 {
 	diagonal_multiplier = (uint16)multiplier;
-	diagonal_length = (uint8)(130560u/diagonal_multiplier);
-	old_diagonal_length = (uint8)(130560u/old_diagonal_multiplier);
+	diagonal_vehicle_steps_per_tile = (uint8)(130560u/diagonal_multiplier) + 1;
+	old_diagonal_vehicle_steps_per_tile = (uint8)(130560u/old_diagonal_multiplier) + 1;
 }
 
 
 // if true, convoi, must restart!
 bool vehikel_basis_t::need_realignment()
 {
-	return old_diagonal_length!=diagonal_length  &&  ribi_t::ist_kurve(fahrtrichtung);
+	return old_diagonal_vehicle_steps_per_tile!=diagonal_vehicle_steps_per_tile  &&  ribi_t::ist_kurve(fahrtrichtung);
 }
 
 
@@ -151,7 +152,7 @@ bool vehikel_basis_t::is_about_to_hop( const sint8 neu_xoff, const sint8 neu_yof
 	const sint8 c_plus  = y_off_2 + neu_xoff;
 	const sint8 c_minus = y_off_2 - neu_xoff;
 
-	return ! (c_plus < TILE_STEPS*2  &&  c_minus < TILE_STEPS*2  &&  c_plus > -TILE_STEPS*2  &&  c_minus > -TILE_STEPS*2);
+	return ! (c_plus < OBJECT_OFFSET_STEPS*2  &&  c_minus < OBJECT_OFFSET_STEPS*2  &&  c_plus > -OBJECT_OFFSET_STEPS*2  &&  c_minus > -OBJECT_OFFSET_STEPS*2);
 }
 
 
@@ -161,7 +162,7 @@ vehikel_basis_t::vehikel_basis_t(karte_t *welt):
 	bild = IMG_LEER;
 	set_flag( ding_t::is_vehicle );
 	steps = 0;
-	steps_next = 255;
+	steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	use_calc_height = true;
 	dx = 0;
 	dy = 0;
@@ -175,7 +176,7 @@ vehikel_basis_t::vehikel_basis_t(karte_t *welt, koord3d pos):
 	set_flag( ding_t::is_vehicle );
 	pos_next = pos;
 	steps = 0;
-	steps_next = 255;
+	steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	use_calc_height = true;
 	dx = 0;
 	dy = 0;
@@ -269,8 +270,10 @@ void vehikel_basis_t::betrete_feld()
 uint32 vehikel_basis_t::fahre_basis(uint32 distance)
 {
 	koord3d pos_prev;
+	uint32 distance_travelled; // Return value
 
-	uint32 steps_to_do = distance>>12;
+	uint32 steps_to_do = distance >> YARDS_PER_VEHICLE_STEP_SHIFT;
+
 	if(steps_to_do==0) {
 		// ok, we will not move in this steps
 		return 0;
@@ -280,16 +283,20 @@ uint32 vehikel_basis_t::fahre_basis(uint32 distance)
 		mark_image_dirty(get_bild(),hoff);
 		set_flag(ding_t::dirty);
 	}
-	steps_to_do += steps;
+	uint32 steps_target = steps_to_do + steps;
 
-	if(steps_to_do>steps_next) {
+	if(steps_target>steps_next) {
+		// We are going far enough to hop.
 
-		sint32 steps_done = - steps;
+		// We'll be adding steps_next+1 for each hop, as if we
+		// started at the beginning of this tile, so for an accurate
+		// count of steps done we must subtract the location we started with.
+		sint32 steps_done = -steps;
 		bool has_hopped = false;
 
-		// first we hop steps ...
-		while(steps_to_do>steps_next  &&  hop_check()) {
-			steps_to_do -= steps_next+1;
+		// Hop as many times as possible.
+		while(steps_target>steps_next  &&  hop_check()) {
+			steps_target -= steps_next+1;
 			steps_done += steps_next+1;
 			pos_prev = get_pos();
 			hop();
@@ -300,46 +307,48 @@ uint32 vehikel_basis_t::fahre_basis(uint32 distance)
 		if(steps_next==0) {
 			// only needed for aircrafts, which can turn on the same tile
 			// the indicate the turn with this here
-			steps_next = 255;
-			steps_to_do = 255;
-			steps_done -= 255;
+			steps_next = VEHICLE_STEPS_PER_TILE - 1;
+			steps_target = VEHICLE_STEPS_PER_TILE - 1;
+			steps_done -= VEHICLE_STEPS_PER_TILE - 1;
 		}
 
-		if(steps_to_do>steps_next) {
-			// could not go as far as we wanted => stop at end of tile
-			steps_to_do = steps_next;
+		if(steps_target>steps_next) {
+			// could not go as far as we wanted (hop_check failed) => stop at end of tile
+			steps_target = steps_next;
 		}
-		steps = steps_to_do;
+		// Update internal status, how far we got within the tile.
+		steps = steps_target;
 
 		steps_done += steps;
-		distance = steps_done<<12;
+		distance_travelled = steps_done << YARDS_PER_VEHICLE_STEP_SHIFT;
 
 		if(has_hopped) {
-			set_xoff( (dx<0) ? TILE_STEPS : -TILE_STEPS );
-			set_yoff( (dy<0) ? TILE_STEPS/2 : -TILE_STEPS/2 );
+			set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
+			set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
 			if(dx*dy==0) {
 				if(dx==0) {
 					if(dy>0) {
-						set_xoff( pos_prev.x!=get_pos().x ? -TILE_STEPS : TILE_STEPS );
+						set_xoff( pos_prev.x!=get_pos().x ? -OBJECT_OFFSET_STEPS : OBJECT_OFFSET_STEPS );
 					}
 					else {
-						set_xoff( pos_prev.x!=get_pos().x ? TILE_STEPS : -TILE_STEPS );
+						set_xoff( pos_prev.x!=get_pos().x ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
 					}
 				}
 				else {
 					if(dx>0) {
-						set_yoff( pos_prev.y!=get_pos().y ? TILE_STEPS/2 : -TILE_STEPS/2 );
+						set_yoff( pos_prev.y!=get_pos().y ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
 					}
 					else {
-						set_yoff( pos_prev.y!=get_pos().y ? -TILE_STEPS/2 : TILE_STEPS/2 );
+						set_yoff( pos_prev.y!=get_pos().y ? -OBJECT_OFFSET_STEPS/2 : OBJECT_OFFSET_STEPS/2 );
 					}
 				}
 			}
 		}
 	}
 	else {
-		distance &= 0xFFFFF000;
-		steps = steps_to_do;
+		// Just travel to target, it's on same tile
+		steps = steps_target;
+		distance_travelled = distance & YARDS_VEHICLE_STEP_MASK; // round down to nearest step
 	}
 
 	if(use_calc_height) {
@@ -347,7 +356,7 @@ uint32 vehikel_basis_t::fahre_basis(uint32 distance)
 	}
 	// remaining steps
 	set_flag(ding_t::dirty);
-	return distance;
+	return distance_travelled;
 }
 
 
@@ -379,42 +388,42 @@ ribi_t::ribi vehikel_basis_t::calc_set_richtung(koord start, koord ende)
 		richtung = ribi_t::nord;
 		dx = 2;
 		dy = -1;
-		steps_next = 255;
+		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(dj > 0 && di == 0) {
 		richtung = ribi_t::sued;
 		dx = -2;
 		dy = 1;
-		steps_next = 255;
+		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(di < 0 && dj == 0) {
 		richtung = ribi_t::west;
 		dx = -2;
 		dy = -1;
-		steps_next = 255;
+		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(di >0 && dj == 0) {
 		richtung = ribi_t::ost;
 		dx = 2;
 		dy = 1;
-		steps_next = 255;
+		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(di > 0 && dj > 0) {
 		richtung = ribi_t::suedost;
 		dx = 0;
 		dy = 2;
-		steps_next = diagonal_length;
+		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	} else if(di < 0 && dj < 0) {
 		richtung = ribi_t::nordwest;
 		dx = 0;
 		dy = -2;
-		steps_next = diagonal_length;
+		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	} else if(di > 0 && dj < 0) {
 		richtung = ribi_t::nordost;
 		dx = 4;
 		dy = 0;
-		steps_next = diagonal_length;
+		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	} else {
 		richtung = ribi_t::suedwest;
 		dx = -4;
 		dy = 0;
-		steps_next = diagonal_length;
+		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	}
 	// we could artificially make diagonals shorter: but this would break existing game behaviour
 	return richtung;
@@ -640,13 +649,11 @@ uint16 vehikel_t::unload_freight(halthandle_t halt)
 	assert(halt.is_bound());
 	uint16 sum_menge = 0;
 
-	slist_tpl<ware_t> kill_queue;
 	if(halt->is_enabled( get_fracht_typ() )) {
 		if (!fracht.empty()) {
 
-			slist_iterator_tpl<ware_t> iter (fracht);
-			while(iter.next()) {
-				const ware_t& tmp = iter.get_current();
+			for(  slist_tpl<ware_t>::iterator i = fracht.begin(), end = fracht.end();  i != end;  ) {
+				const ware_t& tmp = *i;
 
 				halthandle_t end_halt = tmp.get_ziel();
 				halthandle_t via_halt = tmp.get_zwischenziel();
@@ -655,9 +662,11 @@ uint16 vehikel_t::unload_freight(halthandle_t halt)
 				// vielleicht wurde zwischendurch die
 				// Zielhaltestelle entfernt ?
 				if(!end_halt.is_bound() || !via_halt.is_bound()) {
-					DBG_MESSAGE("vehikel_t::entladen()", "destination of %d %s is no longer reachable",tmp.menge,translator::translate(tmp.get_name()));
-					kill_queue.insert(tmp);
-				} else if(end_halt==halt || via_halt==halt) {
+					DBG_MESSAGE("vehikel_t::unload_freight()", "destination of %d %s is no longer reachable",tmp.menge,translator::translate(tmp.get_name()));
+					total_freight -= tmp.menge;
+					i = fracht.erase( i );
+				}
+				else if(end_halt==halt || via_halt==halt) {
 
 					//		    printf("Liefere %d %s nach %s via %s an %s\n",
 					//                           tmp->menge,
@@ -669,6 +678,7 @@ uint16 vehikel_t::unload_freight(halthandle_t halt)
 					// hier sollte nur ordentliche ware verabeitet werden
 					int menge = halt->liefere_an(tmp);
 					sum_menge += menge;
+					total_freight -= menge;
 
 					// book delivered goods to destination
 					if(end_halt==halt) {
@@ -677,19 +687,14 @@ uint16 vehikel_t::unload_freight(halthandle_t halt)
 						get_besitzer()->buche( menge, (player_cost)(COST_TRANSPORTED_PAS+categorie) );
 					}
 
-					kill_queue.insert(tmp);
-
-					INT_CHECK("simvehikel 937");
+					i = fracht.erase( i );
+				}
+				else {
+					++i;
 				}
 			}
 		}
-	}
-
-	slist_iterator_tpl<ware_t> iter (kill_queue);
-	while( iter.next() ) {
-		total_freight -= iter.get_current().menge;
-		bool ok = fracht.remove(iter.get_current());
-		assert(ok);
+		INT_CHECK("vehikel_t::unload_freight");
 	}
 
 	return sum_menge;
@@ -844,12 +849,16 @@ void vehikel_t::neue_fahrt(uint16 start_route_index, bool recalc)
 		hoff = 0;
 		steps = 0;
 
-		set_xoff( (dx<0) ? TILE_STEPS : -TILE_STEPS );
-		set_yoff( (dy<0) ? TILE_STEPS/2 : -TILE_STEPS/2 );
+		set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
+		set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
 
 		calc_bild();
 	}
-	steps_next = ribi_t::ist_einfach(fahrtrichtung) ? 255 : diagonal_length;
+	if ( ribi_t::ist_einfach(fahrtrichtung) ) {
+		steps_next = VEHICLE_STEPS_PER_TILE - 1;
+	} else {
+		steps_next = diagonal_vehicle_steps_per_tile - 1;
+	}
 }
 
 
@@ -1101,7 +1110,7 @@ void vehikel_t::rauche()
 		if(smoke) {
 			grund_t * gr = welt->lookup( get_pos() );
 			if(gr) {
-				wolke_t *abgas =  new wolke_t(welt, get_pos(), get_xoff()+((dx*(sint16)((uint16)steps*TILE_STEPS))>>8), get_yoff()+((dy*(sint16)((uint16)steps*TILE_STEPS))>>8)+hoff, besch->get_rauch() );
+				wolke_t *abgas =  new wolke_t(welt, get_pos(), get_xoff()+((dx*(sint16)((uint16)steps*OBJECT_OFFSET_STEPS))>>8), get_yoff()+((dy*(sint16)((uint16)steps*OBJECT_OFFSET_STEPS))>>8)+hoff, besch->get_rauch() );
 				if(  !gr->obj_add(abgas)  ) {
 					abgas->set_flag(ding_t::not_on_map);
 					delete abgas;
@@ -1125,7 +1134,7 @@ void vehikel_t::rauche()
 sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 {
 	// may happen when waiting in station
-	if(start==end  ||  fracht.get_count()==0) {
+	if (start == end || fracht.empty()) {
 		return 0;
 	}
 
@@ -1395,9 +1404,9 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1
 		else {
 			file->rdwr_byte(steps);
 			file->rdwr_byte(steps_next);
-			if(steps_next==old_diagonal_length  &&  file->is_loading()) {
+			if(steps_next==old_diagonal_vehicle_steps_per_tile - 1  &&  file->is_loading()) {
 				// reset diagonal length (convoi will be resetted anyway, if game diagonal is different)
-				steps_next = diagonal_length;
+				steps_next = diagonal_vehicle_steps_per_tile - 1;
 			}
 		}
 		sint16 dummy16 = ((16*(sint16)hoff)/TILE_HEIGHT_STEP);
@@ -1428,13 +1437,13 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1
 		set_yoff( ddy-(16-i)*dy );
 		if(file->is_loading()) {
 			if(dx*dy) {
-				steps = min( 255, 255-(i*16) );
-				steps_next = 255;
+				steps = min( VEHICLE_STEPS_PER_TILE - 1, VEHICLE_STEPS_PER_TILE - 1-(i*16) );
+				steps_next = VEHICLE_STEPS_PER_TILE - 1;
 			}
 			else {
 				// will be corrected anyway, if in a convoi
-				steps = min( diagonal_length, diagonal_length-(uint8)(((uint16)i*(uint16)diagonal_length)/8) );
-				steps_next = diagonal_length;
+				steps = min( diagonal_vehicle_steps_per_tile - 1, diagonal_vehicle_steps_per_tile - 1-(uint8)(((uint16)i*(uint16)(diagonal_vehicle_steps_per_tile - 1))/8) );
+				steps_next = diagonal_vehicle_steps_per_tile - 1;
 			}
 		}
 	}
@@ -2015,11 +2024,11 @@ bool automobil_t::ist_weg_frei(int &restart_speed)
 					// not overtaking/being overtake: we need to make a more thourough test!
 					if(  automobil_t const* const car = ding_cast<automobil_t>(dt)  ) {
 						convoi_t* const ocnv = car->get_convoi();
-						if(  cnv->can_overtake( ocnv, ocnv->get_min_top_speed(), ocnv->get_length()*16+ocnv->get_vehikel(0)->get_steps(), diagonal_length)  ) {
+						if(  cnv->can_overtake( ocnv, ocnv->get_min_top_speed(), ocnv->get_length_in_steps()+ocnv->get_vehikel(0)->get_steps(), diagonal_vehicle_steps_per_tile)  ) {
 							return true;
 						}
 					} else if (stadtauto_t* const caut = ding_cast<stadtauto_t>(dt)) {
-						if(  cnv->can_overtake(caut, caut->get_besch()->get_geschw(), 256, diagonal_length)  ) {
+						if(  cnv->can_overtake(caut, caut->get_besch()->get_geschw(), VEHICLE_STEPS_PER_TILE, diagonal_vehicle_steps_per_tile)  ) {
 							return true;
 						}
 					}
@@ -2524,7 +2533,7 @@ bool waggon_t::is_weg_frei_pre_signal( signal_t *sig, uint16 next_block, int &re
 	// parse to next signal; if needed recurse, since we allow cascading
 	uint16 next_signal, next_crossing;
 	if(  block_reserver( cnv->get_route(), next_block+1, next_signal, next_crossing, 0, true, false )  ) {
-		if(  next_signal == INVALID_INDEX  ||  is_weg_frei_signal( next_signal, restart_speed )  ) {
+		if(  next_signal == INVALID_INDEX  ||  cnv->get_route()->position_bei(next_signal) == cnv->get_route()->back()  ||  is_weg_frei_signal( next_signal, restart_speed )  ) {
 			// ok, end of route => we can go
 			sig->set_zustand( roadsign_t::gruen );
 			cnv->set_next_stop_index( min( next_signal, next_crossing ) );
@@ -2675,7 +2684,12 @@ bool waggon_t::ist_weg_frei(int & restart_speed)
 				}
 				else if(  !sch1->has_signal()  ) {
 					// can reserve: find next place to do something and drive on
-					if(  !block_reserver( cnv->get_route(), cnv->get_next_stop_index(), next_signal, next_crossing, 0, true, false )  ) {
+					if(  block_pos == cnv->get_route()->back()  ) {
+						// is also last tile => go on ...
+						cnv->set_next_stop_index( INVALID_INDEX );
+						return true;
+					}
+					else if(  !block_reserver( cnv->get_route(), cnv->get_next_stop_index(), next_signal, next_crossing, 0, true, false )  ) {
 						dbg->error( "waggon_t::ist_weg_frei()", "block not free but was reserved!" );
 						return false;
 					}
@@ -2751,7 +2765,7 @@ bool waggon_t::block_reserver(const route_t *route, uint16 start_index, uint16 &
 				count --;
 				next_signal_index = i;
 			}
-			if(  !sch1->reserve( cnv->self, ribi_typ( route->position_bei(max(1,i)-1), route->position_bei(min(route->get_count()-1,i+1)) ) )  ) {
+			if(  !sch1->reserve( cnv->self, ribi_typ( route->position_bei(max(1u,i)-1u), route->position_bei(min(route->get_count()-1u,i+1u)) ) )  ) {
 				success = false;
 			}
 			if(next_crossing_index==INVALID_INDEX  &&  sch1->is_crossing()) {

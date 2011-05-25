@@ -15,6 +15,7 @@
 #include "sound_besch.h"
 #include "../dataobj/ribi.h"
 #include "../simtypes.h"
+#include "../simunits.h"
 
 
 class checksum_t;
@@ -42,7 +43,6 @@ class checksum_t;
  * @author Volker Meyer, Hj. Malthaner, kierongreen
  */
 class vehikel_besch_t : public obj_besch_std_name_t {
-    friend class vehicle_writer_t;
     friend class vehicle_reader_t;
     friend class vehikelbauer_t;
 
@@ -287,6 +287,7 @@ public:
 	* @author prissi
 	*/
 	uint8 get_length() const { return len; }
+	uint32 get_length_in_steps() const { return get_length() * VEHICLE_STEPS_PER_CARUNIT; }
 
 	void calc_checksum(checksum_t *chk) const;
 };

@@ -328,10 +328,10 @@ void baum_t::calc_off( uint8 slope )
 		case 11:
 		case 14:
 		case 15:
-			liob = LOWRAND(random,TILE_STEPS-1);
-			reob = HIGHRAND(random,TILE_STEPS-1);
+			liob = LOWRAND(random,OBJECT_OFFSET_STEPS-1);
+			reob = HIGHRAND(random,OBJECT_OFFSET_STEPS-1);
 			set_xoff( reob + liob  );
-			set_yoff( -(10*TILE_STEPS/16)-(reob - liob)/2 );
+			set_yoff( -(10*OBJECT_OFFSET_STEPS/16)-(reob - liob)/2 );
 			break;
 	}
 }
@@ -405,16 +405,9 @@ sint32 baum_t::get_age() const
  */
 uint16 baum_t::random_tree_for_climate_intern(climate cl)
 {
-	uint32 weight = baum_typen_per_climate[cl].get_sum_weight();
-
 	// now weight their distribution
-	if (weight > 0) {
-		return baum_typen_per_climate[cl].at_weight( simrand(weight) );
-
-	}
-	else {
-		return 0xFFFF;
-	}
+	weighted_vector_tpl<uint32> const& t = baum_typen_per_climate[cl];
+	return t.empty() ? 0xFFFF : pick_any_weighted(t);
 }
 
 

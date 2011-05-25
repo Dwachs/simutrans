@@ -5,6 +5,7 @@
 #include "../simmenu.h"
 #include "../simtypes.h"
 #include "../simwerkz.h"
+#include "../simunits.h"
 
 #include "simplay.h"
 
@@ -543,7 +544,7 @@ void ai_goods_t::create_rail_transport_vehikel(const koord platz1, const koord p
  */
 int ai_goods_t::baue_bahnhof(const koord* p, int anz_vehikel)
 {
-	int laenge = max(((rail_vehicle->get_length()*anz_vehikel)+rail_engine->get_length()+TILE_STEPS-1)/TILE_STEPS,1);
+	int laenge = max(((rail_vehicle->get_length()*anz_vehikel)+rail_engine->get_length()+CARUNITS_PER_TILE-1)/CARUNITS_PER_TILE,1);
 
 	int baulaenge = 0;
 	ribi_t::ribi ribi = welt->lookup_kartenboden(*p)->get_weg_ribi(track_wt);
@@ -596,7 +597,7 @@ int ai_goods_t::baue_bahnhof(const koord* p, int anz_vehikel)
 		}
 	}
 
-	laenge = min( anz_vehikel, (baulaenge*TILE_STEPS - rail_engine->get_length())/rail_vehicle->get_length() );
+	laenge = min( anz_vehikel, (baulaenge*CARUNITS_PER_TILE - rail_engine->get_length())/rail_vehicle->get_length() );
 //DBG_MESSAGE("ai_goods_t::baue_bahnhof","Final station at (%i,%i) with %i tiles for %i cars",p->x,p->y,baulaenge,laenge);
 	return laenge;
 }
@@ -744,8 +745,8 @@ void ai_goods_t::step()
 						}
 					}
 				}
-				if(start_fabs.get_count()>0) {
-					root = start_fabs.at_weight( simrand( start_fabs.get_sum_weight() ) );
+				if (!start_fabs.empty()) {
+					root = pick_any_weighted(start_fabs);
 				}
 			}
 			// still nothing => we have to check convois ...
@@ -919,7 +920,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 			if(  count_road<255  ) {
 				// for short distance: reduce number of cars
 				// calculated here, since the above number was based on production
-				count_road = CLIP( (dist*15u)/best_road_speed, 2, count_road );
+				count_road = CLIP( (sint32)(dist*15)/best_road_speed, 2, count_road );
 				int freight_price = (freight->get_preis()*road_vehicle->get_zuladung()*count_road)/24*((8000+(best_road_speed-80)*freight->get_speed_bonus())/1000);
 				cost_road = road_weg->get_wartung() + 300/dist + (count_road*road_vehicle->get_betriebskosten()*best_road_speed)/(2*dist+5);
 				income_road = (freight_price*best_road_speed)/(2*dist+5);
@@ -932,7 +933,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 				// road or rail?
 				int length = 1;
 				if(  cost_rail<cost_road  ) {
-					length = (rail_engine->get_length() + count_rail*rail_vehicle->get_length()+TILE_STEPS-1)/TILE_STEPS;
+					length = (rail_engine->get_length() + count_rail*rail_vehicle->get_length()+CARUNITS_PER_TILE-1)/CARUNITS_PER_TILE;
 					if(suche_platz1_platz2(start, ziel, length)) {
 						state = ship_vehicle ? NR_BAUE_WATER_ROUTE : NR_BAUE_SIMPLE_SCHIENEN_ROUTE;
 						next_contruction_steps += 80;
@@ -968,7 +969,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 				while(  start_ware<ausgang.get_count()  &&  ausgang[start_ware].get_typ()!=freight  ) {
 					start_ware++;
 				}
-				const int prod = min( ziel->get_base_production(), (start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor()) - (sint32)(start->get_ausgang()[start_ware].get_stat(1, FAB_GOODS_DELIVERED)) );
+				const sint32 prod = min( ziel->get_base_production(), (sint32)(start->get_base_production() * start->get_besch()->get_produkt(start_ware)->get_faktor()) - (sint32)(start->get_ausgang()[start_ware].get_stat(1, FAB_GOODS_DELIVERED)) );
 				if(prod<0) {
 					// too much supplied last time?!? => retry
 					state = CHECK_CONVOI;

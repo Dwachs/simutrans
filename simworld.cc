@@ -43,6 +43,7 @@
 #include "simsys.h"
 #include "simticker.h"
 #include "simtools.h"
+#include "simunits.h"
 #include "simversion.h"
 #include "simview.h"
 #include "simwerkz.h"
@@ -120,7 +121,7 @@
 
 
 static bool is_dragging = false;
-static int last_clients = -1;
+static uint32 last_clients = -1;
 static uint8 last_active_player_nr = 0;
 static std::string last_network_game;
 
@@ -640,7 +641,7 @@ void karte_t::rem_convoi(convoihandle_t& cnv)
  */
 const stadt_t *karte_t::get_random_stadt() const
 {
-	return stadt.at_weight(simrand(stadt.get_sum_weight()));
+	return pick_any_weighted(stadt);
 }
 
 void karte_t::add_stadt(stadt_t *s)
@@ -797,16 +798,16 @@ void karte_t::create_rivers( sint16 number )
 			}
 		}
 	}
-	if(  water_tiles.get_count() == 0  ) {
+	if (water_tiles.empty()) {
 		dbg->message("karte_t::create_rivers()","There aren't any water tiles!\n");
 		return;
 	}
 
 	// now make rivers
 	uint8 retrys = 0;
-	while(  number>0  &&  mountain_tiles.get_count()>0  &&  retrys++<100  ) {
-		koord start = mountain_tiles.at_weight( simrand(mountain_tiles.get_sum_weight()) );
-		koord end = water_tiles[ simrand(water_tiles.get_count()) ];
+	while (number > 0 && !mountain_tiles.empty() && retrys++ < 100) {
+		koord const start = pick_any_weighted(mountain_tiles);
+		koord const end   = pick_any(water_tiles);
 		sint16 dist = koord_distance(start,end);
 		if(  dist > einstellungen->get_min_river_length()  &&  dist < einstellungen->get_max_river_length()  ) {
 			// should be at least of decent length
@@ -1713,7 +1714,7 @@ static int raise_frame_counter = 0;
  */
 bool karte_t::can_raise_to(sint16 x, sint16 y, bool keep_water, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, int &cost, uint8 ctest) const
 {
-	bool ok;
+	bool ok = false;
 	if(ist_in_kartengrenzen(x,y)) {
 		grund_t *gr = lookup_kartenboden(koord(x,y));
 		const sint8 h0 = gr->get_hoehe();
@@ -1950,7 +1951,7 @@ int karte_t::raise(koord pos)
 // only test corners in ctest to avoid infinite loops
 bool karte_t::can_lower_to(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, int &cost, uint8 ctest) const
 {
-	bool ok;
+	bool ok = false;
 	if(ist_in_kartengrenzen(x,y)) {
 		grund_t *gr = lookup_kartenboden(koord(x,y));
 		const sint8 h0 = gr->get_hoehe();
@@ -2542,9 +2543,8 @@ void karte_t::remove_ausflugsziel(gebaeude_t *gb)
 const gebaeude_t *
 karte_t::get_random_ausflugsziel() const
 {
-	const unsigned long sum_pax=ausflugsziele.get_sum_weight();
-	if (!ausflugsziele.empty() && sum_pax > 0) {
-		return ausflugsziele.at_weight( simrand(sum_pax) );
+	if (!ausflugsziele.empty()) {
+		return pick_any_weighted(ausflugsziele);
 	}
 	// so there are no destinations ... should never occur ...
 	dbg->fatal("karte_t::get_random_ausflugsziel()","nothing found.");
@@ -2621,7 +2621,6 @@ bool karte_t::sync_remove(sync_steppable *obj)	// entfernt alle dinge == obj aus
  */
 void karte_t::sync_step(long delta_t, bool sync, bool display )
 {
-	DBG_DEBUG4("karte_t::sync_step", "start sync_step");
 	set_random_mode( SYNC_STEP_RANDOM );
 	if(sync) {
 		// only omitted, when called to display a new frame during fast forward
@@ -2630,11 +2629,9 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 		// just for progress
 		ticks += delta_t;
 
-		DBG_DEBUG4("karte_t::sync_step", "add to sync list");
-		// ingore calls by interrupt during fast forward ...
-		while(!sync_add_list.empty()) {
-			sync_steppable *ss = sync_add_list.remove_first();
-			sync_list.insert( ss );
+		// insert new objects created during last sync_step (eg vehicle smoke)
+		if(!sync_add_list.empty()) {
+			sync_list.append_list(sync_add_list);
 		}
 
 		// now remove everything from last time
@@ -2643,8 +2640,7 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 			sync_list.remove( ss );
 		}
 
-		DBG_DEBUG4("karte_t::sync_step", "syncstep all objects");
-		for(  slist_tpl<sync_steppable*>::iterator i=sync_list.begin();  i!=sync_list.end();  ) {
+		for(  slist_tpl<sync_steppable*>::iterator i=sync_list.begin();  !i.end();  ) {
 			// if false, then remove
 			sync_steppable *ss = *i;
 			if(!ss->sync_step(delta_t)) {
@@ -2656,7 +2652,6 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 			}
 		}
 
-		DBG_DEBUG4("karte_t::sync_step", "remove from sync list");
 		// now remove everything from this time
 		while(!sync_remove_list.empty()) {
 			sync_steppable *ss = sync_remove_list.remove_first();
@@ -2690,12 +2685,10 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 			}
 		}
 
-		DBG_DEBUG4("karte_t::sync_step", "display stuff");
 		// display new frame with water animation
 		intr_refresh_display( false );
 		update_frame_sleep_time(delta_t);
 	}
-	DBG_DEBUG4("karte_t::sync_step", "end");
 	clear_random_mode( SYNC_STEP_RANDOM );
 }
 
@@ -4645,7 +4638,7 @@ DBG_MESSAGE("karte_t::laden()", "%d factories loaded", fab_list.get_count());
 		if((hnr++%64)==0) {
 			display_progress(get_groesse_y()+48+stadt.get_count()+128+(hnr*80)/hmax, get_groesse_y()+256+stadt.get_count());
 		}
-		(*i)->rebuild_destinations();
+		(*i)->rebuild_connections();
 	}
 #ifdef DEBUG
 	DBG_MESSAGE("rebuild_destinations()","for all haltstellen_t took %ld ms", dr_time()-dt );
@@ -5428,8 +5421,25 @@ void karte_t::command_queue_append(network_world_command_t* nwc) const
 
 void karte_t::clear_command_queue() const
 {
-	while(  command_queue.get_count()>0  ) {
+	while (!command_queue.empty()) {
 		delete command_queue.remove_first();
+	}
+}
+
+
+static void encode_URI(cbuffer_t& buf, char const* const text)
+{
+	for (char const* i = text; *i != '\0'; ++i) {
+		char const c = *i;
+		if (('A' <= c && c <= 'Z') ||
+				('a' <= c && c <= 'z') ||
+				('0' <= c && c <= '9') ||
+				c == '-' || c == '.' || c == '_' || c == '~') {
+			char const two[] = { c, '\0' };
+			buf.append(two);
+		} else {
+			buf.printf("%02X", (unsigned char)c);
+		}
 	}
 }
 
@@ -5476,21 +5486,10 @@ bool karte_t::interactive(uint32 quit_month)
 #endif
 			buf.append( "&pak=" );
 			// announce ak set
-			if(  grund_besch_t::ausserhalb->get_copyright()  &&  STRICMP("none",grund_besch_t::ausserhalb->get_copyright())!=0  ) {
+			char const* const copyright = grund_besch_t::ausserhalb->get_copyright();
+			if (copyright && STRICMP("none", copyright) != 0) {
 				// construct from outside object copyright string
-				// replace all spaces by %20
-				char two[2] = { 0, 0 };
-				const char *c = grund_besch_t::ausserhalb->get_copyright();
-				while(  *c  ) {
-					if(  *c!=' '  ) {
-						two[0] = *c;
-						buf.append( two );
-					}
-					else {
-						buf.append( "%20" );
-					}
-					c++;
-				}
+				encode_URI(buf, copyright);
 			}
 			else {
 				// construct from pak name
@@ -5499,19 +5498,8 @@ bool karte_t::interactive(uint32 quit_month)
 				buf.append( pak_name.c_str() );
 			}
 			buf.append( "&name=" );
-			// add comment and replace all spaces by %20
-			char two[2] = { 0, 0 };
-			const char *c = umgebung_t::server_comment.c_str();
-			while(  *c  ) {
-				if(  *c!=' '  ) {
-					two[0] = *c;
-					buf.append( two );
-				}
-				else {
-					buf.append( "%20" );
-				}
-				c++;
-			}
+			// add comment
+			encode_URI(buf, umgebung_t::server_comment.c_str());
 			network_download_http( ANNOUNCE_SERVER, buf, NULL );
 			// and now the details (resetting month for automatic messages)
 			server_next_announce_month = 0;

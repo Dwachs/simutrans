@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <math.h>
 
+#include "../simunits.h"
 #include "../simworld.h"
 #include "../vehicle/simvehikel.h"
 #include "../simconvoi.h"
@@ -1102,7 +1103,7 @@ void depot_frame_t::zeichnen(koord pos, koord groesse)
 
 	convoihandle_t cnv = depot->get_convoi(icnv);
 	// check for data inconsistencies (can happen with withdraw-all and vehicle in depot)
-	if(!cnv.is_bound() && convoi_pics.get_count()>0){
+	if (!cnv.is_bound() && !convoi_pics.empty()) {
 		icnv=0;
 		update_data();
 		cnv = depot->get_convoi(icnv);
@@ -1357,8 +1358,8 @@ void depot_frame_t::draw_vehicle_info_text(koord pos)
 			n+= sprintf(buf+n, "%s %0.2f : 1\n", translator::translate("Gear:"), 	veh_type->get_gear()/64.0);
 		}
 
-		if(veh_type->get_copyright()!=NULL  &&  veh_type->get_copyright()[0]!=0) {
-			n += sprintf(buf + n, translator::translate("Constructed by %s"), veh_type->get_copyright());
+		if (char const* const copyright = veh_type->get_copyright()) {
+			n += sprintf(buf + n, translator::translate("Constructed by %s"), copyright);
 		}
 
 		if(value != -1) {

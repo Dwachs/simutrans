@@ -175,6 +175,7 @@ bool stadt_t::bewerte_loc(const koord pos, rule_t &regel, int rotation)
 		rule_entry_t &r = regel.rule[i];
 		uint8 x,y;
 		switch (rotation) {
+			default:
 			case   0: x=r.x; y=r.y; break;
 			case  90: x=r.y; y=6-r.x; break;
 			case 180: x=6-r.x; y=6-r.y; break;
@@ -1258,7 +1259,7 @@ void stadt_t::laden_abschliessen()
 	}
 
 	// new city => need to grow
-	if(buildings.get_count()==0) {
+	if (buildings.empty()) {
 		step_bau();
 	}
 
@@ -1381,8 +1382,7 @@ void stadt_t::verbinde_fabriken()
 	while (fab_iter.next()) {
 		fabrik_t* fab = fab_iter.get_current();
 		const uint32 count = fab->get_target_cities().get_count();
-		if (count < welt->get_einstellungen()->get_factory_worker_minimum_towns()
-			||  (count < welt->get_einstellungen()->get_factory_worker_maximum_towns()  &&  koord_distance(fab->get_pos(), pos) < welt->get_einstellungen()->get_factory_worker_radius())) {
+		if(  count < welt->get_einstellungen()->get_factory_worker_maximum_towns()  &&  koord_distance(fab->get_pos(), pos) < welt->get_einstellungen()->get_factory_worker_radius()  ) {
 			fab->add_target_city(this);
 		}
 	}
@@ -1561,7 +1561,7 @@ void stadt_t::calc_growth()
 	// we use the incoming storage as a measure und we will only look for end consumers (power stations, markets)
 	for(  vector_tpl<factory_entry_t>::const_iterator iter = target_factories_pax.get_entries().begin(), end = target_factories_pax.get_entries().end();  iter!=end;  ++iter  ) {
 		fabrik_t *const fab = iter->factory;
-		if(fab->get_lieferziele().get_count()==0  &&  fab->get_suppliers().get_count()!=0) {
+		if (fab->get_lieferziele().empty() && !fab->get_suppliers().empty()) {
 			// consumer => check for it storage
 			const fabrik_besch_t *const besch = fab->get_besch();
 			for(  int i=0;  i<besch->get_lieferanten();  i++  ) {
@@ -1642,7 +1642,7 @@ void stadt_t::step_passagiere()
 	if (step_count >= buildings.get_count()) {
 		step_count = 0;
 	}
-	if(buildings.get_count()==0) {
+	if (buildings.empty()) {
 		return;
 	}
 	const gebaeude_t* gb = buildings[step_count];
@@ -1659,17 +1659,17 @@ void stadt_t::step_passagiere()
 	}
 
 	// suitable start search
-	const koord k = gb->get_pos().get_2d();
-	const planquadrat_t* plan = welt->lookup(k);
-	const halthandle_t* halt_list = plan->get_haltlist();
+	const koord origin_pos = gb->get_pos().get_2d();
+	const planquadrat_t *const plan = welt->lookup(origin_pos);
+	const halthandle_t *const halt_list = plan->get_haltlist();
 
 	// suitable start search
-	halthandle_t start_halt = halthandle_t();
+	static vector_tpl<halthandle_t> start_halts(16);
+	start_halts.clear();
 	for (uint h = 0; h < plan->get_haltlist_count(); h++) {
 		halthandle_t halt = halt_list[h];
-		if(  halt->is_enabled(wtyp)  &&  !halt->is_overcrowded(wtyp->get_catg_index())  ) {
-			start_halt = halt;
-			break;
+		if(  halt.is_bound()  &&  halt->is_enabled(wtyp)  &&  !halt->is_overcrowded(wtyp->get_catg_index())  ) {
+			start_halts.append(halt);
 		}
 	}
 
@@ -1678,7 +1678,7 @@ void stadt_t::step_passagiere()
 	city_history_month[0][history_type+1] += num_pax;
 
 	// only continue, if this is a good start halt
-	if (start_halt.is_bound()) {
+	if (!start_halts.empty()) {
 		// Find passenger destination
 		for(  int pax_routed=0, pax_left_to_do=0;  pax_routed<num_pax;  pax_routed+=pax_left_to_do  ) {
 			// number of passengers that want to travel
@@ -1690,7 +1690,7 @@ void stadt_t::step_passagiere()
 			// search target for the passenger
 			pax_zieltyp will_return;
 			factory_entry_t *factory_entry = NULL;
-			const koord ziel = find_destination(target_factories, city_history_month[0][history_type+1], &will_return, factory_entry);
+			const koord dest_pos = find_destination(target_factories, city_history_month[0][history_type+1], &will_return, factory_entry);
 			if(  factory_entry  ) {
 				if(  welt->get_einstellungen()->get_factory_enforce_demand()  ) {
 					// ensure no more than remaining amount
@@ -1708,63 +1708,18 @@ void stadt_t::step_passagiere()
 				erzeuge_verkehrsteilnehmer(start_halt->get_basis_pos(), step_count, ziel);
 			}
 #endif
-			// Dario: Check if there's a stop near destination
-			const planquadrat_t* dest_plan = welt->lookup(ziel);
-			const halthandle_t* dest_list = dest_plan->get_haltlist();
-			bool can_walk_ziel = false;
 
-			// suitable end search
-			unsigned ziel_count = 0;
-			for(  uint8 h = 0;  h < dest_plan->get_haltlist_count();  h++  ) {
-				halthandle_t halt = dest_list[h];
-				if(  halt->is_enabled(wtyp)  ) {
-					ziel_count++;
-					if(  halt == start_halt  ) {
-						can_walk_ziel = true;
-						break; // because we found at least one valid step ...
-					}
-				}
-			}
-
-			if(  ziel_count == 0  ) {
-// DBG_MESSAGE("stadt_t::step_passagiere()", "No stop near dest (%d, %d)", ziel.x, ziel.y);
-				// Thus, routing is not possible and we do not need to do a calculation.
-				// Mark ziel as destination without route and continue.
-				merke_passagier_ziel(ziel, COL_DARK_ORANGE);
-				start_halt->add_pax_no_route(pax_left_to_do);
-#ifdef DESTINATION_CITYCARS
-				//citycars with destination
-				erzeuge_verkehrsteilnehmer(start_halt->get_basis_pos(), step_count, ziel);
-#endif
-				continue;
-			}
-
-			// check, if they can walk there?
-			if (can_walk_ziel) {
-				if(  factory_entry  ) {
-					// workers who walk to the factory or customers who walk to the consumer store
-					factory_entry->factory->book_stat( pax_left_to_do, ( wtyp==warenbauer_t::passagiere ? FAB_PAX_DEPARTED : FAB_MAIL_DEPARTED ) );
-					factory_entry->factory->liefere_an(wtyp, pax_left_to_do);
-				}
-				// so we have happy passengers
-				start_halt->add_pax_happy(pax_left_to_do);
-				merke_passagier_ziel(ziel, COL_YELLOW);
-				city_history_year[0][history_type] += pax_left_to_do;
-				city_history_month[0][history_type] += pax_left_to_do;
-				continue;
-			}
-
-			// ok, they are not in walking distance
 			ware_t pax(wtyp);
-			pax.set_zielpos(ziel);
+			pax.set_zielpos(dest_pos);
 			pax.menge = pax_left_to_do;
 			pax.to_factory = ( factory_entry ? 1 : 0 );
 
-			// now, finally search a route; this consumes most of the time
-			koord return_zwischenziel = koord::invalid; // for people going back ...
-			const int route_result = start_halt->suche_route( pax, will_return ? &return_zwischenziel : NULL, welt->get_einstellungen()->is_no_routing_over_overcrowding() );
+			ware_t return_pax(wtyp);
 
-			if(  route_result == haltestelle_t::ROUTE_OK  ) {
+			// now, finally search a route; this consumes most of the time
+			const int route_result = haltestelle_t::search_route( &start_halts[0], start_halts.get_count(), welt->get_einstellungen()->is_no_routing_over_overcrowding(), pax, &return_pax );
+			halthandle_t start_halt = return_pax.get_ziel();
+			if(  route_result==haltestelle_t::ROUTE_OK  ) {
 				// register departed pax/mail at factory
 				if(  factory_entry  ) {
 					factory_entry->factory->book_stat( pax.menge, ( wtyp==warenbauer_t::passagiere ? FAB_PAX_DEPARTED : FAB_MAIL_DEPARTED ) );
@@ -1773,20 +1728,35 @@ void stadt_t::step_passagiere()
 				start_halt->starte_mit_route(pax);
 				start_halt->add_pax_happy(pax.menge);
 				// and show it
-				merke_passagier_ziel(ziel, COL_YELLOW);
+				merke_passagier_ziel(dest_pos, COL_YELLOW);
 				city_history_year[0][history_type] += pax.menge;
 				city_history_month[0][history_type] += pax.menge;
 			}
+			else if(  route_result==haltestelle_t::ROUTE_WALK  ) {
+				if(  factory_entry  ) {
+					// workers who walk to the factory or customers who walk to the consumer store
+					factory_entry->factory->book_stat( pax_left_to_do, ( wtyp==warenbauer_t::passagiere ? FAB_PAX_DEPARTED : FAB_MAIL_DEPARTED ) );
+					factory_entry->factory->liefere_an(wtyp, pax_left_to_do);
+				}
+				// so we have happy passengers
+				start_halt->add_pax_happy(pax_left_to_do);
+				merke_passagier_ziel(dest_pos, COL_YELLOW);
+				city_history_year[0][history_type] += pax_left_to_do;
+				city_history_month[0][history_type] += pax_left_to_do;
+			}
 			else if(  route_result==haltestelle_t::ROUTE_OVERCROWDED  ) {
-				merke_passagier_ziel(ziel, COL_ORANGE );
+				merke_passagier_ziel(dest_pos, COL_ORANGE );
 				start_halt->add_pax_unhappy(pax_left_to_do);
 				if(  will_return  ) {
 					pax.get_ziel()->add_pax_unhappy(pax_left_to_do);
 				}
 			}
 			else {
-				start_halt->add_pax_no_route(pax_left_to_do);
-				merke_passagier_ziel(ziel, COL_DARK_ORANGE);
+				// since there is no route from any start halt -> register no route at all start halts
+				for(  uint32 s=0;  s<start_halts.get_count();  ++s  ) {
+					start_halts[s]->add_pax_no_route(pax_left_to_do);
+					merke_passagier_ziel(dest_pos, COL_DARK_ORANGE);
+				}
 #ifdef DESTINATION_CITYCARS
 				//citycars with destination
 				erzeuge_verkehrsteilnehmer(start_halt->get_basis_pos(), step_count, ziel);
@@ -1794,49 +1764,26 @@ void stadt_t::step_passagiere()
 			}
 
 			// send them also back
-			if(  route_result==haltestelle_t::ROUTE_OK  &&  will_return != no_return  ) {
-				// this comes most of the times for free and balances also the amounts!
-				halthandle_t ret_halt = pax.get_ziel();
-
-				// we just have to ensure, the ware can be delivered at this station
-				bool found = false;
-				for (uint i = 0; i < plan->get_haltlist_count(); i++) {
-					halthandle_t test_halt = halt_list[i];
-					if (test_halt->is_enabled(wtyp)  &&  (start_halt==test_halt  ||  test_halt->get_warenziele(wtyp->get_catg_index())->is_contained(start_halt))) {
-						found = true;
-						start_halt = test_halt;
-						break;
-					}
-				}
-
-				// now try to add them to the target halt
-				if(  !ret_halt->is_overcrowded(wtyp->get_catg_index())  ) {
+			if(  route_result==haltestelle_t::ROUTE_OK  &&  will_return!=no_return  ) {
+				halthandle_t return_halt = pax.get_ziel();
+				if(  !return_halt->is_overcrowded( wtyp->get_catg_index() )  ) {
 					// prissi: not overcrowded and can receive => add them
-					if (found) {
-						ware_t return_pax (wtyp);
-
-						if(  will_return != town_return  &&  wtyp==warenbauer_t::post  ) {
-							// attractions/factory generate more mail than they receive
-							return_pax.menge = pax_left_to_do*3;
-						}
-						else {
-							// use normal amount for return pas/mail
-							return_pax.menge = pax_left_to_do;
-						}
-						return_pax.set_zielpos(k);
-						return_pax.set_ziel(start_halt);
-						return_pax.set_zwischenziel(welt->lookup(return_zwischenziel)->get_halt());
-
-						ret_halt->starte_mit_route(return_pax);
-						ret_halt->add_pax_happy(pax_left_to_do);
-					} else {
-						// no route back
-						ret_halt->add_pax_no_route(pax_left_to_do);
+					if(  will_return!=town_return  &&  wtyp==warenbauer_t::post  ) {
+						// attractions/factory generate more mail than they receive
+						return_pax.menge = pax_left_to_do*3;
 					}
+					else {
+						// use normal amount for return pas/mail
+						return_pax.menge = pax_left_to_do;
+					}
+					return_pax.set_zielpos(origin_pos);
+
+					return_halt->starte_mit_route(return_pax);
+					return_halt->add_pax_happy(pax_left_to_do);
 				}
 				else {
 					// return halt crowded
-					ret_halt->add_pax_unhappy(pax_left_to_do);
+					return_halt->add_pax_unhappy(pax_left_to_do);
 				}
 			}
 			INT_CHECK( "simcity 1579" );
@@ -1886,7 +1833,7 @@ void stadt_t::step_passagiere()
 koord stadt_t::get_zufallspunkt() const
 {
 	if(!buildings.empty()) {
-		gebaeude_t* gb = buildings.at_weight(simrand(buildings.get_sum_weight()));
+		gebaeude_t* const gb = pick_any_weighted(buildings);
 		koord k = gb->get_pos().get_2d();
 		if(!welt->ist_in_kartengrenzen(k)) {
 			// this building should not be in this list, since it has been already deleted!
@@ -2876,10 +2823,9 @@ void stadt_t::baue()
 
 	// renovation (only done when nothing matches a certain location
 	if (!buildings.empty()  &&  simrand(100) <= renovation_percentage) {
-		gebaeude_t* gb;
 		// try to find a public owned building
 		for(uint8 i=0; i<4; i++) {
-			gb = buildings[simrand(buildings.get_count())];
+			gebaeude_t* const gb = pick_any(buildings);
 			if(  spieler_t::check_owner(gb->get_besitzer(),NULL)  ) {
 				renoviere_gebaeude(gb);
 				break;
@@ -2935,8 +2881,7 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 		// check distances of all cities to their respective neightbours
 		while (!index_to_places.empty()) {
 			// find a random cell
-			const uint32 weight = simrand(index_to_places.get_sum_weight());
-			const koord ip = index_to_places.at_weight(weight);
+			koord const ip = pick_any_weighted(index_to_places);
 			// remove this cell from index list
 			index_to_places.remove(ip);
 			// get random place in the cell
