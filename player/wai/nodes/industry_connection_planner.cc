@@ -196,9 +196,10 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 
 connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist, uint32 dist_paid)
 {
+	karte_t *welt = sp->get_welt();
 	// check for depots, station
-	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, sp->get_welt()->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
-	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, sp->get_welt()->get_timeline_year_month(), 0);
+	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, welt->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
+	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, welt->get_timeline_year_month(), 0);
 
 	// get a vehicle
 	connection_plan_data_t* cpd = new connection_plan_data_t();
@@ -232,7 +233,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	cpd->report->gain_per_m = 0x8000000000000000;
 
 	// speed bonus calculation see vehikel_t::calc_gewinn
-	const sint32 ref_speed = sp->get_welt()->get_average_speed(wt );
+	const sint32 ref_speed = welt->get_average_speed(wt );
 	const sint32 speed_base = (100*speed_to_kmh(proto->min_top_speed))/ref_speed-100;
 	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
 
@@ -242,7 +243,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	// find the best way
 	vector_tpl<const weg_besch_t *> *ways;
 	if (wt!=water_wt) {
-		ways = wegbauer_t::get_way_list(wt, sp->get_welt());
+		ways = wegbauer_t::get_way_list(wt, welt);
 	}
 	else {
 		ways = new vector_tpl<const weg_besch_t *>(1);
@@ -259,14 +260,14 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		sint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
 
-		const uint32 tiles_per_month = (kmh_to_speed(max_speed) * sp->get_welt()->ticks_per_world_month) >> (8+12); // 12: fahre_basis, 8: 2^8 steps per tile
+		const uint32 tiles_per_month = welt->speed_to_tiles_per_month(kmh_to_speed(max_speed));
 
 		// number of vehicles
 		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (capacity*tiles_per_month)+1 );
 
 		const uint32 real_tiles_per_month = (2*prod*dist) / (capacity*nr_vehicles)+1;
 		// now check
-		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (sp->get_welt()->ticks_per_world_month_shift-18);
+		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (welt->ticks_per_world_month_shift-18);
 		const sint64 gain_per_v_m = (gain_per_tile * real_tiles_per_month * dist_paid) / dist;
 		const sint64 gain_per_m   = gain_per_v_m * nr_vehicles - cost_monthly;
 		if (gain_per_m > cpd->report->gain_per_m) {
