@@ -217,15 +217,15 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 					}
 				}
 				// avoid loks in the middle of a convoi
-				if (i>0 && test_besch->get_leistung()>0 && test_besch->can_follow_any() && prev_besch->get_leistung()==0){					dbg->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
+				if (i>0 && test_besch->get_leistung()>0 && test_besch->can_follow_any() && prev_besch->get_leistung()==0){
 					debug->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
 					continue;
 				}
 				// test for valid convoi
 				// .. max_len
 				// see convoi_t::get_tile_length()
-				if (i>0  &&  convoi_tpl[i].length + max(8, test_besch->get_length()) > 16*max_length) {
-					debug->message("VBAI", "[%2d] vehicle %20s too long (%d+%d>%d)", i, test_besch->get_name(), convoi_tpl[i].length, max(8, test_besch->get_length()), 16*max_length);
+				if (i>0  &&  convoi_tpl[i].length + max(CARUNITS_PER_TILE/2, test_besch->get_length()) > CARUNITS_PER_TILE*max_length) {
+					debug->message("VBAI", "[%2d] vehicle %20s too long (%d+%d>%d)", i, test_besch->get_name(), convoi_tpl[i].length, max(CARUNITS_PER_TILE/2, test_besch->get_length()), CARUNITS_PER_TILE*max_length);
 					continue;
 				}
 				// .. max_weight and freights
@@ -477,7 +477,7 @@ simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, con
 	// 	proto->calc_data(..) needs to be called to get all proto-data valid
 
 	min_speed = 1; // in km/h
-	max_length = cnv->get_length() / 16; // in tiles
+	max_length = cnv->get_tile_length(); // in tiles
 	max_weight = 0xffffffff;
 	freight = f;
 	include_electric = cnv->needs_electrification();
