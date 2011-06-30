@@ -263,13 +263,21 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		const uint32 tiles_per_month = welt->speed_to_tiles_per_month(kmh_to_speed(max_speed));
 
 		// number of vehicles
-		const uint16 nr_vehicles = min( max(dist/8,3), (2*prod*dist) / (capacity*tiles_per_month)+1 );
+		const uint16 nr_vehicles = (2*prod*dist) / (capacity*tiles_per_month)+1;
 
-		const uint32 real_tiles_per_month = (2*prod*dist) / (capacity*nr_vehicles)+1;
+		// correction factor to prefer faster ways:
+		// factor = 0 .. if 2*dist < nr_vehicles
+		// factor = 1 .. if dist/3 > nr_vehicles
+		// linear interpolated in between
+		// without scaling almost always the cheapest way is chosen ...
+		const uint32 factor = max(0, min(10*dist, 6*(2*(sint32)dist-nr_vehicles) ) );
+		// rescale tiles per month
+		const uint32 real_tiles_per_month = (tiles_per_month*factor) / (10*dist);
 		// now check
 		const sint64 cost_monthly = (main_buildings + (wb ? dist*wb->get_wartung(): 0)) << (welt->ticks_per_world_month_shift-18);
 		const sint64 gain_per_v_m = (gain_per_tile * real_tiles_per_month * dist_paid) / dist;
 		const sint64 gain_per_m   = gain_per_v_m * nr_vehicles - cost_monthly;
+
 		if (gain_per_m > cpd->report->gain_per_m) {
 			cpd->report->cost_fix                 = cost_buildings + (wb ? dist*wb->get_preis()  : 0);
 			cpd->report->cost_monthly             = cost_monthly;
