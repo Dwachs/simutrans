@@ -71,12 +71,15 @@ public:
 		bautyp_mask=255,
 		bot_flag=0x100,					// do not connect to other ways
 		elevated_flag=0x200,			// elevated structure
+		terraform_flag=0x400,
 		tunnel_flag=0x800				// underground structure
 	};
 
 protected:
+	// used in intern_calc_route, saved in the otherwise unused route_t::ANode->count
 	enum build_type_t {
-		build_straight = 1
+		build_straight = 1,
+		terraform      = 2
 	};
 
 	struct next_gr_t
@@ -131,7 +134,10 @@ protected:
 	uint32 maximum;    // hoechste Suchtiefe
 
 	koord3d_vector_t route;
+	// index in route with terraformed tiles
+	vector_tpl<uint32> terraform_index;
 
+public:
 	/* This is the core routine for the way search
 	* it will check
 	* A) allowed step
@@ -140,6 +146,7 @@ protected:
 	*/
 	virtual bool is_allowed_step( const grund_t *from, const grund_t *to, long *costs );
 
+private:
 	// checks, if we can built a bridge here ...
 	// may modify next_gr array!
 	void check_for_bridge(const grund_t* parent_from, const grund_t* from, const vector_tpl<koord3d> &ziel);
@@ -216,7 +223,12 @@ public:
 	// allowed slope?
 	static bool check_slope( const grund_t *from, const grund_t *to );
 
+	bool check_terraforming( const grund_t *from, const grund_t *to, uint8* new_from_slope=NULL, uint8* new_to_slope=NULL);
+	void do_terraforming();
+
 	void baue();
 };
+
+ENUM_BITSET(wegbauer_t::bautyp_t);
 
 #endif

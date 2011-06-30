@@ -62,7 +62,7 @@ bool settings_general_stats_t::action_triggered(gui_action_creator_t *komp, valu
 /* Nearly automatic lists with controls:
  * BEWARE: The init exit pair MUST match in the same order or else!!!
  */
-void settings_general_stats_t::init(einstellungen_t *sets)
+void settings_general_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
 //	INIT_BOOL( "drive_left", umgebung_t::drive_on_left );	//cannot be switched after loading paks
@@ -125,7 +125,7 @@ void settings_general_stats_t::init(einstellungen_t *sets)
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
-void settings_general_stats_t::read(einstellungen_t *sets)
+void settings_general_stats_t::read(settings_t* const sets)
 {
 	READ_INIT
 //	READ_BOOL_VALUE( umgebung_t::drive_on_left );	//cannot be switched after loading paks
@@ -176,7 +176,7 @@ void settings_general_stats_t::read(einstellungen_t *sets)
 }
 
 
-void settings_routing_stats_t::init(einstellungen_t *sets)
+void settings_routing_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
 	INIT_BOOL( "seperate_halt_capacities", sets->is_seperate_halt_capacities() );
@@ -201,7 +201,7 @@ void settings_routing_stats_t::init(einstellungen_t *sets)
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
-void settings_routing_stats_t::read(einstellungen_t *sets)
+void settings_routing_stats_t::read(settings_t* const sets)
 {
 	READ_INIT
 	// routing of goods
@@ -224,9 +224,7 @@ void settings_routing_stats_t::read(einstellungen_t *sets)
 }
 
 
-
-
-void settings_economy_stats_t::init(einstellungen_t *sets)
+void settings_economy_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
 	INIT_COST( "starting_money", sets->get_starting_money(sets->get_starting_year()), 1, 0x7FFFFFFFul, 10000, false );
@@ -252,6 +250,10 @@ void settings_economy_stats_t::init(einstellungen_t *sets)
 	INIT_BOOL( "factory_enforce_demand", sets->get_factory_enforce_demand() );
 	INIT_NUM( "factory_worker_percentage", sets->get_factory_worker_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "tourist_percentage", sets->get_tourist_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "city_short_range_percentage", sets->get_city_short_range_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "city_medium_range_percentage", sets->get_city_medium_range_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "city_short_range_radius", sets->get_city_short_range_radius(), 0, 100000, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "city_medium_range_radius", sets->get_city_medium_range_radius(), 0, 100000, gui_numberinput_t::AUTOLINEAR, false );
 	SEPERATOR
 	INIT_NUM( "passenger_multiplier", sets->get_passenger_multiplier(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_NUM( "mail_multiplier", sets->get_mail_multiplier(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
@@ -271,7 +273,7 @@ void settings_economy_stats_t::init(einstellungen_t *sets)
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
-void settings_economy_stats_t::read( einstellungen_t *sets )
+void settings_economy_stats_t::read(settings_t* const sets)
 {
 	READ_INIT
 	sint64 start_money_temp;
@@ -301,6 +303,10 @@ void settings_economy_stats_t::read( einstellungen_t *sets )
 	READ_BOOL_VALUE( sets->factory_enforce_demand );
 	READ_NUM_VALUE( sets->factory_worker_percentage );
 	READ_NUM_VALUE( sets->tourist_percentage );
+	READ_NUM_VALUE( sets->city_short_range_percentage );
+	READ_NUM_VALUE( sets->city_medium_range_percentage );
+	READ_NUM_VALUE( sets->city_short_range_radius );
+	READ_NUM_VALUE( sets->city_medium_range_radius );
 	READ_NUM_VALUE( sets->passenger_multiplier );
 	READ_NUM_VALUE( sets->mail_multiplier );
 	READ_NUM_VALUE( sets->goods_multiplier );
@@ -315,8 +321,7 @@ void settings_economy_stats_t::read( einstellungen_t *sets )
 }
 
 
-
-void settings_costs_stats_t::init(einstellungen_t *sets)
+void settings_costs_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
 	INIT_NUM( "maintenance_building", sets->maint_building, 1, 100000000, 100, false );
@@ -343,7 +348,8 @@ void settings_costs_stats_t::init(einstellungen_t *sets)
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
-void settings_costs_stats_t::read(einstellungen_t *sets)
+
+void settings_costs_stats_t::read(settings_t* const sets)
 {
 	READ_INIT
 	READ_NUM_VALUE( sets->maint_building );
@@ -376,7 +382,7 @@ void settings_costs_stats_t::read(einstellungen_t *sets)
 #include "../besch/grund_besch.h"
 
 
-void settings_climates_stats_t::init(einstellungen_t *sets)
+void settings_climates_stats_t::init(settings_t* const sets)
 {
 	local_sets = sets;
 	INIT_INIT
@@ -424,7 +430,7 @@ void settings_climates_stats_t::init(einstellungen_t *sets)
 }
 
 
-void settings_climates_stats_t::read(einstellungen_t *sets)
+void settings_climates_stats_t::read(settings_t* const sets)
 {
 	READ_INIT
 	READ_NUM_VALUE( sets->grundwasser );

@@ -210,7 +210,7 @@ koord3d brueckenbauer_t::finde_ende(karte_t *welt, koord3d pos, koord zv, const 
 				if(  gr1->has_two_ways()  ) {
 					// crossing => then we must be sure we have our way in our direction
 					const weg_t* weg = gr1->get_weg(wegtyp);
-					if(  ribi_t::ist_gerade(ribi_typ(zv)|weg->get_ribi_unmasked())  ) {
+					if(  weg  &&  ribi_t::ist_gerade(ribi_typ(zv)|weg->get_ribi_unmasked())  ) {
 						// way goes in our direction already
 						return gr1->get_pos();
 					}
@@ -303,7 +303,7 @@ koord3d brueckenbauer_t::finde_ende(karte_t *welt, koord3d pos, koord zv, const 
 		}
 	} while(  !gr1  &&  // no bridge is crossing
 		(!gr2 || (gr2->get_grund_hang()==hang_t::flach  &&  gr2->get_weg_hang()==hang_t::flach)  ||  gr2->get_hoehe()<pos.z )  &&  // ground stays below bridge
-		(!ai_bridge  ||  length <= welt->get_einstellungen()->way_max_bridge_len)  // not too long in case of AI
+		(!ai_bridge || length <= welt->get_settings().way_max_bridge_len) // not too long in case of AI
 		);
 
 	error_msg = "A bridge must start on a way!";
@@ -420,10 +420,22 @@ DBG_MESSAGE("brueckenbauer_t::baue()", "end not ok");
 		return msg;
 	}
 
+	// check ownership
 	grund_t * gr_end = welt->lookup(end);
 	if(gr_end->kann_alle_obj_entfernen(sp)) {
 		return "Tile not empty.";
 	}
+	// check way ownership
+	if(gr_end->hat_wege()) {
+		if(gr_end->get_weg_nr(0)->ist_entfernbar(sp)!=NULL) {
+			return "Tile not empty.";
+		}
+		if(gr_end->has_two_ways()  &&  gr_end->get_weg_nr(1)->ist_entfernbar(sp)!=NULL) {
+			return "Tile not empty.";
+		}
+	}
+
+
 	// Anfang und ende sind geprueft, wir konnen endlich bauen
 	if(besch->get_waytype()==powerline_wt) {
 		baue_bruecke(welt, sp, gr->get_pos(), end, zv, besch, lt->get_besch() );

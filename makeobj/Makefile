@@ -1,5 +1,5 @@
-CONFIG ?= ../config.default
--include $(CONFIG)
+CFG ?= default
+-include ../config.$(CFG)
 
 OSTYPES       = beos cygwin freebsd haiku linux mingw mac
 
@@ -118,7 +118,6 @@ SHARED_SOURCES += ../dataobj/freelist.cc
 SHARED_SOURCES += ../dataobj/tabfile.cc
 SHARED_SOURCES += ../simdebug.cc
 SHARED_SOURCES += ../simmem.cc
-SHARED_SOURCES += ../tpl/debug_helper.cc
 SHARED_SOURCES += ../utils/simstring.cc
 SHARED_SOURCES += ../utils/searchfolder.cc
 VARIANT_SOURCES += ../simtools.cc
@@ -126,6 +125,9 @@ VARIANT_SOURCES += ../utils/log.cc
 
 SOURCES ?= $(SOLO_SOURCES) $(SHARED_SOURCES) $(VARIANT_SOURCES)
 
+BUILDDIR ?= ../build/$(CFG)
+TOOL ?= makeobj
 PROG ?= makeobj
+PROGDIR ?= $(BUILDDIR)/$(TOOL)
 
 include uncommon.mk

@@ -1,5 +1,5 @@
-CONFIG ?= ../config.default
--include $(CONFIG)
+CFG ?= default
+-include ../config.$(CFG)
 
 OSTYPES       = beos cygwin freebsd haiku linux mingw mac
 
@@ -10,6 +10,10 @@ endif
 # Absolutely essential
 CFLAGS += -DNETTOOL
 CXXFLAGS += -DNETTOOL
+
+# Curses needed for password non-echo
+CFLAGS += -lcurses
+CXXFLAGS += -lcurses
 
 ifeq ($(OSTYPE),cygwin)
   OS_INC   ?= -I/usr/include/mingw
@@ -81,12 +85,16 @@ SHARED_SOURCES += ../simdebug.cc
 SHARED_SOURCES += ../simmem.cc
 SHARED_SOURCES += ../utils/memory_rw.cc
 SHARED_SOURCES += ../utils/simstring.cc
+SHARED_SOURCES += ../utils/fetchopt.cc
 VARIANT_SOURCES += ../utils/log.cc
 VARIANT_SOURCES += ../dataobj/network.cc
 VARIANT_SOURCES += ../dataobj/network_file_transfer.cc
 
 SOURCES ?= $(SOLO_SOURCES) $(SHARED_SOURCES) $(VARIANT_SOURCES)
 
+BUILDDIR ?= ../build/$(CFG)
+TOOL ?= nettool
 PROG ?= nettool
+PROGDIR ?= $(BUILDDIR)/$(TOOL)
 
 include uncommon.mk

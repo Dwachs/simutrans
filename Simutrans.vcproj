@@ -43,7 +43,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="&quot;C:\Dokumente und Einstellungen\wachsmuth\Eigene Dateien\simutrans\win\libs\OpenTTD essentials\shared\include&quot;;&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
-				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;STEPS16;USE_C;WIN32;DEBUG=3"
+				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;DEBUG=3;COLOUR_DEPTH=16"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -126,7 +126,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="&quot;G:\Projects\SDL-1.2.10\include&quot;;&quot;G:\Program Files\PlatformSDK\Include&quot;;G:\Projects\zlib\include"
-				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;NDEBUG;REVISION=&quot;4353&quot;"
+				PreprocessorDefinitions="ZLIB_WINAPI;LITTLE_ENDIAN;NDEBUG;REVISION=&quot;4353&quot;;COLOUR_DEPTH=16"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -358,10 +358,6 @@
 			</File>
 			<File
 				RelativePath=".\gui\curiositylist_stats_t.cc"
-				>
-			</File>
-			<File
-				RelativePath=".\tpl\debug_helper.cc"
 				>
 			</File>
 			<File
@@ -1031,11 +1027,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\simsys_w16.cc"
+				RelativePath=".\simsys.cc"
 				>
 			</File>
 			<File
-				RelativePath=".\simsys_w32_png.c"
+				RelativePath=".\simsys_w.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\simsys_w32_png.cc"
 				>
 			</File>
 			<File
@@ -1465,10 +1465,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\tpl\debug_helper.h"
-				>
-			</File>
-			<File
+
 				RelativePath=".\gui\depot_frame.h"
 				>
 			</File>
@@ -2262,6 +2259,10 @@
 			</File>
 			<File
 				RelativePath=".\simsys.h"
+				>
+			</File>
+			<File
+				RelativePath=".\simsys_w32_png.h"
 				>
 			</File>
 			<File

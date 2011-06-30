@@ -710,19 +710,23 @@ bool vehikel_t::load_freight(halthandle_t halt)
 {
 	const bool ok = halt->gibt_ab(besch->get_ware());
 	schedule_t *fpl = cnv->get_schedule();
-	if( ok ) {
+	if( ok   &&  total_freight < besch->get_zuladung()) {
+		const uint16 hinein = besch->get_zuladung() - total_freight;
 
-		while(total_freight < besch->get_zuladung()) {
-			const uint16 hinein = besch->get_zuladung() - total_freight;
+		slist_tpl<ware_t> zuladung;
+		halt->hole_ab(zuladung, besch->get_ware(), hinein, fpl, cnv->get_besitzer() );
 
-			ware_t ware = halt->hole_ab(besch->get_ware(), hinein, fpl, cnv->get_besitzer() );
-			if(ware.menge==0) {
-				// now empty, but usually, we can get it here ...
-				return ok;
-			}
+		if(zuladung.empty()) {
+			// now empty, but usually, we can get it here ...
+			return ok;
+		}
+
+		for(slist_tpl<ware_t>::iterator iter_z=zuladung.begin(); !iter_z.end(); ) {
+			ware_t &ware = *iter_z;
+
+			total_freight += ware.menge;
 
 			slist_iterator_tpl<ware_t> iter (fracht);
-
 			// could this be joined with existing freight?
 			while(iter.next()) {
 				ware_t &tmp = iter.access_current();
@@ -731,20 +735,26 @@ bool vehikel_t::load_freight(halthandle_t halt)
 				// for all others we *must* use target coordinates
 				if(ware.same_destination(tmp)) {
 					tmp.menge += ware.menge;
-					total_freight += ware.menge;
 					ware.menge = 0;
 					break;
 				}
 			}
 
-			// if != 0 we could not joi it to existing => load it
+			// if != 0 we could not join it to existing => load it
 			if(ware.menge != 0) {
-				fracht.insert(ware);
-				total_freight += ware.menge;
+				++iter_z;
+				// we add list directly
 			}
-
-			INT_CHECK("simvehikel 876");
+			else {
+				iter_z = zuladung.erase(iter_z);
+			}
 		}
+
+		if(!zuladung.empty()) {
+			fracht.append_list(zuladung);
+		}
+
+		INT_CHECK("simvehikel 876");
 	}
 	return ok;
 }
@@ -1145,7 +1155,7 @@ sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 	sint64 value = 0;
 	slist_iterator_tpl <ware_t> iter (fracht);
 
-	if(  welt->get_einstellungen()->get_pay_for_total_distance_mode()==einstellungen_t::TO_DESTINATION  ) {
+	if (welt->get_settings().get_pay_for_total_distance_mode() == settings_t::TO_DESTINATION) {
 		// pay only the distance, we get closer to our destination
 		while( iter.next() ) {
 
@@ -1167,8 +1177,7 @@ sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 			// sum up new price
 			value += price;
 		}
-	}
-	else if(  welt->get_einstellungen()->get_pay_for_total_distance_mode()==einstellungen_t::TO_TRANSFER  ) {
+	} else if (welt->get_settings().get_pay_for_total_distance_mode() == settings_t::TO_TRANSFER) {
 		// pay distance traveled to next trasnfer stop
 		while( iter.next() ) {
 
@@ -1267,14 +1276,7 @@ void vehikel_t::get_fracht_info(cbuffer_t & buf)
 				name = halt->get_name();
 			}
 
-			buf.append("   ");
-			buf.append(ware.menge);
-			buf.append(translator::translate(ware.get_mass()));
-			buf.append(" ");
-			buf.append(translator::translate(ware.get_name()));
-			buf.append(" > ");
-			buf.append(name);
-			buf.append("\n");
+			buf.printf("   %u%s %s > %s\n", ware.menge, translator::translate(ware.get_mass()), translator::translate(ware.get_name()), name);
 		}
 	}
 }
@@ -1391,7 +1393,7 @@ void vehikel_t::rdwr_from_convoi(loadsave_t *file)
 		file->rdwr_long(fracht_count);
 		file->rdwr_long(l);
 		route_index = (uint16)l;
-		insta_zeit = (insta_zeit >> welt->ticks_per_world_month_shift) + welt->get_einstellungen()->get_starting_year();
+		insta_zeit = (insta_zeit >> welt->ticks_per_world_month_shift) + welt->get_settings().get_starting_year();
 DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1,insta_zeit/12);
 	}
 	else {
@@ -1551,6 +1553,11 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1
 		file->rdwr_bool( hd );
 		has_driven = hd;
 	}
+	else {
+		if (file->is_loading()) {
+			has_driven = false;
+		}
+	}
 }
 
 
@@ -1559,7 +1566,7 @@ uint32 vehikel_t::calc_restwert() const
 	// if already used, there is a general price reduction
 	double value = (double)besch->get_preis();
 	if(  has_driven  ) {
-		value *= (double)(1000-welt->get_einstellungen()->get_used_vehicle_reduction())/1000.0;
+		value *= (1000 - welt->get_settings().get_used_vehicle_reduction()) / 1000.0;
 	}
 	// after 20 year, it has only half value
 	return (uint32)( value * pow(0.997, (int)(welt->get_current_month() - get_insta_zeit())));
@@ -2179,52 +2186,21 @@ void waggon_t::set_convoi(convoi_t *c)
 			}
 			else {
 				assert(c!=NULL);
-				// eventually reserve new route
-				if(  c->get_state()==convoi_t::DRIVING  ||  c->get_state()==convoi_t::LEAVING_DEPOT  ) {
-					route_t const& r = *c->get_route();
-					if (route_index >= r.get_count()) {
-						c->suche_neue_route();
-						dbg->warning("waggon_t::set_convoi()", "convoi %i had a too high route index! (%i of max %i)", c->self.get_id(), route_index, r.get_count() - 1);
-					}
-					else {
-						long num_index = cnv==(convoi_t *)1 ? 1001 : 0; 	// only during loadtype: cnv==1 indicates, that the convoi did reserve a stop
-						// rereserve next block, if needed
-						cnv = c;
-						uint16 next_signal, next_crossing;
-						if(  block_reserver(&r, route_index, next_signal, next_crossing, num_index, true, false)  ) {
-							c->set_next_stop_index( next_signal>next_crossing ? next_crossing : next_signal );
-						}
-						else {
-							c->warten_bis_weg_frei(-1);
-						}
-					}
+				// eventually search new route
+				route_t const& r = *c->get_route();
+				if(  (r.get_count()<=route_index  ||  r.empty()  ||  get_pos()==r.back())  &&  c->get_state()!=convoi_t::INITIAL  &&  c->get_state()!=convoi_t::LOADING  &&  c->get_state()!=convoi_t::SELF_DESTRUCT  ) {
+					check_for_finish = true;
+					dbg->warning("waggon_t::set_convoi()", "convoi %i had a too high route index! (%i of max %i)", c->self.get_id(), route_index, r.get_count() - 1);
 				}
-				if(c->get_state()>=convoi_t::WAITING_FOR_CLEARANCE) {
-//	DBG_MESSAGE("waggon_t::set_convoi()","new route %p, route_index %i",c->get_route(),route_index);
-					// find about next signal after loading
-					uint16 next_signal_index=INVALID_INDEX;
-					const route_t *route=c->get_route();
-
-					if (route->empty() || get_pos() == route->back()) {
-						// we are there, were we should go? Usually this is an error during autosave
-						c->suche_neue_route();
-					}
-					else {
-						for(  uint16 i=max(route_index,1)-1;  i<route->get_count();  i++) {
-							schiene_t * sch = (schiene_t *) welt->lookup(route->position_bei(i))->get_weg(get_waytype());
-							if(sch==NULL) {
-								break;
-							}
-							if(sch->has_signal()) {
-								next_signal_index = i;
-								break;
-							}
-							if(sch->is_crossing()) {
-								next_signal_index = i;
-								break;
-							}
-						}
-						c->set_next_stop_index( next_signal_index );
+				// set default next stop indext
+				c->set_next_stop_index( max(route_index,1)-1 );
+				// need to reserve new route?
+				if(  c->get_state()!=convoi_t::SELF_DESTRUCT  &&  (c->get_state()==convoi_t::DRIVING  ||  c->get_state()>=convoi_t::LEAVING_DEPOT)  ) {
+					long num_index = cnv==(convoi_t *)1 ? 1001 : 0; 	// only during loadtype: cnv==1 indicates, that the convoi did reserve a stop
+					uint16 next_signal, next_crossing;
+					cnv = c;
+					if(  block_reserver(&r, max(route_index,1)-1, next_signal, next_crossing, num_index, true, false)  ) {
+						c->set_next_stop_index( next_signal>next_crossing ? next_crossing : next_signal );
 					}
 				}
 			}

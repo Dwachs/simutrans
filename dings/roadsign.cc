@@ -142,12 +142,9 @@ void roadsign_t::info(cbuffer_t & buf) const
 		buf.append(translator::translate("\nsingle way"));
 	}
 	if(besch->get_min_speed()!=0) {
-		buf.append(translator::translate("\nminimum speed:"));
-		buf.append(speed_to_kmh(besch->get_min_speed()));
+		buf.printf("%s%d", translator::translate("\nminimum speed:"), speed_to_kmh(besch->get_min_speed()));
 	}
-	buf.append(translator::translate("\ndirection:"));
-	buf.append(dir);
-	buf.append("\n");
+	buf.printf("%s%u\n", translator::translate("\ndirection:"), dir);
 	if(  automatic  ) {
 		buf.append(translator::translate("\nSet phases:"));
 		buf.append("\n");
@@ -321,7 +318,7 @@ bool roadsign_t::sync_step(long /*delta_t*/)
 	// change every ~32s
 	uint32 ticks = (welt->get_zeit_ms()>>10) % (ticks_ns+ticks_ow);
 
-	uint8 new_zustand = (ticks>=ticks_ns) ^ (welt->get_einstellungen()->get_rotation()&1);
+	uint8 new_zustand = (ticks >= ticks_ns) ^ (welt->get_settings().get_rotation() & 1);
 	if(zustand!=new_zustand) {
 		zustand = new_zustand;
 		dir = (new_zustand==0) ? ribi_t::nordsued : ribi_t::ostwest;

@@ -1,5 +1,5 @@
-CONFIG ?= config.default
--include $(CONFIG)
+CFG ?= default
+-include config.$(CFG)
 
 
 BACKENDS      = allegro gdi sdl mixer_sdl x11 posix
@@ -138,7 +138,6 @@ SOURCES += besch/bruecke_besch.cc
 SOURCES += besch/fabrik_besch.cc
 SOURCES += besch/grund_besch.cc
 SOURCES += besch/haus_besch.cc
-SOURCES += besch/vehikel_besch.cc
 SOURCES += besch/reader/bridge_reader.cc
 SOURCES += besch/reader/building_reader.cc
 SOURCES += besch/reader/citycar_reader.cc
@@ -166,6 +165,7 @@ SOURCES += besch/reader/way_reader.cc
 SOURCES += besch/reader/xref_reader.cc
 SOURCES += besch/sound_besch.cc
 SOURCES += besch/tunnel_besch.cc
+SOURCES += besch/vehikel_besch.cc
 SOURCES += besch/ware_besch.cc
 SOURCES += boden/boden.cc
 SOURCES += boden/brueckenboden.cc
@@ -360,6 +360,7 @@ SOURCES += simmesg.cc
 SOURCES += simplan.cc
 SOURCES += simskin.cc
 SOURCES += simsound.cc
+SOURCES += simsys.cc
 SOURCES += simticker.cc
 SOURCES += simtools.cc
 SOURCES += simview.cc
@@ -368,7 +369,6 @@ SOURCES += simwerkz.cc
 SOURCES += simwin.cc
 SOURCES += simworld.cc
 SOURCES += sucher/platzsucher.cc
-SOURCES += tpl/debug_helper.cc
 SOURCES += unicode.cc
 SOURCES += utils/cbuffer_t.cc
 SOURCES += utils/checksum.cc
@@ -402,7 +402,7 @@ endif
 
 
 ifeq ($(BACKEND),gdi)
-  SOURCES += simsys_w$(COLOUR_DEPTH).cc
+  SOURCES += simsys_w.cc
   SOURCES += music/w32_midi.cc
   SOURCES += sound/win32_sound.cc
 endif
@@ -472,9 +472,7 @@ ifeq ($(BACKEND),posix)
   SOURCES += sound/no_sound.cc
 endif
 
-ifeq ($(COLOUR_DEPTH),0)
-  CFLAGS += -DNO_GRAPHIC
-endif
+CFLAGS += -DCOLOUR_DEPTH=$(COLOUR_DEPTH)
 
 ifneq ($(findstring $(OSTYPE), cygwin mingw),)
   SOURCES += simres.rc
@@ -484,8 +482,9 @@ endif
 CCFLAGS  += $(CFLAGS)
 CXXFLAGS += $(CFLAGS)
 
-PROG ?= sim
-
+BUILDDIR ?= build/$(CFG)
+PROGDIR  ?= $(BUILDDIR)
+PROG     ?= sim
 
 include common.mk
 

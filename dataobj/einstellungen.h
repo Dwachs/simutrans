@@ -19,7 +19,7 @@ class loadsave_t;
 class tabfile_t;
 class weg_besch_t;
 
-// these are the only classes, that are allowed to modfy elements from einstellungen_t
+// these are the only classes, that are allowed to modfy elements from settings_t
 // for all remaing special cases there are the set_...() routines
 class settings_general_stats_t;
 class settings_routing_stats_t;
@@ -38,7 +38,7 @@ struct road_timeline_t
 };
 
 
-class einstellungen_t
+class settings_t
 {
 friend class settings_general_stats_t;
 friend class settings_routing_stats_t;
@@ -80,6 +80,11 @@ private:
 	// percentage of routing
 	sint16 factory_worker_percentage;
 	sint16 tourist_percentage;
+	sint16 city_short_range_percentage;		// out of %city; %city = (100% - %factory - %attraction)
+	sint16 city_medium_range_percentage;	// out of %city; %city = (100% - %factory - %attraction)
+	// radius for city trips of different distance ranges
+	uint32 city_short_range_radius;
+	uint32 city_medium_range_radius;
 	sint16 factory_worker_radius;
 	sint32 factory_worker_minimum_towns;
 	sint32 factory_worker_maximum_towns;
@@ -295,11 +300,11 @@ public:
 	 */
 	std::string heightfield;
 
-	einstellungen_t();
+	settings_t();
 
 	void rdwr(loadsave_t *file);
 
-	void copy_city_road( einstellungen_t &other );
+	void copy_city_road(settings_t const& other);
 
 	// init form this file ...
 	void parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, sint16 &disp_height, sint16 &fullscreen, std::string &objfilename );
@@ -449,9 +454,14 @@ public:
 	sint32 get_growthfactor_medium() const { return growthfactor_medium; }
 	sint32 get_growthfactor_large() const { return growthfactor_large; }
 
-	// percentage of passengers wanting different sorts of trips
+	// percentage of passengers for different kinds of trips
 	sint16 get_factory_worker_percentage() const { return factory_worker_percentage; }
 	sint16 get_tourist_percentage() const { return tourist_percentage; }
+	sint16 get_city_short_range_percentage() const { return city_short_range_percentage; }
+	sint16 get_city_medium_range_percentage() const { return city_medium_range_percentage; }
+	// radius for city trips of different distance ranges
+	uint32 get_city_short_range_radius() const { return city_short_range_radius; }
+	uint32 get_city_medium_range_radius() const { return city_medium_range_radius; }
 
 	// radius from factories to get workers from towns (usually set to 77 but 1/8 of map size may be meaningful too)
 	uint16 get_factory_worker_radius() const { return factory_worker_radius; }

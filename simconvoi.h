@@ -360,6 +360,10 @@ private:
 	*/
 	void unset_line();
 
+	// matches two halts; if the pos is not identical, maybe the halt still is
+	bool matches_halt( const koord3d pos1, const koord3d pos2 );
+
+	// updates a line schedule and tries to find the best next station to go
 	void check_pending_updates();
 
 	/**
@@ -428,7 +432,7 @@ public:
 	* true if in waiting state (maybe also due to starting)
 	* @author hsiegeln
 	*/
-	bool is_waiting() { return (state>=WAITING_FOR_CLEARANCE  &&  state<=CAN_START_ONE_MONTH)  ||  state==WAITING_FOR_CLEARANCE_TWO_MONTHS  ||  state==CAN_START_TWO_MONTHS;}
+	bool is_waiting() { return (state>=WAITING_FOR_CLEARANCE  &&  state<=CAN_START_TWO_MONTHS)  &&  state!=SELF_DESTRUCT; }
 
 	/**
 	* reset state to no error message

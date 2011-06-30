@@ -253,18 +253,15 @@ private:
 	 */
 	stationtyp station_type;
 
-	uint8 reconnect_counter;	// first, reconnect to directly reachable halts asynchroniously
-	uint8 reroute_counter;		// then, reroute goods
-	// since we do partial routing, we remeber the last offset
+	/**
+	 * Reconnect and reroute if counter different from welt->get_schedule_counter()
+	 */
+	static uint8 reconnect_counter;
+	// since we do partial routing, we remember the last offset
 	uint8 last_catg_index;
-	uint32 last_ware_index;
 
 	/* station flags (most what enabled) */
 	uint8 enables;
-
-	void set_pax_enabled(bool yesno)  { yesno ? enables |= PAX  : enables &= ~PAX;  }
-	void set_post_enabled(bool yesno) { yesno ? enables |= POST : enables &= ~POST; }
-	void set_ware_enabled(bool yesno) { yesno ? enables |= WARE : enables &= ~WARE; }
 
 	/**
 	 * Found route and station uncrowded
@@ -389,7 +386,7 @@ public:
 	 * called regularily to update status and reroute stuff
 	 * @author Hj. Malthaner
 	 */
-	bool step(sint16 &units_remaining);
+	bool step(uint8 what, sint16 &units_remaining);
 
 	/**
 	 * Called every month/every 24 game hours
@@ -416,13 +413,13 @@ private:
 	/* Extra data for route search */
 	struct halt_data_t
 	{
-		uint16 best_weight;
-		uint16 destination;
-		uint16 depth;
 		// transfer halt:
 		// in static function search_route():  previous transfer halt (to track back route)
-		// in member function search_routes(): first transfer halt to get there
+		// in member function search_route_resumable(): first transfer halt to get there
 		halthandle_t transfer;
+		uint16 best_weight;
+		uint16 depth:15;
+		bool destination:1;
 	};
 
 	// store the best weight so far for a halt, and indicate whether it is a destination
@@ -463,36 +460,30 @@ public:
 	static int search_route( const halthandle_t *const start_halts, const uint16 start_halt_count, const bool no_routing_over_overcrowding, ware_t &ware, ware_t *const return_ware=NULL );
 
 	/**
-	 * A separate version of route searching code for re-calculating routes for multiple packets concurrently in one single search
-	 * It is faster than calling the above version on each packet, and is used for re-routing packets from the same halt
-	 * Can search routes for a maximum of 16 destinations concurrently
+	 * A separate version of route searching code for re-calculating routes
+	 * Search is resumable, that is if called for the same halt and same goods category
+	 * it reuses search history from last search
+	 * It is faster than calling the above version on each packet, and is used for re-routing packets from the same halt.
 	 */
-	#define MAX_SEARCH_DESTINATIONS (16)
-	void search_routes( ware_t *const wares, const uint16 ware_count );
+	void search_route_resumable( ware_t &ware );
 
-	int get_pax_enabled()  const { return enables & PAX;  }
-	int get_post_enabled() const { return enables & POST; }
-	int get_ware_enabled() const { return enables & WARE; }
+	bool get_pax_enabled()  const { return enables & PAX;  }
+	bool get_post_enabled() const { return enables & POST; }
+	bool get_ware_enabled() const { return enables & WARE; }
 
 	// check, if we accepts this good
 	// often called, thus inline ...
-	int is_enabled( const ware_besch_t *wtyp ) {
-		if(wtyp==warenbauer_t::passagiere) {
-			return enables&PAX;
-		}
-		else if(wtyp==warenbauer_t::post) {
-			return enables&POST;
-		}
-		return enables&WARE;
+	bool is_enabled( const ware_besch_t *wtyp ) {
+		return is_enabled(wtyp->get_catg_index());
 	}
 
 	// a separate version for checking with goods category index
-	int is_enabled( const uint8 ctg )
+	bool is_enabled( const uint8 catg_index )
 	{
-		if (ctg==0) {
+		if (catg_index == warenbauer_t::INDEX_PAS) {
 			return enables&PAX;
 		}
-		else if(ctg==1) {
+		else if(catg_index == warenbauer_t::INDEX_MAIL) {
 			return enables&POST;
 		}
 		return enables&WARE;
@@ -556,12 +547,6 @@ public:
 	 */
 	uint32 get_ware_fuer_zielpos(const ware_besch_t *warentyp, const koord zielpos) const;
 
-	/**
-	 * gibt Gesamtmenge derw are vom typ typ fuer zwischenziel zurück
-	 * @author prissi
-	 */
-	uint32 get_ware_fuer_zwischenziel(const ware_besch_t *warentyp, const halthandle_t zwischenziel) const;
-
 	// true, if we accept/deliver this kind of good
 	bool gibt_ab(const ware_besch_t *warentyp) const { return waren[warentyp->get_catg_index()] != NULL; }
 
@@ -571,11 +556,11 @@ public:
 	bool recall_ware( ware_t& w, uint32 menge );
 
 	/**
-	 * holt ware ab
-	 * @return abgeholte menge
-	 * @author Hj. Malthaner
+	 * fetches goods from this halt
+	 * @param fracht goods will be put into this list, vehicle has to load it
+	 * @author Hj. Malthaner, dwachs
 	 */
-	ware_t hole_ab( const ware_besch_t *warentyp, uint32 menge, const schedule_t *fpl, const spieler_t *sp );
+	void hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *warentyp, uint32 menge, const schedule_t *fpl, const spieler_t *sp );
 
 	/* liefert ware an. Falls die Ware zu wartender Ware dazugenommen
 	 * werden kann, kann ware_t gelöscht werden! D.h. man darf ware nach
@@ -653,7 +638,7 @@ public:
 	void set_name(const char *name);
 
 	// create an unique name: better to be called with valid handle, althoug it will work without
-	char *create_name(const koord k, const char *typ, const int lang);
+	char* create_name(koord k, char const* typ);
 
 	void rdwr(loadsave_t *file);
 
@@ -733,4 +718,7 @@ public:
 	static void init_markers();
 
 };
+
+ENUM_BITSET(haltestelle_t::stationtyp)
+
 #endif

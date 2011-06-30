@@ -662,17 +662,15 @@ int simu_main(int argc, char** argv)
 	parameter[1] = gimme_arg(argc, argv, "-async", 0)==NULL;
 	dr_os_init(parameter);
 
-	// get optimal resolution ...
-	if(  disp_width==0  ||  disp_height==0  ) {
-		int scr_x = dr_query_screen_width();
-		int scr_y = dr_query_screen_height();
-		if(  fullscreen  ) {
-			disp_width = scr_x;
-			disp_height = scr_y;
-		}
-		else {
-			disp_width = min( 704, scr_x );
-			disp_height = min( 560, scr_y );
+	// Get optimal resolution.
+	if (disp_width == 0 || disp_height == 0) {
+		resolution const res = dr_query_screen_resolution();
+		if (fullscreen) {
+			disp_width  = res.w;
+			disp_height = res.h;
+		} else {
+			disp_width  = min(704, res.w);
+			disp_height = min(560, res.h);
 		}
 	}
 
@@ -815,7 +813,7 @@ int simu_main(int argc, char** argv)
 	std::string loadgame;
 
 	if (gimme_arg(argc, argv, "-load", 0) != NULL) {
-		cbuffer_t buf(1024);
+		cbuffer_t buf;
 		chdir( umgebung_t::user_dir );
 		/**
 		 * Added automatic adding of extension
@@ -959,7 +957,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		new_world = true;
 		sint32 old_autosave = umgebung_t::autosave;
 		umgebung_t::autosave = false;
-		einstellungen_t sets;
+		settings_t sets;
 		sets.copy_city_road( umgebung_t::default_einstellungen );
 		sets.set_default_climates();
 		sets.set_use_timeline( 1 );

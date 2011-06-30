@@ -328,7 +328,7 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","state=%s, next_stop_index=%d", sta
 			// test also for realignment
 			sint16 step_pos;
 			koord3d drive_pos;
-			const uint8 diagonal_vehicle_steps_per_tile = (uint8)(130560u/welt->get_einstellungen()->get_pak_diagonal_multiplier());
+			uint8 const diagonal_vehicle_steps_per_tile = (uint8)(130560U / welt->get_settings().get_pak_diagonal_multiplier());
 			for( uint8 i=0;  i<anz_vehikel;  i++ ) {
 				vehikel_t* v = fahr[i];
 				v->set_erstes( i==0 );
@@ -458,7 +458,10 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 		wait_lock = 30000; // 60s to drive on, if the client in question had left
 		fpl->eingabe_abschliessen();
 	}
-
+	// some convois had wrong old direction in them
+	if(  state<DRIVING  ||  state==LOADING  ) {
+		alte_richtung = fahr[0]->get_fahrtrichtung();
+	}
 	// Knightly : if lineless convoy -> register itself with stops
 	if(  !line.is_bound()  ) {
 		register_stops();
@@ -471,13 +474,10 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 void convoi_t::call_convoi_tool( const char function, const char *extra ) const
 {
 	werkzeug_t *w = create_tool( WKZ_CONVOI_TOOL | SIMPLE_TOOL );
-	char cmd[3] = { function, ',', 0 };
-	cbuffer_t param(8192);
-	param.append( cmd );
-	param.append( self.get_id() );
+	cbuffer_t param;
+	param.printf("%c,%u", function, self.get_id());
 	if(  extra  &&  *extra  ) {
-		param.append( "," );
-		param.append( extra );
+		param.printf(",%s", extra);
 	}
 	w->set_default_param(param);
 	welt->set_werkzeug( w, get_besitzer() );
@@ -529,7 +529,7 @@ void convoi_t::set_name(const char *name, bool with_new_id)
 	if(  with_new_id  ) {
 		char buf[128];
 		name_offset = sprintf(buf,"(%i) ",self.get_id() );
-		tstrncpy(buf + name_offset, translator::translate(name, welt->get_einstellungen()->get_name_language_id()), lengthof(buf) - name_offset);
+		tstrncpy(buf + name_offset, translator::translate(name, welt->get_settings().get_name_language_id()), lengthof(buf) - name_offset);
 		tstrncpy(name_and_id, buf, lengthof(name_and_id));
 	}
 	else {
@@ -1290,7 +1290,7 @@ void convoi_t::ziel_erreicht()
 
 	if(dp) {
 		// ok, we are entering a depot
-		cbuffer_t buf(256);
+		cbuffer_t buf;
 
 		// we still book the money for the trip; however, the freight will be lost
 		calc_gewinn();
@@ -1509,24 +1509,7 @@ bool convoi_t::set_schedule(schedule_t * f)
 	state = INITIAL;	// because during a sync-step we might be called twice ...
 
 	DBG_DEBUG("convoi_t::set_schedule()", "new=%p, old=%p", f, fpl);
-
-	if(  f==NULL  ) {
-		if(  line.is_bound()  ) {
-			unset_line();
-		}
-		else {
-			// Knightly : if schedule is going to be deleted -> make sure to unregister stops for lineless convoys
-			if(  state==INITIAL  ) {
-				unregister_stops();
-			}
-		}
-		if(  state==INITIAL  ) {
-			delete fpl;
-			fpl = NULL;
-			return true;
-		}
-		return false;
-	}
+	assert(f != NULL);
 
 	// happens to be identical?
 	if(fpl!=f) {
@@ -1870,6 +1853,14 @@ void convoi_t::rdwr(loadsave_t *file)
 		if(  file->get_version()<101000  ) {
 			file->wr_obj_id("Convoi");
 			// the matching read is in karte_t::laden(loadsave*)...
+		}
+	}
+
+	// do the update, otherwise we might lose the line after save & reload
+	if(file->is_saving()  &&  line_update_pending.is_bound()) {
+		check_pending_updates();
+		if (fpl->ist_abgeschlossen()  &&  state == FAHRPLANEINGABE) {
+			state = ROUTING_1;
 		}
 	}
 
@@ -2421,12 +2412,10 @@ void convoi_t::laden()
 	halthandle_t halt = haltestelle_t::get_halt(welt, fpl->get_current_eintrag().pos,besitzer_p);
 	// eigene haltestelle ?
 	if (halt.is_bound()) {
-		const koord k = fpl->get_current_eintrag().pos.get_2d();
 		const spieler_t* owner = halt->get_besitzer();
 		if(  owner == get_besitzer()  ||  owner == welt->get_spieler(1)  ) {
 			// loading/unloading ...
 			halt->request_loading( self );
-//			hat_gehalten(k, halt);
 		}
 		else {
 			halt = halthandle_t();
@@ -2770,7 +2759,10 @@ void convoi_t::set_line(linehandle_t org_line)
 	else {
 		// Knightly : originally a lineless convoy -> unregister itself from stops as it now belongs to a line
 		unregister_stops();
-		welt->set_schedule_counter();	// must trigger refresh
+		// must trigger refresh if old schedule was not empty
+		if (fpl  &&  !fpl->empty()) {
+			welt->set_schedule_counter();
+		}
 	}
 	line_update_pending = org_line;
 	check_pending_updates();
@@ -2794,7 +2786,15 @@ DBG_DEBUG("convoi_t::unset_line()", "removing old destinations from line=%d, fpl
 }
 
 
+// matches two halts; if the pos is not identical, maybe the halt still is
+bool convoi_t::matches_halt( const koord3d pos1, const koord3d pos2 )
+{
+	halthandle_t halt1 = haltestelle_t::get_halt( welt, pos1, besitzer_p );
+	return pos1==pos2  ||  (halt1.is_bound()  &&  halt1==haltestelle_t::get_halt( welt, pos2, besitzer_p ));
+}
 
+
+// updates a line schedule and tries to find the best next station to go
 void convoi_t::check_pending_updates()
 {
 	if(  line_update_pending.is_bound()  ) {
@@ -2816,7 +2816,7 @@ void convoi_t::check_pending_updates()
 			// something to check for ...
 			current = fpl->get_current_eintrag().pos;
 
-			if(aktuell<new_fpl->get_count()  &&  current==new_fpl->eintrag[aktuell].pos  ) {
+			if(  aktuell<new_fpl->get_count() &&  current==new_fpl->eintrag[aktuell].pos  ) {
 				// next pos is the same => keep the convoi state
 				is_same = true;
 			}
@@ -2834,6 +2834,8 @@ void convoi_t::check_pending_updates()
 				/* there could be only one entry that matches best:
 				 * we try first same sequence as in old schedule;
 				 * if not found, we try for same nextnext station
+				 * (To detect also places, where only the platform
+				 *  changed, we also compare the halthandle)
 				 */
 				const koord3d next = fpl->eintrag[(aktuell+1)%fpl->get_count()].pos;
 				const koord3d nextnext = fpl->eintrag[(aktuell+2)%fpl->get_count()].pos;
@@ -2843,22 +2845,22 @@ void convoi_t::check_pending_updates()
 
 				for(  uint8 i=0;  i<new_count;  i++  ) {
 					int quality =
-						(new_fpl->eintrag[i].pos==current)*3 +
-						(new_fpl->eintrag[(i+1)%new_count].pos==next)*4 +
-						(new_fpl->eintrag[(i+2)%new_count].pos==nextnext)*2 +
-						(new_fpl->eintrag[(i+3)%new_count].pos==nextnextnext);
+						matches_halt(current,new_fpl->eintrag[i].pos)*3 +
+						matches_halt(next,new_fpl->eintrag[(i+1)%new_count].pos)*4 +
+						matches_halt(nextnext,new_fpl->eintrag[(i+2)%new_count].pos)*2 +
+						matches_halt(nextnextnext,new_fpl->eintrag[(i+3)%new_count].pos);
 					if(  quality>how_good_matching  ) {
 						// better match than previous: but depending of distance, the next number will be different
-						if(new_fpl->eintrag[i].pos==current) {
+						if(  matches_halt(current,new_fpl->eintrag[i].pos)  ) {
 							aktuell = i;
 						}
-						else if(new_fpl->eintrag[(i+1)%new_count].pos==next) {
+						else if(  matches_halt(next,new_fpl->eintrag[(i+1)%new_count].pos)  ) {
 							aktuell = i+1;
 						}
-						else if(new_fpl->eintrag[(i+2)%new_count].pos==nextnext) {
+						else if(  matches_halt(nextnext,new_fpl->eintrag[(i+2)%new_count].pos)  ) {
 							aktuell = i+2;
 						}
-						else if(new_fpl->eintrag[(i+3)%new_count].pos==nextnextnext) {
+						else if(  matches_halt(nextnextnext,new_fpl->eintrag[(i+3)%new_count].pos)  ) {
 							aktuell = i+3;
 						}
 						aktuell %= new_count;
@@ -2871,7 +2873,7 @@ void convoi_t::check_pending_updates()
 					aktuell = new_fpl->get_aktuell();
 				}
 				// if we go to same, then we do not need route recalculation ...
-				is_same = new_fpl->eintrag[aktuell].pos==current;
+				is_same = matches_halt(current,new_fpl->eintrag[aktuell].pos);
 			}
 		}
 

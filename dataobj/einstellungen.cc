@@ -29,7 +29,7 @@
 #define NEVER 0xFFFFU
 
 
-einstellungen_t::einstellungen_t() :
+settings_t::settings_t() :
 	filename(""),
 	heightfield("")
 {
@@ -108,6 +108,12 @@ einstellungen_t::einstellungen_t() :
 
 	factory_worker_percentage = 33;
 	tourist_percentage = 16;
+	city_short_range_percentage = 60;
+	city_medium_range_percentage = 30;
+
+	city_short_range_radius = 50u;
+	city_medium_range_radius = 100u;
+
 	factory_worker_radius = 77;
 	// try to have at least a single town connected to a factory
 	factory_worker_minimum_towns = 1;
@@ -251,7 +257,7 @@ einstellungen_t::einstellungen_t() :
 
 
 
-void einstellungen_t::set_default_climates()
+void settings_t::set_default_climates()
 {
 	static sint16 borders[MAX_CLIMATES] = { 0, 0, 0, 3, 6, 8, 10, 10 };
 	memcpy( climate_borders, borders, sizeof(sint16)*MAX_CLIMATES );
@@ -259,7 +265,7 @@ void einstellungen_t::set_default_climates()
 
 
 
-void einstellungen_t::rdwr(loadsave_t *file)
+void settings_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t e( file, "einstellungen_t" );
 
@@ -283,7 +289,7 @@ void einstellungen_t::rdwr(loadsave_t *file)
 		file->rdwr_long(dummy );
 		dummy &= 127;
 		if(dummy>63) {
-			dbg->warning("einstellungen_t::rdwr()","This game was saved with too many cities! (%i of maximum 63). Simutrans may crash!",dummy );
+			dbg->warning("settings_t::rdwr()", "This game was saved with too many cities! (%i of maximum 63). Simutrans may crash!", dummy);
 		}
 		anzahl_staedte = dummy;
 
@@ -458,7 +464,7 @@ void einstellungen_t::rdwr(loadsave_t *file)
 				// several roads ...
 				file->rdwr_short(num_city_roads );
 				if(  num_city_roads>=10  ) {
-					dbg->fatal( "einstellungen_t::rdwr()", "Too many (%i) city roads!", num_city_roads );
+					dbg->fatal("settings_t::rdwr()", "Too many (%i) city roads!", num_city_roads);
 				}
 				for(  int i=0;  i<num_city_roads;  i++  ) {
 					file->rdwr_str(city_roads[i].name, lengthof(city_roads[i].name) );
@@ -468,7 +474,7 @@ void einstellungen_t::rdwr(loadsave_t *file)
 				// several intercity roads ...
 				file->rdwr_short(num_intercity_roads );
 				if(  num_intercity_roads>=10  ) {
-					dbg->fatal( "einstellungen_t::rdwr()", "Too many (%i) intercity roads!", num_intercity_roads );
+					dbg->fatal("settings_t::rdwr()", "Too many (%i) intercity roads!", num_intercity_roads);
 				}
 				for(  int i=0;  i<num_intercity_roads;  i++  ) {
 					file->rdwr_str(intercity_roads[i].name, lengthof(intercity_roads[i].name) );
@@ -671,6 +677,13 @@ void einstellungen_t::rdwr(loadsave_t *file)
 			file->rdwr_short(factory_arrival_periods);
 			file->rdwr_bool(factory_enforce_demand);
 		}
+
+		if(  file->get_version()>=110007  ) {
+			file->rdwr_short(city_short_range_percentage);
+			file->rdwr_short(city_medium_range_percentage);
+			file->rdwr_long(city_short_range_radius);
+			file->rdwr_long(city_medium_range_radius);
+		}
 	}
 }
 
@@ -678,7 +691,7 @@ void einstellungen_t::rdwr(loadsave_t *file)
 
 
 // read the settings from this file
-void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, sint16 &disp_height, sint16 &fullscreen, std::string &objfilename )
+void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16& disp_height, sint16 &fullscreen, std::string& objfilename)
 {
 	tabfileobj_t contents;
 
@@ -877,6 +890,10 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 	factory_arrival_periods = clamp( contents.get_int("factory_arrival_periods", factory_arrival_periods), 1, 16 );
 	factory_enforce_demand = contents.get_int("factory_enforce_demand", factory_enforce_demand) != 0;
 	tourist_percentage = contents.get_int("tourist_percentage", tourist_percentage );
+	city_short_range_percentage = contents.get_int("city_short_range_percentage", city_short_range_percentage);
+	city_medium_range_percentage = contents.get_int("city_medium_range_percentage", city_medium_range_percentage);
+	city_short_range_radius = contents.get_int("city_short_range_radius", city_short_range_radius);
+	city_medium_range_radius = contents.get_int("city_medium_range_radius", city_medium_range_radius);
 	seperate_halt_capacities = contents.get_int("seperate_halt_capacities", seperate_halt_capacities ) != 0;
 	pay_for_total_distance = contents.get_int("pay_for_total_distance", pay_for_total_distance );
 	avoid_overcrowding = contents.get_int("avoid_overcrowding", avoid_overcrowding )!=0;
@@ -1073,7 +1090,7 @@ void einstellungen_t::parse_simuconf( tabfile_t &simuconf, sint16 &disp_width, s
 }
 
 
-int einstellungen_t::get_name_language_id() const
+int settings_t::get_name_language_id() const
 {
 	int lang = -1;
 	if(  umgebung_t::networkmode  ) {
@@ -1086,7 +1103,7 @@ int einstellungen_t::get_name_language_id() const
 }
 
 
-sint64 einstellungen_t::get_starting_money(sint16 year) const
+sint64 settings_t::get_starting_money(sint16 const year) const
 {
 	if(  starting_money>0  ) {
 		return starting_money;
@@ -1094,11 +1111,9 @@ sint64 einstellungen_t::get_starting_money(sint16 year) const
 
 	// search entry with startingmoneyperyear[i].year > year
 	int i;
-	bool found = false;
 	for(  i=0;  i<10;  i++  ) {
 		if(startingmoneyperyear[i].year!=0) {
 			if (startingmoneyperyear[i].year>year) {
-				found = true;
 				break;
 			}
 		}
@@ -1166,19 +1181,19 @@ static const weg_besch_t *get_timeline_road_type( uint16 year, uint16 num_roads,
 }
 
 
-const weg_besch_t *einstellungen_t::get_city_road_type( uint16 year )
+weg_besch_t const* settings_t::get_city_road_type(uint16 const year)
 {
 	return get_timeline_road_type(year, num_city_roads, city_roads );
 }
 
 
-const weg_besch_t *einstellungen_t::get_intercity_road_type( uint16 year )
+weg_besch_t const* settings_t::get_intercity_road_type(uint16 const year)
 {
 	return get_timeline_road_type(year, num_intercity_roads, intercity_roads );
 }
 
 
-void einstellungen_t::copy_city_road( einstellungen_t &other )
+void settings_t::copy_city_road(settings_t const& other)
 {
 	num_city_roads = other.num_city_roads;
 	for(  int i=0;  i<10;  i++  ) {
@@ -1188,7 +1203,7 @@ void einstellungen_t::copy_city_road( einstellungen_t &other )
 
 
 // returns default player colors for new players
-void einstellungen_t::set_default_player_color( spieler_t *sp ) const
+void settings_t::set_default_player_color(spieler_t* const sp) const
 {
 	COLOR_VAL color1 = default_player_color[sp->get_player_nr()][0];
 	if(  color1 == 255  ) {
