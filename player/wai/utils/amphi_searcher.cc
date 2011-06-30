@@ -35,6 +35,6 @@ bool amphi_searcher_t::is_allowed_step( const grund_t *from, const grund_t *to, 
 	bool ok = wegbauer_t::is_allowed_step( from, to, costs );
 	bautyp = old_bautyp;
 	// Better for A* if heuristic fits to real distance.
-	*costs = welt->get_einstellungen()->way_count_straight + (to->get_weg_hang()!=0) ? welt->get_einstellungen()->way_count_slope : 0;
+	*costs = welt->get_settings().way_count_straight + (to->get_weg_hang()!=0) ? welt->get_settings().way_count_slope : 0;
 	return ok;
 }

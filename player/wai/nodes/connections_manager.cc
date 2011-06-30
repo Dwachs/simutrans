@@ -421,7 +421,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 			// TODO: what if a new route is build in the meanwhile that needs this depot?
 			if (ok) {
 				depot = try_depot;
-				report->cost_fix   += -welt->get_einstellungen()->cst_multiply_remove_haus;
+				report->cost_fix   += -welt->get_settings().cst_multiply_remove_haus;
 				report->gain_per_m += industry_connection_planner_t::calc_building_maint(dep->get_tile()->get_besch(), welt);
 
 			}
@@ -462,7 +462,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 				}
 				if ( (i==0  ||  i==verbindung_e.get_count()-1)  &&  gr->is_halt()) {
 					// TODO estimate costs for bridges/tunnels/wayobjs/signals etc
-					report->cost_fix   += -welt->get_einstellungen()->cst_multiply_remove_haus;
+					report->cost_fix   += -welt->get_settings().cst_multiply_remove_haus;
 					if (gr->find<gebaeude_t>()) {
 						report->gain_per_m += industry_connection_planner_t::calc_building_maint(gr->find<gebaeude_t>()->get_tile()->get_besch(), welt);
 					}

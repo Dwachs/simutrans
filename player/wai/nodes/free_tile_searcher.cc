@@ -37,7 +37,7 @@ return_value_t *free_tile_searcher_t::step()
 	}
 	datablock_t *data = new datablock_t();
 
-	const uint16 cov = sp->get_welt()->get_einstellungen()->get_station_coverage();
+	const uint16 cov = sp->get_welt()->get_settings().get_station_coverage();
 
 	// generate two list of candidate positions
 	vector_tpl<koord3d> list1, list2;

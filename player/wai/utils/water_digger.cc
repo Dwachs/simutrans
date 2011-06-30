@@ -36,7 +36,7 @@ sint64 water_digger_t::calc_costs()
 			welt->can_ebne_planquadrat(route[i].get_2d(), sea_level, estimate);
 		}
 	}
-	return  -(estimate*welt->get_einstellungen()->cst_alter_land);
+	return  -(estimate*welt->get_settings().cst_alter_land);
 }			
 
 
@@ -61,7 +61,7 @@ bool water_digger_t::terraform()
 
 			sint64 money_after  = sp->get_finance_history_month(0, COST_CASH);
 			int paid = (money_before - money_after) / 100;
-			int estimated_cost = -(estimate*welt->get_einstellungen()->cst_alter_land) / 100;
+			int estimated_cost = -(estimate*welt->get_settings().cst_alter_land) / 100;
 			
 			if (ai) {
 				if (ok  &&  (paid>0  ||  estimated_cost>0)) {
