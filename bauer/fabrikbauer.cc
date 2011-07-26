@@ -374,6 +374,7 @@ void fabrikbauer_t::verteile_tourist(karte_t* welt, int max_number)
 	int retrys = max_number*4;
 	while(current_number<max_number  &&  retrys-->0) {
 		koord3d	pos=koord3d( koord::koord_random(welt->get_groesse_x(),welt->get_groesse_y()),1);
+		random_log_msg("fabrikbauer_t::verteile_tourist", pos.get_str());
 		const haus_besch_t *attraction=hausbauer_t::waehle_sehenswuerdigkeit(welt->get_timeline_year_month(),true,(climate)simrand((int)arctic_climate+1));
 
 		// no attractions for that climate or too new
@@ -975,6 +976,7 @@ next_ware_check:
 					continue;
 				}
 				koord   testpos = in_city ? pick_any_weighted(welt->get_staedte())->get_pos() : koord::koord_random(welt->get_groesse_x(), welt->get_groesse_y());
+				if (!in_city) random_log_msg("fabrikbauer_t::increase_industry_density", testpos.get_str());
 				koord3d pos =  welt->lookup_kartenboden( testpos )->get_pos();
 				int     rotation=simrand(fab->get_haus()->get_all_layouts()-1);
 				if(!in_city) {

@@ -4169,6 +4169,7 @@ DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 
 		if(  umgebung_t::server  ) {
 			step_mode = FIX_RATIO;
+			init_logging_randoms(0);
 			if(  umgebung_t::server  ) {
 				// meaningless to use a locked map; there are passwords now
 				settings.set_allow_player_change(true);
@@ -4178,6 +4179,7 @@ DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 		}
 		else if(  umgebung_t::networkmode  ) {
 			step_mode = PAUSE_FLAG|FIX_RATIO;
+			init_logging_randoms(network_get_client_id());
 			switch_active_player( last_active_player_nr, true );
 		}
 		else {
@@ -5659,6 +5661,17 @@ bool karte_t::interactive(uint32 quit_month)
 							nwc = NULL;
 						}
 					}
+					// out of sync => drop client (but we can only compare if nwt->last_sync_step is not too old)
+					else if(  is_checklist_available(nwt->last_sync_step)  &&  LCHKLST(nwt->last_sync_step)!=nwt->last_checklist  ) {
+						// lost synchronisation -> server kicks client out actively
+						char buf[256];
+						const int offset = LCHKLST(nwt->last_sync_step).print(buf, "server");
+						nwt->last_checklist.print(buf + offset, "initiator");
+						dbg->warning("karte_t::interactive", "kicking client due to checklist mismatch : sync_step=%u %s", nwt->last_sync_step, buf);
+						socket_list_t::remove_client( nwc->get_sender() );
+						delete nwc;
+						nwc = NULL;
+					}
 				}
 
 				// execute command, append to command queue if necessary
@@ -5786,10 +5799,12 @@ bool karte_t::interactive(uint32 quit_month)
 						ms_difference += 5;
 					}
 					sync_step( fix_ratio_frame_time, true, true );
+					char buf[127]; sprintf(buf, "completed syncstep %d", sync_steps); random_log_msg("karte_t::interactive", buf);
 					if (++network_frame_count == settings.get_frames_per_step()) {
 						// ever fourth frame
 						set_random_mode( STEP_RANDOM );
 						step();
+						char buf[127]; sprintf(buf, "completed step %d", steps); random_log_msg("karte_t::interactive", buf);
 						clear_random_mode( STEP_RANDOM );
 						network_frame_count = 0;
 					}
@@ -5893,6 +5908,8 @@ void karte_t::network_disconnect()
 	destroy_all_win(true);
 
 	clear_random_mode( INTERACTIVE_RANDOM );
+	stop_logging_randoms();
+
 	step_mode = NORMAL;
 	reset_timer();
 	clear_command_queue();

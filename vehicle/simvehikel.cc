@@ -1547,7 +1547,7 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1
 		}
 	}
 
-	if(  file->get_version()>=110000  ) {
+	if(  file->get_version()>=110001  ) {
 		bool hd = has_driven;
 		file->rdwr_bool( hd );
 		has_driven = hd;

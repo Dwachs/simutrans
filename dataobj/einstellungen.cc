@@ -656,6 +656,8 @@ void settings_t::rdwr(loadsave_t *file)
 			if(  !umgebung_t::networkmode  ||  umgebung_t::server  ) {
 				server_frames_ahead = umgebung_t::server_frames_ahead;
 			}
+		}
+		if(  file->get_version()>=110001  ) {
 			file->rdwr_short( used_vehicle_reduction );
 		}
 

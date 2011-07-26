@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include "simtypes.h"
 
+#define DEBUG_RANDOM
+
 
 uint32 get_random_seed();
 
@@ -16,10 +18,15 @@ uint32 setsimrand(uint32 seed, uint32 noise_seed);
 uint32 sim_async_rand(const uint32 max);
 
 /* generates a random number on [0,max-1]-interval */
-uint32 simrand(const uint32 max);
+uint32 simrand_dbg(const uint32 max, const char* file=0, int line=0);
+#define simrand(i) simrand_dbg((i), __FILE__, __LINE__)
+
+void init_logging_randoms(int id);
+void stop_logging_randoms();
+void random_log_msg(const char *caller, const char *msg);
 
 /* generates a random number on [0,0xFFFFFFFFu]-interval */
-uint32 simrand_plain(void);
+//uint32 simrand_plain(void);
 
 double perlin_noise_2D(const double x, const double y, const double persistence);
 
