@@ -137,6 +137,7 @@ void init_logging_randoms(int id)
 	sprintf(filename, "simrand-%d-%d.log", id, rand_logs++);
 	rand_dbg = new log_t(filename, true, true, false, "random greetings");
 	rand_dbg->warning("init_logging_randoms", "start logging");
+	rand_idx = 0;
 }
 
 void stop_logging_randoms()
