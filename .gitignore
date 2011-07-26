@@ -9,3 +9,8 @@
 /makeobj/makeobj.exe
 /sim
 /sim.exe
+*.orig
+*.diff
+*.patch
+*.rej
+
