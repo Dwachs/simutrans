@@ -112,14 +112,14 @@ uint32 simrand_plain(void)
 uint32 simrand_dbg(const uint32 max, const char* file, int line)
 {
 	assert( (random_origin&INTERACTIVE_RANDOM) == 0  );
-	assert( file );
-	assert( line);
 
 	if(max<=1) {	// may rather assert this?
 		return 0;
 	}
 	uint32 rand = simrand_plain() % max;
 #ifdef DEBUG_RANDOM
+	assert( file );
+	assert( line);
 	if (rand_dbg) rand_dbg->warning("simrand_dbg", "called from %s:%d, mode=%d rand[%d]=%d (%d)", file, line, random_origin, rand_idx++, rand, max );
 #endif
 	return rand;
