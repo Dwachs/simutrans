@@ -15,6 +15,8 @@
 #include "network_cmd.h"
 #include "network_cmd_ingame.h"
 #include "network_cmp_pakset.h"
+#include "network_debug.h"
+//#include "network_file_transfer.h"
 #include "../simconst.h"
 
 #ifndef NETTOOL
@@ -373,8 +375,8 @@ bool network_init_server( int port )
 	clear_command_queue();
 #ifndef NETTOOL
 	nwc_ready_t::clear_map_counters();
+	nwc_debug_t::init( max(513, 2*umgebung_t::server_sync_steps_between_checks + 31) );
 #endif
-
 	return true;
 }
 
@@ -698,6 +700,7 @@ void network_reset_server()
 	socket_list_t::reset_clients();
 #ifndef NETTOOL
 	nwc_ready_t::clear_map_counters();
+	nwc_debug_t::init( max(513, 2*umgebung_t::server_sync_steps_between_checks + 31) );
 #endif
 }
 

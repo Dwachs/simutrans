@@ -82,6 +82,7 @@
 #include "dataobj/network_file_transfer.h"
 #include "dataobj/network_socket_list.h"
 #include "dataobj/network_cmd_ingame.h"
+#include "dataobj/network_debug.h"
 #include "dataobj/translator.h"
 #include "dataobj/loadsave.h"
 #include "dataobj/scenario.h"
@@ -5741,7 +5742,7 @@ bool karte_t::interactive(uint32 quit_month)
 					dbg->warning("karte_t::interactive", "sync_step=%u  %s", server_sync_step, buf);
 					if(  LCHKLST(server_sync_step)!=server_checklist  ) {
 						dbg->warning("karte_t::interactive", "disconnecting due to checklist mismatch" );
-						network_disconnect();
+						network_disconnect(true, server_sync_step);
 					}
 				}
 				else {
@@ -5754,7 +5755,7 @@ bool karte_t::interactive(uint32 quit_month)
 							LCHKLST(nwt->last_sync_step).print(buf + offset, "executor");
 							dbg->warning("karte_t::interactive", "skipping command due to checklist mismatch : sync_step=%u %s", nwt->last_sync_step, buf);
 							if(  !umgebung_t::server  ) {
-								network_disconnect();
+								network_disconnect(true, nwt->last_sync_step);
 							}
 							delete nwc;
 							continue;
@@ -5798,12 +5799,16 @@ bool karte_t::interactive(uint32 quit_month)
 						next_step_time += 5;
 						ms_difference += 5;
 					}
+					nwc_debug_t::new_sync_step(sync_steps+1);
 					sync_step( fix_ratio_frame_time, true, true );
+					network_add_debug("completed syncstep %d", sync_steps+1);
+
 					char buf[127]; sprintf(buf, "completed syncstep %d", sync_steps); random_log_msg("karte_t::interactive", buf);
 					if (++network_frame_count == settings.get_frames_per_step()) {
 						// ever fourth frame
 						set_random_mode( STEP_RANDOM );
 						step();
+						network_add_debug("completed step %d", steps);
 						char buf[127]; sprintf(buf, "completed step %d", steps); random_log_msg("karte_t::interactive", buf);
 						clear_random_mode( STEP_RANDOM );
 						network_frame_count = 0;
@@ -5900,8 +5905,16 @@ void karte_t::announce_server()
 }
 
 
-void karte_t::network_disconnect()
+void karte_t::network_disconnect(bool debug_desync, uint32 sync)
 {
+	help_frame_t *win = NULL;
+	if(debug_desync) {
+		cbuffer_t buf(256);
+		network_debug_desync(sync, buf);
+
+		win = new help_frame_t();
+		win->set_text((const char*)buf);
+	}
 	// force disconnect
 	dbg->warning("karte_t::network_disconnect()", "Lost synchronisation with server.");
 	network_core_shutdown();
@@ -5913,9 +5926,13 @@ void karte_t::network_disconnect()
 	step_mode = NORMAL;
 	reset_timer();
 	clear_command_queue();
-	create_win( display_get_width()/2-128, 40, new news_img("Lost synchronisation\nwith server."), w_info, magic_none);
+	if (win) {
+		create_win(win, w_info, magic_network_debug_t);
+	}
+	else {
+		create_win( display_get_width()/2-128, 40, new news_img("Lost synchronisation\nwith server."), w_info, magic_none);
+		beenden(false);
+	}
 	ticker::add_msg( translator::translate("Lost synchronisation\nwith server."), koord::invalid, COL_BLACK );
 	last_active_player_nr = active_player_nr;
-
-	beenden(false);
 }

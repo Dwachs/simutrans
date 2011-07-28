@@ -797,6 +797,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\dataobj\network_debug.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\dataobj\network_file_transfer.cc"
 				>
 			</File>
@@ -1895,6 +1899,10 @@
 			</File>
 			<File
 				RelativePath=".\dataobj\network_cmp_pakset.h"
+				>
+			</File>
+			<File
+				RelativePath=".\dataobj\network_debug.h"
 				>
 			</File>
 			<File

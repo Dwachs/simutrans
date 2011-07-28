@@ -25,7 +25,7 @@ enum {
 	NWC_CHECK,
 	NWC_PAKSETINFO,
 	NWC_SERVICE,
-	NWC_COUNT
+	NWC_DEBUG = 100
 };
 
 class network_command_t {

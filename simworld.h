@@ -1035,7 +1035,7 @@ public:
 
 	void clear_command_queue() const;
 
-	void network_disconnect();
+	void network_disconnect(bool debug_desync=false, uint32 sync=0);
 
 	/**
 	 * to identify the current map

@@ -65,6 +65,7 @@ char const* network_receive_file(SOCKET const s, char const* const save_as, long
 
 #include "network_cmd.h"
 #include "network_cmd_ingame.h"
+#include "network_debug.h"
 #include "network_socket_list.h"
 
 #include "loadsave.h"
@@ -205,6 +206,8 @@ end:
 	else {
 		const uint32 id = socket_list_t::get_client_id(my_client_socket);
 		socket_list_t::change_state(id, socket_info_t::playing);
+		// TODO ask server for length of ring list
+		nwc_debug_t::init( 513 );
 	}
 	return err;
 }
