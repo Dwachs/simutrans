@@ -186,8 +186,10 @@ koord gui_flowtext_t::output(koord offset, bool doit)
 						max_width = nxpos;
 					}
 					nxpos -= xpos;
-					xpos = 0;
-					ypos += LINESPACE;
+					if (xpos > 0) {
+						xpos = 0;
+						ypos += LINESPACE;
+					}
 				}
 
 				if (doit) {
