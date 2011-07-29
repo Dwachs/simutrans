@@ -16,7 +16,6 @@
 #include "network_cmd_ingame.h"
 #include "network_cmp_pakset.h"
 #include "network_debug.h"
-//#include "network_file_transfer.h"
 #include "../simconst.h"
 
 #ifndef NETTOOL

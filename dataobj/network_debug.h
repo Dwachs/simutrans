@@ -45,7 +45,7 @@ public:
 		uint32 sync_step;
 		cbuffer_t buf;
 		checksum_t chk;
-		node_t(uint32 sync_step_) : sync_step(sync_step_), buf(256), chk() { }
+		node_t(uint32 sync_step_) : sync_step(sync_step_), buf(), chk() { }
 	};
 
 	static node_t* get_node(uint32 sync);

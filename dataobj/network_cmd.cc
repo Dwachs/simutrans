@@ -1,7 +1,5 @@
 #include "network_cmd.h"
 #include "network.h"
-#include "network_debug.h"
-//#include "network_file_transfer.h"
 #include "network_packet.h"
 #include "network_socket_list.h"
 
@@ -25,38 +23,6 @@
 #ifdef DO_NOT_SEND_HASHES
 static vector_tpl<uint16>hashes_ok;	// bit set, if this player on that client is not protected
 #endif
-
-network_command_t* network_command_t::read_from_packet(packet_t *p)
-{
-	// check data
-	if (p==NULL  ||  p->has_failed()  ||  !p->check_version()) {
-		delete p;
-		dbg->warning("network_command_t::read_from_packet", "error in packet");
-		return NULL;
-	}
-	network_command_t* nwc = NULL;
-	switch (p->get_id()) {
-		case NWC_GAMEINFO:    nwc = new nwc_gameinfo_t(); break;
-		case NWC_JOIN:	      nwc = new nwc_join_t(); break;
-		case NWC_SYNC:        nwc = new nwc_sync_t(); break;
-		case NWC_GAME:        nwc = new nwc_game_t(); break;
-		case NWC_READY:       nwc = new nwc_ready_t(); break;
-		case NWC_TOOL:        nwc = new nwc_tool_t(); break;
-		case NWC_CHECK:       nwc = new nwc_check_t(); break;
-		case NWC_PAKSETINFO:  nwc = new nwc_pakset_info_t(); break;
-		case NWC_DEBUG:       nwc = new nwc_debug_t(); break;
-		default:
-			dbg->warning("network_command_t::read_from_socket", "received unknown packet id %d", p->get_id());
-	}
-	if (nwc) {
-		if (!nwc->receive(p) ||  p->has_failed()) {
-			dbg->warning("network_command_t::read_from_packet", "error while reading cmd from packet");
-			delete nwc;
-			nwc = NULL;
-		}
-	}
-	return nwc;
-}
 
 
 // needed by world to kick clients if needed

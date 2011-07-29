@@ -5909,7 +5909,7 @@ void karte_t::network_disconnect(bool debug_desync, uint32 sync)
 {
 	help_frame_t *win = NULL;
 	if(debug_desync) {
-		cbuffer_t buf(256);
+		cbuffer_t buf;
 		network_debug_desync(sync, buf);
 
 		win = new help_frame_t();
