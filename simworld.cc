@@ -5801,14 +5801,14 @@ bool karte_t::interactive(uint32 quit_month)
 					}
 					nwc_debug_t::new_sync_step(sync_steps+1);
 					sync_step( fix_ratio_frame_time, true, true );
-					network_add_debug("completed syncstep %d", sync_steps+1);
+					network_add_debug("completed syncstep %d\n", sync_steps+1);
 
 					char buf[127]; sprintf(buf, "completed syncstep %d", sync_steps); random_log_msg("karte_t::interactive", buf);
 					if (++network_frame_count == settings.get_frames_per_step()) {
 						// ever fourth frame
 						set_random_mode( STEP_RANDOM );
 						step();
-						network_add_debug("completed step %d", steps);
+						network_add_debug("completed step %d\n", steps);
 						char buf[127]; sprintf(buf, "completed step %d", steps); random_log_msg("karte_t::interactive", buf);
 						clear_random_mode( STEP_RANDOM );
 						network_frame_count = 0;
