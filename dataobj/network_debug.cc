@@ -40,12 +40,14 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		}
 		if(nwd->state == nwc_debug_t::send_chk) {
 			bool ok = nwd->chk == node->chk;
-			buf.printf("checksums at %d %s<br>\n", node->sync_step, ok ? "are equal" : "differ");
-			if (ok) {
-				last_success = node;
-			}
-			else {
-				first_failed = node;
+			//buf.printf("checksums at %d %s<br>\n", node->sync_step, ok ? "are equal" : "differ");
+			if (first_failed == NULL) {
+				if (ok) {
+					last_success = node;
+				}
+				else {
+					first_failed = node;
+				}
 			}
 		}
 		else {
@@ -59,8 +61,80 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 	else if (last_success == NULL) {
 		buf.append("WARN: all checksums differ<br>\n");
 	}
+	else {
+		buf.printf("checksums at %d are equal<br>\n", last_success->sync_step);
+	}
+	buf.printf("checksums at %d differ<br>\n", first_failed->sync_step);
 
-	buf.append("the end.<br>\n");
+	// now obtain the log string and compare it
+	// request string		
+	{
+		nwc_debug_t nwc(nwc_debug_t::get_msg, first_failed->sync_step);
+		dbg->message("network_debug_desync", "request msg ss=%d", first_failed->sync_step);
+		if(!nwc.send(sock)) {
+			goto send_error;
+		}
+		nwc_debug_t *nwd = NULL;
+		// wait for nwc_debug_t, ignore other commands
+		for(uint8 i=0; i<5; i++) {
+			network_command_t* nwc = network_check_activity( NULL, 10000 );
+			if (nwc  &&  nwc->get_id() == NWC_DEBUG) {
+				nwd = (nwc_debug_t*)nwc;
+				break;
+			}
+			delete nwc;
+		}
+		if(nwd == NULL) {
+			buf.append("ERR: server did not respond<br>\n");
+			return;
+		}
+		buf.printf("<br><h1>Log message of sync-step %d</h1><br>", first_failed->sync_step);
+		// pointer to start of current messages
+		const char* mc = (const char*)(first_failed->buf);
+		const char* ms = (const char*)(*nwd->pbuf);
+		// now loop through the strings
+		const char* pc = mc;
+		const char* ps = ms;
+		bool equal = true;
+		bool eol = false;
+		while((*pc)  ||  (*ps)) {
+			// compare
+			if (equal  &&  (*ps)!=(*pc)) {
+				equal = false;
+			}
+			// advance till end of string / end of line if necessary
+			if (*ps  &&  *ps < 32) {
+				eol = true;
+				for (; (*pc)  &&  (*pc)>=32; pc++) {}
+			}
+			else if  (*pc  &&  *pc < 32) {
+				eol = true;
+				for (; (*ps)  &&  (*ps)>=32; ps++) {}
+			}
+			// output
+			if (eol) {
+				if (equal) {
+					std::string str_c(mc, pc-mc);
+					buf.printf("%s<br>", str_c.c_str());
+				}
+				else {
+					std::string str_c(mc, pc-mc);
+					buf.printf("<em>&gt;&gt;client&gt;&gt;</em><br><em>%s</em><br>", str_c.c_str());
+					std::string str_s(ms, ps-ms);
+					buf.printf("====<br><st>%s<br>&lt;&lt;server&lt;&lt;</st><br>", str_s.c_str());
+				}
+				for (; (*pc)  &&  (*pc)<32; pc++) {}
+				for (; (*ps)  &&  (*ps)<32; ps++) {}
+				mc = pc;
+				ms = ps;
+				eol = false;
+				equal = true;
+			}
+			
+			if (*pc) pc++;
+			if (*ps) ps++;
+		}
+	}
 	return;
 send_error:
 	buf.append("ERR: send failed. the end.<br>\n");
@@ -70,20 +144,23 @@ send_error:
 bool nwc_debug_t::execute(karte_t *)
 {
 	if (umgebung_t::server) {
-		switch(state) {
-			case nwc_debug_t::get_chk: {
-				if (node_t *node = get_node(sync_step)) {
-					nwc_debug_t nwd(send_chk, sync_step);
+		if (state == get_chk  ||  state == get_msg) {
+			// assume no data
+			nwc_debug_t nwd(no_data, info.empty() ? (uint32)-1 : info.front()->sync_step);
+			// search for node
+			if (node_t *node = get_node(sync_step)) {
+				nwd.sync_step = sync_step;
+				if (state == get_chk) {
+					nwd.state = send_chk;
 					nwd.chk = node->chk;
-					nwd.send( packet->get_sender() );
 				}
 				else {
-					nwc_debug_t nwd(no_data, info.empty() ? (uint32)-1 : info.front()->sync_step);
-					nwd.send( packet->get_sender() );
+					nwd.state = send_msg;
+					nwd.pbuf  = &(node->buf);
 				}
-				break;
 			}
-			default: ;
+			nwd.send( packet->get_sender() );
+			nwd.pbuf = NULL;
 		}
 	}
 	return true;
@@ -100,6 +177,18 @@ void nwc_debug_t::rdwr()
 	}
 	else if (packet->is_loading()) {
 		chk.reset();
+	}
+	if (state == send_msg) {
+		char *buf = packet->is_saving() ? strdup( (const char*)(*pbuf) ) : NULL;
+		packet->rdwr_str(buf);
+		if (packet->is_loading()) {
+			if (pbuf == NULL) {
+				pbuf = new cbuffer_t();
+			}
+			pbuf->clear();
+			pbuf->append(buf);
+		}
+		free(buf);
 	}
 }
 
@@ -156,7 +245,12 @@ void nwc_debug_t::add_msg(const char* file, int line, const char* fmt, ...)
 	int count = vsnprintf( msg, lengthof(msg), fmt, ap);
 	va_end(ap);
 
-	node->buf.printf("%s:%d: %s\n", filename, line, msg);
+	for(uint16 i=0; i<lengthof(msg)  &&  msg[i]; i++) {
+		if (msg[i]==' ') {
+			msg[i]='_';
+		}
+	}
+	node->buf.printf("%s:%d:_%s\n", filename, line, msg);
 
 	// checksum
 	node->chk.input(file);

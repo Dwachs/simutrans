@@ -18,16 +18,19 @@ class nwc_debug_t : public network_command_t {
 public:
 
 	enum dbg_state {
-		init_dbg = 1, // initialize sending of data to client
-		get_chk = 2,  // get checksum from syncstep
-		send_chk = 3,  // sent checksum from syncstep
-		get_msg = 13,  // get messages from syncstep
-		no_data = 101,  // no data available
-		end_dbg = 255 // end of communication
+		init_dbg = 1,   // initialize sending of data to client
+		get_chk  = 2,   // get checksum from syncstep
+		send_chk = 3,   // send checksum from syncstep
+		get_msg  = 4,   // get messages from syncstep
+		send_msg = 5,   // send messages from syncstep
+		no_data  = 101, // no data available
+		end_dbg  = 255  // end of communication
 	};
 
-	nwc_debug_t(dbg_state state_=end_dbg, uint32 sync_step_=0) : network_command_t(NWC_DEBUG), state(state_), sync_step(sync_step_) {}
+	nwc_debug_t(dbg_state state_=end_dbg, uint32 sync_step_=0) : network_command_t(NWC_DEBUG), 
+		state(state_), sync_step(sync_step_), chk(), pbuf(NULL) {}
 
+	~nwc_debug_t() { if (pbuf) delete pbuf; }
 	// server side part of communication
 
 	virtual bool execute(karte_t *);
@@ -56,6 +59,7 @@ public:
 	uint8 state;
 	uint32 sync_step;
 	checksum_t chk;
+	cbuffer_t* pbuf;
 };
 
 #endif
