@@ -122,7 +122,7 @@ uint32 simrand_dbg(const uint32 max, const char* file, int line)
 	assert( file );
 	assert( line);
 	if (rand_dbg) rand_dbg->warning("simrand_dbg", "called from %s:%d, mode=%d rand[%d]=%d (%d)", file, line, random_origin, rand_idx++, rand, max );
-	nwc_debug_t::add_msg(file, line, "simrand mode=%d rand[%d]=%d (%d)", file, line, random_origin, rand_idx++, rand, max );
+	nwc_debug_t::add_msg(file, line, "simrand mode=%d rand[%d]=%d (%d)", random_origin, rand_idx, rand, max );
 #endif
 	return rand;
 }
