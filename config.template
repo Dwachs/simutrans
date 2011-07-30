@@ -27,6 +27,7 @@
 #OPTIMISE = 1 # Add umpteen optimisation flags
 #PROFILE = 1  # Enable profiling
 #PROFILE = 2  # Enable profiling with optimisation flags, can be used with `OPTIMISE = 1'
+# DEBUG_DESYNC = 1 # to enable remote debugging for desyncs
 
 #WITH_REVISION = 1 # adds the revision from svn; required for networkgames
 # if you do not use SVN, add -DREVISION="1234" to the FLAGS below
@@ -52,7 +53,6 @@
 # DEBUG_ROUTES: show routing calculation information in minimap
 # SHOW_FORE_GRUND: show which objects are drawn as foreground
 # DEBUG_FLUSH_BUFFER: show the dirty areas on the screen
-# DEBUG_DESYNC: to enable remote debugging for desyncs
 #
 # Following flags alter game engine (and are off for standard builds)
 # OTTD_LIKE: Enables half height tiles and crossconnects all industries

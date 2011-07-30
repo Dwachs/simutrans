@@ -360,6 +360,10 @@ SOURCES += vehicle/simverkehr.cc
 
 SOURCES += simgraph$(COLOUR_DEPTH).cc
 
+ifdef DEBUG_DESYNC 
+  SOURCES += dataobj/network_debug.cc
+  CFLAGS  += -DDEBUG_DESYNC
+endif
 
 ifeq ($(BACKEND),allegro)
   SOURCES  += simsys_d.cc
