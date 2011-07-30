@@ -284,6 +284,9 @@ void nwc_debug_t::new_sync_step(uint32 syncstep)
 	else {
 		info.append( new node_t(syncstep) );
 	}
+	if (info.get_count() > 1) {
+		info[ info.get_count()-2 ]->chk.calc_checksum( &(info.back()->chk) );
+	}
 }
 
 
