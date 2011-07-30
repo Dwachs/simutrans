@@ -51,11 +51,13 @@ public:
 		cbuffer_t buf;
 		checksum_t chk;
 		node_t(uint32 sync_step_) : sync_step(sync_step_), buf(), chk() { }
+		static bool compare(const node_t &a,  const node_t &b) { return a.sync_step <= b.sync_step; }
+		bool operator==(const node_t &a) { return sync_step = a.sync_step; }
 	};
 
 	static node_t* get_node(uint32 sync);
 
-	static slist_tpl<node_t*> info;
+	static vector_tpl<node_t*> info;
 	static uint32 max_nodes;
 
 	uint8 state;

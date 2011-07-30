@@ -11,7 +11,7 @@
 #include <unistd.h>
 #endif
 
-slist_tpl<nwc_debug_t::node_t*> nwc_debug_t::info;
+vector_tpl<nwc_debug_t::node_t*> nwc_debug_t::info;
 uint32 nwc_debug_t::max_nodes = 1;
 
 void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
@@ -19,13 +19,13 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 	typedef nwc_debug_t::node_t node_t;
 	SOCKET sock = socket_list_t::get_server_connection_socket();
 	buf.printf("Check failed at sync-step=%d<br>", check_failed_sync_step);
-	slist_tpl<nwc_debug_t::node_t*> &info = nwc_debug_t::info;
+	vector_tpl<nwc_debug_t::node_t*> &info = nwc_debug_t::info;
 	// check the checksums in the list
 	node_t *first_failed = NULL;
 	node_t *last_success = NULL;
-	for(slist_tpl<node_t*>::iterator iter = info.begin(), end = info.end(); iter!=end; ++iter)
-	{
-		node_t *node = *iter;
+	for(uint32 i=max(0,info.get_count()-16); i<info.get_count()  &&  first_failed==NULL; i++) {
+	//for(sint32 i=info.get_count()-1; i>=0  &&  first_failed==NULL; i--) {
+		node_t *node = info[i];
 		// request info
 		nwc_debug_t nwc(nwc_debug_t::get_chk, node->sync_step);
 		dbg->message("network_debug_desync", "request sync-step=%d", node->sync_step);
@@ -59,7 +59,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 			}
 		}
 		else {
-			buf.printf("WARN: no data for sync step %d available, earliest available is %d<br>\n", node->sync_step, nwd->sync_step);
+			buf.printf("WARN:_no_data_for_sync_step_%d_available,_earliest_available_is_%d<br>\n", node->sync_step, nwd->sync_step);
 		}
 	}
 	if(first_failed == NULL) {
@@ -105,6 +105,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		// pointer to start of current messages
 		const char* mc = (const char*)(first_failed->buf);
 		const char* ms = (const char*)(*nwd->pbuf);
+		buf.printf("strcmp = %d<br>", strcmp(mc,ms));
 		// now loop through the strings
 		const char* pc = mc;
 		const char* ps = ms;
@@ -241,7 +242,7 @@ void nwc_debug_t::new_sync_step(uint32 syncstep)
 	}
 	if (info.get_count() == max_nodes  &&  max_nodes>0) {
 		node_t *node = info.front();
-		info.erase( info.begin() );
+		info.remove_at(0);
 		node->sync_step = syncstep;
 		node->chk.reset();
 		node->buf.clear();
@@ -294,10 +295,9 @@ void nwc_debug_t::add_msg(const char* file, int line, const char* fmt, ...)
 
 nwc_debug_t::node_t* nwc_debug_t::get_node(uint32 sync)
 {
-	for(slist_tpl<node_t*>::iterator iter = info.begin(), end = info.end(); iter!=end; ++iter) {
-		dbg->message("nwc_debug_t::get_node", "node at ss=%d wanted ss=%d", (*iter)->sync_step, sync);
-		if (sync == (*iter)->sync_step) {
-			return *iter;
+	for(uint32 i=0; i<info.get_count(); i++) {
+		if (info[i]->sync_step == sync) {
+			return info[i];
 		}
 	}
 	return NULL;
