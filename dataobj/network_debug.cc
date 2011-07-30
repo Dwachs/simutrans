@@ -48,7 +48,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		}
 		if(nwd->state == nwc_debug_t::send_chk) {
 			bool ok = nwd->chk == node->chk;
-			//buf.printf("checksums at %d %s<br>\n", node->sync_step, ok ? "are equal" : "differ");
+			buf.printf("checksums at %d %s<br>\n", node->sync_step, ok ? "are equal" : "differ");
 			if (first_failed == NULL) {
 				if (ok) {
 					last_success = node;
@@ -84,23 +84,35 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		}
 
 		nwc_debug_t *nwd = NULL;
-		// wait for nwc_debug_t, ignore other commands
-		for(uint8 i=0; i<5; i++) {
-			network_command_t* nwc = network_check_activity( NULL, 10000 );
-			if (nwc  &&  nwc->get_id() == NWC_DEBUG) {
-				nwd = (nwc_debug_t*)nwc;
-				break;
+		do {
+			nwc_debug_t *nwd_temp = NULL;
+			// wait for nwc_debug_t, ignore other commands
+			for(uint8 i=0; i<5; i++) {
+				network_command_t* nwc = network_check_activity( NULL, 10000 );
+				if (nwc  &&  nwc->get_id() == NWC_DEBUG) {
+					nwd_temp = (nwc_debug_t*)nwc;
+					break;
+				}
+				delete nwc;
 			}
-			delete nwc;
-		}
-		if(nwd == NULL) {
-			buf.append("ERR: server did not respond<br>\n");
-			return;
-		}
-		if(nwd->state == nwc_debug_t::no_data) {
-			buf.printf("ERR: no data for sync-step %d available anymore<br>\n", first_failed->sync_step);
-			return;
-		}
+			if(nwd_temp == NULL) {
+				buf.append("ERR: server did not respond<br>\n");
+				return;
+			}
+			if(nwd_temp->state == nwc_debug_t::no_data) {
+				buf.printf("ERR: no data for sync-step %d available anymore<br>\n", first_failed->sync_step);
+				return;
+			}
+			if(nwd == NULL) {
+				nwd = nwd_temp;
+			}
+			else {
+				nwd->pbuf->append( (const char*)(*nwd_temp->pbuf) );
+				nwd->state = nwd_temp->state;
+				delete nwd_temp;
+			}
+		} while (nwd->state == nwc_debug_t::cont_msg);
+
 		buf.printf("<br><h1>Log message of sync-step %d</h1><br>", first_failed->sync_step);
 		// pointer to start of current messages
 		const char* mc = (const char*)(first_failed->buf);
@@ -193,6 +205,21 @@ bool nwc_debug_t::execute(karte_t *)
 				else {
 					nwd.state = send_msg;
 					nwd.pbuf  = &(node->buf);
+					nwd.offset = 0;
+					nwd.length = node->buf.len();
+					const uint16 max_buf_len = 10; // MAX_PACKET_LEN - 32
+					while(nwd.length > max_buf_len) {
+						// send partial messages
+						nwc_debug_t nwdc(cont_msg, sync_step);
+						nwdc.pbuf  = &(node->buf);
+						nwdc.offset = nwd.offset;
+						nwdc.length = max_buf_len;
+						nwdc.send( packet->get_sender() );
+						nwdc.pbuf  = NULL;
+						// adjust offset
+						nwd.offset += max_buf_len;
+						nwd.length -= max_buf_len;
+					}
 				}
 			}
 			nwd.send( packet->get_sender() );
@@ -214,8 +241,11 @@ void nwc_debug_t::rdwr()
 	else if (packet->is_loading()) {
 		chk.reset();
 	}
-	if (state == send_msg) {
-		char *buf = packet->is_saving() ? strdup( (const char*)(*pbuf) ) : NULL;
+	if (state == send_msg  ||  state == cont_msg) {
+		char *buf = packet->is_saving() ? strdup( (const char*)(*pbuf)+offset ) : NULL;
+		if (packet->is_saving()) {
+			buf[length] = 0;
+		}
 		packet->rdwr_str(buf);
 		if (packet->is_loading()) {
 			if (pbuf == NULL) {

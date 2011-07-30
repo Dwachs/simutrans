@@ -25,12 +25,13 @@ public:
 		send_chk = 3,   // send checksum from syncstep
 		get_msg  = 4,   // get messages from syncstep
 		send_msg = 5,   // send messages from syncstep
+		cont_msg = 6,   // send part of messages from syncstep
 		no_data  = 101, // no data available
 		end_dbg  = 255  // end of communication
 	};
 
 	nwc_debug_t(dbg_state state_=end_dbg, uint32 sync_step_=0) : network_command_t(NWC_DEBUG),
-		state(state_), sync_step(sync_step_), chk(), pbuf(NULL) {}
+		state(state_), sync_step(sync_step_), chk(), pbuf(NULL), offset(0), length(0) {}
 
 	~nwc_debug_t() { if (pbuf) delete pbuf; }
 	// server side part of communication
@@ -64,6 +65,8 @@ public:
 	uint32 sync_step;
 	checksum_t chk;
 	cbuffer_t* pbuf;
+	// send part of the buffer
+	uint16 offset, length;
 };
 
 #else
