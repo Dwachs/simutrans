@@ -2,7 +2,6 @@
 #include <math.h>
 #include "simtools.h"
 // for logging
-#include "utils/log.h"
 #include "dataobj/umgebung.h"
 #include "dataobj/network_debug.h"
 #ifdef _MSC_VER
@@ -25,12 +24,8 @@ static int mersenne_twister_index = MERSENNE_TWISTER_N + 1; // mersenne_twister_
 
 static uint8 random_origin = 0;
 
-// logging simrand calls
-log_t *rand_dbg = NULL;
 // counts calls since last get/set_random_seed
-int rand_idx = 0;
-// count random log files
-int rand_logs = 0;
+static int rand_idx = 0;
 
 
 /* initializes mersenne_twister[N] with a seed */
@@ -81,7 +76,6 @@ uint32 get_random_seed()
 		MTgenerate();
 	}
 #ifdef DEBUG_RANDOM
-	if (rand_dbg  &&  rand_idx>0) rand_dbg->warning("get_random_seed", "random seed %d",  mersenne_twister[mersenne_twister_index]);
 	rand_idx = 0;
 #endif
 	return mersenne_twister[mersenne_twister_index];
@@ -121,46 +115,15 @@ uint32 simrand_dbg(const uint32 max, const char* file, int line)
 #ifdef DEBUG_RANDOM
 	assert( file );
 	assert( line);
-	if (rand_dbg) rand_dbg->warning("simrand_dbg", "called from %s:%d, mode=%d rand[%d]=%d (%d)", file, line, random_origin, rand_idx++, rand, max );
 	nwc_debug_t::add_msg(file, line, "simrand mode=%d rand[%d]=%d (%d)\n", random_origin, rand_idx, rand, max );
 #endif
 	return rand;
 }
 
 
-
-void init_logging_randoms(int id)
-{
-	if (rand_dbg) {
-		delete rand_dbg;
-	}
-	chdir( umgebung_t::user_dir );
-	char filename[128];
-	sprintf(filename, "simrand-%d-%d.log", id, rand_logs++);
-	rand_dbg = new log_t(filename, true, true, false, "random greetings");
-	rand_dbg->warning("init_logging_randoms", "start logging");
-	rand_idx = 0;
-}
-
-void stop_logging_randoms()
-{
-	if (rand_dbg) {
-		delete rand_dbg;
-		rand_dbg=NULL;
-	}
-}
-
-void random_log_msg(const char *caller, const char *msg)
-{
-	if (rand_dbg) rand_dbg->warning(caller, msg);
-}
-
 void set_random_mode( uint16 mode )
 {
 	random_origin |= mode;
-#ifdef DEBUG_RANDOM
-	//if (rand_dbg) rand_dbg->warning("set_random_mode", "set %d new mode %d", mode, random_origin);
-#endif
 }
 
 
@@ -189,9 +152,6 @@ uint32 sim_async_rand( uint32 max )
 void clear_random_mode( uint16 mode )
 {
 	random_origin &= ~mode;
-#ifdef DEBUG_RANDOM
-	//if (rand_dbg) rand_dbg->warning("clear_random_mode", "cleared %d new mode %d", mode, random_origin);
-#endif
 }
 
 
@@ -209,10 +169,6 @@ uint32 setsimrand(uint32 seed,uint32 ns)
 	if(noise_seed!=0xFFFFFFFF) {
 		noise_seed = ns*15731;
 	}
-#ifdef DEBUG_RANDOM
-	if (rand_dbg) rand_dbg->warning("setsimrand", "seed %d noise %d",  seed, ns);
-	rand_idx = 0;
-#endif
 	return old_noise_seed;
 }
 

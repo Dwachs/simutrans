@@ -4170,7 +4170,6 @@ DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 
 		if(  umgebung_t::server  ) {
 			step_mode = FIX_RATIO;
-			init_logging_randoms(0);
 			if(  umgebung_t::server  ) {
 				// meaningless to use a locked map; there are passwords now
 				settings.set_allow_player_change(true);
@@ -4180,7 +4179,6 @@ DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 		}
 		else if(  umgebung_t::networkmode  ) {
 			step_mode = PAUSE_FLAG|FIX_RATIO;
-			init_logging_randoms(network_get_client_id());
 			switch_active_player( last_active_player_nr, true );
 		}
 		else {
@@ -5801,15 +5799,13 @@ bool karte_t::interactive(uint32 quit_month)
 					}
 					nwc_debug_t::new_sync_step(sync_steps+1);
 					sync_step( fix_ratio_frame_time, true, true );
-					network_add_debug("completed syncstep %d\n", sync_steps+1);
+					network_add_debug("completed syncstep %d randomseed %d\n", sync_steps+1, get_random_seed());
 
-					char buf[127]; sprintf(buf, "completed syncstep %d", sync_steps); random_log_msg("karte_t::interactive", buf);
 					if (++network_frame_count == settings.get_frames_per_step()) {
 						// ever fourth frame
 						set_random_mode( STEP_RANDOM );
 						step();
 						network_add_debug("completed step %d\n", steps);
-						char buf[127]; sprintf(buf, "completed step %d", steps); random_log_msg("karte_t::interactive", buf);
 						clear_random_mode( STEP_RANDOM );
 						network_frame_count = 0;
 					}
@@ -5921,7 +5917,6 @@ void karte_t::network_disconnect(bool debug_desync, uint32 sync)
 	destroy_all_win(true);
 
 	clear_random_mode( INTERACTIVE_RANDOM );
-	stop_logging_randoms();
 
 	step_mode = NORMAL;
 	reset_timer();

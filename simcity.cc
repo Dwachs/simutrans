@@ -41,6 +41,7 @@
 
 #include "dings/gebaeude.h"
 
+#include "dataobj/network_debug.h"
 #include "dataobj/translator.h"
 #include "dataobj/einstellungen.h"
 #include "dataobj/loadsave.h"
@@ -2818,7 +2819,7 @@ bool stadt_t::baue_strasse(const koord k, spieler_t* sp, bool forced)
 void stadt_t::baue()
 {
 	const koord k(lo + koord::koord_random(ur.x - lo.x + 2,ur.y - lo.y + 2)-koord(1,1) );
-	random_log_msg("stadt_t::baue", k.get_str());
+	network_add_debug("pos=(%s)", k.get_str());
 
 	// do not build on any border tile
 	if(  !welt->ist_in_kartengrenzen(k+koord(1,1))  ||  k.x<=0  ||  k.y<=0  ) {
