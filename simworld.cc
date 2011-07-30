@@ -1171,16 +1171,18 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","distributing movingobjs");
 	if(  umgebung_t::moving_object_probability > 0  ) {
 		// add animals and so on (must be done after growing and all other objects, that could change ground coordinates)
 		koord k;
+		bool has_water = movingobj_t::random_movingobj_for_climate( water_climate )!=NULL;
 		sint32 queried = simrand(umgebung_t::moving_object_probability*2);
 		// no need to test the borders, since they are mostly slopes anyway
 		for(k.y=1; k.y<get_groesse_y()-1; k.y++) {
 			for(k.x=(k.y<old_y)?old_x:1; k.x<get_groesse_x()-1; k.x++) {
 				grund_t *gr = lookup_kartenboden(k);
-				if(gr->get_top()==0  &&  gr->get_typ()==grund_t::boden  &&  gr->get_grund_hang()==hang_t::flach) {
+				// flat ground or open water
+				if(  gr->get_top()==0  &&  (  (gr->get_typ()==grund_t::boden  &&  gr->get_grund_hang()==hang_t::flach)  ||  (has_water  &&  gr->ist_wasser())  )  ) {
 					queried --;
 					if(  queried<0  ) {
 						const groundobj_besch_t *besch = movingobj_t::random_movingobj_for_climate( get_climate(gr->get_hoehe()) );
-						if(besch  &&  (besch->get_speed()==0  ||  (besch->get_waytype()!=water_wt  ||  gr->hat_weg(water_wt)  ||  gr->get_hoehe()<=get_grundwasser()) ) ) {
+						if(  besch  &&  ( besch->get_waytype()!=water_wt  ||  gr->get_hoehe()<=get_grundwasser() )  ) {
 							if(besch->get_speed()!=0) {
 								queried = simrand(umgebung_t::moving_object_probability*2);
 								gr->obj_add( new movingobj_t( this, gr->get_pos(), besch ) );
@@ -1242,6 +1244,7 @@ void karte_t::init(settings_t* const sets, sint8 const* const h_field)
 	is_dragging = false;
 	steps = 0;
 	recalc_average_speed();	// resets timeline
+	koord::locality_factor = settings.get_locality_factor( letztes_jahr );
 
 	grundwasser = sets->get_grundwasser();      //29-Nov-01     Markus Weber    Changed
 	grund_besch_t::calc_water_level( this, height_to_climate );
@@ -1362,9 +1365,6 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	cached_groesse_max = max(cached_groesse_gitter_x,cached_groesse_gitter_y);
 	cached_groesse_karte_x = cached_groesse_gitter_x-1;
 	cached_groesse_karte_y = cached_groesse_gitter_y-1;
-
-	// Knightly : initialise the weighted list of distances
-	stadt_t::init_distances( shortest_distance( koord(1, 1), koord( get_groesse_x(), get_groesse_y() ) ) );
 
 	intr_disable();
 
@@ -2804,7 +2804,10 @@ void karte_t::buche(sint64 const betrag, player_cost const type)
 
 void karte_t::neuer_monat()
 {
+	bool need_locality_update = false;
+
 	update_history();
+
 	// advance history ...
 	last_month_bev = finance_history_month[0][WORLD_CITICENS];
 	for(  int hist=0;  hist<karte_t::MAX_WORLD_COST;  hist++  ) {
@@ -2817,6 +2820,10 @@ void karte_t::neuer_monat()
 	letzter_monat ++;
 	if(letzter_monat>11) {
 		letzter_monat = 0;
+		// check for changed distance weight
+		uint32 old_locality_factor = koord::locality_factor;
+		koord::locality_factor = settings.get_locality_factor( letztes_jahr+1 );
+		need_locality_update = (old_locality_factor != koord::locality_factor);
 	}
 	DBG_MESSAGE("karte_t::neuer_monat()","Month (%d/%d) has started", (letzter_monat%12)+1, letzter_monat/12 );
 	DBG_MESSAGE("karte_t::neuer_monat()","sync_step %u objects", sync_list.get_count() );
@@ -2852,16 +2859,12 @@ void karte_t::neuer_monat()
 
 
 //	DBG_MESSAGE("karte_t::neuer_monat()","cities");
-	// roll city history and copy the new citicens (i.e. the new weight) into the stadt array
-	// no INT_CHECK() here, or dialoges will go crazy!!!
-	weighted_vector_tpl<stadt_t*> new_weighted_stadt(stadt.get_count() + 1);
 	for (weighted_vector_tpl<stadt_t*>::const_iterator i = stadt.begin(), end = stadt.end(); i != end; ++i) {
-		stadt_t* s = *i;
-		s->neuer_monat();
-		new_weighted_stadt.append(s, s->get_einwohner(), 64);
-		INT_CHECK("simworld 1278");
+		stadt.update( *i, (*i)->get_einwohner() );
 	}
-	swap(stadt, new_weighted_stadt);
+	for (weighted_vector_tpl<stadt_t*>::const_iterator i = stadt.begin(), end = stadt.end(); i != end; ++i) {
+		(*i)->neuer_monat( need_locality_update );
+	}
 
 	INT_CHECK("simworld 1282");
 
@@ -2958,6 +2961,7 @@ DBG_MESSAGE("karte_t::neues_jahr()","speedbonus for %d %i, %i, %i, %i, %i, %i, %
 			spieler[i]->neues_jahr();
 		}
 	}
+
 }
 
 
@@ -4282,9 +4286,6 @@ DBG_DEBUG("karte_t::laden()","grundwasser %i",grundwasser);
 	cached_groesse_karte_y = cached_groesse_gitter_y-1;
 	x_off = y_off = 0;
 
-	// Knightly : initialise the weighted list of distances
-	stadt_t::init_distances( shortest_distance( koord(1, 1), koord( get_groesse_x(), get_groesse_y() ) ) );
-
 	// Reliefkarte an neue welt anpassen
 	reliefkarte_t::get_karte()->set_welt(this);
 
@@ -4317,6 +4318,7 @@ DBG_DEBUG("karte_t::laden", "init felder ok");
 
 DBG_MESSAGE("karte_t::laden()","savegame loading at tick count %i",ticks);
 	recalc_average_speed();	// resets timeline
+	koord::locality_factor = settings.get_locality_factor( letztes_jahr );	// resets weigth factor
 	// recalc_average_speed may have opened message windows
 	destroy_all_win(true);
 
@@ -4922,12 +4924,15 @@ uint32 karte_t::generate_new_map_counter() const
 void karte_t::step_year()
 {
 	DBG_MESSAGE("karte_t::step_year()","called");
-//	ticks += 12*karte_t::ticks_per_world_month;
-//	next_month_ticks += 12*karte_t::ticks_per_world_month;
 	current_month += 12;
 	letztes_jahr ++;
 	reset_timer();
 	recalc_average_speed();
+	koord::locality_factor = settings.get_locality_factor( letztes_jahr );
+	for (weighted_vector_tpl<stadt_t*>::const_iterator i = stadt.begin(), end = stadt.end(); i != end; ++i) {
+		(*i)->recalc_target_cities();
+		(*i)->recalc_target_attractions();
+	}
 }
 
 

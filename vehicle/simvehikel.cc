@@ -2199,7 +2199,7 @@ void waggon_t::set_convoi(convoi_t *c)
 					long num_index = cnv==(convoi_t *)1 ? 1001 : 0; 	// only during loadtype: cnv==1 indicates, that the convoi did reserve a stop
 					uint16 next_signal, next_crossing;
 					cnv = c;
-					if(  block_reserver(&r, max(route_index,1)-1, next_signal, next_crossing, num_index, true, false)  ) {
+					if(  block_reserver(&r, cnv->back()->get_route_index(), next_signal, next_crossing, num_index, true, false)  ) {
 						c->set_next_stop_index( next_signal>next_crossing ? next_crossing : next_signal );
 					}
 				}
@@ -2260,8 +2260,13 @@ bool waggon_t::ist_befahrbar(const grund_t *bd) const
 int waggon_t::get_kosten(const grund_t *gr, const sint32 max_speed, koord from_pos) const
 {
 	// first favor faster ways
-	const weg_t *w=gr->get_weg(get_waytype());
-	sint32 max_tile_speed = w ? w->get_max_speed() : 999;
+	const weg_t *w = gr->get_weg(get_waytype());
+	if(  w==NULL  ) {
+		// only occurs when deletion during waysearch
+		return 999;
+	}
+
+	sint32 max_tile_speed = w->get_max_speed();
 	// add cost for going (with maximum speed, cost is 1)
 	int costs = (max_speed<=max_tile_speed) ? 1 :  (max_speed*4)/(max_tile_speed*4);
 
@@ -2410,6 +2415,7 @@ bool waggon_t::is_weg_frei_choose_signal( signal_t *sig, const uint16 start_bloc
 
 	// first check, if we are not heading to a waypoint
 	bool choose_ok = target->get_halt().is_bound();
+	target_halt = halthandle_t();
 
 	// check, if there is another choose signal or end_of_choose on the route
 	for(  uint32 idx=start_block+1;  choose_ok  &&  idx<cnv->get_route()->get_count();  idx++  ) {
@@ -2466,6 +2472,7 @@ bool waggon_t::is_weg_frei_choose_signal( signal_t *sig, const uint16 start_bloc
 
 		if(!cnv->is_waiting()) {
 			restart_speed = -1;
+			target_halt = halthandle_t();
 			return false;
 		}
 		// now we are in a step and can use the route search array
@@ -3295,7 +3302,7 @@ bool aircraft_t::ist_weg_frei(int & restart_speed)
 
 	// check for another circle ...
 	if(route_index==(touchdown-3)) {
-		if(state!=flying2  &&  !block_reserver( touchdown-1, suchen, true )) {
+		if(state!=flying2  &&  !block_reserver( touchdown, suchen+1, true )) {
 			// circle slowly next round
 			cnv->must_recalc_data();
 			if(  ist_erstes  ) {
@@ -3310,7 +3317,7 @@ bool aircraft_t::ist_weg_frei(int & restart_speed)
 
 	if(route_index==touchdown-16-3  &&  state!=flying2) {
 		// just check, if the end of runway ist free; we will wait there
-		if(block_reserver( touchdown-1, suchen, true )) {
+		if(block_reserver( touchdown, suchen+1, true )) {
 			route_index += 16;
 			state = flying2;
 		}
@@ -3329,7 +3336,7 @@ bool aircraft_t::ist_weg_frei(int & restart_speed)
 		if(find_route_to_stop_position()) {
 			// stop reservation successful
 			pos_next==cnv->get_route()->position_bei(route_index);
-			block_reserver( touchdown-1, suchen+1, false );
+			block_reserver( touchdown, suchen+1, false );
 			state = taxiing;
 			return true;
 		}
@@ -3357,7 +3364,7 @@ void aircraft_t::betrete_feld()
 	vehikel_t::betrete_feld();
 
 	if((state==flying2  ||  state==flying)  &&  route_index+6u>=touchdown) {
-		const sint16 landehoehe = height_scaling(cnv->get_route()->position_bei(touchdown).z)+(touchdown-route_index);
+		const sint16 landehoehe = height_scaling(cnv->get_route()->position_bei(touchdown).z)+(touchdown-route_index+1);
 		const sint16 current_height = height_scaling(get_pos().z) + (flughoehe*Z_TILE_STEP)/TILE_HEIGHT_STEP;
 		if(landehoehe<=current_height) {
 			state = landing;
@@ -3439,7 +3446,7 @@ void aircraft_t::set_convoi(convoi_t *c)
 				block_reserver( takeoff, takeoff+100, false );
 			}
 			else if(route_index>=touchdown-1  &&  state!=taxiing) {
-				block_reserver( touchdown-1, suchen, false );
+				block_reserver( touchdown, suchen+1, false );
 			}
 		}
 	}
@@ -3461,7 +3468,7 @@ void aircraft_t::set_convoi(convoi_t *c)
 				block_reserver( takeoff, takeoff+100, true );
 			}
 			else if(route_index>=touchdown-1  &&  state!=taxiing) {
-				block_reserver( touchdown-1, suchen, true );
+				block_reserver( touchdown, suchen+1, true );
 			}
 		}
 	}
@@ -3528,7 +3535,7 @@ bool aircraft_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, route
 			block_reserver( takeoff, takeoff+100, false );
 		}
 		else if(route_index>=touchdown-1  &&  state!=taxiing) {
-			block_reserver( touchdown-1, suchen, false );
+			block_reserver( touchdown, suchen+1, false );
 		}
 	}
 	target_halt = halthandle_t();	// no block reserved
@@ -3573,17 +3580,17 @@ bool aircraft_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, route
 		}
 		// save the route
 		search_start = route->back();
-//DBG_MESSAGE("aircraft_t::calc_route()","start at ground at %i,%i,%i",search_start.x,search_start.y,search_start.z);
+		//DBG_MESSAGE("aircraft_t::calc_route()","start at ground (%s)",search_start.get_str());
 	}
 
 	// second: find target runway end
 	state = taxiing_to_halt;	// only used for search
 #ifdef USE_DIFFERENT_WIND
 	approach_dir = get_approach_ribi( start, ziel );	// reverse
-//DBG_MESSAGE("aircraft_t::calc_route()","search runway target near %i,%i,%i in corners %x",ziel.x,ziel.y,ziel.z,approach_dir);
+	//DBG_MESSAGE("aircraft_t::calc_route()","search runway target near %i,%i,%i in corners %x",ziel.x,ziel.y,ziel.z,approach_dir);
 #else
 	approach_dir = ribi_t::suedwest;	// reverse
-//DBG_MESSAGE("aircraft_t::calc_route()","search runway target near %i,%i,%i in corners %x",ziel.x,ziel.y,ziel.z);
+	//DBG_MESSAGE("aircraft_t::calc_route()","search runway target near %i,%i,%i in corners %x",ziel.x,ziel.y,ziel.z);
 #endif
 	route_t end_route;
 
@@ -3596,7 +3603,7 @@ bool aircraft_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, route
 		// save target route
 		search_end = end_route.back();
 	}
-//DBG_MESSAGE("aircraft_t::calc_route()","ziel now %i,%i,%i",search_end.x,search_end.y,search_end.z);
+	//DBG_MESSAGE("aircraft_t::calc_route()","end at ground (%s)",search_end.get_str());
 
 	// create target route
 	if(!start_in_the_air) {
@@ -3627,11 +3634,11 @@ bool aircraft_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, route
 				return false;
 			}
 			// need some extra step to avoid 180 deg turns
-			if( start_dir.x!=0  &&  sgn(start_dir.x)==sgn(search_end.x-search_start.x)  ) {
-				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord(0,(search_end.y>search_start.y) ? 2 : -2 ) )->get_pos() );
+			if( start_dir.x!=0  &&  sgn(start_dir.x)!=sgn(search_end.x-search_start.x)  ) {
+				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord(0,(search_end.y>search_start.y) ? 1 : -1 ) )->get_pos() );
 				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord(0,(search_end.y>search_start.y) ? 2 : -2 ) )->get_pos() );
 			}
-			else if( start_dir.y!=0  &&  sgn(start_dir.y)==sgn(search_end.y-search_start.y)  ) {
+			else if( start_dir.y!=0  &&  sgn(start_dir.y)!=sgn(search_end.y-search_start.y)  ) {
 				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord((search_end.x>search_start.x) ? 1 : -1 ,0) )->get_pos() );
 				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord((search_end.x>search_start.x) ? 2 : -2 ,0) )->get_pos() );
 			}
@@ -3710,7 +3717,6 @@ bool aircraft_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, route
 		static const koord circle_koord[16]={ koord(0,1), koord(0,1), koord(1,0), koord(0,1), koord(1,0), koord(1,0), koord(0,-1), koord(1,0), koord(0,-1), koord(0,-1), koord(-1,0), koord(0,-1), koord(-1,0), koord(-1,0), koord(0,1), koord(-1,0) };
 
 		// circle to the left
-		route->append( welt->lookup_kartenboden(circlepos)->get_pos() );
 		for(  int  i=0;  i<16;  i++  ) {
 			circlepos += circle_koord[(offset+i+16)%16];
 			if(welt->ist_in_kartengrenzen(circlepos)) {
@@ -3845,8 +3851,12 @@ void aircraft_t::display_after(int xpos_org, int ypos_org, bool is_global) const
 		int xpos = xpos_org, ypos = ypos_org;
 
 		const int raster_width = get_current_tile_raster_width();
+		const sint16 z = get_pos().z;
+		if (z + flughoehe/TILE_HEIGHT_STEP - 1 > grund_t::underground_level) {
+			return;
+		}
+		const sint16 target = target_height - ((sint16)z*TILE_HEIGHT_STEP)/Z_TILE_STEP;
 		sint16 current_flughohe = flughoehe;
-		const sint16 target = target_height - ((sint16)get_pos().z*TILE_HEIGHT_STEP)/Z_TILE_STEP;
 		if(  current_flughohe < target  ) {
 			current_flughohe += (steps*TILE_HEIGHT_STEP) >> 8;
 		}
@@ -3869,3 +3879,13 @@ void aircraft_t::display_after(int xpos_org, int ypos_org, bool is_global) const
 		vehikel_t::display_after( xpos_org, ypos_org, is_global );
 	}
 }
+
+
+const char * aircraft_t::ist_entfernbar(const spieler_t *sp)
+{
+	if (is_on_ground()) {
+		return vehikel_t::ist_entfernbar(sp);
+	}
+	return NULL;
+}
+
