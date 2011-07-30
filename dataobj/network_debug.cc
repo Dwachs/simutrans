@@ -97,6 +97,10 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 			buf.append("ERR: server did not respond<br>\n");
 			return;
 		}
+		if(nwd->state == nwc_debug_t::no_data) {
+			buf.printf("ERR: no data for sync-step %d available anymore<br>\n", first_failed->sync_step);
+			return;
+		}
 		buf.printf("<br><h1>Log message of sync-step %d</h1><br>", first_failed->sync_step);
 		// pointer to start of current messages
 		const char* mc = (const char*)(first_failed->buf);
