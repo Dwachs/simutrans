@@ -35,6 +35,7 @@
 #include "besch/vehikel_besch.h"
 #include "besch/roadsign_besch.h"
 
+#include "dataobj/network_debug.h"
 #include "dataobj/fahrplan.h"
 #include "dataobj/route.h"
 #include "dataobj/loadsave.h"
@@ -2495,6 +2496,7 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 	// only load vehicles in station
 	// don't load when vehicle is being withdrawn
 	bool changed_loading_level = false;
+	network_debug_add("cnv %d at %s", self.get_id(), halt->get_name());
 	for(unsigned i=0; i<anz_vehikel; i++) {
 		vehikel_t* v = fahr[i];
 
