@@ -119,7 +119,7 @@ uint32 simrand_dbg(const uint32 max, const char* file, int line)
 #ifdef DEBUG_DESYNC
 	assert( file );
 	assert( line);
-	nwc_debug_t::add_msg(file, line, "simrand mode=%d rand[%d]=%d (%d)\n", random_origin, rand_idx, rand, max );
+	nwc_debug_t::add_msg(file, line, "simrand mode=%d rand[%d]=%d (%d)", random_origin, rand_idx, rand, max );
 #endif
 	return rand;
 }
