@@ -110,13 +110,13 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 			equal = false;
 		}
 		// advance till end of string / end of line if necessary
-		if (*ps  &&  *ps < 32) {
+		if (*ps  &&  *ps == '\n') {
 			eol = true;
-			for (; (*pc)  &&  (*pc)>=32; pc++) {}
+			for (; (*pc)  &&  (*pc) != '\n'; pc++) {}
 		}
-		else if  (*pc  &&  *pc < 32) {
+		else if  (*pc  &&  *pc == '\n') {
 			eol = true;
-			for (; (*ps)  &&  (*ps)>=32; ps++) {}
+			for (; (*ps)  &&  (*ps) != '\n'; ps++) {}
 		}
 		// output
 		if (eol) {

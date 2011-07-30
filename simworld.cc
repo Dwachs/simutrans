@@ -5799,13 +5799,13 @@ bool karte_t::interactive(uint32 quit_month)
 					}
 					network_debug_new_sync_step(sync_steps+1);
 					sync_step( fix_ratio_frame_time, true, true );
-					network_debug_add("completed syncstep %d randomseed %d\n", sync_steps+1, get_random_seed());
+					network_debug_add("completed syncstep %d randomseed %d", sync_steps+1, get_random_seed());
 
 					if (++network_frame_count == settings.get_frames_per_step()) {
 						// ever fourth frame
 						set_random_mode( STEP_RANDOM );
 						step();
-						network_debug_add("completed step %d\n", steps);
+						network_debug_add("completed step %d", steps);
 						clear_random_mode( STEP_RANDOM );
 						network_frame_count = 0;
 					}
