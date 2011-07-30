@@ -287,7 +287,7 @@ void nwc_debug_t::add_msg(const char* file, int line, const char* fmt, ...)
 	node->buf.printf("%s:%d:_%s\n", filename, line, msg);
 
 	// checksum
-	node->chk.input(file);
+	node->chk.input(filename);
 	node->chk.input((uint16)line);
 	node->chk.input(msg);
 }
