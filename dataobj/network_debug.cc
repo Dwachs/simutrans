@@ -179,6 +179,8 @@ bool nwc_debug_t::execute(karte_t *)
 {
 	if (umgebung_t::server) {
 		if (state == get_chk  ||  state == get_msg) {
+			// mark client as not playing
+			socket_list_t::change_state(socket_list_t::get_client_id(packet->get_sender()), socket_info_t::connected);
 			// assume no data
 			nwc_debug_t nwd(no_data, info.empty() ? (uint32)-1 : info.front()->sync_step);
 			// search for node
