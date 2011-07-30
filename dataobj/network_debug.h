@@ -9,7 +9,7 @@
 
 #define network_debug_add(fmt, ...)            nwc_debug_t::add_msg(__FILE__, __LINE__, fmt, __VA_ARGS__)
 #define network_debug_new_sync_step(sync_step) nwc_debug_t::new_sync_step(sync_step)
-
+checksum_t network_debug_get_chk();
 void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf);
 /**
  * nwc_gameinfo_t

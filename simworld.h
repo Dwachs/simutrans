@@ -56,7 +56,19 @@ struct checklist_t
 	uint16 halt_entry;
 	uint16 line_entry;
 	uint16 convoy_entry;
+#ifdef DEBUG_DESYNC
+	checksum_t chk;
 
+	checklist_t() : random_seed(0), halt_entry(0), line_entry(0), convoy_entry(0), chk() { }
+	checklist_t(uint32 _random_seed, uint16 _halt_entry, uint16 _line_entry, uint16 _convoy_entry, checksum_t _chk)
+		: random_seed(_random_seed), halt_entry(_halt_entry), line_entry(_line_entry), convoy_entry(_convoy_entry), chk(_chk) { }
+
+	bool operator == (const checklist_t &other) const
+	{
+		return ( random_seed==other.random_seed && halt_entry==other.halt_entry && line_entry==other.line_entry && convoy_entry==other.convoy_entry  && chk==other.chk);
+	}
+	bool operator != (const checklist_t &other) const { return !( (*this)==other ); }
+#else
 	checklist_t() : random_seed(0), halt_entry(0), line_entry(0), convoy_entry(0) { }
 	checklist_t(uint32 _random_seed, uint16 _halt_entry, uint16 _line_entry, uint16 _convoy_entry)
 		: random_seed(_random_seed), halt_entry(_halt_entry), line_entry(_line_entry), convoy_entry(_convoy_entry) { }
@@ -67,6 +79,7 @@ struct checklist_t
 	}
 	bool operator != (const checklist_t &other) const { return !( (*this)==other ); }
 
+#endif
 	void rdwr(memory_rw_t *buffer);
 	int print(char *buffer, const char *entity) const;
 };

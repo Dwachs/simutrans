@@ -61,6 +61,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		else {
 			buf.printf("WARN:_no_data_for_sync_step_%d_available,_earliest_available_is_%d<br>\n", node->sync_step, nwd->sync_step);
 		}
+		delete nwd;
 	}
 	if(first_failed == NULL) {
 		buf.append("ERR: all checksums identic. the end.<br>\n");
@@ -117,7 +118,6 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		// pointer to start of current messages
 		const char* mc = (const char*)(first_failed->buf);
 		const char* ms = (const char*)(*nwd->pbuf);
-		buf.printf("strcmp = %d<br>", strcmp(mc,ms));
 		// now loop through the strings
 		const char* pc = mc;
 		const char* ps = ms;
@@ -179,6 +179,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		else {
 			buf.printf("ERR: could not open file %s<br>\n", filename);
 		}
+		delete nwd;
 	}
 
 	return;
@@ -282,6 +283,20 @@ void nwc_debug_t::new_sync_step(uint32 syncstep)
 	}
 	else {
 		info.append( new node_t(syncstep) );
+	}
+}
+
+
+checksum_t network_debug_get_chk()
+{
+	if (nwc_debug_t::info.get_count() > 1) {
+		return nwc_debug_t::info[ nwc_debug_t::info.get_count()-2 ]->chk;
+	}
+	else {
+		checksum_t chk;
+		chk.input("empty");
+		chk.finish();
+		return chk;
 	}
 }
 

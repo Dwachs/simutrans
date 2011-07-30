@@ -132,6 +132,9 @@ void checklist_t::rdwr(memory_rw_t *buffer)
 	buffer->rdwr_short(halt_entry);
 	buffer->rdwr_short(line_entry);
 	buffer->rdwr_short(convoy_entry);
+#ifdef DEBUG_DESYNC
+	chk.rdwr(buffer);
+#endif
 }
 
 
@@ -5810,7 +5813,11 @@ bool karte_t::interactive(uint32 quit_month)
 						network_frame_count = 0;
 					}
 					sync_steps = steps * settings.get_frames_per_step() + network_frame_count;
+#ifdef DEBUG_DESYNC
+					LCHKLST(sync_steps) = checklist_t(get_random_seed(), halthandle_t::get_next_check(), linehandle_t::get_next_check(), convoihandle_t::get_next_check(), network_debug_get_chk());
+#else
 					LCHKLST(sync_steps) = checklist_t(get_random_seed(), halthandle_t::get_next_check(), linehandle_t::get_next_check(), convoihandle_t::get_next_check());
+#endif
 					// some serverside tasks
 					if(  umgebung_t::networkmode  &&  umgebung_t::server  ) {
 						// broadcast sync info
