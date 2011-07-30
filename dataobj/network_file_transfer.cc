@@ -207,7 +207,9 @@ end:
 		const uint32 id = socket_list_t::get_client_id(my_client_socket);
 		socket_list_t::change_state(id, socket_info_t::playing);
 		// TODO ask server for length of ring list
+#ifdef DEBUG_DESYNC
 		nwc_debug_t::init( 513 );
+#endif
 	}
 	return err;
 }

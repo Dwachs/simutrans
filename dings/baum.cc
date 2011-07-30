@@ -58,8 +58,8 @@ DBG_MESSAGE("verteile_baeume()","creating %i forest",c_forest_count);
 		// to have same execution order for simrand
 		koord const start = koord::koord_random(x, y);
 		koord const size  = koord(t_forest_size,t_forest_size) + koord::koord_random(t_forest_size, t_forest_size);
-		network_add_debug("pos=(%s)", start.get_str());
-		network_add_debug("pos=(%s)", size.get_str());
+		network_debug_add("pos=(%s)", start.get_str());
+		network_debug_add("pos=(%s)", size.get_str());
 		create_forest( welt, start, size );
 	}
 

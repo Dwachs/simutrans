@@ -1,12 +1,14 @@
 #ifndef _NETWORK_DEBUG_H_
 #define _NETWORK_DEBUG_H_
 
+#ifdef DEBUG_DESYNC
+
 #include "network_cmd.h"
 #include "../utils/cbuffer_t.h"
 #include "../utils/checksum.h"
 
-
-#define network_add_debug(fmt, ...) nwc_debug_t::add_msg(__FILE__, __LINE__, fmt, __VA_ARGS__);
+#define network_debug_add(fmt, ...)            nwc_debug_t::add_msg(__FILE__, __LINE__, fmt, __VA_ARGS__)
+#define network_debug_new_sync_step(sync_step) nwc_debug_t::new_sync_step(sync_step)
 
 void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf);
 /**
@@ -27,7 +29,7 @@ public:
 		end_dbg  = 255  // end of communication
 	};
 
-	nwc_debug_t(dbg_state state_=end_dbg, uint32 sync_step_=0) : network_command_t(NWC_DEBUG), 
+	nwc_debug_t(dbg_state state_=end_dbg, uint32 sync_step_=0) : network_command_t(NWC_DEBUG),
 		state(state_), sync_step(sync_step_), chk(), pbuf(NULL) {}
 
 	~nwc_debug_t() { if (pbuf) delete pbuf; }
@@ -61,5 +63,12 @@ public:
 	checksum_t chk;
 	cbuffer_t* pbuf;
 };
+
+#else
+
+#define network_debug_add(fmt, ...)            (void)(fmt)
+#define network_debug_new_sync_step(sync_step) (void)(sync_step)
+
+#endif // ifdef DEBUG_DESYNC
 
 #endif

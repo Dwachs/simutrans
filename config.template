@@ -52,6 +52,7 @@
 # DEBUG_ROUTES: show routing calculation information in minimap
 # SHOW_FORE_GRUND: show which objects are drawn as foreground
 # DEBUG_FLUSH_BUFFER: show the dirty areas on the screen
+# DEBUG_DESYNC: to enable remote debugging for desyncs
 #
 # Following flags alter game engine (and are off for standard builds)
 # OTTD_LIKE: Enables half height tiles and crossconnects all industries

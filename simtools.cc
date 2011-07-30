@@ -1,13 +1,15 @@
 #include <assert.h>
 #include <math.h>
 #include "simtools.h"
-// for logging
-#include "dataobj/umgebung.h"
-#include "dataobj/network_debug.h"
-#ifdef _MSC_VER
-#include <direct.h>
-#else
-#include <unistd.h>
+
+#ifdef DEBUG_DESYNC
+#	include "dataobj/umgebung.h"
+#	include "dataobj/network_debug.h"
+#	ifdef _MSC_VER // for chdir
+#		include <direct.h>
+#	else
+#		include <unistd.h>
+#	endif
 #endif
 
 /* This is the mersenne random generator: More random and faster! */
@@ -24,8 +26,10 @@ static int mersenne_twister_index = MERSENNE_TWISTER_N + 1; // mersenne_twister_
 
 static uint8 random_origin = 0;
 
+#ifdef DEBUG_DESYNC
 // counts calls since last get/set_random_seed
 static int rand_idx = 0;
+#endif
 
 
 /* initializes mersenne_twister[N] with a seed */
@@ -75,7 +79,7 @@ uint32 get_random_seed()
 	if (mersenne_twister_index >= MERSENNE_TWISTER_N) { /* generate N words at one time */
 		MTgenerate();
 	}
-#ifdef DEBUG_RANDOM
+#ifdef DEBUG_DESYNC
 	rand_idx = 0;
 #endif
 	return mersenne_twister[mersenne_twister_index];
@@ -112,7 +116,7 @@ uint32 simrand_dbg(const uint32 max, const char* file, int line)
 		return 0;
 	}
 	uint32 rand = simrand_plain() % max;
-#ifdef DEBUG_RANDOM
+#ifdef DEBUG_DESYNC
 	assert( file );
 	assert( line);
 	nwc_debug_t::add_msg(file, line, "simrand mode=%d rand[%d]=%d (%d)\n", random_origin, rand_idx, rand, max );

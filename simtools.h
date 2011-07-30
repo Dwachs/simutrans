@@ -4,9 +4,6 @@
 #include <stddef.h>
 #include "simtypes.h"
 
-#define DEBUG_RANDOM
-
-
 uint32 get_random_seed();
 
 uint32 setsimrand(uint32 seed, uint32 noise_seed);
@@ -19,7 +16,7 @@ uint32 sim_async_rand(const uint32 max);
 
 /* generates a random number on [0,max-1]-interval */
 uint32 simrand_dbg(const uint32 max, const char* file=0, int line=0);
-#ifdef DEBUG_RANDOM
+#ifdef DEBUG_DESYNC
 #	define simrand(i) simrand_dbg((i), __FILE__, __LINE__)
 #else
 #	define simrand(i) simrand_dbg((i))

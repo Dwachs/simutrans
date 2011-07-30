@@ -47,7 +47,9 @@ network_command_t* network_command_t::read_from_packet(packet_t *p)
 		case NWC_CHECK:       nwc = new nwc_check_t(); break;
 		case NWC_PAKSETINFO:  nwc = new nwc_pakset_info_t(); break;
 		case NWC_SERVICE:     nwc = new nwc_service_t(); break;
+#ifdef DEBUG_DESYNC
 		case NWC_DEBUG:       nwc = new nwc_debug_t(); break;
+#endif
 		default:
 			dbg->warning("network_command_t::read_from_socket", "received unknown packet id %d", p->get_id());
 	}

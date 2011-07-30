@@ -374,6 +374,8 @@ bool network_init_server( int port )
 	clear_command_queue();
 #ifndef NETTOOL
 	nwc_ready_t::clear_map_counters();
+#endif
+#ifdef DEBUG_DESYNC
 	nwc_debug_t::init( max(513, 2*umgebung_t::server_sync_steps_between_checks + 31) );
 #endif
 	return true;
@@ -699,6 +701,8 @@ void network_reset_server()
 	socket_list_t::reset_clients();
 #ifndef NETTOOL
 	nwc_ready_t::clear_map_counters();
+#endif
+#ifdef DEBUG_DESYNC
 	nwc_debug_t::init( max(513, 2*umgebung_t::server_sync_steps_between_checks + 31) );
 #endif
 }

@@ -5797,15 +5797,15 @@ bool karte_t::interactive(uint32 quit_month)
 						next_step_time += 5;
 						ms_difference += 5;
 					}
-					nwc_debug_t::new_sync_step(sync_steps+1);
+					network_debug_new_sync_step(sync_steps+1);
 					sync_step( fix_ratio_frame_time, true, true );
-					network_add_debug("completed syncstep %d randomseed %d\n", sync_steps+1, get_random_seed());
+					network_debug_add("completed syncstep %d randomseed %d\n", sync_steps+1, get_random_seed());
 
 					if (++network_frame_count == settings.get_frames_per_step()) {
 						// ever fourth frame
 						set_random_mode( STEP_RANDOM );
 						step();
-						network_add_debug("completed step %d\n", steps);
+						network_debug_add("completed step %d\n", steps);
 						clear_random_mode( STEP_RANDOM );
 						network_frame_count = 0;
 					}
@@ -5904,6 +5904,7 @@ void karte_t::announce_server()
 void karte_t::network_disconnect(bool debug_desync, uint32 sync)
 {
 	help_frame_t *win = NULL;
+#ifdef DEBUG_DESYNC
 	if(debug_desync) {
 		cbuffer_t buf;
 		network_debug_desync(sync, buf);
@@ -5911,6 +5912,7 @@ void karte_t::network_disconnect(bool debug_desync, uint32 sync)
 		win = new help_frame_t();
 		win->set_text((const char*)buf);
 	}
+#endif
 	// force disconnect
 	dbg->warning("karte_t::network_disconnect()", "Lost synchronisation with server.");
 	network_core_shutdown();

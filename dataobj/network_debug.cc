@@ -24,7 +24,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 	for(slist_tpl<node_t*>::iterator iter = info.begin(), end = info.end(); iter!=end; ++iter)
 	{
 		node_t *node = *iter;
-		// request info		
+		// request info
 		nwc_debug_t nwc(nwc_debug_t::get_chk, node->sync_step);
 		dbg->message("network_debug_desync", "request sync-step=%d", node->sync_step);
 		if(!nwc.send(sock)) {
@@ -73,7 +73,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 	buf.printf("checksums at %d differ<br>\n", first_failed->sync_step);
 
 	// now obtain the log string and compare it
-	// request string		
+	// request string
 	{
 		nwc_debug_t nwc(nwc_debug_t::get_msg, first_failed->sync_step);
 		dbg->message("network_debug_desync", "request msg ss=%d", first_failed->sync_step);
@@ -137,7 +137,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 			eol = false;
 			equal = true;
 		}
-		
+
 		if (*pc) pc++;
 		if (*ps) ps++;
 	}
