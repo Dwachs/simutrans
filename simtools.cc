@@ -173,6 +173,9 @@ uint32 setsimrand(uint32 seed,uint32 ns)
 	if(noise_seed!=0xFFFFFFFF) {
 		noise_seed = ns*15731;
 	}
+#ifdef DEBUG_DESYNC
+	rand_idx = 0;
+#endif
 	return old_noise_seed;
 }
 
