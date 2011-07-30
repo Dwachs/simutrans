@@ -396,6 +396,7 @@ void nwc_sync_t::do_command(karte_t *welt)
 		nwc_join_t::pending_join_client = INVALID_SOCKET;
 #ifdef DEBUG_DESYNC
 		nwc_debug_t::info.clear();
+		get_random_seed();
 #endif
 	}
 	// restore screen coordinates & offsets
