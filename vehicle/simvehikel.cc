@@ -11,6 +11,8 @@
  * Hansjoerg Malthaner, Nov. 1999
  */
 
+#include "../dataobj/network_debug.h"
+
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -3361,6 +3363,7 @@ bool aircraft_t::ist_weg_frei(int & restart_speed)
 void aircraft_t::betrete_feld()
 {
 	vehikel_t::betrete_feld();
+	network_debug_add("air %d at (%s)", cnv->self.get_id(), get_pos().get_str());
 
 	if((state==flying2  ||  state==flying)  &&  route_index+6u>=touchdown) {
 		const sint16 landehoehe = height_scaling(cnv->get_route()->position_bei(touchdown).z)+(touchdown-route_index+1);
