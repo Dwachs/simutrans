@@ -3,6 +3,8 @@
 #include "network_socket_list.h"
 #include "umgebung.h"
 #include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
 #ifdef _MSC_VER
 #include <direct.h>
 #else
@@ -80,85 +82,86 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		if(!nwc.send(sock)) {
 			goto send_error;
 		}
-	}
-	nwc_debug_t *nwd = NULL;
-	// wait for nwc_debug_t, ignore other commands
-	for(uint8 i=0; i<5; i++) {
-		network_command_t* nwc = network_check_activity( NULL, 10000 );
-		if (nwc  &&  nwc->get_id() == NWC_DEBUG) {
-			nwd = (nwc_debug_t*)nwc;
-			break;
-		}
-		delete nwc;
-	}
-	if(nwd == NULL) {
-		buf.append("ERR: server did not respond<br>\n");
-		return;
-	}
-	buf.printf("<br><h1>Log message of sync-step %d</h1><br>", first_failed->sync_step);
-	// pointer to start of current messages
-	const char* mc = (const char*)(first_failed->buf);
-	const char* ms = (const char*)(*nwd->pbuf);
-	// now loop through the strings
-	const char* pc = mc;
-	const char* ps = ms;
-	bool equal = true;
-	bool eol = false;
-	while((*pc)  ||  (*ps)) {
-		// compare
-		if (equal  &&  (*ps)!=(*pc)) {
-			equal = false;
-		}
-		// advance till end of string / end of line if necessary
-		if (*ps  &&  *ps == '\n') {
-			eol = true;
-			for (; (*pc)  &&  (*pc) != '\n'; pc++) {}
-		}
-		else if  (*pc  &&  *pc == '\n') {
-			eol = true;
-			for (; (*ps)  &&  (*ps) != '\n'; ps++) {}
-		}
-		// output
-		if (eol) {
-			if (equal) {
-				std::string str_c(mc, pc-mc);
-				buf.printf("%s<br>", str_c.c_str());
+
+		nwc_debug_t *nwd = NULL;
+		// wait for nwc_debug_t, ignore other commands
+		for(uint8 i=0; i<5; i++) {
+			network_command_t* nwc = network_check_activity( NULL, 10000 );
+			if (nwc  &&  nwc->get_id() == NWC_DEBUG) {
+				nwd = (nwc_debug_t*)nwc;
+				break;
 			}
-			else {
-				std::string str_c(mc, pc-mc);
-				buf.printf("<em>&gt;&gt;client&gt;&gt;</em><br><em>%s</em><br>", str_c.c_str());
-				std::string str_s(ms, ps-ms);
-				buf.printf("====<br><st>%s<br>&lt;&lt;server&lt;&lt;</st><br>", str_s.c_str());
+			delete nwc;
+		}
+		if(nwd == NULL) {
+			buf.append("ERR: server did not respond<br>\n");
+			return;
+		}
+		buf.printf("<br><h1>Log message of sync-step %d</h1><br>", first_failed->sync_step);
+		// pointer to start of current messages
+		const char* mc = (const char*)(first_failed->buf);
+		const char* ms = (const char*)(*nwd->pbuf);
+		// now loop through the strings
+		const char* pc = mc;
+		const char* ps = ms;
+		bool equal = true;
+		bool eol = false;
+		while((*pc)  ||  (*ps)) {
+			// compare
+			if (equal  &&  (*ps)!=(*pc)) {
+				equal = false;
 			}
-			for (; (*pc)  &&  (*pc)<32; pc++) {}
-			for (; (*ps)  &&  (*ps)<32; ps++) {}
-			mc = pc;
-			ms = ps;
-			eol = false;
-			equal = true;
+			// advance till end of string / end of line if necessary
+			if (*ps  &&  *ps == '\n') {
+				eol = true;
+				for (; (*pc)  &&  (*pc) != '\n'; pc++) {}
+			}
+			else if  (*pc  &&  *pc == '\n') {
+				eol = true;
+				for (; (*ps)  &&  (*ps) != '\n'; ps++) {}
+			}
+			// output
+			if (eol) {
+				if (equal) {
+					std::string str_c(mc, pc-mc);
+					buf.printf("%s<br>", str_c.c_str());
+				}
+				else {
+					std::string str_c(mc, pc-mc);
+					buf.printf("<em>&gt;&gt;client&gt;&gt;</em><br><em>%s</em><br>", str_c.c_str());
+					std::string str_s(ms, ps-ms);
+					buf.printf("====<br><st>%s<br>&lt;&lt;server&lt;&lt;</st><br>", str_s.c_str());
+				}
+				for (; (*pc)  &&  (*pc)<32; pc++) {}
+				for (; (*ps)  &&  (*ps)<32; ps++) {}
+				mc = pc;
+				ms = ps;
+				eol = false;
+				equal = true;
+			}
+
+			if (*pc) pc++;
+			if (*ps) ps++;
 		}
 
-		if (*pc) pc++;
-		if (*ps) ps++;
-	}
-
-	// finally put everything into a log-file
-	chdir( umgebung_t::user_dir );
-	const char* filename = "desync.log";
-	if (FILE *f = fopen(filename, "wb")) {
-		fprintf(f, "Check failed at sync-step=%d\n", check_failed_sync_step);
-		if (last_success) {
-			fprintf(f, "Last identic checksum at sync-step=%d\n", last_success->sync_step);
-			fprintf(f, "-- Client log --\n%s\n", (const char*)last_success->buf);
+		// finally put everything into a log-file
+		chdir( umgebung_t::user_dir );
+		const char* filename = "desync.log";
+		if (FILE *f = fopen(filename, "wb")) {
+			fprintf(f, "Check failed at sync-step=%d\n", check_failed_sync_step);
+			if (last_success) {
+				fprintf(f, "Last identic checksum at sync-step=%d\n", last_success->sync_step);
+				fprintf(f, "-- Client log --\n%s\n", (const char*)last_success->buf);
+			}
+			fprintf(f, "First failed checksum at sync-step=%d\n", first_failed->sync_step);
+			fprintf(f, "-- Client log --\n%s\n", (const char*)first_failed->buf);
+			fprintf(f, "-- Server log --\n%s\n", (const char*)(*nwd->pbuf));
+			fclose(f);
+			buf.printf("Wrote report to file %s<br>\n", filename);
 		}
-		fprintf(f, "First failed checksum at sync-step=%d\n", first_failed->sync_step);
-		fprintf(f, "-- Client log --\n%s\n", (const char*)first_failed->buf);
-		fprintf(f, "-- Server log --\n%s\n", (const char*)(*nwd->pbuf));
-		fclose(f);
-		buf.printf("Wrote report to file %s<br>\n", filename);
-	}
-	else {
-		buf.printf("ERR: could not open file %s<br>\n", filename);
+		else {
+			buf.printf("ERR: could not open file %s<br>\n", filename);
+		}
 	}
 
 	return;
@@ -268,7 +271,7 @@ void nwc_debug_t::add_msg(const char* file, int line, const char* fmt, ...)
 	char msg[256];
 	va_list ap;
 	va_start(ap, fmt);
-	int count = vsnprintf( msg, lengthof(msg), fmt, ap);
+	vsnprintf( msg, lengthof(msg), fmt, ap);
 	va_end(ap);
 
 	for(uint16 i=0; i<lengthof(msg)  &&  msg[i]; i++) {

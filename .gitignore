@@ -13,4 +13,6 @@
 *.diff
 *.patch
 *.rej
-
+*.o
+*.d
+/.build
