@@ -1622,6 +1622,8 @@ karte_t::karte_t() :
 	show_distance = koord3d::invalid;
 	scenario = NULL;
 
+	map_counter = 0;
+
 	msg = new message_t(this);
 }
 
