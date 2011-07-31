@@ -114,6 +114,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 			}
 		} while (nwd->state == nwc_debug_t::cont_msg);
 
+		std::string differ;
 		buf.printf("<br><h1>Log message of sync-step %d</h1><br>", first_failed->sync_step);
 		// pointer to start of current messages
 		const char* mc = (const char*)(first_failed->buf);
@@ -140,14 +141,21 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 			// output
 			if (eol) {
 				if (equal) {
-					std::string str_c(mc, pc-mc);
-					buf.printf("%s<br>", str_c.c_str());
+					//std::string str_c(mc, pc-mc);
+					//buf.printf("%s<br>", str_c.c_str());
 				}
 				else {
 					std::string str_c(mc, pc-mc);
 					buf.printf("<em>&gt;&gt;client&gt;&gt;</em><br><em>%s</em><br>", str_c.c_str());
 					std::string str_s(ms, ps-ms);
 					buf.printf("====<br><st>%s<br>&lt;&lt;server&lt;&lt;</st><br>", str_s.c_str());
+					// save first difference
+					differ.append(">> client >>\n");
+					differ.append(str_c);
+					differ.append("\n=====\n");
+					differ.append(str_s);
+					differ.append("<< server <<\n");
+					break;
 				}
 				for (; (*pc)  &&  (*pc)<32; pc++) {}
 				for (; (*ps)  &&  (*ps)<32; ps++) {}
@@ -166,6 +174,7 @@ void network_debug_desync(uint32 check_failed_sync_step, cbuffer_t &buf)
 		const char* filename = "desync.log";
 		if (FILE *f = fopen(filename, "wb")) {
 			fprintf(f, "Check failed at sync-step=%d\n", check_failed_sync_step);
+			fprintf(f, "First difference:\n%s", differ.c_str());
 			if (last_success) {
 				fprintf(f, "Last identic checksum at sync-step=%d\n", last_success->sync_step);
 				fprintf(f, "-- Client log --\n%s\n", (const char*)last_success->buf);
