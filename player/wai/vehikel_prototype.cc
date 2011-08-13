@@ -419,8 +419,14 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 	// TODO: wartungskosten fuer Strecke und Elektrifizierung einkalkulieren
 	if (proto.is_empty()) return 0x8000000000000000ll;
 
+	const uint32 total_capacity = proto.get_capacity(NULL);
 	const uint32 capacity = proto.get_capacity(freight);
-	const uint32 maintenance = proto.get_maintenance();
+	uint32 maintenance = proto.get_maintenance();
+
+	// penalize mixed capacities
+	if (capacity < total_capacity) {
+		maintenance += (maintenance * (total_capacity - capacity) ) / total_capacity;
+	}
 
 	if (min_trans > 0 && capacity * proto.max_speed < min_trans) {
 		return 0x8000000000000000ll;
