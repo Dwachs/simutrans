@@ -140,59 +140,59 @@ return_value_t *connector_generic_t::step()
 				}
 				// find locations of stations (special search for through stations)
 				uint8 found = 3 ^ through;
-				if (ok) {
-					for(uint8 i=0;  i<2; i++) {
-						for(uint8 j=0; j<2; j++) {
-							// Sometimes reverse route is the best - try both ends of the routes
-							uint32 n = j==0 ? 0 : bauigel.get_count()-1;
-							if( tile_list[i].is_contained( bauigel.get_route()[n]) ) { 
-								// through station
-								if (through & (i+1) ) {
-									grund_t * gr = welt->lookup(bauigel.get_route()[n]);
-									sp->get_log().message( "connector_generic_t::step", "found route to tile (%s)", gr->get_pos().get_str());
-									// now find the right neighbor
-									for(uint8 r=0; r<4; r++) {
-										grund_t *to;
-										// append the through station tile to the bauigel route
-										if (gr->get_neighbour(to, wt, koord::nsow[r])) {
-											sp->get_log().message( "connector_generic_t::step", "try neighbor (%s)", to->get_pos().get_str());
-											if (through_tile_list[i].is_contained(to->get_pos())) {
-												bool ribi_ok = !bauigel.get_route().is_contained(to->get_pos());
-												if (!ribi_ok) {
-													ribi_ok = ribi_t::ist_gerade(bauigel.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
-												}
-												if (ribi_ok) {
-													if (i==0) {
-														start = to->get_pos();
-													}
-													else {
-														ziel = to->get_pos();
-													}
-													sp->get_log().message( "connector_generic_t::step", "passt (%s)", to->get_pos().get_str());
-													found |= i+1;
+
+				for(uint8 i=0;  i<2; i++) {
+					for(uint8 j=0; j<2; j++) {
+						// Sometimes reverse route is the best - try both ends of the routes
+						uint32 n = j==0 ? 0 : bauigel.get_count()-1;
+						if( tile_list[i].is_contained( bauigel.get_route()[n]) ) { 
+							// through station
+							if (through & (i+1) ) {
+								grund_t * gr = welt->lookup(bauigel.get_route()[n]);
+								sp->get_log().message( "connector_generic_t::step", "found route to tile (%s)", gr->get_pos().get_str());
+								// now find the right neighbor
+								for(uint8 r=0; r<4; r++) {
+									grund_t *to;
+									// append the through station tile to the bauigel route
+									if (gr->get_neighbour(to, wt, koord::nsow[r])) {
+										sp->get_log().message( "connector_generic_t::step", "try neighbor (%s)", to->get_pos().get_str());
+										if (through_tile_list[i].is_contained(to->get_pos())) {
+											bool ribi_ok = !bauigel.get_route().is_contained(to->get_pos());
+											if (!ribi_ok) {
+												ribi_ok = ribi_t::ist_gerade(bauigel.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
+											}
+											if (ribi_ok) {
+												if (i==0) {
+													start = to->get_pos();
 												}
 												else {
-													sp->get_log().warning( "connector_generic_t::step", "passt nicht: (%s)", to->get_pos().get_str());
+													ziel = to->get_pos();
 												}
-												// TODO: catch the else branch here
+												sp->get_log().message( "connector_generic_t::step", "passt (%s)", to->get_pos().get_str());
+												found |= i+1;
 											}
+											else {
+												sp->get_log().warning( "connector_generic_t::step", "passt nicht: (%s)", to->get_pos().get_str());
+											}
+											// TODO: catch the else branch here
 										}
 									}
 								}
-								// generic station - can be built on top of the last tile
-							 	else {
-									if (i==0) {
-										start = bauigel.get_route()[n];
-									}
-									else {
-										ziel = bauigel.get_route()[n];
-									}
+							}
+							// generic station - can be built on top of the last tile
+						 	else {
+								if (i==0) {
+									start = bauigel.get_route()[n];
+								}
+								else {
+									ziel = bauigel.get_route()[n];
 								}
 							}
 						}
 					}
 				}
-				ok = ok && found == 3;
+
+				ok = found == 3;
 				if( !ok ) {
 					sp->get_log().warning( "connector_generic_t::step", "could not find places for road stations" );
 					return new_return_value(RT_TOTAL_FAIL);
