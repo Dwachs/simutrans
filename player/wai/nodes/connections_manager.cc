@@ -6,11 +6,12 @@
 #include "../../../simfab.h"
 #include "../../../simhalt.h"
 #include "../../../simline.h"
-#include "../../../dataobj/loadsave.h"
-#include "../../../vehicle/simvehikel.h"
 #include "../../../bauer/vehikelbauer.h"
 #include "../../../besch/vehikel_besch.h"
+#include "../../../dataobj/fahrplan.h"
+#include "../../../dataobj/loadsave.h"
 #include "../../../dataobj/route.h"
+#include "../../../vehicle/simvehikel.h"
 #include "../../../vehicle/simvehikel.h"
 #include "remover.h"
 
@@ -452,7 +453,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		sp->get_log().warning("freight_connection_t::get_final_report", "end %s", end.get_str());
 		sp->get_log().warning("freight_connection_t::get_final_report", "depot %s", depot.get_str());
 		if (start!=koord3d::invalid  &&  end!=koord3d::invalid) {
-			verbindung_e.calc_route(sp->get_welt(), start, end, test_driver, 0);
+			verbindung_e.calc_route(sp->get_welt(), start, end, test_driver, 0, 1);
 			// evaluate the route
 			for(uint32 i=0; i<verbindung_e.get_count(); i++) {
 				grund_t *gr = welt->lookup(verbindung_e.position_bei(i));
@@ -472,7 +473,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		}
 		// ..  then start->depot
 		if (start!=koord3d::invalid  &&  depot!=koord3d::invalid) {
-			verbindung_d.calc_route(sp->get_welt(), start, depot, test_driver, 0);
+			verbindung_d.calc_route(sp->get_welt(), start, depot, test_driver, 0, 1);
 			koord3d depot_end=start;
 			if (verbindung_d.get_count()>1) {
 				uint32 j;

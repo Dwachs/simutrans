@@ -94,7 +94,7 @@ return_value_t* remover_t::step()
 	// get a default vehikel
 	vehikel_besch_t remover_besch(wt, 500, vehikel_besch_t::diesel );
 	vehikel_t* test_driver = vehikelbauer_t::baue(start, sp, NULL, &remover_besch);
-	verbindung.calc_route(welt, start, end, test_driver, 0);
+	verbindung.calc_route(welt, start, end, test_driver, 0, 1);
 	test_driver->set_flag(ding_t::not_on_map);
 	delete test_driver;
 	if (verbindung.get_count()>1) {

@@ -1,8 +1,10 @@
 #include "vehikel_builder.h"
+#include "../../../simconvoi.h"
 #include "../../../simdepot.h"
 #include "../../../simworld.h"
 #include "../../../bauer/vehikelbauer.h"
 #include "../../../besch/vehikel_besch.h"
+#include "../../../dataobj/fahrplan.h"
 #include "../../../dataobj/loadsave.h"
 
 const char start_name[30] = "[S] awaiting start";

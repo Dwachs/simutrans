@@ -18,6 +18,7 @@
 #include "../../../bauer/hausbauer.h"
 #include "../../../besch/vehikel_besch.h"
 #include "../../../besch/weg_besch.h"
+#include "../../../dataobj/fahrplan.h"
 #include "../../../dataobj/loadsave.h"
 #include "../../../dataobj/route.h"
 #include "../../../ifc/fahrer.h"
