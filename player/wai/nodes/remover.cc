@@ -59,6 +59,10 @@ uint8 remover_t::check_position(koord3d pos)
 			return CP_ERROR;
 		}
 #endif
+		if (weg->get_besitzer() == NULL) {
+			// ignore city roads
+			return CP_IGNORE;
+		}
 	}
 	else {
 		return CP_FATAL;
