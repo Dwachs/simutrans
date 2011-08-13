@@ -10,10 +10,7 @@
 
 #include "convoihandle_t.h"
 #include "linehandle_t.h"
-#include "simconvoi.h"
 #include "simtypes.h"
-
-#include "dataobj/fahrplan.h"
 
 #include "tpl/minivec_tpl.h"
 #include "tpl/vector_tpl.h"
@@ -33,12 +30,12 @@
 class karte_t;
 class loadsave_t;
 class spieler_t;
+class schedule_t;
 
 class simline_t {
 
 public:
 	enum linetype { line = 0, truckline = 1, trainline = 2, shipline = 3, airline = 4, monorailline=5, tramline=6, maglevline=7, narrowgaugeline=8};
-	static uint8 convoi_to_line_catgory[MAX_CONVOI_COST];
 
 protected:
 	schedule_t * fpl;
@@ -132,16 +129,9 @@ public:
 	 * return fahrplan of line
 	 * @author hsiegeln
 	 */
-	schedule_t * get_schedule() { return fpl; }
+	schedule_t * get_schedule() const { return fpl; }
 
-	void set_schedule(schedule_t* fpl)
-	{
-		if (this->fpl) {
-			unregister_stops();
-			delete this->fpl;
-		}
-		this->fpl = fpl;
-	}
+	void set_schedule(schedule_t* fpl);
 
 	/*
 	 * get name of line
@@ -183,6 +173,8 @@ public:
 	sint64 get_finance_history(int month, int cost_type) { return financial_history[month][cost_type]; }
 
 	void book(sint64 amount, int cost_type) { financial_history[0][cost_type] += amount; }
+
+	static uint8 convoi_to_line_catgory(uint8 convoi_cost_type);
 
 	void new_month();
 

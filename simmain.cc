@@ -25,21 +25,17 @@
 #include "simhalt.h"
 #include "simimg.h"
 #include "simcolor.h"
-#include "simdepot.h"
 #include "simskin.h"
 #include "simconst.h"
 #include "boden/boden.h"
 #include "boden/wasser.h"
 #include "simcity.h"
-#include "simfab.h"
 #include "player/simplay.h"
 #include "simsound.h"
 #include "simintr.h"
 #include "simticker.h"
 #include "simmesg.h"
 #include "simwerkz.h"
-
-#include "linehandle_t.h"
 
 #include "simsys.h"
 #include "simgraph.h"
@@ -799,9 +795,6 @@ int simu_main(int argc, char** argv)
 	pakset_info_t::calculate_checksum();
 	pakset_info_t::debug();
 
-	// set overtaking offsets
-	vehikel_basis_t::set_overtaking_offsets( umgebung_t::drive_on_left );
-
 	printf("Reading menu configuration ...\n");
 	werkzeug_t::read_menu(umgebung_t::objfilename);
 
@@ -1216,6 +1209,8 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		umgebung_t::default_einstellungen.rdwr(&file);
 		file.close();
 	}
+
+	werkzeug_t::exit_menu();
 
 	welt->destroy();	// some compiler aparently do not like accessing welt during destroy
 	delete welt;

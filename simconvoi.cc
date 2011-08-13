@@ -1012,7 +1012,7 @@ void convoi_t::step()
 				vehikel_t* v = fahr[0];
 
 				int restart_speed=-1;
-				if (v->ist_weg_frei(restart_speed)) {
+				if (v->ist_weg_frei(restart_speed,false)) {
 					// can reserve new block => drive on
 					state = (steps_driven>=0) ? LEAVING_DEPOT : DRIVING;
 					if(haltestelle_t::get_halt(welt,v->get_pos(),besitzer_p).is_bound()) {
@@ -1041,7 +1041,7 @@ void convoi_t::step()
 		case WAITING_FOR_CLEARANCE:
 			{
 				int restart_speed=-1;
-				if (fahr[0]->ist_weg_frei(restart_speed)) {
+				if (fahr[0]->ist_weg_frei(restart_speed,false)) {
 					state = (steps_driven>=0) ? LEAVING_DEPOT : DRIVING;
 				}
 				if(restart_speed>=0) {
@@ -1138,7 +1138,7 @@ void convoi_t::new_month()
 		// check, if now free ...
 		// migh also reset the state!
 		int restart_speed=-1;
-		if (fahr[0]->ist_weg_frei(restart_speed)) {
+		if (fahr[0]->ist_weg_frei(restart_speed,false)) {
 			state = DRIVING;
 		}
 		if(restart_speed>=0) {
@@ -1815,7 +1815,7 @@ void convoi_t::vorfahren()
 
 		// to advance more smoothly
 		int restart_speed=-1;
-		if(fahr[0]->ist_weg_frei(restart_speed)) {
+		if(fahr[0]->ist_weg_frei(restart_speed,false)) {
 			// can reserve new block => drive on
 			if(haltestelle_t::get_halt(welt,k0,besitzer_p).is_bound()) {
 				fahr[0]->play_sound();
@@ -2715,7 +2715,7 @@ void convoi_t::book(sint64 amount, int cost_type)
 
 	financial_history[0][cost_type] += amount;
 	if (line.is_bound()) {
-		line->book(amount, simline_t::convoi_to_line_catgory[cost_type] );
+		line->book(amount, simline_t::convoi_to_line_catgory(cost_type) );
 	}
 
 	if(cost_type == CONVOI_TRANSPORTED_GOODS) {
@@ -3174,10 +3174,12 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 		if(  ribi_t::is_threeway(str->get_ribi()) ) {
 			return false;
 		}
-		if (ribi_t::ist_gerade(str->get_ribi())) {
-			time_overtaking -= VEHICLE_STEPS_PER_TILE<<16 / kmh_to_speed(str->get_max_speed());
-		} else {
-			time_overtaking -= diagonal_vehicle_steps_per_tile<<16 / kmh_to_speed(str->get_max_speed());
+
+		if(  ribi_t::ist_gerade(str->get_ribi())  ) {
+			time_overtaking -= (VEHICLE_STEPS_PER_TILE<<16) / kmh_to_speed(str->get_max_speed());
+		}
+		else {
+			time_overtaking -= (diagonal_vehicle_steps_per_tile<<16) / kmh_to_speed(str->get_max_speed());
 		}
 
 		// Check for other vehicles in facing direction

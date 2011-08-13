@@ -61,8 +61,8 @@ protected:
 	// true on slope (make calc_height much faster)
 	uint8 use_calc_height:1;
 
-	// true, if hop_check failed
-	uint8 hop_check_failed:1;
+	// if true, use offests to emulate driving on other side
+	uint8 drives_on_left:1;
 
 	sint8 dx, dy;
 
@@ -105,7 +105,7 @@ public:
 	static void set_overtaking_offsets( bool driving_on_the_left );
 
 	// if true, this convoi needs to restart for correct alignment
-	bool need_realignment();
+	bool need_realignment() const;
 
 	uint32 fahre_basis(uint32 dist);	// basis movement code
 
@@ -124,6 +124,8 @@ public:
 	ribi_t::ribi calc_set_richtung(koord start, koord ende);
 
 	ribi_t::ribi get_fahrtrichtung() const {return fahrtrichtung;}
+
+	koord3d get_pos_next() const {return pos_next;}
 
 	virtual waytype_t get_waytype() const = 0;
 
@@ -247,7 +249,7 @@ public:
 
 	virtual void rotate90();
 
-	virtual bool ist_weg_frei(int &/*restart_speed*/) {return true;}
+	virtual bool ist_weg_frei( int &/*restart_speed*/, bool /*second_check*/ ) { return true; }
 
 	virtual void betrete_feld();
 
@@ -307,10 +309,10 @@ public:
 
 	~vehikel_t();
 
-	void rauche();
+	void rauche() const;
 
 	/**
-	* Öffnet ein neues Beobachtungsfenster für das Objekt.
+	* Effnet ein neues Beobachtungsfenster fur das Objekt.
 	* @author Hj. Malthaner
 	*/
 	void zeige_info();
@@ -325,7 +327,7 @@ public:
 	* Ermittelt fahrtrichtung
 	* @author Hj. Malthaner
 	*/
-	ribi_t::ribi richtung();
+	ribi_t::ribi richtung() const;
 
 	/* return friction constant: changes in hill and curves; may even negative downhill *
 	* @author prissi
@@ -373,7 +375,7 @@ public:
 	* Info-Fenster
 	* @author Hj. Malthaner
 	*/
-	void get_fracht_info(cbuffer_t & buf);
+	void get_fracht_info(cbuffer_t & buf) const;
 
 	/**
 	* loescht alle fracht aus dem Fahrzeug
@@ -474,7 +476,7 @@ public:
 
 	virtual bool calc_route(koord3d start, koord3d ziel, sint32 max_speed, route_t* route);
 
-	virtual bool ist_weg_frei(int &restart_speed);
+	virtual bool ist_weg_frei(int &restart_speed, bool second_check );
 
 	// returns true for the way search to an unknown target.
 	virtual bool ist_ziel(const grund_t *,const grund_t *) const;
@@ -499,9 +501,6 @@ public:
  */
 class waggon_t : public vehikel_t
 {
-private:
-	signal_t *ist_blockwechsel(koord3d k2) const;
-
 protected:
 	bool ist_befahrbar(const grund_t *bd) const;
 
@@ -529,7 +528,7 @@ public:
 	virtual bool ist_ziel(const grund_t *,const grund_t *) const;
 
 	// handles all block stuff and route choosing ...
-	virtual bool ist_weg_frei(int &restart_speed);
+	virtual bool ist_weg_frei(int &restart_speed, bool );
 
 	// reserves or unreserves all blocks and returns the handle to the next block (if there)
 	// returns true on successful reservation
@@ -633,7 +632,7 @@ protected:
 public:
 	waytype_t get_waytype() const { return water_wt; }
 
-	virtual bool ist_weg_frei(int &restart_speed);
+	virtual bool ist_weg_frei(int &restart_speed, bool);
 
 	// returns true for the way search to an unknown target.
 	virtual bool ist_ziel(const grund_t *,const grund_t *) const {return 0;}
@@ -686,7 +685,7 @@ protected:
 
 	void betrete_feld();
 
-	bool block_reserver( uint32 start, uint32 end, bool reserve );
+	bool block_reserver( uint32 start, uint32 end, bool reserve ) const;
 
 	// find a route and reserve the stop position
 	bool find_route_to_stop_position();
@@ -709,7 +708,7 @@ public:
 	// how expensive to go here (for way search)
 	virtual int get_kosten(const grund_t *, const sint32, koord) const;
 
-	virtual bool ist_weg_frei(int &restart_speed);
+	virtual bool ist_weg_frei(int &restart_speed, bool);
 
 	virtual void set_convoi(convoi_t *c);
 

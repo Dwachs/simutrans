@@ -48,7 +48,6 @@
 #include "dataobj/umgebung.h"
 
 #include "sucher/bauplatz_sucher.h"
-#include "bauer/warenbauer.h"
 #include "bauer/wegbauer.h"
 #include "bauer/hausbauer.h"
 #include "bauer/fabrikbauer.h"
@@ -166,13 +165,13 @@ static char const* const allowed_chars_in_rule = "SsnHhTtUu";
  * @return true on match, false otherwise
  * @author Hj. Malthaner
  */
-bool stadt_t::bewerte_loc(const koord pos, rule_t &regel, int rotation)
+bool stadt_t::bewerte_loc(const koord pos, const rule_t &regel, int rotation)
 {
 	//printf("Test for (%s) in rotation %d\n", pos.get_str(), rotation);
 	koord k;
 
 	for(uint32 i=0; i<regel.rule.get_count(); i++){
-		rule_entry_t &r = regel.rule[i];
+		const rule_entry_t &r = regel.rule[i];
 		uint8 x,y;
 		switch (rotation) {
 			default:
@@ -238,7 +237,7 @@ bool stadt_t::bewerte_loc(const koord pos, rule_t &regel, int rotation)
  * prissi: but the rules should explicitly forbid building then?!?
  * @author Hj. Malthaner
  */
-sint32 stadt_t::bewerte_pos(const koord pos, rule_t &regel)
+sint32 stadt_t::bewerte_pos(const koord pos, const rule_t &regel)
 {
 	// will be called only a single time, so we can stop after a single match
 	if(bewerte_loc(pos, regel,   0) ||
@@ -251,7 +250,7 @@ sint32 stadt_t::bewerte_pos(const koord pos, rule_t &regel)
 }
 
 
-void stadt_t::bewerte_strasse(koord k, sint32 rd, rule_t &regel)
+void stadt_t::bewerte_strasse(koord k, sint32 rd, const rule_t &regel)
 {
 	if (simrand(rd) == 0) {
 		best_strasse.check(k, bewerte_pos(k, regel));
@@ -259,7 +258,7 @@ void stadt_t::bewerte_strasse(koord k, sint32 rd, rule_t &regel)
 }
 
 
-void stadt_t::bewerte_haus(koord k, sint32 rd, rule_t &regel)
+void stadt_t::bewerte_haus(koord k, sint32 rd, const rule_t &regel)
 {
 	if (simrand(rd) == 0) {
 		best_haus.check(k, bewerte_pos(k, regel));
@@ -332,7 +331,7 @@ bool stadt_t::cityrules_init(const std::string &objfilename)
 	}
 	DBG_MESSAGE("stadt_t::init()", "Read %d road building rules", num_road_rules);
 
-	house_rules.clear();
+	clear_ptr_vector( house_rules );
 	for (uint32 i = 0; i < num_house_rules; i++) {
 		house_rules.append(new rule_t());
 		sprintf(buf, "house_%d.chance", i + 1);
@@ -376,7 +375,7 @@ bool stadt_t::cityrules_init(const std::string &objfilename)
 		}
 	}
 
-	road_rules.clear();
+	clear_ptr_vector( road_rules );
 	for (uint32 i = 0; i < num_road_rules; i++) {
 		road_rules.append(new rule_t());
 		sprintf(buf, "road_%d.chance", i + 1);
@@ -450,7 +449,7 @@ void stadt_t::cityrules_rdwr(loadsave_t *file)
 
 	// house rules
 	if (file->is_loading()) {
-		house_rules.clear();
+		clear_ptr_vector( house_rules );
 	}
 	uint32 count = house_rules.get_count();
 	file->rdwr_long(count);
@@ -462,7 +461,7 @@ void stadt_t::cityrules_rdwr(loadsave_t *file)
 	}
 	// road rules
 	if (file->is_loading()) {
-		road_rules.clear();
+		clear_ptr_vector( road_rules );
 	}
 	count = road_rules.get_count();
 	file->rdwr_long(count);

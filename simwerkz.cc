@@ -21,12 +21,9 @@
 #include "bauer/fabrikbauer.h"
 #include "bauer/vehikelbauer.h"
 
-#include "boden/boden.h"
 #include "boden/grund.h"
 #include "boden/wasser.h"
-#include "boden/wege/strasse.h"
 #include "boden/wege/schiene.h"
-#include "boden/wege/kanal.h"
 #include "boden/tunnelboden.h"
 #include "boden/monorailboden.h"
 
@@ -38,11 +35,8 @@
 
 #include "besch/grund_besch.h"
 #include "besch/haus_besch.h"
-#include "besch/skin_besch.h"
 #include "besch/roadsign_besch.h"
 #include "besch/tunnel_besch.h"
-#include "besch/groundobj_besch.h"
-#include "besch/roadsign_besch.h"
 
 #include "vehicle/simvehikel.h"
 #include "vehicle/simverkehr.h"
@@ -73,7 +67,6 @@
 #include "dings/field.h"
 #include "dings/label.h"
 
-#include "dataobj/tabfile.h"
 #include "dataobj/einstellungen.h"
 #include "dataobj/umgebung.h"
 #include "dataobj/fahrplan.h"
@@ -2225,7 +2218,7 @@ bool wkz_wayremover_t::calc_route( route_t &verbindung, spieler_t *sp, const koo
 		else {
 			test_driver = new electron_t();
 		}
-		verbindung.calc_route(sp->get_welt(), start, end, test_driver, 0);
+		verbindung.calc_route(sp->get_welt(), start, end, test_driver, 0, 0);
 		delete test_driver;
 	}
 	DBG_MESSAGE("wkz_wayremover()","route with %d tile found",verbindung.get_count());
@@ -2447,7 +2440,7 @@ bool wkz_wayobj_t::calc_route( route_t &verbindung, spieler_t *sp, const koord3d
 	test_driver->set_flag( ding_t::not_on_map );
 	bool can_built;
 	if( start != to ) {
-		can_built = verbindung.calc_route(sp->get_welt(), start, to, test_driver, 0);
+		can_built = verbindung.calc_route(sp->get_welt(), start, to, test_driver, 0, 0);
 	}
 	else {
 		verbindung.clear();
@@ -3532,7 +3525,7 @@ bool wkz_roadsign_t::calc_route( route_t &verbindung, spieler_t *sp, const koord
 	vehikel_t* test_driver = vehikelbauer_t::baue(start, sp, NULL, &rs_besch);
 	bool can_built;
 	if( start != to ) {
-		can_built = verbindung.calc_route(sp->get_welt(), start, to, test_driver, 0);
+		can_built = verbindung.calc_route(sp->get_welt(), start, to, test_driver, 0, 0);
 		// prevent building of many signals if start and to are adjacent
 		// but the step start->to is now allowed
 		if (can_built  &&  koord_distance(start, to)==1  &&  verbindung.get_count()>2) {
@@ -5007,6 +5000,12 @@ void wkz_show_underground_t::draw_after( karte_t *welt, koord pos ) const
 	}
 }
 
+
+bool wkz_increase_industry_t::init( karte_t *welt, spieler_t * )
+{
+	fabrikbauer_t::increase_industry_density( welt, false );
+	return false;
+}
 
 
 /************************* internal tools, only need for networking ***************/

@@ -108,7 +108,7 @@ void haltestelle_t::step_all()
 
 
 
-halthandle_t haltestelle_t::get_halt( karte_t *welt, const koord pos, const spieler_t *sp )
+halthandle_t haltestelle_t::get_halt(const karte_t *welt, const koord pos, const spieler_t *sp )
 {
 	const planquadrat_t *plan = welt->lookup(pos);
 	if(plan) {
@@ -138,7 +138,7 @@ halthandle_t haltestelle_t::get_halt( karte_t *welt, const koord pos, const spie
 }
 
 
-halthandle_t haltestelle_t::get_halt( karte_t *welt, const koord3d pos, const spieler_t *sp )
+halthandle_t haltestelle_t::get_halt(const karte_t *welt, const koord3d pos, const spieler_t *sp )
 {
 	const grund_t *gr = welt->lookup(pos);
 	if(gr) {
@@ -835,8 +835,8 @@ bool haltestelle_t::step(uint8 what, sint16 &units_remaining)
 void haltestelle_t::neuer_monat()
 {
 	if(  welt->get_active_player()==besitzer_p  &&  status_color==COL_RED  ) {
-		char buf[256];
-		sprintf(buf, translator::translate("!0_STATION_CROWDED"), get_name());
+		cbuffer_t buf;
+		buf.printf( translator::translate("!0_STATION_CROWDED"), get_name() );
 		welt->get_message()->add_message(buf, get_basis_pos(),message_t::full, PLAYER_FLAG|besitzer_p->get_player_nr(), IMG_LEER );
 		enables &= (PAX|POST|WARE);
 	}
@@ -1626,7 +1626,7 @@ void haltestelle_t::add_pax_no_route(int n)
 
 
 
-void haltestelle_t::liefere_an_fabrik(const ware_t& ware)
+void haltestelle_t::liefere_an_fabrik(const ware_t& ware) const
 {
 	fabrik_t *const factory = fabrik_t::get_fab( welt, ware.get_zielpos() );
 	if(  factory  ) {
@@ -2025,7 +2025,7 @@ void haltestelle_t::get_freight_info(cbuffer_t & buf)
 
 
 
-void haltestelle_t::get_short_freight_info(cbuffer_t & buf)
+void haltestelle_t::get_short_freight_info(cbuffer_t & buf) const
 {
 	bool got_one = false;
 
@@ -2067,9 +2067,7 @@ void haltestelle_t::zeige_info()
 }
 
 
-
-// changes this to a publix transfer exchange stop
-sint64 haltestelle_t::calc_maintenance()
+sint64 haltestelle_t::calc_maintenance() const
 {
 	sint64 maintenance = 0;
 	for(slist_tpl<tile_t>::const_iterator i = tiles.begin(), end = tiles.end(); i != end; ++i) {
@@ -2909,7 +2907,7 @@ bool haltestelle_t::rem_grund(grund_t *gr)
 
 
 
-bool haltestelle_t::existiert_in_welt()
+bool haltestelle_t::existiert_in_welt() const
 {
 	return !tiles.empty();
 }
@@ -2993,7 +2991,6 @@ bool haltestelle_t::find_free_position(const waytype_t w,convoihandle_t cnv,cons
 }
 
 
-
 /* reserves a position (caution: railblocks work differently!
  * @author prissi
  */
@@ -3025,7 +3022,6 @@ bool haltestelle_t::reserve_position(grund_t *gr,convoihandle_t cnv)
 }
 
 
-
 /* frees a reserved  position (caution: railblocks work differently!
  * @author prissi
  */
@@ -3041,7 +3037,6 @@ bool haltestelle_t::unreserve_position(grund_t *gr, convoihandle_t cnv)
 DBG_MESSAGE("haltestelle_t::unreserve_position()","failed for gr=%p",gr);
 	return false;
 }
-
 
 
 /* can a convoi reserve this position?
@@ -3070,6 +3065,7 @@ DBG_MESSAGE("haltestelle_t::is_reservable()","gr=%d,%d already reserved by cnv=%
 DBG_MESSAGE("haltestelle_t::reserve_position()","failed for gr=%i,%i, cnv=%d",gr->get_pos().x,gr->get_pos().y,cnv.get_id());
 	return false;
 }
+
 
 /* deletes factory references so map rotation won't segfault
 */
