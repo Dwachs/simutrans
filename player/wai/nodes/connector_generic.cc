@@ -108,11 +108,30 @@ return_value_t *connector_generic_t::step()
 				bauigel.set_keep_existing_faster_ways(true);
 				bauigel.set_keep_city_roads(true);
 				bauigel.set_maximum(10000);
-				bool ok = true;
 
 				bauigel.calc_route(tile_list[0], tile_list[1]);
-				ok = bauigel.get_count() > 2;
+
+				// now try route with terraforming
+				wegbauer_t baumaulwurf(welt, sp);
+				baumaulwurf.route_fuer(wegbauer_t::terraform_flag|(wegbauer_t::bautyp_t)wt, weg_besch, 
+					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()), 
+					brueckenbauer_t::find_bridge(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()) );
+				baumaulwurf.set_keep_existing_faster_ways(true);
+				baumaulwurf.set_keep_city_roads(true);
+				baumaulwurf.set_maximum(10000);
+				baumaulwurf.calc_route(tile_list[0], tile_list[1]);
+
+				// build with terraforming if shorter and enough money is available
+				bool with_tf = (baumaulwurf.get_count() > 2)  &&  (10*baumaulwurf.get_count() < 9*bauigel.get_count()  ||  bauigel.get_count() <= 2);
+				if (with_tf) {
+					with_tf = sp->is_cash_available( baumaulwurf.calc_costs() );
+					if (with_tf) {
+						printf("jhjH");
+					}
+				}
+				wegbauer_t &bautier = with_tf ? baumaulwurf : bauigel;
 				// TODO: check whether both lists overlap!
+				bool ok = bautier.get_count() > 2;
 				if( !ok ) {
 					sp->get_log().warning( "connector_generic_t::step", "didn't found a route (%s) => (%s)", start.get_str(), ziel.get_2d().get_str());
 
@@ -144,22 +163,22 @@ return_value_t *connector_generic_t::step()
 				for(uint8 i=0;  i<2; i++) {
 					for(uint8 j=0; j<2; j++) {
 						// Sometimes reverse route is the best - try both ends of the routes
-						uint32 n = j==0 ? 0 : bauigel.get_count()-1;
-						if( tile_list[i].is_contained( bauigel.get_route()[n]) ) { 
+						uint32 n = j==0 ? 0 : bautier.get_count()-1;
+						if( tile_list[i].is_contained( bautier.get_route()[n]) ) { 
 							// through station
 							if (through & (i+1) ) {
-								grund_t * gr = welt->lookup(bauigel.get_route()[n]);
+								grund_t * gr = welt->lookup(bautier.get_route()[n]);
 								sp->get_log().message( "connector_generic_t::step", "found route to tile (%s)", gr->get_pos().get_str());
 								// now find the right neighbor
 								for(uint8 r=0; r<4; r++) {
 									grund_t *to;
-									// append the through station tile to the bauigel route
+									// append the through station tile to the bautier route
 									if (gr->get_neighbour(to, wt, koord::nsow[r])) {
 										sp->get_log().message( "connector_generic_t::step", "try neighbor (%s)", to->get_pos().get_str());
 										if (through_tile_list[i].is_contained(to->get_pos())) {
-											bool ribi_ok = !bauigel.get_route().is_contained(to->get_pos());
+											bool ribi_ok = !bautier.get_route().is_contained(to->get_pos());
 											if (!ribi_ok) {
-												ribi_ok = ribi_t::ist_gerade(bauigel.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
+												ribi_ok = ribi_t::ist_gerade(bautier.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
 											}
 											if (ribi_ok) {
 												if (i==0) {
@@ -182,10 +201,10 @@ return_value_t *connector_generic_t::step()
 							// generic station - can be built on top of the last tile
 						 	else {
 								if (i==0) {
-									start = bauigel.get_route()[n];
+									start = bautier.get_route()[n];
 								}
 								else {
-									ziel = bauigel.get_route()[n];
+									ziel = bautier.get_route()[n];
 								}
 							}
 						}
@@ -210,7 +229,7 @@ return_value_t *connector_generic_t::step()
 				}
 
 				// kontostand checken
-				sint64 cost = bauigel.calc_costs();
+				sint64 cost = bautier.calc_costs();
 				if ( !sp->is_cash_available(cost) ) {
 					sp->get_log().warning( "connector_generic_t::step", "route (%s) => (%s) too expensive", start.get_str(), ziel.get_2d().get_str());
 					// TODO: geldbedarf merken, den connector schlafen lassen, bis es da ist
@@ -218,7 +237,7 @@ return_value_t *connector_generic_t::step()
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// now build the route
-				bauigel.baue();
+				bautier.baue();
 				sp->get_log().message( "connector_generic_t::step", "build route (%s) => (%s)", start.get_str(), ziel.get_2d().get_str());
 				uint8 completed = 0;
 
@@ -247,7 +266,7 @@ return_value_t *connector_generic_t::step()
 								sp->undo();
 							}
 					}
-					sp->get_log().warning( "connector_generic_t::step", "road no 1: (%s) no N-1: (%s)", bauigel.get_route()[1].get_2d().get_str(), bauigel.get_route()[bauigel.get_count()-2].get_str() );
+					sp->get_log().warning( "connector_generic_t::step", "road no 1: (%s) no N-1: (%s)", bautier.get_route()[1].get_2d().get_str(), bautier.get_route()[bautier.get_count()-2].get_str() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// TODO: station so erweitern, dass Kapazitaet groesser als Kapazitaet eines einzelnen Convois
