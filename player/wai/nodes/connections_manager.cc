@@ -359,7 +359,7 @@ report_t* freight_connection_t::get_upgrade_report(ai_wai_t *sp, convoihandle_t 
 	// check if identical with convoi
 	bool different = cnv->get_vehikel_anzahl() != d->proto->besch.get_count();
 	for(uint8 i = 0; !different  &&  i < cnv->get_vehikel_anzahl(); i++) {
-		different = cnv->get_vehikel(i)->get_besch() == d->proto->besch[i];
+		different = cnv->get_vehikel(i)->get_besch() != d->proto->besch[i];
 	}
 	if (!different) {
 		sp->get_log().message( "freight_connection_t::get_upgrade_report()","best vehicle already in use for line '%s'", line->get_name());
