@@ -13,3 +13,4 @@
 *.diff
 *.orig
 *.rej
+.build/
