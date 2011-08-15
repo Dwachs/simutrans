@@ -80,7 +80,7 @@ void connector_generic_t::rotate90( const sint16 y_size)
 }
 
 return_value_t *connector_generic_t::step()
-{	
+{
 	//	sp->get_log().warning("connector_generic_t::step", "%s %s disappeared", fab1.is_bound() ? "" : "start", fab2.is_bound() ? "" : "ziel");
 	//	return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	karte_t *welt = sp->get_welt();
@@ -101,8 +101,8 @@ return_value_t *connector_generic_t::step()
 
 				// Test which tiles are the best:
 				wegbauer_t bauigel(welt, sp );
-				bauigel.route_fuer((wegbauer_t::bautyp_t)wt, weg_besch, 
-					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()), 
+				bauigel.route_fuer((wegbauer_t::bautyp_t)wt, weg_besch,
+					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()),
 					brueckenbauer_t::find_bridge(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()) );
 				// we won't destroy cities (and save the money)
 				bauigel.set_keep_existing_faster_ways(true);
@@ -113,8 +113,8 @@ return_value_t *connector_generic_t::step()
 
 				// now try route with terraforming
 				wegbauer_t baumaulwurf(welt, sp);
-				baumaulwurf.route_fuer(wegbauer_t::terraform_flag|(wegbauer_t::bautyp_t)wt, weg_besch, 
-					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()), 
+				baumaulwurf.route_fuer(wegbauer_t::terraform_flag|(wegbauer_t::bautyp_t)wt, weg_besch,
+					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()),
 					brueckenbauer_t::find_bridge(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()) );
 				baumaulwurf.set_keep_existing_faster_ways(true);
 				baumaulwurf.set_keep_city_roads(true);
@@ -125,9 +125,6 @@ return_value_t *connector_generic_t::step()
 				bool with_tf = (baumaulwurf.get_count() > 2)  &&  (10*baumaulwurf.get_count() < 9*bauigel.get_count()  ||  bauigel.get_count() <= 2);
 				if (with_tf) {
 					with_tf = sp->is_cash_available( baumaulwurf.calc_costs() );
-					if (with_tf) {
-						printf("jhjH");
-					}
 				}
 				wegbauer_t &bautier = with_tf ? baumaulwurf : bauigel;
 				// TODO: check whether both lists overlap!
@@ -139,7 +136,7 @@ return_value_t *connector_generic_t::step()
 						for(uint32 j=0; j < tile_list[i].get_count(); j++) {
 							sp->get_log().message( "connector_generic_t::step", "tile_list[%d][%d] = %s", i,j,tile_list[i][j].get_str());
 						}
-					} 
+					}
 					// try to find route to through stations
 					if ( force_through < 3) {
 						force_through += 1;
@@ -164,7 +161,7 @@ return_value_t *connector_generic_t::step()
 					for(uint8 j=0; j<2; j++) {
 						// Sometimes reverse route is the best - try both ends of the routes
 						uint32 n = j==0 ? 0 : bautier.get_count()-1;
-						if( tile_list[i].is_contained( bautier.get_route()[n]) ) { 
+						if( tile_list[i].is_contained( bautier.get_route()[n]) ) {
 							// through station
 							if (through & (i+1) ) {
 								grund_t * gr = welt->lookup(bautier.get_route()[n]);
@@ -274,7 +271,7 @@ return_value_t *connector_generic_t::step()
 				append_child( new builder_road_station_t( sp, "builder_road_station_t", start, ware_besch ) );
 				append_child( new builder_road_station_t( sp, "builder_road_station_t", ziel, ware_besch ) );
 				*/
-				
+
 
 				break;
 			}
@@ -295,13 +292,13 @@ return_value_t *connector_generic_t::step()
 						dep_ziele.append_unique( gr->get_pos() );
 					}
 				}
-				vector_tpl<koord3d> dep_start; 
+				vector_tpl<koord3d> dep_start;
 				dep_start.append(start);
 				bool ok = false;
 				// Test which tiles are the best:
 				wegbauer_t bauigel(welt, sp );
-				bauigel.route_fuer( (wegbauer_t::bautyp_t)wt, weg_besch, 
-					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()), 
+				bauigel.route_fuer( (wegbauer_t::bautyp_t)wt, weg_besch,
+					tunnelbauer_t::find_tunnel(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()),
 					brueckenbauer_t::find_bridge(wt,weg_besch->get_topspeed(),welt->get_timeline_year_month()) );
 				// we won't destroy cities (and save the money)
 				bauigel.set_keep_existing_faster_ways(true);
@@ -310,13 +307,13 @@ return_value_t *connector_generic_t::step()
 				bauigel.calc_route(dep_start, !dep_exist.empty() ? dep_exist : dep_ziele);
 				if(bauigel.get_count() >= 2) {
 					// Sometimes reverse route is the best, so we have to change the koords.
-					depot_pos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.get_count()-1] : bauigel.get_route()[0];	
+					depot_pos =  ( start == bauigel.get_route()[0]) ? bauigel.get_route()[bauigel.get_count()-1] : bauigel.get_route()[0];
 					ok = true;
 				}
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, welt->get_timeline_year_month(), 0);
 				ok = ok && (dep!=NULL || welt->lookup(depot_pos)->get_depot() );
 				if (ok) {
-					bauigel.baue();		
+					bauigel.baue();
 					// built depot
 					if ( welt->lookup(depot_pos)->get_depot()==NULL ) {
 						ok = sp->call_general_tool(WKZ_DEPOT, depot_pos.get_2d(), dep->get_name());
@@ -338,7 +335,7 @@ return_value_t *connector_generic_t::step()
 		return_value_t *rv = new_return_value(phase>=1 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS);
 		rv->data = data;
 
-		phase ++; 
+		phase ++;
 		return rv;
 	}
 	else {
