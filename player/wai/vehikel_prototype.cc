@@ -488,4 +488,5 @@ simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, con
 	freight = f;
 	include_electric = cnv->needs_electrification();
 	not_obsolete = cnv->has_obsolete_vehicles();
+	min_trans = 0;
 }
