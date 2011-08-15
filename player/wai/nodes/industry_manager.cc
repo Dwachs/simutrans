@@ -206,6 +206,11 @@ return_value_t *industry_manager_t::work()
 	return new_return_value(RT_SUCCESS);
 }
 
+industry_manager_t::~industry_manager_t()
+{
+	clear_ptr_vector( connections );
+}
+
 void industry_manager_t::rdwr(loadsave_t* file, const uint16 version)
 {
 	manager_t::rdwr(file, version);

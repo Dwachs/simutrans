@@ -279,7 +279,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 
 						// sofortkauf
 						if (value == 0x7fffffff) {
-							return best;
+							goto end;
 						}
 						best_value = value;
 					}
@@ -332,7 +332,9 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 
 	}
 
+end:
 	delete [] convoi_tpl;
+	clear_ptr_vector( vehicle_loop );
 
 	return best;
 }
@@ -408,6 +410,9 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 	file->rdwr_long(min_trans);
 
 	if (file->is_loading()) {
+		if (proto) {
+			delete proto;
+		}
 		proto = new vehikel_prototype_t();
 	}
 	proto->rdwr(file);

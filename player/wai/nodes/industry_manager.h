@@ -57,6 +57,7 @@ private:
 class industry_manager_t : public manager_t {
 public:
 	industry_manager_t(ai_wai_t *sp_, const char* name_) : manager_t(sp_,name_), connections(100), next_cid(0) { type = BT_IND_MNGR; }
+	~industry_manager_t();
 
 	// will check each line and generate reports
 	virtual return_value_t *work();

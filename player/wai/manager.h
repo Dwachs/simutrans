@@ -17,6 +17,7 @@ meine Managervorschlaege:
 class manager_t : public bt_sequential_t {
 public:
 	manager_t( ai_wai_t *sp, const char* name ) : bt_sequential_t(sp, name) { type = BT_MANAGER; }
+	~manager_t() { clear_ptr_vector(reports); }
 	// regular work will be done here
 	virtual return_value_t * step();
 	virtual return_value_t * work() {return bt_node_t::step(); };
