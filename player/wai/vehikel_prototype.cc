@@ -59,7 +59,7 @@ waytype_t vehikel_prototype_t::get_waytype() const
 }
 
 void vehikel_prototype_t::calc_data(const ware_besch_t *freight)
-{				
+{
 	power = 0;
 	min_top_speed = -1;
 	weight = 0;
@@ -261,7 +261,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 										(sint32) sqrt((((double)convoi_tpl[i+1].power/convoi_tpl[i+1].weight)-1)*2500));
 
 				convoi_tpl[i+1].length = convoi_tpl[i].length + test_besch->get_length();
-				
+
 				convoi_tpl[i+1].besch.store_at(i, test_besch);
 
 				debug->message("VBAI", "[%2d] test vehicle %20s, Fr=%d, W=%d, L=%d(%d), P=%d, Vmin=%d, Vmax=%d", i, translator::translate(test_besch->get_name()), convoi_tpl[i+1].missing_freights,
@@ -398,7 +398,7 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 		wt = (waytype_t)_wt;
 	}
 	file->rdwr_long(min_speed);
-	file->rdwr_byte(max_length); 
+	file->rdwr_byte(max_length);
 	file->rdwr_long(max_weight);
 	ai_t::rdwr_ware_besch(file, freight);
 	file->rdwr_long(production);
@@ -469,7 +469,7 @@ void simple_prototype_designer_t::debug( log_t &file, string prefix )
 }
 
 simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, const ware_besch_t *f)
-{	
+{
 	sp = cnv->get_besitzer();
 	proto = new vehikel_prototype_t();
 	wt = invalid_wt;
@@ -478,7 +478,7 @@ simple_prototype_designer_t::simple_prototype_designer_t(convoihandle_t cnv, con
 		if (besch) {
 			wt = besch->get_waytype();
 			proto->besch.append(besch);
-		}		
+		}
 	}
 	// 	proto->calc_data(..) needs to be called to get all proto-data valid
 

@@ -52,7 +52,7 @@ connection_t* connection_t::alloc_connection(connection_types t, ai_wai_t *sp)
 	}
 }
 
-void connection_t::rdwr(loadsave_t* file, const uint16 /*version*/, ai_wai_t *sp)
+void connection_t::rdwr(loadsave_t* file, const uint16, ai_wai_t *)
 {
 	simline_t::rdwr_linehandle_t(file, line);
 	file->rdwr_byte(state);
@@ -235,7 +235,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 
 	// count status of convois
-	vector_tpl<convoihandle_t> stopped, empty, loss; 
+	vector_tpl<convoihandle_t> stopped, empty, loss;
 	uint32 newc=0, no_route=0;
 	for(uint32 i=0; i<line->count_convoys(); i++) {
 		convoihandle_t cnv = line->get_convoy(i);
@@ -404,7 +404,7 @@ report_t* freight_connection_t::get_final_report(ai_wai_t *sp)
 		if (gr) {
 			bool ok = false;
 			depot_t *dep = gr->get_depot();
-			if (dep  &&  dep->get_besitzer()==sp  
+			if (dep  &&  dep->get_besitzer()==sp
 				&&  dep->get_wegtyp()==cnv0->get_vehikel(0)->get_waytype()
 				&&  dep->convoi_count()==0) {
 					// search all other lines

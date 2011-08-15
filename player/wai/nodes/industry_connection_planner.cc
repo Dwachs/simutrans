@@ -118,7 +118,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 	koord3d p2 =  ziel_pos!=koord3d::invalid ?  ziel_pos : ziel->get_pos();
 	const uint32 dist = koord_distance(p1, p2);
 	const uint32 dist_paid = max(koord_distance(ziel->get_pos(), p1) - koord_distance(ziel->get_pos(), p2), 0);
-	
+
 	if (dist==0) {
 		return new report_t();
 	}
@@ -230,7 +230,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 
 	// init report
 	cpd->report = new report_t();
-	cpd->report->gain_per_m = 0x8000000000000000;
+	cpd->report->gain_per_m = 0x8000000000000000ll;
 
 	// speed bonus calculation see vehikel_t::calc_gewinn
 	const sint32 ref_speed = welt->get_average_speed(wt );
