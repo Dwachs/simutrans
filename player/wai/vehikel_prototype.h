@@ -76,7 +76,7 @@ public:
 	uint32 get_capacity(const ware_besch_t*) const;
 	uint32 get_maintenance() const;
 	// calculates power, min_top_speed, max_speed, weight
-	void calc_data(const ware_besch_t *freight); 
+	void calc_data(const ware_besch_t *freight);
 
 	bool is_empty() const { return besch.get_count()==0; }
 	bool is_electric() const;

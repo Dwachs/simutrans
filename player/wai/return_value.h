@@ -5,7 +5,7 @@
 
 enum return_code {
 	RT_DONE_NOTHING		=1,		// Done nothing.
-	RT_PARTIAL_SUCCESS	=2,		// Done something, want to continue next 
+	RT_PARTIAL_SUCCESS	=2,		// Done something, want to continue next
 	RT_SUCCESS			=4,		// Done something.
 	RT_ERROR			=8,		// Some error occured.
 	RT_KILL_ME			=16,	// Can be destroyed by parent.
@@ -37,7 +37,7 @@ public:
 
 	return_value_t(return_code c, uint16 t) : code(c), type(t), report(NULL), successor(NULL), undo(NULL), data(NULL) {}
 	~return_value_t();
-	
+
 	report_t *get_report() { return report; }
 	void set_report(report_t *r) { report=r; }
 

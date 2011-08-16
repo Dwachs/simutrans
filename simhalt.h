@@ -546,7 +546,7 @@ public:
 	 * @author Hj. Malthaner
 	 */
 	uint32 get_ware_fuer_zielpos(const ware_besch_t *warentyp, const koord zielpos) const;
- 
+
 	/**
 	 * gibt Gesamtmenge der ware vom Typ typ fuer zwischenziel zurück
 	 * @author prissi

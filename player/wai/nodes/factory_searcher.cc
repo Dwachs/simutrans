@@ -14,7 +14,7 @@
 #include "../../../tpl/slist_tpl.h"
 
 void factory_searcher_t::append_report(report_t *report)
-{ 
+{
 	if(report) {
 		if (report->gain_per_m > 0) {
 		/*   sp->get_log().message( "factory_searcher_t::append_report()","got a nice report for immediate execution");

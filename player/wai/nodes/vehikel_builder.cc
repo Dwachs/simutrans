@@ -40,7 +40,7 @@ return_value_t *vehikel_builder_t::step()
 		sp->get_log().warning("vehikel_builder::step", "no valid depot at (%s)", pos.get_str());
 		return new_return_value(RT_TOTAL_FAIL);
 	}
-	
+
 	if (!cnv.is_bound() && nr_vehikel>0) {
 		sp->get_log().message("vehikel_builder::step","create convoi for line %s", line->get_name());
 		// create a new one
@@ -76,7 +76,7 @@ return_value_t *vehikel_builder_t::step()
 			return new_return_value(RT_DONE_NOTHING);
 		}
 	}
-	
+
 	if (nr_vehikel>0 || cnv.is_bound()) {
 		// TODO: add some delay until next vehicle is created
 		return new_return_value(RT_PARTIAL_SUCCESS);

@@ -27,11 +27,11 @@ void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 )
 	file->rdwr_bool(through);
 }
 
-return_value_t *free_tile_searcher_t::step() 
+return_value_t *free_tile_searcher_t::step()
 {
 	karte_t *welt = sp->get_welt();
 	grund_t *gr = welt->lookup(pos);
-	if(gr==NULL) {	
+	if(gr==NULL) {
 		sp->get_log().warning("free_tile_searcher_t::step", "invalid position (%s)", pos.get_str());
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -49,7 +49,7 @@ return_value_t *free_tile_searcher_t::step()
 		vector_tpl<koord> fab_tiles;
 		fab->get_tile_list( fab_tiles );
 		ai_t::add_neighbourhood( fab_tiles, cov );
-			
+
 		vector_tpl<koord> one_more( fab_tiles );
 		ai_t::add_neighbourhood( one_more, 1 );
 		// Any halts here?
@@ -128,7 +128,7 @@ return_value_t *free_tile_searcher_t::step()
 					weg_t *w = gr->get_weg(road_wt);
 					const ribi_t::ribi ribi = w->get_ribi_unmasked();
 					if (w->ist_entfernbar(sp)==NULL && ribi_t::ist_gerade(ribi)) {
-						grund_t *to; 
+						grund_t *to;
 						bool found = false;
 						if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
 							data->pos1.append_unique( to->get_pos() );

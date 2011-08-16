@@ -7,7 +7,7 @@
 
 
 
-industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name) : 
+industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name) :
 bt_sequential_t(sp, name), start(0, sp), ziel(0, sp)
 {
 	connections = NULL;
@@ -16,7 +16,7 @@ bt_sequential_t(sp, name), start(0, sp), ziel(0, sp)
 	alternative = NULL;
 }
 
-industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) : 
+industry_connector_t::industry_connector_t( ai_wai_t *sp, const char *name, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f) :
 bt_sequential_t(sp, name), start(s, sp), ziel(z, sp)
 {
 	connections = NULL;
@@ -28,7 +28,7 @@ bt_sequential_t(sp, name), start(s, sp), ziel(z, sp)
 industry_connector_t::~industry_connector_t()
 {
 	if (connections) {
-		delete connections; 
+		delete connections;
 		connections = NULL;
 	}
 	if (alternative) {
@@ -40,7 +40,7 @@ industry_connector_t::~industry_connector_t()
 void industry_connector_t::append_report(report_t *report)
 {
 	if (report) {
-		if (alternative) {	
+		if (alternative) {
 			sp->get_log().warning("industry_connector_t::append_report", "delete alternative report");
 			delete alternative;
 		}
@@ -50,7 +50,7 @@ void industry_connector_t::append_report(report_t *report)
 
 return_value_t *industry_connector_t::step()
 {
-	if(!start.is_bound()  ||  !ziel.is_bound()) {	
+	if(!start.is_bound()  ||  !ziel.is_bound()) {
 		sp->get_log().warning("industry_connector_t::step", "%s %s disappeared", start.is_bound() ? "" : "start", ziel.is_bound() ? "" : "ziel");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -132,7 +132,7 @@ void industry_connector_t::rdwr( loadsave_t *file, const uint16 version )
 	}
 }
 
-void industry_connector_t::rotate90( const sint16 y_size) 
+void industry_connector_t::rotate90( const sint16 y_size)
 {
 	if (connections) {
 		connections->rotate90(y_size);

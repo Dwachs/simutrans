@@ -11,7 +11,7 @@ class ware_besch_t;
  * and gives the industry-manager the correct industry-connection
  */
 class industry_connector_t : public bt_sequential_t
-{	
+{
 public:
 	industry_connector_t( ai_wai_t *sp, const char *name);
 	industry_connector_t( ai_wai_t *sp, const char *name, const fabrik_t *s, const fabrik_t *z, const ware_besch_t *f);

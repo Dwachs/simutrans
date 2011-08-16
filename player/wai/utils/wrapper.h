@@ -23,7 +23,7 @@ public:
 template<class T> void rdwr_tpl(const T* &p, loadsave_t *file, const uint16, ai_wai_t *sp);
 
 /*
- * basic template to hold a pointer that 
+ * basic template to hold a pointer that
  * gets auto-NULLed if the object it points to gets deleted
  * and the player is notified
  *
@@ -62,14 +62,14 @@ public:
 	bool operator == (const wrap_tpl<T> & k) const { return ptr==k.ptr; }
 	bool operator == (const T* p) const { return ptr==p; }
 
-	void set(const T* p) 
+	void set(const T* p)
 	{
 		unregisterw();
 		ptr=p;
 		registerw();
 	}
 
-	void registerw() 
+	void registerw()
 	{
 		assert(sp);
 		if(sp  &&  ptr) {

@@ -104,7 +104,7 @@ private:
 		fcst_no_bigger_convois = 1
 	} fcst_states;
 	bool bigger_convois_impossible() { return status & fcst_no_bigger_convois; }
-	
+
 	/**
 	 * prepare report to upgrade line to use modern (or bigger) vehicles
 	 * @returns zero if nothing better / bigger / different from cnv found

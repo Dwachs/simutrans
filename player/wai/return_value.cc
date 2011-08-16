@@ -5,7 +5,7 @@
 #include "report.h"
 #include "../../dataobj/freelist.h"
 
-return_value_t::~return_value_t() 
+return_value_t::~return_value_t()
 {
 	if (report) {
 		delete report;

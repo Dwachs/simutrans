@@ -94,7 +94,7 @@ void connector_road_t::rotate90( const sint16 y_size)
 
 return_value_t *connector_road_t::step()
 {
-	if(!fab1.is_bound()  ||  !fab2.is_bound()) {	
+	if(!fab1.is_bound()  ||  !fab2.is_bound()) {
 		sp->get_log().warning("connector_road_t::step", "%s %s disappeared", fab1.is_bound() ? "" : "start", fab2.is_bound() ? "" : "ziel");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -102,7 +102,7 @@ return_value_t *connector_road_t::step()
 
 		datablock_t *data = NULL;
 		sp->get_log().message("connector_road_t::step", "phase %d of build route %s => %s", phase, fab1->get_name(), fab2->get_name() );
-		
+
 		switch(phase) {
 			case CREATE_SCHEDULE: {
 				// create line
@@ -120,7 +120,7 @@ return_value_t *connector_road_t::step()
 				delete fpl;
 
 				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, min(nr_vehicles,3) ) );
-				
+
 				// tell the player
 				char buf[256];
 				sprintf(buf, translator::translate("%s\nnow operates\n%i trucks between\n%s at (%i,%i)\nand %s at (%i,%i)."), sp->get_name(), nr_vehicles, translator::translate(fab1->get_name()), start.x, start.y, translator::translate(fab2->get_name()), ziel.x, ziel.y);
@@ -134,14 +134,14 @@ return_value_t *connector_road_t::step()
 				prototyper = NULL;
 				break;
 			}
-			default: 
+			default:
 				break;
 		}
 		sp->get_log().message( "connector_road_t::step", "completed phase %d", phase);
 		return_value_t *rv = new_return_value(phase>2 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS);
 		rv->data = data;
 
-		phase ++; 
+		phase ++;
 		return rv;
 	}
 	else {

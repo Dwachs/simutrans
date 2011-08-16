@@ -18,7 +18,7 @@ enum {
 	CP_IGNORE = 4
 };
 // removes depots!
-uint8 remover_t::check_position(koord3d pos) 
+uint8 remover_t::check_position(koord3d pos)
 {
 	karte_t *welt = sp->get_welt();
 	grund_t *gr = welt->lookup(pos);
@@ -104,9 +104,9 @@ return_value_t* remover_t::step()
 	if (verbindung.get_count()>1) {
 		// use wayremover
 		wkz_wayremover_t wkz;
-		char defpar[20]; 
+		char defpar[20];
 		sprintf(defpar, "%d", wt);
-		wkz.set_default_param(defpar);		
+		wkz.set_default_param(defpar);
 		sint32 imax = verbindung.get_count()-1;
 		// remove from both ends in two phases (step=-1 or +1)
 		for (sint8 step = -1; step<=1; step+=2) {
@@ -185,7 +185,7 @@ void remover_t::remove_way_end(koord3d &pos)
 {
 	karte_t *welt = sp->get_welt();
 	wkz_wayremover_t bulldozer;
-	char buf[10]; 
+	char buf[10];
 	sprintf(buf, "%d", wt);
 	bulldozer.set_default_param(buf);
 

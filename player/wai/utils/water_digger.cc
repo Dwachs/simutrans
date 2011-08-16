@@ -37,7 +37,7 @@ sint64 water_digger_t::calc_costs()
 		}
 	}
 	return  -(estimate*welt->get_settings().cst_alter_land);
-}			
+}
 
 
 bool water_digger_t::terraform()
@@ -62,7 +62,7 @@ bool water_digger_t::terraform()
 			sint64 money_after  = sp->get_finance_history_month(0, COST_CASH);
 			int paid = (money_before - money_after) / 100;
 			int estimated_cost = -(estimate*welt->get_settings().cst_alter_land) / 100;
-			
+
 			if (ai) {
 				if (ok  &&  (paid>0  ||  estimated_cost>0)) {
 					ai->get_log().message("water_digger_t::terraform()", "terraformed at (%s) estimated %d paid %d", route[i].get_str(), estimated_cost, paid);

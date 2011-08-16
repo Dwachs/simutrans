@@ -148,7 +148,7 @@ void connector_ship_t::rotate90( const sint16 y_size)
 
 return_value_t *connector_ship_t::step()
 {
-	if(!fab1.is_bound()  ||  !fab2.is_bound()) {	
+	if(!fab1.is_bound()  ||  !fab2.is_bound()) {
 		sp->get_log().warning("connector_ship_t::step", "%s %s disappeared", fab1.is_bound() ? "" : "start", fab2.is_bound() ? "" : "ziel");
 		return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
 	}
@@ -174,7 +174,7 @@ return_value_t *connector_ship_t::step()
 			case 1: {
 				// test the digger
 				water_digger_t baubiber(welt, sp);
-				
+
 				baubiber.route_fuer((wegbauer_t::bautyp_t)water_wt, wegbauer_t::weg_search(water_wt, 1, 0, weg_t::type_flat));
 				// start / end in water
 				koord3d s = get_water_tile(start_harbour_pos);
@@ -241,7 +241,7 @@ return_value_t *connector_ship_t::step()
 				delete fpl;
 
 				append_child( new vehikel_builder_t(sp, "vehikel builder", prototyper, line, deppos, min(nr_vehicles,3)) );
-				
+
 				// tell the player
 				char buf[256];
 				sprintf(buf, translator::translate("%s\nnow operates\n%i ships between\n%s at (%i,%i)\nand %s at (%i,%i)."), sp->get_name(), nr_vehicles, translator::translate(fab1->get_name()), start.x, start.y, translator::translate(fab2->get_name()), ziel.x, ziel.y);
@@ -255,7 +255,7 @@ return_value_t *connector_ship_t::step()
 				prototyper = NULL;
 				break;
 			}
-			default: 
+			default:
 				break;
 		}
 		sp->get_log().message( "connector_ship_t::step", "completed phase %d", phase);
@@ -360,7 +360,7 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 
 /**
  * from ai_goods
- * find ship target position near harbout at pos, 
+ * find ship target position near harbout at pos,
  * which is as close as possible to target (in Euclidean distance, no route search)
  */
 koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
