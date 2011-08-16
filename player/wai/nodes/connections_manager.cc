@@ -159,8 +159,8 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	convoihandle_t cnv0 = line->get_convoy(0);
 	// check for modernization of fleet ...
 	if (last_upgrade_check != welt->get_timeline_year_month() ) {
+		report_t *report = get_upgrade_report(sp, cnv0, false, last_upgrade_check);
 		last_upgrade_check = welt->get_timeline_year_month();
-		report_t *report = get_upgrade_report(sp, cnv0, false);
 		if (report) {
 			status &= ~fcst_no_bigger_convois;
 			// force upgrade
@@ -339,7 +339,7 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 }
 
 
-report_t* freight_connection_t::get_upgrade_report(ai_wai_t *sp, convoihandle_t cnv, bool better_capacity) const
+report_t* freight_connection_t::get_upgrade_report(ai_wai_t *sp, convoihandle_t cnv, bool better_capacity, uint16 min_intro_date) const
 {
 	simple_prototype_designer_t *d = new simple_prototype_designer_t(cnv, freight);
 	d->proto->calc_data(freight);
@@ -352,16 +352,27 @@ report_t* freight_connection_t::get_upgrade_report(ai_wai_t *sp, convoihandle_t 
 
 	if (d->proto->is_empty()) {
 		sp->get_log().message( "freight_connection_t::get_upgrade_report()","no vehicles available for line '%s'", line->get_name());
+		delete d;
 		return NULL;
 	}
 
-	// check if identical with convoi
+	// check if identical with convoi (or if now modern vehicles are chosen)
 	bool different = cnv->get_vehikel_anzahl() != d->proto->besch.get_count();
-	for(uint8 i = 0; !different  &&  i < cnv->get_vehikel_anzahl(); i++) {
-		different = cnv->get_vehikel(i)->get_besch() != d->proto->besch[i];
+	bool modern = false;
+	for(uint8 i = 0; i < d->proto->besch.get_count(); i++) {
+		if (i < cnv->get_vehikel_anzahl()) {
+			different &= cnv->get_vehikel(i)->get_besch() != d->proto->besch[i];
+		}
+		modern |= d->proto->besch[i]->get_intro_year_month() > min_intro_date;
 	}
-	if (!different) {
-		sp->get_log().message( "freight_connection_t::get_upgrade_report()","best vehicle already in use for line '%s'", line->get_name());
+	if (!different  ||  !modern) {
+		if (!different) {
+			sp->get_log().message( "freight_connection_t::get_upgrade_report()","best vehicle already in use for line '%s'", line->get_name());
+		}
+		else {
+			sp->get_log().message( "freight_connection_t::get_upgrade_report()","no modern vehicle found for line '%s'", line->get_name());
+		}
+		delete d;
 		return NULL;
 	}
 	// now we found something

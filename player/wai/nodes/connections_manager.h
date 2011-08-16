@@ -109,7 +109,7 @@ private:
 	 * prepare report to upgrade line to use modern (or bigger) vehicles
 	 * @returns zero if nothing better / bigger / different from cnv found
 	 */
-	report_t* get_upgrade_report(ai_wai_t *sp, convoihandle_t cnv, bool better_capacity) const;
+	report_t* get_upgrade_report(ai_wai_t *sp, convoihandle_t cnv, bool better_capacity, uint16 min_intro_date=0) const;
 
 	sint64 calc_gain_p_m() const;
 };
