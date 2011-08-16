@@ -1,7 +1,0 @@
-Industrieketten Manager
-
-
-
--- Finde Senken
-	-- Finde erste fehlende Verbindung
-	-- Baue
