@@ -12,7 +12,6 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../dataobj/route.h"
 #include "../../../vehicle/simvehikel.h"
-#include "../../../vehicle/simvehikel.h"
 #include "remover.h"
 
 void connection_t::rdwr_connection(loadsave_t* file, const uint16 version, ai_wai_t *sp, connection_t* &c)
