@@ -1529,7 +1529,6 @@ SQInteger prevstackbase = _stackbase;
 				   }
 		break;
 	default:
-		Raise_Error(_SC("attempt to execute non-executable type %s"),GetTypeName(closure));
 		return false;
 	}
 #ifdef _DEBUG

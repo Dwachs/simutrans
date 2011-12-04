@@ -628,6 +628,12 @@ SQInteger sq_getsize(HSQUIRRELVM v, SQInteger idx)
 	}
 }
 
+SQHash sq_gethash(HSQUIRRELVM v, SQInteger idx)
+{
+	SQObjectPtr &o = stack_get(v, idx);
+	return HashObj(o);
+}
+
 SQRESULT sq_getuserdata(HSQUIRRELVM v,SQInteger idx,SQUserPointer *p,SQUserPointer *typetag)
 {
 	SQObjectPtr *o = NULL;
@@ -1033,8 +1039,8 @@ SQRESULT sq_call(HSQUIRRELVM v,SQInteger params,SQBool retval,SQBool raiseerror)
 		return SQ_OK;
 	}
 	else {
-		v->Pop(params < v->_top ? params : v->_top);
-		return sq_throwerror(v,_SC("call failed"));
+		v->Pop(params);
+		return SQ_ERROR;
 	}
 	if(!v->_suspended)
 		v->Pop(params);
