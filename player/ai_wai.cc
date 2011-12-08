@@ -5,6 +5,7 @@
 #include "wai/utils/wrapper.h"
 
 #include "../dataobj/loadsave.h"
+#include "../simtools.h"
 
 static const char *names [16] =
 {
@@ -53,26 +54,30 @@ void ai_wai_t::step()
 	delete rv;
 
 
-	if(  ( get_welt()->get_steps() & 31 ) == 0 ) {
-		report_t* report = factory_searcher->get_report();
-		if( report==NULL ) {
-			report = industry_manager->get_report();
-		}
-		if( report ) {
-			sint64 cost = report->cost_fix;
-			calc_finance_history();
-			sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
+	report_t* report = NULL;
+	if(  get_welt()->get_steps() > next_construction_step) {
+		report = factory_searcher->get_report();
+		next_construction_step = get_welt()->get_steps() + simrand( ai_t::construction_speed ) + 25;
+	}
 
-			// ausfuehren, falls genug Geld da ist
-			if (is_cash_available(cost)) {
-				bt_root.append_child( report->action );
-				report->action = NULL;
-				delete report;
-				get_log().message( "ai_wai_t::step", "appended report (cost: %lld, cash: %lld)", cost, cash);
-			}
-			else {
-				factory_searcher->append_report( report );
-			}
+	if(  get_welt()->get_steps() > next_micromanage_step) {
+		report = industry_manager->get_report();
+		next_micromanage_step = get_welt()->get_steps() + simrand( 20 ) + 20;
+	}
+	if( report ) {
+		sint64 cost = report->cost_fix;
+		calc_finance_history();
+		sint64 cash = get_finance_history_year(0, COST_NETWEALTH);
+
+		// ausfuehren, falls genug Geld da ist
+		if (is_cash_available(cost)) {
+			bt_root.append_child( report->action );
+			report->action = NULL;
+			delete report;
+			get_log().message( "ai_wai_t::step", "appended report (cost: %lld, cash: %lld)", cost, cash);
+		}
+		else {
+			factory_searcher->append_report( report );
 		}
 	}
 }
@@ -139,6 +144,8 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	factory_searcher = NULL;
 	road_transport = true;
 	ship_transport = true;
+	next_construction_step = get_welt()->get_steps() + simrand( ai_t::construction_speed ) + 25;
+	next_micromanage_step  = get_welt()->get_steps() + simrand( 20 ) + 20;
 }
 
 void ai_wai_t::register_wrapper(wrapper_t *wrap, const void *ptr)

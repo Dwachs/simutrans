@@ -53,6 +53,10 @@ public:
 private:
 	log_t log;
 
+	// time to wait before next construction
+	sint32 next_construction_step;
+	sint32 next_micromanage_step;
+
 	/**
 	 * holds safe pointers to ingame objects (factories)
 	 */
