@@ -153,7 +153,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 
 	// create action node
 	bt_node_t *action = NULL;
-	switch(wt) {
+	switch(wt & ~no_ways) {
 		case road_wt:
 			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, p1, p2, cpd->wb, cpd->d, report->nr_vehicles);
 			break;
@@ -193,6 +193,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 		sp->get_log().warning("industry_connection_planner_t::plan_amph_connection", "no marine route");
 		return NULL;
 	}
+	sp->get_log().message("industry_connection_planner_t::plan_amph_connection", "target harbour at (%s)", target_harbour.get_str());
 	// now:
 	// start_harbour  = !reverse ? load there : unload there
 	// target_harbour = !reverse ? unload there : load there
@@ -203,7 +204,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 
 	report_t *report1 = plan_simple_connection(wt, prod, !reverse ? land_pos : koord3d::invalid, !reverse ? koord3d::invalid : land_pos);
 	if (report1) {
-		report_t *report2 = plan_simple_connection((waytype_t) (water_wt | 32), prod, !reverse ? start_harbour : target_harbour, !reverse ? target_harbour : start_harbour, false /*no ind_connector*/);
+		report_t *report2 = plan_simple_connection((waytype_t) (water_wt | no_ways), prod, !reverse ? start_harbour : target_harbour, !reverse ? target_harbour : start_harbour, false /*no ind_connector*/);
 		if (report2) {
 			report1->merge_report(report2);
 		}
@@ -211,13 +212,14 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	return report1;
 }
 
-connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt, sint32 prod, uint32 dist, uint32 dist_paid)
+connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t wt_in, sint32 prod, uint32 dist, uint32 dist_paid)
 {
 	karte_t *welt = sp->get_welt();
+	waytype_t wt = (waytype_t)(wt_in & ~no_ways);
+	bool no_ways_needed = wt_in & no_ways;
 	// check for depots, station
 	const haus_besch_t* st  = hausbauer_t::get_random_station(haus_besch_t::generic_stop, wt, welt->get_timeline_year_month(), haltestelle_t::WARE, hausbauer_t::generic_station );
 	const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, wt, welt->get_timeline_year_month(), 0);
-
 	// get a vehicle
 	connection_plan_data_t* cpd = new connection_plan_data_t();
 	cpd->d  = new simple_prototype_designer_t(sp);
@@ -229,7 +231,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	d->max_weight = 0xffffffff;
 	d->min_speed  = 1;
 	d->not_obsolete = true;
-	d->wt = (waytype_t)(wt & ~no_ways);
+	d->wt = wt;
 	d->min_trans= 0;
 	d->distance = dist;
 	d->update();
@@ -259,11 +261,11 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 
 	// find the best way
 	vector_tpl<const weg_besch_t *> *ways;
-	if ((wt & no_ways)==0) {
+	if (!no_ways_needed) {
 		ways = wegbauer_t::get_way_list(wt, welt);
 	}
 	else {
-		assert( (wt & no_ways)==water_wt );
+		assert( wt==water_wt );
 		ways = new vector_tpl<const weg_besch_t *>(1);
 		ways->append(NULL);
 	}
@@ -275,7 +277,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		// no builder -> player cannot build, ai should not build
 		if (wb  &&  wb->get_builder()==NULL) continue;
 		// do not build rivers
-		if (wt == water_wt  &&  wb->get_styp()==255) continue;
+		if (wb  &&  wt == water_wt  &&  wb->get_styp()==255) continue;
 
 		sint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
@@ -451,8 +453,9 @@ koord3d industry_connection_planner_t::get_harbour_pos(const fabrik_t* fstart, c
 	return harbour_pos;
 }
 
-bool industry_connection_planner_t::is_infrastructure_available(waytype_t wt, karte_t *welt, bool check_for_ways)
+bool industry_connection_planner_t::is_infrastructure_available(waytype_t wt_in, karte_t *welt, bool check_for_ways)
 {
+	waytype_t wt = (waytype_t)(wt_in & ~no_ways);
 	uint16 time = welt->get_timeline_year_month();
 	if (wt != water_wt) {
 		// check for depots, stations, ways
