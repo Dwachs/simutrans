@@ -78,14 +78,13 @@ return_value_t *industry_connection_planner_t::step()
 			reports.insert_ordered(report0, cmp_reports);
 		}
 	}
-	if (ship_allowed) {
-		report_t *report0 = plan_amph_connection(road_wt, prod, true);
+	if (road_allowed  &&  ship_allowed) {
+		// plan forward / backward amphibic connections
+		report_t *report0 = plan_amph_connection(road_wt, prod, false);
 		if (report0) {
 			reports.insert_ordered(report0, cmp_reports);
 		}
-	}
-	if (road_allowed  &&  ship_allowed) {
-		report_t *report0 = plan_amph_connection(road_wt, prod, false);
+		report0 = plan_amph_connection(road_wt, prod, true);
 		if (report0) {
 			reports.insert_ordered(report0, cmp_reports);
 		}
