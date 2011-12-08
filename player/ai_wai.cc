@@ -57,7 +57,7 @@ void ai_wai_t::step()
 	report_t* report = NULL;
 	if(  get_welt()->get_steps() > next_construction_step) {
 		report = factory_searcher->get_report();
-		next_construction_step = get_welt()->get_steps() + simrand( ai_t::construction_speed ) + 25;
+		next_construction_step = get_welt()->get_steps() + simrand( construction_speed ) + 25;
 	}
 
 	if(  get_welt()->get_steps() > next_micromanage_step) {
@@ -144,7 +144,8 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	factory_searcher = NULL;
 	road_transport = true;
 	ship_transport = true;
-	next_construction_step = get_welt()->get_steps() + simrand( ai_t::construction_speed ) + 25;
+	construction_speed = 50;
+	next_construction_step = get_welt()->get_steps() + simrand( construction_speed ) + 25;
 	next_micromanage_step  = get_welt()->get_steps() + simrand( 20 ) + 20;
 }
 
