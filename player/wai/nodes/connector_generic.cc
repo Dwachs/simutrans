@@ -44,8 +44,8 @@ connector_generic_t::connector_generic_t( ai_wai_t *sp, const char *name, koord3
 
 	wt = weg_besch ? weg_besch->get_wtyp() : invalid_wt;
 
-	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", start));
-	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", ziel ));
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, start));
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, ziel ));
 }
 
 void connector_generic_t::rdwr( loadsave_t *file, const uint16 version )
@@ -145,8 +145,8 @@ return_value_t *connector_generic_t::step()
 							tile_list[i].clear();
 							through_tile_list[i].clear();
 						}
-						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", start, force_through&1 ));
-						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", ziel,  force_through&2 ));
+						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, start, force_through&1 ));
+						append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, ziel,  force_through&2 ));
 						sp->get_log().message( "connector_generic_t::step", "did not complete phase %d", phase);
 						return new_return_value(RT_PARTIAL_SUCCESS);
 					}

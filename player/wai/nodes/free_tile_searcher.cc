@@ -14,11 +14,12 @@ free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name ) :
 	type = BT_FREE_TILE;
 }
 
-free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, koord3d pos_, bool through ) :
+free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, waytype_t wt_, koord3d pos_, bool through ) :
 	bt_node_t( sp, name ), pos(pos_)
 {
 	this->through = through;
 	type = BT_FREE_TILE;
+	wt = wt_;
 }
 
 void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 )
@@ -124,17 +125,17 @@ return_value_t *free_tile_searcher_t::step()
 				const grund_t* gr = sp->get_welt()->lookup( (*next)[j] );
 				// TODO: reicht diese Abfrage aus?? Es muss noch getestet werden, ob einem die Strasse gehört.
 				// Und was ist, wenn der Wegbauer aus dem geraden Stück eine T-Kreuzung macht?
-				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(road_wt) &&  !gr->ist_uebergang() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
-					weg_t *w = gr->get_weg(road_wt);
+				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(wt) &&  !gr->ist_uebergang() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
+					weg_t *w = gr->get_weg(wt);
 					const ribi_t::ribi ribi = w->get_ribi_unmasked();
 					if (w->ist_entfernbar(sp)==NULL && ribi_t::ist_gerade(ribi)) {
 						grund_t *to;
 						bool found = false;
-						if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
+						if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
 							data->pos1.append_unique( to->get_pos() );
 							found = true;
 						}
-						if (gr->get_neighbour(to, road_wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
+						if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
 							data->pos1.append_unique( to->get_pos() );
 							found = true;
 						}
