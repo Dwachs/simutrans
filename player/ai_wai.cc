@@ -137,6 +137,8 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 {
 	industry_manager = NULL;
 	factory_searcher = NULL;
+	road_transport = true;
+	ship_transport = true;
 }
 
 void ai_wai_t::register_wrapper(wrapper_t *wrap, const void *ptr)

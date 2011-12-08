@@ -69,17 +69,26 @@ return_value_t *industry_connection_planner_t::step()
 
 	// plan road and road/water connections
 	vector_tpl<report_t*> reports(3);
-	report_t *report0 = plan_simple_connection(road_wt, prod);
-	if (report0) {
-		reports.insert_ordered(report0, cmp_reports);
+	// respect settings to forbid certain types of transport
+	const bool road_allowed = sp->has_road_transport();
+	const bool ship_allowed = sp->has_ship_transport();
+	if (road_allowed) {
+		report_t *report0 = plan_simple_connection(road_wt, prod);
+		if (report0) {
+			reports.insert_ordered(report0, cmp_reports);
+		}
 	}
-	report0 = plan_amph_connection(road_wt, prod, true);
-	if (report0) {
-		reports.insert_ordered(report0, cmp_reports);
+	if (ship_allowed) {
+		report_t *report0 = plan_amph_connection(road_wt, prod, true);
+		if (report0) {
+			reports.insert_ordered(report0, cmp_reports);
+		}
 	}
-	report0 = plan_amph_connection(road_wt, prod, false);
-	if (report0) {
-		reports.insert_ordered(report0, cmp_reports);
+	if (road_allowed  &&  ship_allowed) {
+		report_t *report0 = plan_amph_connection(road_wt, prod, false);
+		if (report0) {
+			reports.insert_ordered(report0, cmp_reports);
+		}
 	}
 
 	if (reports.empty()) {
