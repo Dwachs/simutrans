@@ -108,9 +108,6 @@
 #include "player/ai_wai.h"
 
 
-//#define DEMO
-//#undef DEMO
-
 // advance 201 ms per sync_step in fast forward mode
 #define MAGIC_STEP (201)
 
@@ -572,6 +569,14 @@ DBG_MESSAGE("karte_t::destroy()", "convois destroyed");
 DBG_MESSAGE("karte_t::destroy()", "stops destroyed");
 	display_progress(old_progress, max_display_progress);
 
+	// remove all target cities (we can skip recalculation anyway)
+	{
+		slist_iterator_tpl<fabrik_t*> fab_iter(fab_list);
+		while(fab_iter.next()) {
+			fab_iter.get_current()->clear_target_cities();
+		}
+	}
+
 	// delete towns first (will also delete all their houses)
 	// for the next game we need to remember the desired number ...
 	sint32 const no_of_cities = settings.get_anzahl_staedte();
@@ -587,10 +592,14 @@ DBG_MESSAGE("karte_t::destroy()", "towns destroyed");
 
 	display_progress( old_progress, max_display_progress );
 	old_progress += cached_groesse_karte_x*cached_groesse_karte_y;
+#ifndef SYNC_VECTOR
 	while(!sync_list.empty()) {
 		sync_steppable *ss = sync_list.remove_first();
 		delete ss;
 	}
+#else
+	clear_ptr_vector( sync_list );
+#endif
 	// entfernt alle synchronen objekte aus der liste
 	sync_list.clear();
 	display_progress( old_progress, max_display_progress );
@@ -626,9 +635,11 @@ DBG_MESSAGE("karte_t::destroy()", "marker destroyed");
 DBG_MESSAGE("karte_t::destroy()", "player destroyed");
 
 	// alle fabriken aufraeumen
-	slist_iterator_tpl<fabrik_t*> fab_iter(fab_list);
-	while(fab_iter.next()) {
-		delete fab_iter.get_current();
+	{
+		slist_iterator_tpl<fabrik_t*> fab_iter(fab_list);
+		while(fab_iter.next()) {
+			delete fab_iter.get_current();
+		}
 	}
 	fab_list.clear();
 DBG_MESSAGE("karte_t::destroy()", "factories destroyed");
@@ -659,15 +670,6 @@ void karte_t::add_convoi(convoihandle_t &cnv)
 void karte_t::rem_convoi(convoihandle_t& cnv)
 {
 	convoi_array.remove(cnv);
-}
-
-/**
- * Zugriff auf das Staedte Array.
- * @author Hj. Malthaner
- */
-const stadt_t *karte_t::get_random_stadt() const
-{
-	return pick_any_weighted(stadt);
 }
 
 void karte_t::add_stadt(stadt_t *s)
@@ -1349,13 +1351,11 @@ DBG_DEBUG("karte_t::init()","built timeline");
 
 	recalc_average_speed();
 
-#ifndef DEMO
 	for (int i = 0; i < MAX_PLAYER_COUNT; i++) {
 		if(  spieler[i]  ) {
 			spieler[i]->set_active(settings.automaten[i]);
 		}
 	}
-#endif
 
 	active_player_nr = 0;
 	active_player = spieler[0];
@@ -1443,7 +1443,7 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	clear_random_mode( 0xFFFF );
 	set_random_mode( MAP_CREATE_RANDOM );
 
-	if (old_x == 0 && settings.heightfield.size() > 0) {
+	if (old_x == 0  &&  !settings.heightfield.empty()) {
 		// init from file
 		int const display_total = 16 + settings.get_anzahl_staedte()*4 + settings.get_land_industry_chains();
 
@@ -1611,7 +1611,7 @@ karte_t::karte_t() :
 	ticks_per_world_month_shift = 20;
 	ticks_per_world_month = (1 << ticks_per_world_month_shift);
 	last_step_ticks = 0;
-	server_next_announce_month = 0xFFFFFFFFu;
+	server_last_announce_time = 0;
 	last_interaction = dr_time();
 	step_mode = PAUSE_FLAG;
 	time_multiplier = 16;
@@ -2547,19 +2547,6 @@ bool karte_t::rem_fab(fabrik_t *fab)
 	return true;
 }
 
-fabrik_t *
-karte_t::get_random_fab() const
-{
-	const int anz = fab_list.get_count();
-	fabrik_t *result = NULL;
-
-	if(anz > 0) {
-		const int end = simrand( anz );
-		result = fab_list.at(end);
-	}
-	return result;
-}
-
 
 /*----------------------------------------------------------------------------------------------------------------------*/
 /* same procedure for tourist attractions */
@@ -2586,19 +2573,6 @@ void karte_t::remove_ausflugsziel(gebaeude_t *gb)
 	for(  uint32 c=0;  c<stadt.get_count();  ++c  ) {
 		stadt[c]->remove_target_attraction(gb);
 	}
-}
-
-
-/* select a random target for a tourist; targets are weighted by their importance */
-const gebaeude_t *
-karte_t::get_random_ausflugsziel() const
-{
-	if (!ausflugsziele.empty()) {
-		return pick_any_weighted(ausflugsziele);
-	}
-	// so there are no destinations ... should never occur ...
-	dbg->fatal("karte_t::get_random_ausflugsziel()","nothing found.");
-	return NULL;
 }
 
 
@@ -2634,7 +2608,7 @@ bool karte_t::sync_add(sync_steppable *obj)
 		sync_add_list.insert( obj );
 	}
 	else {
-		sync_list.insert( obj );
+		sync_list.append( obj );
 	}
 	return true;
 }
@@ -2679,17 +2653,23 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 		// just for progress
 		ticks += delta_t;
 
+#ifndef SYNC_VECTOR
 		// insert new objects created during last sync_step (eg vehicle smoke)
 		if(!sync_add_list.empty()) {
 			sync_list.append_list(sync_add_list);
 		}
+#else
+		while(  !sync_add_list.empty()  ) {
+			sync_list.append( sync_add_list.remove_first() );
+		}
+#endif
 
 		// now remove everything from last time
 		while(!sync_remove_list.empty()) {
-			sync_steppable *ss = sync_remove_list.remove_first();
-			sync_list.remove( ss );
+			sync_list.remove( sync_remove_list.remove_first() );
 		}
 
+#ifndef SYNC_VECTOR
 		for(  slist_tpl<sync_steppable*>::iterator i=sync_list.begin();  !i.end();  ) {
 			// if false, then remove
 			sync_steppable *ss = *i;
@@ -2701,11 +2681,26 @@ void karte_t::sync_step(long delta_t, bool sync, bool display )
 				++i;
 			}
 		}
+#else
+		static vector_tpl<sync_steppable *> sync_list_copy;
+		sync_list_copy.resize( sync_list.get_count() );
+		for(  vector_tpl<sync_steppable*>::const_iterator i=sync_list.begin(), ende=sync_list.end();  i!=ende;  ++i  ) {
+			// if false, then remove
+			sync_steppable *ss = *i;
+			if(!ss->sync_step(delta_t)) {
+				delete ss;
+			}
+			else {
+				sync_list_copy.append( ss );
+			}
+		}
+		swap( sync_list_copy, sync_list );
+		sync_list_copy.clear();
+#endif
 
 		// now remove everything from this time
 		while(!sync_remove_list.empty()) {
-			sync_steppable *ss = sync_remove_list.remove_first();
-			sync_list.remove( ss );
+			sync_list.remove( sync_remove_list.remove_first() );
 		}
 
 		sync_step_running = false;
@@ -3229,12 +3224,12 @@ void karte_t::step()
 			}
 		}
 		else if(simloops>8u*umgebung_t::max_acceleration) {
-			if(idle_time<get_frame_time()-10) {
+			if((long)idle_time<get_frame_time()-10) {
 				idle_time ++;
 			}
 		}
 		// cap it ...
-		if(idle_time>=get_frame_time()-10) {
+		if( (long)idle_time>=get_frame_time()-10) {
 			idle_time = get_frame_time()-10;
 		}
 		next_step_time = time+idle_time;
@@ -3330,11 +3325,11 @@ void karte_t::step()
 
 	// number of playing clients changed
 	if(  umgebung_t::server  &&  last_clients!=socket_list_t::get_playing_clients()  ) {
-		last_clients = socket_list_t::get_playing_clients();
-		if(  umgebung_t::announce_server  &&  umgebung_t::announce_server_intervall<0  ) {
+		if(  umgebung_t::server_announce  ) {
 			// inform the master server
-			announce_server();
+			announce_server( 1 );
 		}
+		last_clients = socket_list_t::get_playing_clients();
 		// add message via tool
 		cbuffer_t buf;
 		buf.printf(translator::translate("Now %u clients connected.", settings.get_name_language_id()), last_clients);
@@ -3879,7 +3874,6 @@ bool karte_t::play_sound_area_clipped(koord pos, sound_info info) const
 
 void karte_t::speichern(const char *filename, const char *version_str, bool silent )
 {
-#ifndef DEMO
 DBG_MESSAGE("karte_t::speichern()", "saving game to '%s'", filename);
 
 	loadsave_t  file;
@@ -3907,7 +3901,6 @@ DBG_MESSAGE("karte_t::speichern()", "saving game to '%s'", filename);
 		reset_interaction();
 	}
 	display_show_load_pointer( false );
-#endif
 }
 
 
@@ -4121,7 +4114,6 @@ bool karte_t::laden(const char *filename)
 	mute_sound(true);
 	display_show_load_pointer(true);
 
-#ifndef DEMO
 	loadsave_t file;
 
 	DBG_MESSAGE("karte_t::laden", "loading game from '%s'", filename);
@@ -4234,7 +4226,6 @@ DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 		werkzeug_t::update_toolbars(this);
 		set_werkzeug( werkzeug_t::general_tool[WKZ_ABFRAGE], get_active_player() );
 	}
-#endif
 	settings.set_filename(filename);
 	display_show_load_pointer(false);
 	return ok;
@@ -4277,7 +4268,7 @@ void karte_t::laden(loadsave_t *file)
 	if(  umgebung_t::networkmode  ) {
 		// to have games synchronized, transfer random counter too
 		setsimrand(settings.get_random_counter(), 0xFFFFFFFFu );
-		translator::init_city_names(settings.get_name_language_id());
+		translator::init_custom_names(settings.get_name_language_id());
 	}
 
 	if(  !umgebung_t::networkmode  ||  (umgebung_t::server  &&  socket_list_t::get_playing_clients()==0)  ) {
@@ -4601,6 +4592,9 @@ DBG_MESSAGE("karte_t::laden()", "%d ways loaded",weg_t::get_alle_wege().get_coun
 						d->laden_abschliessen();
 					}
 				}
+				if(file->get_version()<=111000  &&  gr->ist_natur()) {
+					gr->sort_trees();
+				}
 				gr->calc_bild();
 			}
 		}
@@ -4683,13 +4677,9 @@ DBG_MESSAGE("karte_t::laden()", "%d factories loaded", fab_list.get_count());
 #endif
 	// recalculate halt connections
 	set_schedule_counter();
-	int hnr=0, hmax=haltestelle_t::get_alle_haltestellen().get_count();
-	for(  slist_tpl<halthandle_t>::const_iterator i=haltestelle_t::get_alle_haltestellen().begin(); i!=haltestelle_t::get_alle_haltestellen().end();  ++i  ) {
-		if((hnr++%64)==0) {
-			display_progress(get_groesse_y()+48+stadt.get_count()+128+(hnr*80)/hmax, get_groesse_y()+256+stadt.get_count());
-		}
-		(*i)->rebuild_connections();
-	}
+	do {
+		haltestelle_t::step_all();
+	} while (  haltestelle_t::get_rerouting_status()==RECONNECTING  );
 #ifdef DEBUG
 	DBG_MESSAGE("rebuild_destinations()","for all haltstellen_t took %ld ms", dr_time()-dt );
 #endif
@@ -4830,15 +4820,6 @@ void karte_t::load_heightfield(settings_t* const sets)
 		create_win( new news_img("\nCan't open heightfield file.\n"), w_info, magic_none );
 	}
 }
-
-
-static void warte_auf_mausklick_oder_taste(event_t *ev)
-{
-	do {
-		win_get_event(ev);
-	}while( !(IS_LEFTRELEASE(ev)  ||  (ev->ev_class == EVENT_KEYBOARD  &&  (ev->ev_code >= 32  &&  ev->ev_code < 256) ) ) );
-}
-
 
 
 /**
@@ -4989,25 +4970,6 @@ void karte_t::change_time_multiplier(sint32 delta)
 		}
 	}
 }
-
-
-
-void karte_t::do_freeze()
-{
-	dr_prepare_flush();
-
-	display_fillbox_wh(display_get_width()/2-100, display_get_height()/2-50, 200,100, MN_GREY2, true);
-	display_ddd_box(display_get_width()/2-100, display_get_height()/2-50, 200,100, MN_GREY4, MN_GREY0);
-	display_ddd_box(display_get_width()/2-92, display_get_height()/2-42, 200-16,100-16, MN_GREY0, MN_GREY4);
-	display_proportional(display_get_width()/2, display_get_height()/2-5, translator::translate("GAME PAUSED"), ALIGN_MIDDLE, COL_BLACK, false);
-
-	// Pause: warten auf die naechste Taste
-	event_t ev;
-	dr_flush();
-	warte_auf_mausklick_oder_taste(&ev);
-	reset_timer();
-}
-
 
 
 void karte_t::set_pause(bool p)
@@ -5491,7 +5453,7 @@ static void encode_URI(cbuffer_t& buf, char const* const text)
 			char const two[] = { c, '\0' };
 			buf.append(two);
 		} else {
-			buf.printf("%02X", (unsigned char)c);
+			buf.printf("%%%02X", (unsigned char)c);
 		}
 	}
 }
@@ -5524,32 +5486,9 @@ bool karte_t::interactive(uint32 quit_month)
 		step_mode |= FIX_RATIO;
 
 		reset_timer();
-		// announce me on server
-		if(  umgebung_t::announce_server  ) {
-			cbuffer_t buf;
-#ifndef REVISION
-#	define REVISION 0
-#endif
-			buf.printf("/serverlist/slist.php?ID=%u&st=on&ip=%s&port=%u&rev=" QUOTEME(REVISION) "&pak=", umgebung_t::announce_server, umgebung_t::server_name.c_str(), umgebung_t::server);
-			// announce ak set
-			char const* const copyright = grund_besch_t::ausserhalb->get_copyright();
-			if (copyright && STRICMP("none", copyright) != 0) {
-				// construct from outside object copyright string
-				encode_URI(buf, copyright);
-			}
-			else {
-				// construct from pak name
-				std::string pak_name = umgebung_t::objfilename;
-				pak_name.erase( pak_name.length()-1 );
-				buf.append( pak_name.c_str() );
-			}
-			buf.append( "&name=" );
-			// add comment
-			encode_URI(buf, umgebung_t::server_comment.c_str());
-			network_download_http( ANNOUNCE_SERVER, buf, NULL );
-			// and now the details (resetting month for automatic messages)
-			server_next_announce_month = 0;
-			announce_server();
+		// Announce server startup to the listing server
+		if(  umgebung_t::server_announce  ) {
+			announce_server( 0 );
 		}
 	}
 
@@ -5846,6 +5785,11 @@ bool karte_t::interactive(uint32 quit_month)
 						dbg->message("karte_t::interactive", "time=%lu sync=%d  rand=%d", dr_time(), sync_steps, LRAND(sync_steps));
 					}
 #endif
+
+					// no clients -> pause game
+					if (  umgebung_t::networkmode  &&  umgebung_t::pause_server_no_clients  &&  socket_list_t::get_playing_clients() == 0  &&  !nwc_join_t::is_pending()  ) {
+						set_pause(true);
+					}
 				}
 				else {
 					INT_CHECK( "karte_t::interactive()" );
@@ -5858,11 +5802,11 @@ bool karte_t::interactive(uint32 quit_month)
 			}
 		}
 
-		// monthly announcements
-		if(  get_current_month() >= server_next_announce_month  ) {
-			announce_server();
+		// Interval-based server announcements
+		if (  umgebung_t::server_announce  &&  umgebung_t::server_announce_interval > 0  &&
+			dr_time() >= server_last_announce_time + (uint32)umgebung_t::server_announce_interval * 1000  ) {
+			announce_server( 1 );
 		}
-
 
 		if (!swallowed) {
 			DBG_DEBUG4("karte_t::interactive", "calling interactive_event");
@@ -5876,10 +5820,9 @@ bool karte_t::interactive(uint32 quit_month)
 		umgebung_t::quit_simutrans = true;
 	}
 
-	if(  umgebung_t::server  &&  umgebung_t::announce_server  ) {
-		cbuffer_t buf;
-		buf.printf( "/serverlist/slist.php?ID=%u&st=off", umgebung_t::announce_server );
-		network_download_http( ANNOUNCE_SERVER, buf, NULL );
+	// On quit announce server as being offline
+	if(  umgebung_t::server  &&  umgebung_t::server_announce  ) {
+		announce_server( 2 );
 	}
 
 	intr_enable();
@@ -5889,35 +5832,104 @@ bool karte_t::interactive(uint32 quit_month)
 }
 
 
-// if announce_server has a valid ID, it will be announced on the list
-void karte_t::announce_server()
+// Announce server to central listing server
+// Status is one of:
+// 0 - startup
+// 1 - interval
+// 2 - shutdown
+void karte_t::announce_server(int status)
 {
-	// announce game info to server, format is
-	// gd=time3.1923:size256x256:Player2:locked2:Clients1:Towns15:citicens3245:Factories33:Convoys56:Stops17
-	if(  umgebung_t::announce_server  ) {
-		// now send the status
+	DBG_DEBUG( "announce_server()", "status: %i",  status );
+	// Announce game info to server, format is:
+	// st=on&dns=server.com&port=13353&rev=1234&pak=pak128&name=some+name&time=3,1923&size=256,256&active=[0-16]&locked=[0-16]&clients=[0-16]&towns=15&citizens=3245&factories=33&convoys=56&stops=17
+	// (This is the data part of an HTTP POST)
+	if(  umgebung_t::server_announce  ) {
 		cbuffer_t buf;
-		buf.printf( "/serverlist/map.php?ID=%u", umgebung_t::announce_server );
-		buf.printf( "&gd=time%u.%u:size%ux%u:", (get_current_month()%12)+1, get_current_month()/12, get_groesse_x(), get_groesse_y() );
-		uint8 player=0, locked = 0;
-		for(  uint8 i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
-			if(  spieler[i]  &&  spieler[i]->get_ai_id()!=spieler_t::EMPTY  ) {
-				player ++;
-				if(  spieler[i]->is_locked()  ) {
-					locked ++;
-				}
-			}
-		}
-		last_clients = socket_list_t::get_playing_clients();
-		buf.printf( "Players%u:locked%u:Clients%u:", player, locked, last_clients );
-		buf.printf( "Towns%u:citicens%u:Factories%u:Convoys%u:Stops%u", stadt.get_count(), stadt.get_sum_weight(), fab_list.get_count(), get_convoi_count(), haltestelle_t::get_alle_haltestellen().get_count() );
-		network_download_http( ANNOUNCE_SERVER, buf, NULL );
-		if(  umgebung_t::announce_server_intervall > 0  ) {
-			server_next_announce_month = current_month + umgebung_t::announce_server_intervall;
+		// Always send dns and port as these are used as the unique identifier for the server
+		buf.append( "&dns=" );
+		encode_URI( buf, umgebung_t::server_dns.c_str() );
+		buf.printf( "&port=%u", umgebung_t::server );
+		// Always send announce interval to allow listing server to predict next announce
+		buf.printf( "&aiv=%u", umgebung_t::server_announce_interval );
+		// Always send status, either online or offline
+		if (  status == 0  ||  status == 1  ) {
+			buf.append( "&st=1" );
 		}
 		else {
-			server_next_announce_month = 0xFFFFFFFFu;
+			buf.append( "&st=0" );
 		}
+
+
+		// Add fields sent only on server startup (cannot change during the course of a game)
+		if (  status == 0  ) {
+#ifndef REVISION
+#	define REVISION 0
+#endif
+			// Simple revision used for matching (integer)
+			buf.printf( "&rev=%d", atol( QUOTEME(REVISION) ) );
+			// Complex version string used for display
+			buf.printf( "&ver=Simutrans %s (r%s) built %s", QUOTEME(VERSION_NUMBER), QUOTEME(REVISION), QUOTEME(VERSION_DATE) );
+			// Pakset version
+			buf.append( "&pak=" );
+			// Announce pak set, ideally get this from the copyright field of ground.Outside.pak
+			char const* const copyright = grund_besch_t::ausserhalb->get_copyright();
+			if (copyright && STRICMP("none", copyright) != 0) {
+				// construct from outside object copyright string
+				encode_URI( buf, copyright );
+			}
+			else {
+				// construct from pak name
+				std::string pak_name = umgebung_t::objfilename;
+				pak_name.erase( pak_name.length() - 1 );
+				encode_URI( buf, pak_name.c_str() );
+			}
+			// TODO - change this to be the start date of the current map
+			buf.printf( "&start=%u,%u", settings.get_starting_month() + 1, settings.get_starting_year() );
+			// Add server name for listing
+			buf.append( "&name=" );
+			encode_URI( buf, umgebung_t::server_name.c_str() );
+			// Add server comments for listing
+			buf.append( "&comments=" );
+			encode_URI( buf, umgebung_t::server_comments.c_str() );
+			// Add server maintainer email for listing
+			buf.append( "&email=" );
+			encode_URI( buf, umgebung_t::server_email.c_str() );
+			// Add server pakset URL for listing
+			buf.append( "&pakurl=" );
+			encode_URI( buf, umgebung_t::server_pakurl.c_str() );
+			// Add server info URL for listing
+			buf.append( "&infurl=" );
+			encode_URI( buf, umgebung_t::server_infurl.c_str() );
+
+			// TODO send minimap data as well							// TODO
+		}
+		if (  status == 0  ||  status == 1  ) {
+			// Now add the game data part
+			uint8 active = 0, locked = 0;
+			for(  uint8 i=0;  i<MAX_PLAYER_COUNT;  i++  ) {
+				if(  spieler[i]  &&  spieler[i]->get_ai_id()!=spieler_t::EMPTY  ) {
+					active ++;
+					if(  spieler[i]->is_locked()  ) {
+						locked ++;
+					}
+				}
+			}
+			buf.printf( "&time=%u,%u",   (get_current_month() % 12) + 1, get_current_month() / 12 );
+			buf.printf( "&size=%u,%u",   get_groesse_x(), get_groesse_y() );
+			buf.printf( "&active=%u",    active );
+			buf.printf( "&locked=%u",    locked );
+			buf.printf( "&clients=%u",   socket_list_t::get_playing_clients() );
+			buf.printf( "&towns=%u",     stadt.get_count() );
+			buf.printf( "&citizens=%u",  stadt.get_sum_weight() );
+			buf.printf( "&factories=%u", fab_list.get_count() );
+			buf.printf( "&convoys=%u",   get_convoi_count() );
+			buf.printf( "&stops=%u",     haltestelle_t::get_alle_haltestellen().get_count() );
+		}
+
+		network_http_post( ANNOUNCE_SERVER, ANNOUNCE_URL, buf, NULL );
+
+		// Record time of this announce
+		server_last_announce_time = dr_time();
 	}
 }
 

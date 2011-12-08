@@ -8,7 +8,6 @@
 #include "halt_detail.h"
 #include "halt_info.h"
 #include "../simworld.h"
-#include "../simhalt.h"
 #include "../simware.h"
 #include "../simcolor.h"
 #include "../simgraph.h"
@@ -46,7 +45,8 @@ const char cost_type[MAX_HALT_COST][64] =
 	"hl_btn_sort_waiting",
 	"Arrived",
 	"Departed",
-	"Convoys"
+	"Convoys",
+	"Walked"
 };
 
 const uint8 index_of_haltinfo[MAX_HALT_COST] = {
@@ -56,8 +56,16 @@ const uint8 index_of_haltinfo[MAX_HALT_COST] = {
 	HALT_WAITING,
 	HALT_ARRIVED,
 	HALT_DEPARTED,
-	HALT_CONVOIS_ARRIVED
+	HALT_CONVOIS_ARRIVED,
+	HALT_WALKED
 };
+
+#define COL_HAPPY COL_WHITE
+#define COL_UNHAPPY COL_RED
+#define COL_NO_ROUTE COL_BLUE
+#define COL_WAITING COL_YELLOW
+#define COL_ARRIVED COL_DARK_ORANGE
+#define COL_DEPARTED COL_DARK_YELLOW
 
 const int cost_type_color[MAX_HALT_COST] =
 {
@@ -67,11 +75,12 @@ const int cost_type_color[MAX_HALT_COST] =
 	COL_WAITING,
 	COL_ARRIVED,
 	COL_DEPARTED,
-	COL_VEHICLE_ASSETS
+	COL_COUNVOI_COUNT,
+	COL_LILAC
 };
 
 halt_info_t::halt_info_t(karte_t *welt, halthandle_t halt) :
-		gui_frame_t(halt->get_name(), halt->get_besitzer()),
+		gui_frame_t( halt->get_name(), halt->get_besitzer() ),
 		scrolly(&text),
 		text(&freight_info),
 		sort_label(translator::translate("Hier warten/lagern:")),
@@ -154,6 +163,12 @@ halt_info_t::~halt_info_t()
 		// since init always returns false, it is save to delete immediately
 		delete w;
 	}
+}
+
+
+koord3d halt_info_t::get_weltpos()
+{
+	return halt->get_basis_pos3d();
 }
 
 

@@ -17,9 +17,28 @@
 #include "gui_container.h"
 #include "../utils/cbuffer_t.h"
 
+class welt_t;
 class fabrik_t;
 class gebaeude_t;
 class button_t;
+
+
+/**
+ * info on city demand
+
+ * @author
+ */
+class gui_fabrik_info_t : public gui_container_t
+{
+private:
+	const fabrik_t* fab;
+
+public:
+	gui_fabrik_info_t(const fabrik_t* fab);
+
+	void zeichnen(koord offset);
+};
+
 
 /**
  * Info window for factories
@@ -28,7 +47,8 @@ class button_t;
 class fabrik_info_t : public gui_frame_t, public action_listener_t
 {
  private:
-	const fabrik_t* fab;
+	fabrik_t *fab;
+	karte_t *welt;
 
 	cbuffer_t info_buf, prod_buf;
 
@@ -40,6 +60,7 @@ class fabrik_info_t : public gui_frame_t, public action_listener_t
 	ding_view_t view;
 
 	char fabname[256];
+	char fabkoordname[300];
 	gui_textinput_t input;
 
 	button_t *lieferbuttons;
@@ -47,14 +68,16 @@ class fabrik_info_t : public gui_frame_t, public action_listener_t
 	button_t *stadtbuttons;
 
 	gui_scrollpane_t scrolly;
-	gui_container_t cont;
+	gui_fabrik_info_t fab_info;
 	gui_textarea_t prod, txt;
 
+	void rename_factory();
+
+public:
 	// refreshes all text and location pointers
 	void update_info();
 
- public:
-	fabrik_info_t(const fabrik_t* fab, const gebaeude_t* gb);
+	fabrik_info_t(fabrik_t* fab, const gebaeude_t* gb);
 	virtual ~fabrik_info_t();
 
 	/**
@@ -65,6 +88,8 @@ class fabrik_info_t : public gui_frame_t, public action_listener_t
 	const char *get_hilfe_datei() const {return "industry_info.txt";}
 
 	virtual bool has_min_sizer() const {return true;}
+
+	virtual koord3d get_weltpos() { return fab->get_pos(); }
 
 	virtual void set_fenstergroesse(koord groesse);
 

@@ -276,3 +276,52 @@ double perlin_noise_2D(const double x, const double y, const double p)
 
     return total;
 }
+
+
+// compute integer log10
+uint32 log10(uint32 v)
+{
+	// taken from http://graphics.stanford.edu/~seander/bithacks.html
+	// compute log2 first
+	const uint32 b[] = {0x2, 0xC, 0xF0, 0xFF00, 0xFFFF0000};
+	const uint32 S[] = {1, 2, 4, 8, 16};
+
+	uint32 r = 0; // result of log2(v) will go here
+	for (int i = 4; i >= 0; i--)
+	{
+	  if (v & b[i])
+	  {
+		v >>= S[i];
+		r |= S[i];
+	  }
+	}
+	uint32 t = (r + 1) * 1233 >> 12; // 1 / log_2(10) ~~ 1233 / 4096
+	return t;
+}
+
+
+// compute integer sqrt
+uint32 sqrt_i32(uint32 num)
+{
+	// taken from http://en.wikipedia.org/wiki/Methods_of_computing_square_roots
+    uint32 res = 0;
+    uint32 bit = 1 << 30; // The second-to-top bit is set: 1<<14 for short
+
+    // "bit" starts at the highest power of four <= the argument.
+    while(  bit > num  ) {
+        bit >>= 2;
+    }
+
+    while(  bit != 0  ) {
+        if(  num >= res + bit  ) {
+            num -= res + bit;
+            res = (res >> 1) + bit;
+        }
+        else {
+            res >>= 1;
+        }
+        bit >>= 2;
+    }
+    return res;
+}
+

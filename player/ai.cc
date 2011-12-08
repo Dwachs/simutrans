@@ -25,9 +25,10 @@
 
 #include "../besch/haus_besch.h"
 
+#include "../dataobj/loadsave.h"
+
 #include "../dings/zeiger.h"
 
-#include "../dataobj/loadsave.h"
 #include "../utils/cbuffer_t.h"
 #include "../vehicle/simvehikel.h"
 
@@ -540,6 +541,7 @@ void ai_t::tell_tool_result(werkzeug_t *tool, koord3d pos, const char *err, bool
 	// TODO: process the result...
 }
 
+
 // rdwr helper functions
 void ai_t::rdwr_fabrik(loadsave_t *file, karte_t *welt, const fabrik_t * &fab)
 {
@@ -619,5 +621,18 @@ void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 			}
 		}
 	}
+}
+
+void ai_t::rdwr(loadsave_t *file)
+{
+	if(  file->get_version()<111001  ) {
+		// do not know about ai_t
+		return;
+	}
+	file->rdwr_long( construction_speed );
+	file->rdwr_bool( road_transport );
+	file->rdwr_bool( rail_transport );
+	file->rdwr_bool( air_transport );
+	file->rdwr_bool( ship_transport );
 }
 

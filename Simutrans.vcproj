@@ -203,6 +203,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\ai_option_t.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\ai_passenger.cc"
 				>
 			</File>
@@ -839,6 +843,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gui\privatesign_info.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\player\wai\report.cc"
 				>
 			</File>
@@ -1272,6 +1280,10 @@
 			</File>
 			<File
 				RelativePath=".\player\ai_goods.h"
+				>
+			</File>
+			<File
+				RelativePath=".\gui\ai_option_t.h"
 				>
 			</File>
 			<File
@@ -2053,6 +2065,10 @@
 			</File>
 			<File
 				RelativePath=".\tpl\prioqueue_tpl.h"
+				>
+			</File>
+			<File
+				RelativePath=".\gui\privatesign_info.h"
 				>
 			</File>
 			<File

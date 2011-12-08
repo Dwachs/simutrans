@@ -302,8 +302,6 @@ void wegbauer_t::fill_menu(werkzeug_waehler_t *wzw, const waytype_t wtyp, const 
 }
 
 
-
-
 /* allow for railroad crossing
  * @author prissi
  */
@@ -372,8 +370,7 @@ bool wegbauer_t::check_crossing(const koord zv, const grund_t *bd, waytype_t wty
 /* crossing of powerlines, or no powerline
  * @author prissi
  */
-bool
-wegbauer_t::check_for_leitung(const koord zv, const grund_t *bd) const
+bool wegbauer_t::check_for_leitung(const koord zv, const grund_t *bd) const
 {
 	if(zv==koord(0,0)) {
 		return true;
@@ -396,7 +393,6 @@ wegbauer_t::check_for_leitung(const koord zv, const grund_t *bd) const
 	// ok, there is not high power transmission stuff going on here
 	return true;
 }
-
 
 
 // allowed slope?
@@ -424,14 +420,12 @@ bool wegbauer_t::check_slope( const grund_t *from, const grund_t *to )
 }
 
 
-
 // allowed owner?
 bool wegbauer_t::check_owner( const spieler_t *sp1, const spieler_t *sp2 ) const
 {
 	// unowned, mine or public property or superuser ... ?
 	return sp1==NULL  ||  sp1==sp2  ||  sp1==welt->get_spieler(1)  ||  sp2==welt->get_spieler(1);
 }
-
 
 
 /* do not go through depots, station buildings etc. ...
@@ -475,7 +469,6 @@ bool wegbauer_t::check_building( const grund_t *to, const koord dir ) const
 	}
 	return true;
 }
-
 
 
 /* This is the core routine for the way search
@@ -606,7 +599,7 @@ bool wegbauer_t::is_allowed_step( const grund_t *from, const grund_t *to, long *
 
 	// universal check for crossings
 	if (to!=from  &&  (bautyp&bautyp_mask)!=leitung) {
-		waytype_t const wtyp = bautyp == river ? water_wt : static_cast<waytype_t>(bautyp & bautyp_mask);
+		waytype_t const wtyp = (bautyp == river) ? water_wt : (waytype_t)(bautyp & bautyp_mask);
 		if(!check_crossing(zv,to,wtyp,sp)  ||  !check_crossing(-zv,from,wtyp,sp)) {
 			return false;
 		}
@@ -780,9 +773,16 @@ bool wegbauer_t::is_allowed_step( const grund_t *from, const grund_t *to, long *
 			break;
 
 		case luft: // hsiegeln: runway
-			ok = !to->ist_wasser() && (to->hat_weg(air_wt) || !to->hat_wege())  &&  to->find<leitung_t>()==NULL  &&  !fundament;
-			// calculate costs
-			*costs = s.way_count_straight;
+			{
+				const weg_t *w = to->get_weg(air_wt);
+				if(  w  &&  w->get_besch()->get_styp()==1  &&  besch->get_styp()!=1 &&  ribi_t::ist_einfach(w->get_ribi_unmasked())  ) {
+					// cannot go over the end of a runway with a taxiway
+					return false;
+				}
+				ok = !to->ist_wasser() && (w  ||  !to->hat_wege())  &&  to->find<leitung_t>()==NULL  &&  !fundament;
+				// calculate costs
+				*costs = s.way_count_straight;
+			}
 			break;
 	}
 	return ok;
@@ -1585,38 +1585,50 @@ DBG_MESSAGE("wegbauer_t::intern_calc_straight_route()","found straight route max
 // special for starting/landing runways
 bool wegbauer_t::intern_calc_route_runways(koord3d start3d, const koord3d ziel3d)
 {
+	route.clear();
+	terraform_index.clear();
+
 	const koord start=start3d.get_2d();
 	const koord ziel=ziel3d.get_2d();
 	// check for straight line!
 	const ribi_t::ribi ribi = ribi_typ( start, ziel );
-	if(!ribi_t::ist_gerade(ribi)) {
+	if(  !ribi_t::ist_gerade(ribi)  ) {
 		// only straight runways!
 		return false;
 	}
+	const ribi_t::ribi ribi_gerade = ribi_t::doppelt(ribi);
+
 	// not too close to the border?
-	if(	!(welt->ist_in_kartengrenzen(start-koord(5,5))  &&  welt->ist_in_kartengrenzen(start+koord(5,5)))  ||
-		!(welt->ist_in_kartengrenzen(ziel-koord(5,5))  &&  welt->ist_in_kartengrenzen(ziel+koord(5,5)))  ) {
+	if(	 !(welt->ist_in_kartengrenzen(start-koord(5,5))  &&  welt->ist_in_kartengrenzen(start+koord(5,5)))  ||
+		 !(welt->ist_in_kartengrenzen(ziel-koord(5,5))  &&  welt->ist_in_kartengrenzen(ziel+koord(5,5)))  ) {
 		if(sp==welt->get_active_player()) {
 			create_win( new news_img("Zu nah am Kartenrand"), w_time_delete, magic_none);
 			return false;
 		}
 	}
 
-
 	// now try begin and endpoint
 	const koord zv(ribi);
 	// end start
 	const grund_t *gr = welt->lookup_kartenboden(start);
-	const weg_t *weg=gr->get_weg(air_wt);
-	if(weg  &&  (weg->get_besch()->get_styp()==0  ||  ribi_t::ist_kurve(weg->get_ribi()|ribi))) {
-		// cannot connect to taxiway at the start and no curve possible
+	const weg_t *weg = gr->get_weg(air_wt);
+	if(weg  &&  !ribi_t::ist_gerade(weg->get_ribi()|ribi_gerade)  ) {
+		// cannot connect with curve at the end
+		return false;
+	}
+	if(  weg  &&  weg->get_besch()->get_styp()==0  ) {
+		//  could not continue taxiway with runway
 		return false;
 	}
 	// check end
 	gr = welt->lookup_kartenboden(ziel);
-	weg=gr->get_weg(air_wt);
-	if(weg  &&  (weg->get_besch()->get_styp()==1  ||  ribi_t::ist_kurve(weg->get_ribi()|ribi))) {
-		// cannot connect to taxiway at the end and no curve at the end
+	weg = gr->get_weg(air_wt);
+	if(weg  &&  !ribi_t::ist_gerade(weg->get_ribi()|ribi_gerade)  ) {
+		// cannot connect with curve at the end
+		return false;
+	}
+	if(  weg  &&  weg->get_besch()->get_styp()==0  ) {
+		//  could not continue taxiway with runway
 		return false;
 	}
 	// now try a straight line with no crossings and no curves at the end
@@ -1626,6 +1638,11 @@ bool wegbauer_t::intern_calc_route_runways(koord3d start3d, const koord3d ziel3d
 		grund_t *to = welt->lookup_kartenboden(start+zv*i);
 		long dummy;
 		if (!is_allowed_step(from, to, &dummy)) {
+			return false;
+		}
+		weg = to->get_weg(air_wt);
+		if(  weg  &&  weg->get_besch()->get_styp()==1  &&  (ribi_t::is_threeway(weg->get_ribi_unmasked()|ribi_gerade))  &&  (weg->get_ribi_unmasked()|ribi_gerade)!=ribi_t::alle  ) {
+			// only fourway crossings of runways allowed, no threeways => fail
 			return false;
 		}
 		from = to;
@@ -1641,13 +1658,13 @@ bool wegbauer_t::intern_calc_route_runways(koord3d start3d, const koord3d ziel3d
 }
 
 
-/* calc_straight_route (maximum one curve, including diagonals)
- *
+/*
+ * calc_straight_route (maximum one curve, including diagonals)
  */
 void wegbauer_t::calc_straight_route(koord3d start, const koord3d ziel)
 {
 	DBG_MESSAGE("wegbauer_t::calc_straight_route()","from %d,%d,%d to %d,%d,%d",start.x,start.y,start.z, ziel.x,ziel.y,ziel.z );
-	if(bautyp==luft  &&  besch->get_topspeed()>=250) {
+	if(bautyp==luft  &&  besch->get_styp()==1) {
 		// these are straight anyway ...
 		intern_calc_route_runways(start, ziel);
 	}
@@ -1861,6 +1878,7 @@ sint64 wegbauer_t::calc_costs()
 
 	for(uint32 i=0; i<get_count(); i++) {
 		sint32 old_speedlimit = -1;
+		sint32 replace_cost = 0;
 
 		const grund_t* gr = welt->lookup(route[i] + offset);
 		if( gr ) {
@@ -1880,6 +1898,7 @@ sint64 wegbauer_t::calc_costs()
 				}
 				else {
 					if (weg_t const* const weg = gr->get_weg(besch->get_wtyp())) {
+						replace_cost = weg->get_besch()->get_preis();
 						if( weg->get_besch() == besch ) {
 							continue; // Nothing to pay on this tile.
 						}
@@ -1909,7 +1928,7 @@ sint64 wegbauer_t::calc_costs()
 			}
 		}
 		if(  !keep_existing_faster_ways  ||  old_speedlimit < new_speedlimit  ) {
-			costs += single_cost;
+			costs += max(single_cost, replace_cost);
 		}
 
 		// last tile cannot be start of tunnel/bridge

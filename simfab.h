@@ -17,6 +17,7 @@
 #include "besch/fabrik_besch.h"
 #include "halthandle_t.h"
 #include "simworld.h"
+#include "utils/plainstring.h"
 
 
 class spieler_t;
@@ -93,7 +94,7 @@ public:
 	sint64 get_stat(int month, int stat_type) const { assert(stat_type<MAX_FAB_GOODS_STAT); return statistics[month][stat_type]; }
 	void book_weighted_sum_storage(sint64 delta_time);
 
-	sint32 menge;	// in internal untis shifted by precision (see produktion)
+	sint32 menge;	// in internal untis shifted by precision_bits (see produktion)
 	sint32 max;
 };
 
@@ -101,11 +102,6 @@ public:
 /**
  * Eine Klasse für Fabriken in Simutrans. Fabriken produzieren und
  * verbrauchen Waren und beliefern nahe Haltestellen.
- *
- * Die Abfragefunktionen liefern -1 wenn eine Ware niemals
- * hergestellt oder verbraucht wird, 0 wenn gerade nichts
- * hergestellt oder verbraucht wird und > 0 sonst
- * (entspricht Vorrat/Verbrauch).
  *
  * @date 1998
  * @see haltestelle_t
@@ -327,6 +323,8 @@ private:
 	arrival_statistics_t arrival_stats_pax;
 	arrival_statistics_t arrival_stats_mail;
 
+	plainstring name;
+
 	/**
 	 * For advancement of slots for boost calculation
 	 * @author Knightly
@@ -439,7 +437,9 @@ public:
 	void step(long delta_t);                  // fabrik muss auch arbeiten
 	void neuer_monat();
 
-	char const* get_name() const { return translator::translate(besch->get_name()); }
+	char const* get_name() const;
+	void set_name( const char *name );
+
 	sint32 get_kennfarbe() const { return besch->get_kennfarbe(); }
 
 	spieler_t *get_besitzer() const
@@ -448,7 +448,7 @@ public:
 		return p ? p->first_obj()->get_besitzer() : 0;
 	}
 
-	void zeige_info() const;
+	void zeige_info();
 
 	// infostring on production
 	void info_prod(cbuffer_t& buf) const;
@@ -549,6 +549,11 @@ public:
 	uint32 get_scaled_electric_amount() const { return scaled_electric_amount; }
 	uint32 get_scaled_pax_demand() const { return scaled_pax_demand; }
 	uint32 get_scaled_mail_demand() const { return scaled_mail_demand; }
+
+	bool is_end_consumer() const { return (ausgang.empty() && !besch->is_electricity_producer()); }
+
+	// Returns a list of goods produced by this factory.
+	slist_tpl<const ware_besch_t*> *get_produced_goods() const;
 };
 
 #endif

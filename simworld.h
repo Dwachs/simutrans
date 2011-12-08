@@ -203,7 +203,11 @@ private:
 	zeiger_t *zeiger;
 
 	slist_tpl<sync_steppable *> sync_add_list;	// these objects are move to the sync_list (but before next sync step, so they do not interfere!)
+#ifndef SYNC_VECTOR
 	slist_tpl<sync_steppable *> sync_list;
+#else
+	vector_tpl<sync_steppable *> sync_list;
+#endif
 	slist_tpl<sync_steppable *> sync_remove_list;
 
 	vector_tpl<convoihandle_t> convoi_array;
@@ -396,13 +400,14 @@ private:
 	 */
 	void distribute_groundobjs_cities(int new_cities, sint32 new_mittlere_einwohnerzahl, sint16 old_x, sint16 old_y);
 
-	// when this month is reached, server will do next announcement
-	uint32 server_next_announce_month;
+	// The last time when a server announce was performed (in ms)
+	uint32 server_last_announce_time;
 
 public:
-	// announce server and current state to listserver
-	// will be done in step when client number changed
-	void announce_server();
+	// Announce server and current state to listserver
+	// Single argument specifies what information should be announced
+	// or offline (the latter only in cases where it is shutting down)
+	void announce_server(int status);
 
 	/* reads height data from 8 or 25 bit bmp or ppm files
 	 * @return either pointer to heightfield (use delete [] for it) or NULL
@@ -509,7 +514,6 @@ public:
 	// time lapse mode ...
 	bool is_paused() const { return step_mode&PAUSE_FLAG; }
 	void set_pause( bool );	// stops the game with interaction
-	void do_freeze();	// stops the game and all interaction
 
 	bool is_fast_forward() const { return step_mode == FAST_FORWARD; }
 	void set_fast_forward(bool ff);
@@ -883,14 +887,12 @@ public:
 	 * @author Hj. Malthaner
 	 */
 	const weighted_vector_tpl<stadt_t*>& get_staedte() const { return stadt; }
-	const stadt_t *get_random_stadt() const;
 	void add_stadt(stadt_t *s);
 	bool rem_stadt(stadt_t *s);
 
 	/* tourist attraction list */
 	void add_ausflugsziel(gebaeude_t *gb);
 	void remove_ausflugsziel(gebaeude_t *gb);
-	const gebaeude_t *get_random_ausflugsziel() const;
 	const weighted_vector_tpl<gebaeude_t*> &get_ausflugsziele() const {return ausflugsziele; }
 
 	void add_label(koord pos) { if (!labels.is_contained(pos)) labels.append(pos); }
@@ -902,11 +904,6 @@ public:
 	int get_fab_index(fabrik_t* fab)  const { return fab_list.index_of(fab); }
 	fabrik_t* get_fab(unsigned index) const { return index < fab_list.get_count() ? fab_list.at(index) : NULL; }
 	const slist_tpl<fabrik_t*>& get_fab_list() const { return fab_list; }
-
-	/* sucht zufaellig eine Fabrik aus der Fabrikliste
-	 * @author Hj. Malthaner
-	 */
-	fabrik_t *get_random_fab() const;
 
 	/**
 	 * sucht naechstgelegene Stadt an Position i,j

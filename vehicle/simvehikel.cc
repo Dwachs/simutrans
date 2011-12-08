@@ -1028,6 +1028,12 @@ bool vehikel_t::hop_check()
 			return false;
 		}
 	}
+	else {
+		// this is needed since in convoi_t::vorfahren the flag ist_erstes is set to null
+		if(check_for_finish) {
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -1057,10 +1063,6 @@ void vehikel_t::betrete_feld()
 
 void vehikel_t::hop()
 {
-	if(  ist_erstes  ) {
-		cnv->add_running_cost();
-	}
-
 	verlasse_feld();
 
 	pos_prev = get_pos();
@@ -1105,17 +1107,16 @@ void vehikel_t::hop()
 		speed_limit = SPEED_UNLIMITED;
 	}
 
-	if(  check_for_finish  &  ist_erstes  ) {
-		if(  fahrtrichtung==ribi_t::nord  || fahrtrichtung==ribi_t::west ) {
+	if(  ist_erstes  ) {
+		cnv->add_running_cost( weg );
+		if(  check_for_finish  &&  (fahrtrichtung==ribi_t::nord  ||  fahrtrichtung==ribi_t::west)  ) {
 			steps_next = (steps_next/2)+1;
 		}
+		cnv->must_recalc_data_front();
 	}
 
 	// friction factors and speedlimit may have changed
 	cnv->must_recalc_data();
-	if(  ist_erstes  ) {
-		cnv->must_recalc_brake_soll();
-	}
 
 	calc_akt_speed(gr);
 }
@@ -1201,8 +1202,14 @@ sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 	}
 
 	//const long dist = abs(end.x - start.x) + abs(end.y - start.y);
-	const sint32 ref_speed = welt->get_average_speed( get_besch()->get_waytype() );
-	const sint32 speed_base = (100*speed_to_kmh(cnv->get_min_top_speed()))/ref_speed-100;
+	const sint32 ref_kmh = welt->get_average_speed( get_besch()->get_waytype() );
+
+	// kmh_base = lesser of min_top_speed, power limited top speed, and average way speed limits on trip, except aircraft which are not power limited and don't have speed limits
+	sint32 cnv_kmh = cnv->get_speedbonus_kmh();
+	if(  cnv->get_distance_since_last_stop() > 0  &&  get_waytype() != air_wt  ) {
+		cnv_kmh = min( cnv_kmh, cnv->get_sum_speed_limit() / cnv->get_distance_since_last_stop() );
+	}
+	const sint32 kmh_base = (100 * cnv_kmh) / ref_kmh - 100;
 
 	sint64 value = 0;
 	slist_iterator_tpl <ware_t> iter (fracht);
@@ -1223,7 +1230,7 @@ sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 			const sint32 dist = (sint32)koord_distance( zwpos, start ) - (sint32)koord_distance( end, zwpos );
 
 			const sint32 grundwert128 = ware.get_besch()->get_preis()<<7;	// bonus price will be always at least 0.128 of the real price
-			const sint32 grundwert_bonus = (ware.get_besch()->get_preis()*(1000+speed_base*ware.get_besch()->get_speed_bonus()));
+			const sint32 grundwert_bonus = (ware.get_besch()->get_preis()*(1000+kmh_base*ware.get_besch()->get_speed_bonus()));
 			const sint64 price = (sint64)(grundwert128>grundwert_bonus ? grundwert128 : grundwert_bonus) * (sint64)dist * (sint64)ware.menge;
 
 			// sum up new price
@@ -1245,7 +1252,7 @@ sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 			const sint32 dist = (sint32)koord_distance( zwpos, start ) - (sint32)koord_distance( end, zwpos );
 
 			const sint32 grundwert128 = ware.get_besch()->get_preis()<<7;	// bonus price will be always at least 0.128 of the real price
-			const sint32 grundwert_bonus = (ware.get_besch()->get_preis()*(1000+speed_base*ware.get_besch()->get_speed_bonus()));
+			const sint32 grundwert_bonus = (ware.get_besch()->get_preis()*(1000+kmh_base*ware.get_besch()->get_speed_bonus()));
 			const sint64 price = (sint64)(grundwert128>grundwert_bonus ? grundwert128 : grundwert_bonus) * (sint64)dist * (sint64)ware.menge;
 
 			// sum up new price
@@ -1265,7 +1272,7 @@ sint64 vehikel_t::calc_gewinn(koord start, koord end) const
 
 			// now only use the real gain in difference for the revenue (may as well be negative!)
 			const sint32 grundwert128 = ware.get_besch()->get_preis()<<7;	// bonus price will be always at least 0.128 of the real price
-			const sint32 grundwert_bonus = (ware.get_besch()->get_preis()*(1000+speed_base*ware.get_besch()->get_speed_bonus()));
+			const sint32 grundwert_bonus = (ware.get_besch()->get_preis()*(1000+kmh_base*ware.get_besch()->get_speed_bonus()));
 			const sint64 price = (sint64)(grundwert128>grundwert_bonus ? grundwert128 : grundwert_bonus) * (sint64)dist * (sint64)ware.menge;
 
 			// sum up new price
@@ -1759,6 +1766,7 @@ automobil_t::automobil_t(koord3d pos, const vehikel_besch_t* besch, spieler_t* s
 	vehikel_t(pos, besch, sp)
 {
 	cnv = cn;
+	drives_on_left = welt->get_settings().is_drive_left();
 }
 
 
@@ -1791,6 +1799,7 @@ automobil_t::automobil_t(karte_t *welt, loadsave_t *file, bool is_first, bool is
 			last_besch = besch;
 		}
 	}
+	drives_on_left = welt->get_settings().is_drive_left();
 }
 
 
@@ -1825,7 +1834,11 @@ bool automobil_t::ist_befahrbar(const grund_t *bd) const
 	if(str->has_sign()) {
 		const roadsign_t* rs = bd->find<roadsign_t>();
 		if(rs!=NULL) {
-			if(rs->get_besch()->get_min_speed()>0  &&  rs->get_besch()->get_min_speed()>kmh_to_speed(get_besch()->get_geschw())) {
+			if(  rs->get_besch()->get_min_speed()>0  &&  rs->get_besch()->get_min_speed()>kmh_to_speed(get_besch()->get_geschw())  ) {
+				return false;
+			}
+			if(  rs->get_besch()->is_private_way()  &&  (rs->get_player_mask() & (1<<get_player_nr()) ) == 0  ) {
+				// prvate road
 				return false;
 			}
 			// do not search further for a free stop beyond here
@@ -2138,7 +2151,7 @@ bool automobil_t::ist_weg_frei(int &restart_speed, bool second_check)
 
 									// now it make sense to search a route
 									route_t target_rt;
-									koord3d next3d = r.position_bei(test_index + (test_index + 1u < r.get_count()?1u:0u));
+									koord3d next3d = r.position_bei(test_index);
 									if(  !target_rt.find_route( welt, next3d, this, speed_to_kmh(cnv->get_min_top_speed()), curr_90fahrtrichtung, 33 )  ) {
 										// nothing empty or not route with less than 33 tiles
 										target_halt = halthandle_t();
@@ -2173,13 +2186,7 @@ bool automobil_t::ist_weg_frei(int &restart_speed, bool second_check)
 				if(  automobil_t const* const car = ding_cast<automobil_t>(dt)  ) {
 					const convoi_t* const ocnv = car->get_convoi();
 					int dummy;
-					if(  ocnv->front()->ist_weg_frei(dummy, true)  &&  ocnv->front()->get_route_index() != ocnv->get_route()->get_count()  ) {
-						return true;
-					}
-				}
-				else if(  stadtauto_t *const caut = ding_cast<stadtauto_t>(dt)  ) {
-					grund_t *const caut_gr = welt->lookup(dt->get_pos_next());
-					if(  caut_gr  &&  caut->ist_weg_frei(caut_gr)  ) {
+					if(  ocnv->front()->get_route_index() < ocnv->get_route()->get_count()  &&  ocnv->front()->ist_weg_frei(dummy, true)  ) {
 						return true;
 					}
 				}
@@ -2206,7 +2213,7 @@ bool automobil_t::ist_weg_frei(int &restart_speed, bool second_check)
 						// not overtaking/being overtake: we need to make a more thourough test!
 						if(  automobil_t const* const car = ding_cast<automobil_t>(dt)  ) {
 							convoi_t* const ocnv = car->get_convoi();
-							if(  cnv->can_overtake( ocnv, ocnv->get_min_top_speed(), ocnv->get_length_in_steps()+ocnv->get_vehikel(0)->get_steps(), diagonal_vehicle_steps_per_tile)  ) {
+							if(  cnv->can_overtake( ocnv, (ocnv->get_state()==convoi_t::LOADING ? 0 : ocnv->get_min_top_speed()), ocnv->get_length_in_steps()+ocnv->get_vehikel(0)->get_steps(), diagonal_vehicle_steps_per_tile)  ) {
 								return true;
 							}
 						} else if (stadtauto_t* const caut = ding_cast<stadtauto_t>(dt)) {
@@ -2408,16 +2415,33 @@ bool waggon_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, route_t
 bool waggon_t::ist_befahrbar(const grund_t *bd) const
 {
 	schiene_t const* const sch = ding_cast<schiene_t>(bd->get_weg(get_waytype()));
+	if(  !sch  ) {
+		return false;
+	}
 
 	// Hajo: diesel and steam engines can use electrifed track as well.
 	// also allow driving on foreign tracks ...
 	const bool needs_no_electric = !(cnv!=NULL ? cnv->needs_electrification() : besch->get_engine_type()==vehikel_besch_t::electric);
-	bool ok = (sch!=0)  &&  (needs_no_electric  ||  sch->is_electrified())  &&  (sch->get_max_speed()>0);
-
-	if(!ok  ||  !target_halt.is_bound()  ||  !cnv->is_waiting()) {
-		return ok;
+	if(  (!needs_no_electric  &&  !sch->is_electrified())  ||  sch->get_max_speed() == 0  ) {
+		return false;
 	}
-	else {
+
+	// now check for special signs
+	if(sch->has_sign()) {
+		const roadsign_t* rs = bd->find<roadsign_t>();
+		if(  rs->get_besch()->get_wtyp()==get_waytype()  ) {
+			if(  rs->get_besch()->get_min_speed() > 0  &&  rs->get_besch()->get_min_speed() > cnv->get_min_top_speed()  ) {
+				// below speed limit
+				return false;
+			}
+			if(  rs->get_besch()->is_private_way()  &&  (rs->get_player_mask() & (1<<get_player_nr()) ) == 0  ) {
+				// prvate road
+				return false;
+			}
+		}
+	}
+
+	if(  target_halt.is_bound()  &&  cnv->is_waiting()  ) {
 		// we are searching a stop here:
 		// ok, we can go where we already are ...
 		if(bd->get_pos()==get_pos()) {
@@ -2426,14 +2450,18 @@ bool waggon_t::ist_befahrbar(const grund_t *bd) const
 		// we cannot pass an end of choose area
 		if(sch->has_sign()) {
 			const roadsign_t* rs = bd->find<roadsign_t>();
-			if(rs->get_besch()->get_wtyp()==get_waytype()  &&  rs->get_besch()->get_flags()&roadsign_besch_t::END_OF_CHOOSE_AREA) {
-				return false;
+			if(  rs->get_besch()->get_wtyp()==get_waytype()  ) {
+				if(  rs->get_besch()->get_flags() & roadsign_besch_t::END_OF_CHOOSE_AREA  ) {
+					return false;
+				}
 			}
 		}
 		// but we can only use empty blocks ...
 		// now check, if we could enter here
 		return sch->can_reserve(cnv->self);
 	}
+
+	return true;
 }
 
 
@@ -3085,7 +3113,23 @@ bool schiff_t::ist_befahrbar(const grund_t *bd) const
 	if(  bd->ist_wasser()  ) {
 		return true;
 	}
+	// channel can have more stuff to check
 	const weg_t *w = bd->get_weg(water_wt);
+#if ENABLE_WATERWAY_SIGNS
+	if(  w  &&  w->has_sign()  ) {
+		const roadsign_t* rs = bd->find<roadsign_t>();
+		if(  rs->get_besch()->get_wtyp()==get_waytype()  ) {
+			if(  rs->get_besch()->get_min_speed() > 0  &&  rs->get_besch()->get_min_speed() > cnv->get_min_top_speed()  ) {
+				// below speed limit
+				return false;
+			}
+			if(  rs->get_besch()->is_private_way()  &&  (rs->get_player_mask() & (1<<get_player_nr()) ) == 0  ) {
+				// prvate road
+				return false;
+			}
+		}
+	}
+#endif
 	return (w  &&  w->get_max_speed()>0);
 }
 
@@ -3204,7 +3248,7 @@ ribi_t::ribi aircraft_t::get_ribi(const grund_t *gr) const
 		}
 
 		case flying:
-		case flying2:
+		case circling:
 			return ribi_t::alle;
 	}
 	return ribi_t::keine;
@@ -3258,7 +3302,7 @@ bool aircraft_t::ist_befahrbar(const grund_t *bd) const
 		case landing:
 		case departing:
 		case flying:
-		case flying2:
+		case circling:
 		{
 //DBG_MESSAGE("aircraft_t::ist_befahrbar()","(cnv %i) in idx %i",cnv->self.get_id(),route_index );
 			// prissi: here a height check could avoid too height montains
@@ -3416,7 +3460,7 @@ bool aircraft_t::block_reserver( uint32 start, uint32 end, bool reserve ) const
 
 
 // handles all the decisions on the ground an in the air
-bool aircraft_t::ist_weg_frei(int & restart_speed,bool)
+bool aircraft_t::ist_weg_frei( int & restart_speed, bool )
 {
 	restart_speed = -1;
 
@@ -3433,10 +3477,15 @@ bool aircraft_t::ist_weg_frei(int & restart_speed,bool)
 	}
 
 	if(route_index<takeoff  &&  route_index>1  &&  takeoff<cnv->get_route()->get_count()-1) {
-		if (route_index > 1 && gr->find<aircraft_t>()) {
-			// check, if tile occupied, if not on stop
-			restart_speed = 0;
-			return false;
+		// check, if tile occupied by a plane on ground
+		if(  route_index > 1  ) {
+			for(  uint8 i = 1;  i<gr->get_top();  i++  ) {
+				ding_t *d = gr->obj_bei(i);
+				if(  d->get_typ()==ding_t::aircraft  &&  ((aircraft_t *)d)->is_on_ground()  ) {
+					restart_speed = 0;
+					return false;
+				}
+			}
 		}
 		// need to reserve runway?
 		runway_t *rw = (runway_t *)gr->get_weg(air_wt);
@@ -3472,27 +3521,30 @@ bool aircraft_t::ist_weg_frei(int & restart_speed,bool)
 //DBG_MESSAGE("aircraft_t::ist_weg_frei()","index %i<>%i",route_index,touchdown);
 
 	// check for another circle ...
-	if(route_index==(touchdown-3)) {
-		if(state!=flying2  &&  !block_reserver( touchdown, suchen+1, true )) {
-			// circle slowly next round
-			cnv->must_recalc_data();
-			if(  ist_erstes  ) {
-				cnv->must_recalc_brake_soll();
-			}
-			speed_limit = kmh_to_speed(besch->get_geschw())/2;
-			state = flying;
+	if(  route_index==(touchdown-3)  ) {
+		if(  !block_reserver( touchdown, suchen+1, true )  ) {
 			route_index -= 16;
+			return true;
 		}
+		state = landing;
 		return true;
 	}
 
-	if(route_index==touchdown-16-3  &&  state!=flying2) {
+	if(  route_index==touchdown-16-3  &&  state!=circling  ) {
 		// just check, if the end of runway ist free; we will wait there
-		if(block_reserver( touchdown, suchen+1, true )) {
+		if(  block_reserver( touchdown, suchen+1, true )  ) {
 			route_index += 16;
-			state = flying2;
+			// can land => set landing height
+			state = landing;
 		}
-		return true;
+		else {
+			// circle slowly next round
+			state = circling;
+			cnv->must_recalc_data();
+			if(  ist_erstes  ) {
+				cnv->must_recalc_data_front();
+			}
+		}
 	}
 
 	if(route_index==suchen  &&  state==landing  &&  !target_halt.is_bound()) {
@@ -3533,15 +3585,7 @@ void aircraft_t::betrete_feld()
 {
 	vehikel_t::betrete_feld();
 
-	if((state==flying2  ||  state==flying)  &&  route_index+6u>=touchdown) {
-		const sint16 landehoehe = height_scaling(cnv->get_route()->position_bei(touchdown).z)+(touchdown-route_index+1);
-		const sint16 current_height = height_scaling(get_pos().z) + (flughoehe*Z_TILE_STEP)/TILE_HEIGHT_STEP;
-		if(landehoehe<=current_height) {
-			state = landing;
-			target_height = height_scaling((sint16)cnv->get_route()->position_bei(touchdown).z)*TILE_HEIGHT_STEP/Z_TILE_STEP;
-		}
-	}
-	else {
+	if(  this->is_on_ground()  ) {
 		runway_t *w=(runway_t *)welt->lookup(get_pos())->get_weg(air_wt);
 		if(w) {
 			const int cargo = get_fracht_menge();
@@ -3589,6 +3633,8 @@ aircraft_t::aircraft_t(koord3d pos, const vehikel_besch_t* besch, spieler_t* sp,
 	state = taxiing;
 	old_x = old_y = -1;
 	old_bild = IMG_LEER;
+	flughoehe = 0;
+	target_height = pos.z;
 }
 
 
@@ -3634,11 +3680,18 @@ void aircraft_t::set_convoi(convoi_t *c)
 				}
 			}
 			// restore reservation
-			if(route_index>=takeoff  &&  route_index<touchdown-21  &&  state!=flying) {
-				block_reserver( takeoff, takeoff+100, true );
-			}
-			else if(route_index>=touchdown-1  &&  state!=taxiing) {
-				block_reserver( touchdown, suchen+1, true );
+			if(  grund_t *gr = welt->lookup(get_pos())  ) {
+				if(  weg_t *weg = gr->get_weg(air_wt)  ) {
+					if(  weg->get_besch()->get_styp()==1  ) {
+						// but only if we are on a runway ...
+						if(  route_index>=takeoff  &&  route_index<touchdown-21  &&  state!=flying  ) {
+							block_reserver( takeoff, takeoff+100, true );
+						}
+						else if(  route_index>=touchdown-1  &&  state!=taxiing  ) {
+							block_reserver( touchdown, suchen+1, true );
+						}
+					}
+				}
 			}
 		}
 	}
@@ -3659,8 +3712,10 @@ void aircraft_t::rdwr_from_convoi(loadsave_t *file)
 	xml_tag_t t( file, "aircraft_t" );
 
 	// initialize as vehikel_t::rdwr_from_convoi calls get_bild()
-	state = taxiing;
-	flughoehe = 0;
+	if (file->is_loading()) {
+		state = taxiing;
+		flughoehe = 0;
+	}
 	vehikel_t::rdwr_from_convoi(file);
 
 	file->rdwr_enum(state);
@@ -3958,9 +4013,14 @@ void aircraft_t::hop()
 			}
 			break;
 
-		case flying2:
-			new_speed_limit = kmh_to_speed(besch->get_geschw())/2;
-			new_friction = 64;
+		case circling:
+			new_speed_limit = kmh_to_speed(besch->get_geschw())/3;
+			new_friction = 16;
+			// do not change height any more while circling
+			flughoehe += h_cur;
+			flughoehe -= h_next;
+			break;
+
 		case flying:
 			// since we are at a tile border, round up to the nearest value
 			flughoehe += h_cur;
@@ -3983,15 +4043,16 @@ void aircraft_t::hop()
 			break;
 
 		case landing:
+		{
 			flughoehe += h_cur;
+			new_speed_limit = kmh_to_speed(besch->get_geschw())/3;
+			new_friction = 16;
 			if(flughoehe>target_height) {
 				// still decenting
 				flughoehe = (flughoehe-TILE_HEIGHT_STEP) & ~(TILE_HEIGHT_STEP-1);
 				flughoehe -= h_next;
-				new_speed_limit = kmh_to_speed(besch->get_geschw())/2;
-				new_friction = 64;
 			}
-			else {
+			else if(flughoehe==h_cur) {
 				// touchdown!
 				flughoehe = 0;
 				target_height = h_next;
@@ -3999,7 +4060,15 @@ void aircraft_t::hop()
 				new_speed_limit = kmh_to_speed(60);
 				new_friction = 16;
 			}
-			break;
+			else {
+				const sint16 landehoehe = height_scaling(cnv->get_route()->position_bei(touchdown).z)+(touchdown-route_index)*TILE_HEIGHT_STEP;
+				if(landehoehe<=flughoehe) {
+					target_height = height_scaling((sint16)cnv->get_route()->position_bei(touchdown).z)*TILE_HEIGHT_STEP/Z_TILE_STEP;
+				}
+				flughoehe -= h_next;
+			}
+		}
+		break;
 
 		default:
 			new_speed_limit = kmh_to_speed(60);

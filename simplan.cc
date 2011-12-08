@@ -383,9 +383,36 @@ void planquadrat_t::display_dinge(const sint16 xpos, const sint16 ypos, const si
 	if(gr0->get_flag(grund_t::draw_as_ding)  ||  !gr0->is_karten_boden_visible()) {
 		gr0->display_boden(xpos, ypos, raster_tile_width);
 	}
+
+	// clip everything at the next tile above
+	struct clip_dimension p_cr;
+	if(  i < ground_size  ) {
+		p_cr = display_get_clip_wh();
+		for(uint8 j=i; j<ground_size; j++) {
+			const sint8 h = data.some[j]->get_hoehe();
+			// too high?
+			if(  h > hmax  ) {
+				break;
+			}
+			// not too low?
+			if(  h >= hmin  ) {
+				// something on top: clip horizontally to prevent trees etc shining trough bridges
+				const sint16 yh = ypos - tile_raster_scale_y( (h-h0)*TILE_HEIGHT_STEP/Z_TILE_STEP, raster_tile_width) + ((3*raster_tile_width)>>2);
+				if(  yh >= p_cr.y   &&  yh < p_cr.y+p_cr.h  ) {
+					display_set_clip_wh(p_cr.x, yh, p_cr.w, p_cr.h+p_cr.y-yh);
+				}
+				break;
+			}
+		}
+
+	}
 	gr0->display_dinge_all(xpos, ypos, raster_tile_width, is_global);
+	// restore clipping
+	if(  i<ground_size  ) {
+		display_set_clip_wh(p_cr.x, p_cr.y, p_cr.w, p_cr.h);
+	}
 	// above ground
-	for(;  i<ground_size;  i++) {
+	for(  ;  i<ground_size;  i++  ) {
 		const grund_t* gr=data.some[i];
 		const sint8 h = gr->get_hoehe();
 		// too high?
@@ -410,10 +437,17 @@ void planquadrat_t::display_overlay(const sint16 xpos, const sint16 ypos, const 
 		if(umgebung_t::use_transparency_station_coverage) {
 
 			// only transparent outline
-			image_id img = gr->get_bild();
-			if(img==IMG_LEER) {
-				// default image (since i.e. foundations do not have an image)
-				img = grund_besch_t::get_ground_tile( gr->get_disp_slope(), gr->get_disp_height() );
+			image_id img;
+			if(  gr->get_typ()==grund_t::wasser  ) {
+				// water is always flat and do not return proper imaga_id
+				img = grund_besch_t::ausserhalb->get_bild(0);
+			}
+			else {
+				img = gr->get_bild();
+				if(  img==IMG_LEER  ) {
+					// foundations or underground mode
+					img = grund_besch_t::get_ground_tile( gr->get_disp_slope(), gr->get_disp_height() );
+				}
 			}
 
 			for(int halt_count = 0; halt_count < halt_list_count; halt_count++) {
@@ -523,40 +557,25 @@ void planquadrat_t::halt_list_insert_at( halthandle_t halt, uint8 pos )
 void planquadrat_t::add_to_haltlist(halthandle_t halt)
 {
 	if(halt.is_bound()) {
-		spieler_t *sp=halt->get_besitzer();
-
 		unsigned insert_pos = 0;
 		// quick and dirty way to our 2d koodinates ...
 		const koord pos = get_kartenboden()->get_pos().get_2d();
 
-		// exact position does matter only for passenger/mail transport
-		if (sp && (!halt->get_pax_connections()->empty() || !halt->get_mail_connections()->empty()) && halt_list_count > 0) {
-			halt_list_remove(halt);
+		if(  halt_list_count > 0  ) {
 
-			// since only the first one gets all the passengers, we want the closest one for passenger transport to be on top
+			// since only the first one gets all, we want the closest halt one to be first
+			halt_list_remove(halt);
+			const koord halt_next_pos = halt->get_next_pos(pos);
 			for(insert_pos=0;  insert_pos<halt_list_count;  insert_pos++) {
 
-				// not a passenger KI or other is farer away
-				if ((halt_list[insert_pos]->get_pax_connections()->empty() && halt_list[insert_pos]->get_mail_connections()->empty()) ||
-				     koord_distance(halt_list[insert_pos]->get_next_pos(pos), pos) > koord_distance(halt->get_next_pos(pos), pos))
-				{
+				if(  koord_distance(halt_list[insert_pos]->get_next_pos(pos), pos) > koord_distance(halt_next_pos, pos)  ) {
 					halt_list_insert_at( halt, insert_pos );
 					return;
 				}
 			}
 			// not found
 		}
-		else {
-			// just look, if it is not there ...
-			for(insert_pos=0;  insert_pos<halt_list_count;  insert_pos++) {
-				if(halt_list[insert_pos]==halt) {
-					// do not add twice
-					return;
-				}
-			}
-		}
-
-		// first or no passenger or append to the end ...
+		// first just or just append to the end ...
 		halt_list_insert_at( halt, halt_list_count );
 	}
 }

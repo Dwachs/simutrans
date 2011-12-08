@@ -8,11 +8,6 @@
 #error "Only Windows has GDI!"
 #endif
 
-#ifndef _MSC_VER
-#include <unistd.h>
-#include <sys/time.h>
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -42,7 +37,6 @@
 // for redraws in another thread
 //#define MULTI_THREAD
 
-#include "simmain.h"
 #include "simmem.h"
 #include "simsys_w32_png.h"
 #include "simversion.h"
@@ -438,7 +432,6 @@ static inline unsigned int ModifierKeys()
 		(GetKeyState(VK_CONTROL) < 0  ? 2 : 0); // highest bit set or return value<0 -> key is pressed
 }
 
-struct sys_event sys_event;
 
 /* Windows eventhandler: does most of the work */
 LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -614,8 +607,8 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 					case VK_NUMPAD4:   sys_event.code = SIM_KEY_LEFT;  break;
 					case VK_NUMPAD6:   sys_event.code = SIM_KEY_RIGHT; break;
 					case VK_NUMPAD8:   sys_event.code = SIM_KEY_UP;    break;
-					case VK_SEPARATOR: sys_event.code = 127; //delete
-					break;
+					case VK_PAUSE:     sys_event.code = 16;            break;	// Pause -> ^P
+					case VK_SEPARATOR: sys_event.code = 127;           break;	// delete
 				}
 				// check for numlock!
 				if (sys_event.code != 0) break;
@@ -736,19 +729,6 @@ void dr_sleep(uint32 millisec)
 }
 
 
-
-bool dr_fatal_notify(const char* msg, int choices)
-{
-	if(choices==0) {
-		MessageBoxA( hwnd, msg, "Fatal Error", MB_ICONEXCLAMATION|MB_OK );
-		return 0;
-	}
-	else {
-		return MessageBoxA( hwnd, msg, "Fatal Error", MB_ICONEXCLAMATION|MB_RETRYCANCEL	)==IDRETRY;
-	}
-}
-
-
 int CALLBACK WinMain(HINSTANCE const hInstance, HINSTANCE, LPSTR, int)
 {
 	WNDCLASSW wc;
@@ -766,12 +746,6 @@ int CALLBACK WinMain(HINSTANCE const hInstance, HINSTANCE, LPSTR, int)
 
 	RegisterClass(&wc);
 
-	int    const argc = __argc;
-	char** const argv = __argv;
-	char         pathname[1024];
-	GetModuleFileNameA(hInstance, pathname, lengthof(pathname));
-	argv[0] = pathname;
-
 	GetWindowRect(GetDesktopWindow(), &MaxSize);
 
 	// maybe set timer to 1ms intervall on Win2k upwards ...
@@ -783,7 +757,7 @@ int CALLBACK WinMain(HINSTANCE const hInstance, HINSTANCE, LPSTR, int)
 		}
 	}
 
-	simu_main(argc, argv);
+	int const res = sysmain(__argc, __argv);
 	timeEndPeriod(1);
 
 #ifdef MULTI_THREAD
@@ -791,5 +765,5 @@ int CALLBACK WinMain(HINSTANCE const hInstance, HINSTANCE, LPSTR, int)
 		TerminateThread( hFlushThread, 0 );
 	}
 #endif
-	return 0;
+	return res;
 }

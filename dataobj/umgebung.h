@@ -9,10 +9,16 @@
 #define dataobj_umgebung_h
 
 #include <string>
+#include <vector>
 #include "../simtypes.h"
 #include "../simconst.h"
 #include "../simcolor.h"
 #include "einstellungen.h"
+
+#include "../tpl/vector_tpl.h"
+#include "../utils/plainstring.h"
+
+#define TILE_HEIGHT_STEP (umgebung_t::pak_tile_height_step)
 
 
 /**
@@ -50,11 +56,31 @@ public:
 	// if we are the server, we are at this port ...
 	static const uint16 &server;
 
-	static uint32 announce_server;
-	static sint32 announce_server_intervall;
+	// Enable/disable server announcement
+	static uint32 server_announce;
+	// Number of seconds between announcements
+	static sint32 server_announce_interval;
+
+	// DNS name or IP address clients should use to connect to server
+	static std::string server_dns;
+	// Name of server for display on list server
 	static std::string server_name;
-	static std::string server_comment;
+	// Comments about server for display on list server
+	static std::string server_comments;
+	// Email address of server maintainer
+	static std::string server_email;
+	// Download location for pakset needed to play on server
+	static std::string server_pakurl;
+	// Link to further information about server
+	static std::string server_infurl;
+	// Server admin password (for use with nettool)
 	static std::string server_admin_pw;
+
+	// IP addresses to listen on/send announcements on
+	static vector_tpl<std::string> listen;
+
+	// pause server if no client connected
+	static bool pause_server_no_clients;
 
 	// scrollrichtung
 	static sint16 scroll_multi;
@@ -95,6 +121,16 @@ public:
 	 * @date  10.06.2003
 	 */
 	static bool hide_trees;
+
+	/**
+	 * When set, buildings and trees under mouse cursor will be hidden
+	 */
+	static bool hide_under_cursor;
+
+	/**
+	 * Range of tiles from current cursor position to hide
+	 */
+	static uint16 cursor_hide_range;
 
 	/**
 	* Namen (Städte, Haltestellen) anzeigen? (0 .. 3)
@@ -188,7 +224,7 @@ public:
 	 * Name of rivers; first the river with the lowest number
 	 * @author prissi
 	 */
-	static const char *river_type[10];
+	static plainstring river_type[10];
 	static uint8 river_types;
 
 	enum date_fmt {
@@ -260,7 +296,12 @@ public:
 	static uint8 bottom_window_bar_color;
 	static uint8 bottom_window_text_color;
 
+	// how many internal pixel per hieght step (default 16)
+	static sint8 pak_tile_height_step;
+
 	static settings_t default_einstellungen;
+
+	static bool straight_way_without_control;
 
 	// init with default values
 	static void init();

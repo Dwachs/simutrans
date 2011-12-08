@@ -3,7 +3,6 @@
  * von Hansjörg Malthaner
  */
 
-#include <math.h>
 #include <stdlib.h>
 
 #include "simdebug.h"
@@ -21,6 +20,7 @@
 #include "simintr.h"
 #include "simlinemgmt.h"
 #include "simline.h"
+#include "simtools.h"
 #include "freight_list_sorter.h"
 
 #include "gui/karte.h"
@@ -43,6 +43,7 @@
 
 #include "dings/crossing.h"
 #include "dings/roadsign.h"
+#include "dings/wayobj.h"
 
 #include "vehicle/simvehikel.h"
 #include "vehicle/overtaker.h"
@@ -115,9 +116,11 @@ void convoi_t::init(karte_t *wl, spieler_t *sp)
 	besitzer_p = sp;
 
 	is_electric = false;
-	sum_gesamtgewicht = sum_gewicht = sum_gear_und_leistung = sum_leistung = 0;
+	sum_running_costs = sum_gesamtgewicht = sum_gewicht = sum_gear_und_leistung = sum_leistung = 0;
 	previous_delta_v = 0;
 	min_top_speed = SPEED_UNLIMITED;
+	max_power_speed = SPEED_UNLIMITED;
+	speedbonus_kmh = SPEED_UNLIMITED; // speed_to_kmh() not needed
 
 	fpl = NULL;
 	line = linehandle_t();
@@ -132,6 +135,9 @@ void convoi_t::init(karte_t *wl, spieler_t *sp)
 
 	jahresgewinn = 0;
 	total_distance_traveled = 0;
+
+	distance_since_last_stop = 0;
+	sum_speed_limit = 0;
 
 	alte_richtung = ribi_t::keine;
 	next_wolke = 0;
@@ -159,7 +165,7 @@ void convoi_t::init(karte_t *wl, spieler_t *sp)
 	home_depot = koord3d::invalid;
 	last_stop_pos = koord3d::invalid;
 
-	recalc_brake_soll = true;
+	recalc_data_front = true;
 	recalc_data = true;
 }
 
@@ -326,7 +332,7 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","state=%s, next_stop_index=%d", sta
 		}
 		else {
 			// test also for realignment
-			sint16 step_pos;
+			sint16 step_pos = 0;
 			koord3d drive_pos;
 			uint8 const diagonal_vehicle_steps_per_tile = (uint8)(130560U / welt->get_settings().get_pak_diagonal_multiplier());
 			for( uint8 i=0;  i<anz_vehikel;  i++ ) {
@@ -583,18 +589,37 @@ uint32 convoi_t::get_length() const
  * convoi add their running cost for traveling one tile
  * @author Hj. Malthaner
  */
-void convoi_t::add_running_cost()
+void convoi_t::add_running_cost( const weg_t *weg )
 {
-	sint64 cost = 0;
-	for( uint8 i=0; i<anz_vehikel; i++ ) {
-		cost -= fahr[i]->get_besch()->get_betriebskosten();
+	jahresgewinn += sum_running_costs;
+
+	if(  weg  &&  weg->get_besitzer()!=get_besitzer()  &&  weg->get_besitzer()!=NULL  ) {
+		// running on non-public way costs toll (since running costas are positive => invert)
+		sint32 toll = -(sum_running_costs*welt->get_settings().get_way_toll_runningcost_percentage())/100l;
+		if(  welt->get_settings().get_way_toll_waycost_percentage()  ) {
+			if(  weg->is_electrified()  &&  needs_electrification()  ) {
+				// toll for using electricity
+				grund_t *gr = welt->lookup(weg->get_pos());
+				for(  int i=1;  i<gr->get_top();  i++  ) {
+					ding_t *d=gr->obj_bei(i);
+					if(  wayobj_t const* const wo = ding_cast<wayobj_t>(d)  )  {
+						if(  wo->get_waytype()==weg->get_waytype()  ) {
+							toll += (wo->get_besch()->get_wartung()*welt->get_settings().get_way_toll_waycost_percentage())/100l;
+							break;
+						}
+					}
+				}
+			}
+			// now add normal way toll be maintenance
+			toll += (weg->get_besch()->get_wartung()*welt->get_settings().get_way_toll_waycost_percentage())/100l;
+		}
+		weg->get_besitzer()->buche( toll, COST_WAY_TOLLS );
+		get_besitzer()->buche( -toll, COST_WAY_TOLLS );
 	}
-	jahresgewinn += cost;
+	get_besitzer()->buche( sum_running_costs, COST_VEHICLE_RUN);
 
-	get_besitzer()->buche(cost, COST_VEHICLE_RUN);
-
-	book( cost, CONVOI_OPERATIONS );
-	book( cost, CONVOI_PROFIT );
+	book( sum_running_costs, CONVOI_OPERATIONS );
+	book( sum_running_costs, CONVOI_PROFIT );
 
 	total_distance_traveled ++;
 	book( 1, CONVOI_DISTANCE );
@@ -609,7 +634,7 @@ void convoi_t::calc_acceleration(long delta_t)
 	// Dwachs: only compute this if a vehicle in the convoi hopped
 	if (recalc_data) {
 		// calculate total friction and lowest speed limit
-		sint32 min_speed_limit = min( min_top_speed, front()->get_speed_limit() );
+		speed_limit = min( min_top_speed, front()->get_speed_limit() );
 		sum_gesamtgewicht = front()->get_gesamtgewicht();
 		sum_friction_weight = front()->get_frictionfactor() * sum_gesamtgewicht;
 		for(  unsigned i=1; i<anz_vehikel; i++  ) {
@@ -618,10 +643,10 @@ void convoi_t::calc_acceleration(long delta_t)
 
 			sum_friction_weight += v->get_frictionfactor() * total_vehicle_weight;
 			sum_gesamtgewicht += total_vehicle_weight;
-			min_speed_limit = min( min_speed_limit, v->get_speed_limit() );
+			speed_limit = min( speed_limit, v->get_speed_limit() );
 		}
 
-		if(  recalc_brake_soll  ) {
+		if(  recalc_data_front  ) {
 			// brake at the end of stations/in front of signals and crossings
 			const uint32 tiles_left = 1 + get_next_stop_index() - front()->get_route_index();
 			brake_speed_soll = SPEED_UNLIMITED;
@@ -634,9 +659,12 @@ void convoi_t::calc_acceleration(long delta_t)
 				};
 				brake_speed_soll = brake_speed_countdown[tiles_left];
 			}
-			recalc_brake_soll = false;
+			distance_since_last_stop++;
+			sum_speed_limit += speed_to_kmh( min( min_top_speed, speed_limit ));
+
+			recalc_data_front = false;
 		}
-		akt_speed_soll = min( min_speed_limit, brake_speed_soll );
+		akt_speed_soll = min( speed_limit, brake_speed_soll );
 
 		recalc_data = false;
 	}
@@ -1259,6 +1287,7 @@ void convoi_t::start()
 
 		// calc state for convoi
 		calc_loading();
+		calc_max_power_speed();
 
 		if(line.is_bound()) {
 			// might have changed the vehicles in this car ...
@@ -1370,6 +1399,7 @@ DBG_MESSAGE("convoi_t::add_vehikel()","extend array_tpl to %i totals.",max_rail_
 		sum_leistung += info->get_leistung();
 		sum_gear_und_leistung += info->get_leistung()*info->get_gear();
 		sum_gewicht += info->get_gewicht();
+		sum_running_costs -= info->get_betriebskosten();
 		min_top_speed = min( min_top_speed, kmh_to_speed( v->get_besch()->get_geschw() ) );
 		sum_gesamtgewicht = sum_gewicht;
 		calc_loading();
@@ -1417,6 +1447,7 @@ vehikel_t *convoi_t::remove_vehikel_bei(uint16 i)
 			sum_leistung -= info->get_leistung();
 			sum_gear_und_leistung -= info->get_leistung()*info->get_gear();
 			sum_gewicht -= info->get_gewicht();
+			sum_running_costs += info->get_betriebskosten();
 		}
 		sum_gesamtgewicht = sum_gewicht;
 		calc_loading();
@@ -1556,6 +1587,8 @@ bool convoi_t::set_schedule(schedule_t * f)
 	if(old_state!=INITIAL) {
 		state = FAHRPLANEINGABE;
 	}
+	// to avoid jumping trains
+	alte_richtung = fahr[0]->get_fahrtrichtung();
 	wait_lock = 0;
 	return true;
 }
@@ -1729,11 +1762,12 @@ void convoi_t::vorfahren()
 	// Hajo: init speed settings
 	sp_soll = 0;
 	set_tiles_overtaking( 0 );
-	recalc_brake_soll = true;
+	recalc_data_front = true;
 	recalc_data = true;
 
 	koord3d k0 = route.front();
 	grund_t *gr = welt->lookup(k0);
+	bool at_dest = false;
 	if(gr  &&  gr->get_depot()) {
 		// start in depot
 		for(unsigned i=0; i<anz_vehikel; i++) {
@@ -1800,32 +1834,47 @@ void convoi_t::vorfahren()
 
 			// now advance all convoi until it is completely on the track
 			fahr[0]->set_erstes(false); // switches off signal checks ...
+			uint32 dist = VEHICLE_STEPS_PER_CARUNIT*train_length<<YARDS_PER_VEHICLE_STEP_SHIFT;
 			for(unsigned i=0; i<anz_vehikel; i++) {
 				vehikel_t* v = fahr[i];
 
 				v->darf_rauchen(false);
-				fahr[i]->fahre_basis( (VEHICLE_STEPS_PER_CARUNIT*train_length)<<YARDS_PER_VEHICLE_STEP_SHIFT );
-				train_length -= v->get_besch()->get_length();
+				uint32 const driven = fahr[i]->fahre_basis( dist );
+				if (i==0  &&  driven < dist) {
+					// we are already at our destination
+					at_dest = true;
+				}
 				// this gives the length in carunits, 1/CARUNITS_PER_TILE of a full tile => all cars closely coupled!
 				v->darf_rauchen(true);
+
+				uint32 const vlen = ((VEHICLE_STEPS_PER_CARUNIT*v->get_besch()->get_length())<<YARDS_PER_VEHICLE_STEP_SHIFT);
+				if (vlen > dist) {
+					break;
+				}
+				dist = driven - vlen;
 			}
 			fahr[0]->set_erstes(true);
 		}
-		state = CAN_START;
+		if (!at_dest) {
+			state = CAN_START;
 
-		// to advance more smoothly
-		int restart_speed=-1;
-		if(fahr[0]->ist_weg_frei(restart_speed,false)) {
-			// can reserve new block => drive on
-			if(haltestelle_t::get_halt(welt,k0,besitzer_p).is_bound()) {
-				fahr[0]->play_sound();
+			// to advance more smoothly
+			int restart_speed=-1;
+			if(fahr[0]->ist_weg_frei(restart_speed,false)) {
+				// can reserve new block => drive on
+				if(haltestelle_t::get_halt(welt,k0,besitzer_p).is_bound()) {
+					fahr[0]->play_sound();
+				}
+				state = DRIVING;
 			}
-			state = DRIVING;
+		}
+		else {
+			ziel_erreicht();
 		}
 	}
 
 	// finally reserve route (if needed)
-	if(  fahr[0]->get_waytype()!=air_wt  ) {
+	if(  fahr[0]->get_waytype()!=air_wt  &&  !at_dest  ) {
 		// do not prereserve for airplanes
 		for(unsigned i=0; i<anz_vehikel; i++) {
 			// eventually reserve this
@@ -1991,6 +2040,7 @@ void convoi_t::rdwr(loadsave_t *file)
 				sum_leistung += info->get_leistung();
 				sum_gear_und_leistung += info->get_leistung()*info->get_gear();
 				sum_gewicht += info->get_gewicht();
+				sum_running_costs -= info->get_betriebskosten();
 				is_electric |= info->get_engine_type()==vehikel_besch_t::electric;
 			}
 			else {
@@ -2012,7 +2062,7 @@ void convoi_t::rdwr(loadsave_t *file)
 						v->set_pos( gr->get_pos() );
 					}
 					else {
-						dbg->fatal("convoi_t::rdwr()", "invalid position %s for vehicle %s in state %d (setting to %i,%i,%i)", v->get_pos().get_str(), v->get_name(), state, gr->get_pos().x, gr->get_pos().y, gr->get_pos().z );
+						dbg->fatal("convoi_t::rdwr()", "invalid position %s for vehicle %s in state %d", v->get_pos().get_str(), v->get_name(), state);
 					}
 					state = INITIAL;
 				}
@@ -2197,8 +2247,14 @@ void convoi_t::rdwr(loadsave_t *file)
 		file->rdwr_bool(withdraw);
 	}
 
+	if(file->get_version()>=111001) {
+		file->rdwr_long( distance_since_last_stop );
+		file->rdwr_long( sum_speed_limit );
+	}
+
 	if( file->is_loading() ) {
 		recalc_catg_index();
+		calc_max_power_speed();
 	}
 }
 
@@ -2314,19 +2370,15 @@ void convoi_t::get_freight_info(cbuffer_t & buf)
 			if(max_loaded_waren[i]>0  &&  i!=warenbauer_t::INDEX_NONE) {
 				ware_t ware(warenbauer_t::get_info(i));
 				ware.menge = max_loaded_waren[i];
-				if(ware.get_catg()==0) {
-					capacity.append( ware );
+				// append to category?
+				slist_tpl<ware_t>::iterator j   = capacity.begin();
+				slist_tpl<ware_t>::iterator end = capacity.end();
+				while (j != end && j->get_besch()->get_catg_index() < ware.get_besch()->get_catg_index()) ++j;
+				if (j != end && j->get_besch()->get_catg_index() == ware.get_besch()->get_catg_index()) {
+					j->menge += max_loaded_waren[i];
 				} else {
-					// append to category?
-					slist_tpl<ware_t>::iterator j   = capacity.begin();
-					slist_tpl<ware_t>::iterator end = capacity.end();
-					while (j != end && j->get_catg() < ware.get_catg()) ++j;
-					if (j != end && j->get_catg() == ware.get_catg()) {
-						j->menge += max_loaded_waren[i];
-					} else {
-						// not yet there
-						capacity.insert(j, ware);
-					}
+					// not yet there
+					capacity.insert(j, ware);
 				}
 			}
 		}
@@ -2443,6 +2495,9 @@ void convoi_t::calc_gewinn()
 		v->last_stop_pos = v->get_pos().get_2d();
 	}
 
+	distance_since_last_stop = 0;
+	sum_speed_limit = 0;
+
 	if(gewinn) {
 		besitzer_p->buche(gewinn, fahr[0]->get_pos().get_2d(), COST_INCOME);
 		jahresgewinn += gewinn;
@@ -2530,6 +2585,9 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 	calc_loading();
 	loading_limit = fpl->get_current_eintrag().ladegrad;
 
+	distance_since_last_stop = 0;
+	sum_speed_limit = 0;
+
 	if(gewinn) {
 		besitzer_p->buche(gewinn, fahr[0]->get_pos().get_2d(), COST_INCOME);
 		jahresgewinn += gewinn;
@@ -2546,6 +2604,8 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 			self_destruct();
 			return;
 		}
+
+		calc_max_power_speed();
 
 		// add available capacity after loading(!) to statistics
 		for (unsigned i = 0; i<anz_vehikel; i++) {
@@ -2592,6 +2652,42 @@ void convoi_t::calc_loading()
 
 	// since weight has changed
 	recalc_data=true;
+}
+
+
+void convoi_t::calc_max_power_speed()
+{
+	const sint32 cnv_min_top_kmh = speed_to_kmh( min_top_speed );
+	if(  front()->get_waytype() == air_wt  ) {
+		// flying aircraft have 0 friction --> speed not limited by power, so just use top_speed
+		max_power_speed = min_top_speed;
+		speedbonus_kmh = cnv_min_top_kmh;
+	}
+	else {
+		const sint32 total_power = sum_gear_und_leistung/64;
+		sint32 total_max_weight = 0;
+		sint32 total_weight = 0;
+		for(  unsigned i=0;  i<anz_vehikel;  i++  ) {
+			const vehikel_besch_t* const besch = fahr[i]->get_besch();
+			total_max_weight += besch->get_gewicht();
+			total_weight += fahr[i]->get_gesamtgewicht(); // convoi_t::sum_gesamgewicht may not be updated yet when this method is called...
+			if(  besch->get_ware() == warenbauer_t::nichts  ) {
+				; // nothing
+			}
+			else if(  besch->get_ware()->get_catg() == 0  ) {
+				// use full weight for passengers, post, and special goods
+				total_max_weight += (besch->get_ware()->get_weight_per_unit() * besch->get_zuladung()+499)/1000;
+			}
+			else {
+				// use actual weight for regular goods
+				total_max_weight += (fahr[i]->get_fracht_gewicht()+499)/1000;
+			}
+		}
+		max_power_speed = kmh_to_speed( total_power < total_weight ? 1 : min( cnv_min_top_kmh, sqrt_i32(((total_power<<8)/total_weight-(1<<8))<<8)*50 >>8 ) );
+
+		// uses weight of full passenger, mail, and special goods cars and current weight of regular goods cars for convoi weight
+		speedbonus_kmh = total_power < total_max_weight ? 1 : min( cnv_min_top_kmh, sqrt_i32(((total_power<<8)/total_max_weight-(1<<8))<<8)*50 >>8 );
+	}
 }
 
 
@@ -3059,7 +3155,65 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, int other_speed, int s
 		return false;
 	}
 
-	assert( anz_vehikel>0 );
+	if(  other_speed == 0  ) {
+		/* overtaking a loading convoi
+		 * => we can do a lazy check, since halts are always straight
+		 */
+		grund_t *gr = welt->lookup(get_pos());
+		if(  gr==NULL  ) {
+			// should never happen, since there is a vehcile in front of us ...
+			return false;
+		}
+		weg_t *str = gr->get_weg(road_wt);
+		if(  str==0  ) {
+			// also this is not possible, since a car loads in front of is!?!
+			return false;
+		}
+
+		uint16 idx = fahr[0]->get_route_index();
+		const sint32 tiles = (steps_other-1)/(CARUNITS_PER_TILE*VEHICLE_STEPS_PER_CARUNIT) + get_tile_length() + 1;
+		if(  tiles > 0  &&  idx+(uint32)tiles >= route.get_count()  ) {
+			// needs more space than there
+			return false;
+		}
+
+		for(  sint32 i=0;  i<tiles;  i++  ) {
+			grund_t *gr = welt->lookup( route.position_bei( idx+i ) );
+			if(  gr==NULL  ) {
+				return false;
+			}
+			weg_t *str = gr->get_weg(road_wt);
+			if(  str==0  ) {
+				return false;
+			}
+			// not overtaking on railroad crossings or normal crossings ...
+			if(  str->is_crossing() ) {
+				return false;
+			}
+			if(  ribi_t::is_threeway(str->get_ribi())  ) {
+				return false;
+			}
+			// Check for other vehicles on the next tile
+			const uint8 top = gr->get_top();
+			for(  uint8 j=1;  j<top;  j++  ) {
+				if(  vehikel_basis_t* const v = ding_cast<vehikel_basis_t>(gr->obj_bei(j))  ) {
+					// check for other traffic on the road
+					const overtaker_t *ov = v->get_overtaker();
+					if(ov) {
+						if(this!=ov  &&  other_overtaker!=ov) {
+							return false;
+						}
+					}
+					else if(  v->get_waytype()==road_wt  &&  v->get_typ()!=ding_t::fussgaenger  ) {
+						return false;
+					}
+				}
+			}
+		}
+		convoi_t *ocnv = dynamic_cast<convoi_t *>(other_overtaker);
+		set_tiles_overtaking( 2 + ocnv->get_length()/CARUNITS_PER_TILE + get_length()/CARUNITS_PER_TILE );
+		return true;
+	}
 
 	int diff_speed = akt_speed - other_speed;
 	if(  diff_speed < kmh_to_speed(5)  ) {

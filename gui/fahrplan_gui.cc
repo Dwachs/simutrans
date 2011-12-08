@@ -157,7 +157,7 @@ fahrplan_gui_t::~fahrplan_gui_t()
 
 
 fahrplan_gui_t::fahrplan_gui_t(schedule_t* fpl_, spieler_t* sp_, convoihandle_t cnv_) :
-	gui_frame_t("Fahrplan", sp_),
+	gui_frame_t( translator::translate("Fahrplan"), sp_),
 	lb_line("Serves Line:"),
 	lb_wait("month wait time"),
 	lb_waitlevel(NULL, COL_WHITE, gui_label_t::right),
@@ -604,7 +604,7 @@ void fahrplan_gui_t::map_rotate90( sint16 y_size)
 
 
 fahrplan_gui_t::fahrplan_gui_t(karte_t *welt):
-	gui_frame_t("Fahrplan", NULL),
+gui_frame_t( translator::translate("Fahrplan"), NULL),
 	lb_line("Serves Line:"),
 	lb_wait("month wait time"),
 	lb_waitlevel(NULL, COL_WHITE, gui_label_t::right),

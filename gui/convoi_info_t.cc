@@ -44,7 +44,12 @@ static const char cost_type[MAX_CONVOI_COST][64] =
 
 static const int cost_type_color[MAX_CONVOI_COST] =
 {
-	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT, COL_DISTANCE
+	COL_FREE_CAPACITY,
+	COL_TRANSPORTED,
+	COL_REVENUE,
+	COL_OPERATION,
+	COL_PROFIT,
+	COL_DISTANCE
 };
 
 static const bool cost_type_money[MAX_CONVOI_COST] =
@@ -75,7 +80,7 @@ const char *convoi_info_t::sort_text[SORT_MODES] = {
 
 
 convoi_info_t::convoi_info_t(convoihandle_t cnv)
-:	gui_frame_t(cnv->get_name(), cnv->get_besitzer()),
+:	gui_frame_t( cnv->get_name(), cnv->get_besitzer() ),
 	scrolly(&text),
 	text(&freight_info),
 	view(cnv->front(), koord(max(64, get_base_tile_raster_width()), max(56, (get_base_tile_raster_width() * 7) / 8))),

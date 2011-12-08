@@ -21,7 +21,7 @@ INIT_NUM( "diagonal_multiplier", pak_diagonal_multiplier);
 */
 
 
-static const char *version[8]=
+static char const* const version[] =
 {
 	"0.99.17",
 	"0.100.0",
@@ -30,7 +30,8 @@ static const char *version[8]=
 	"0.102.2",
 	"0.102.5",
 	"0.110.0",
-	"0.110.1"
+	"0.110.1",
+	"0.111.0"
 };
 
 
@@ -237,7 +238,10 @@ void settings_economy_stats_t::init(settings_t const* const sets)
 	INIT_NUM( "beginner_price_factor", sets->get_beginner_price_factor(), 1, 25000, gui_numberinput_t::AUTOLINEAR, false );
 	INIT_BOOL( "allow_buying_obsolete_vehicles", sets->get_allow_buying_obsolete_vehicles() );
 	INIT_NUM( "used_vehicle_reduction", sets->get_used_vehicle_reduction(), 0, 1000, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "toll_runningcost_percentage", sets->get_way_toll_runningcost_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM( "toll_waycost_percentage", sets->get_way_toll_waycost_percentage(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
 	SEPERATOR
+
 	INIT_BOOL( "just_in_time", sets->get_just_in_time() );
 	INIT_BOOL( "crossconnect_factories", sets->is_crossconnect_factories() );
 	INIT_NUM( "crossconnect_factories_percentage", sets->get_crossconnect_factor(), 0, 100, gui_numberinput_t::AUTOLINEAR, false );
@@ -308,6 +312,8 @@ void settings_economy_stats_t::read(settings_t* const sets)
 	READ_NUM_VALUE( sets->beginner_price_factor );
 	READ_BOOL_VALUE( sets->allow_buying_obsolete_vehicles );
 	READ_NUM_VALUE( sets->used_vehicle_reduction );
+	READ_NUM_VALUE( sets->way_toll_runningcost_percentage );
+	READ_NUM_VALUE( sets->way_toll_waycost_percentage );
 
 	READ_BOOL_VALUE( sets->just_in_time );
 	READ_BOOL_VALUE( sets->crossconnect_factories );

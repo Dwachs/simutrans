@@ -51,12 +51,24 @@
 
 static const char *cost_type[MAX_LINE_COST] =
 {
-	"Free Capacity", "Transported", "Revenue", "Operation", "Profit", "Convoys", "Distance"
+	"Free Capacity",
+	"Transported",
+	"Revenue",
+	"Operation",
+	"Profit",
+	"Convoys",
+	"Distance"
 };
 
 const int cost_type_color[MAX_LINE_COST] =
 {
-	COL_FREE_CAPACITY, COL_TRANSPORTED, COL_REVENUE, COL_OPERATION, COL_PROFIT, COL_VEHICLE_ASSETS, COL_DISTANCE
+	COL_FREE_CAPACITY,
+	COL_TRANSPORTED,
+	COL_REVENUE,
+	COL_OPERATION,
+	COL_PROFIT,
+	COL_COUNVOI_COUNT,
+	COL_DISTANCE
 };
 
 static uint8 tabs_to_lineindex[9];
@@ -126,7 +138,7 @@ static bool compare_lines(line_scrollitem_t* a, line_scrollitem_t* b)
 // Hajo: 17-Jan-04: changed layout to make components fit into
 // a width of 400 pixels -> original size was unuseable in 640x480
 schedule_list_gui_t::schedule_list_gui_t(spieler_t *sp_) :
-	gui_frame_t("Line Management", sp_),
+	gui_frame_t( translator::translate("Line Management"), sp_),
 	sp(sp_),
 	scrolly(&cont),
 	scrolly_haltestellen(&cont_haltestellen),

@@ -878,6 +878,31 @@ bool fabrik_t::ist_da_eine(karte_t *welt, koord min_pos, koord max_pos )
 }
 
 
+/**
+ * if name==NULL translate besch factory name in game language
+ */
+char const* fabrik_t::get_name() const
+{
+	return name ? name.c_str() : translator::translate(besch->get_name(), welt->get_settings().get_name_language_id());
+}
+
+
+void fabrik_t::set_name(const char *new_name)
+{
+	if(new_name==NULL  ||  strcmp(new_name, translator::translate(besch->get_name()))==0) {
+		// new name is equal to name given by besch/translation -> set name to NULL
+		name = NULL;
+	} else {
+		name = new_name;
+	}
+
+	fabrik_info_t *win = dynamic_cast<fabrik_info_t*>(win_get_magic((long)this));
+	if (win) {
+		win->update_info();
+	}
+}
+
+
 void fabrik_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t f( file, "fabrik_t" );
@@ -1129,6 +1154,20 @@ DBG_DEBUG("fabrik_t::rdwr()","loading factory '%s'",s);
 	}
 	else if(  file->is_loading()  ) {
 		activity_count = 0;
+	}
+
+	// save name
+	if (file->get_version() >= 110007) {
+		if (file->is_saving() && !name) {
+			char const* fullname = besch->get_name();
+			file->rdwr_str(fullname);
+		} else {
+			file->rdwr_str(name);
+			if (file->is_loading() && name == besch->get_name()) {
+				// equal to besch name
+				name = 0;
+			}
+		}
 	}
 }
 
@@ -1521,7 +1560,7 @@ public:
 
 
 /**
- * Die erzeugten waren auf die Haltestellen verteilen
+ * distribute stuff to all best destination
  * @author Hj. Malthaner
  */
 void fabrik_t::verteile_waren(const uint32 produkt)
@@ -1543,8 +1582,6 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 	static vector_tpl<distribute_ware_t> dist_list(16);
 	dist_list.clear();
 
-	bool still_overflow = true;
-
 	// to distribute to all target equally, we use this counter, for the source hald, and target factory, to try first
 	index_offset++;
 
@@ -1553,7 +1590,7 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 	 * also prevent stops from overflowing, if possible
 	 * Since we can called with menge>max/2 are at least 10 are there, we must first limit the amount we distribute
 	 */
-	sint32 menge = min( 10, ausgang[produkt].menge >> precision_bits );
+	sint32 menge = min( (prodbase > 640 ? (prodbase>>6) : 10), ausgang[produkt].menge >> precision_bits );
 
 	// ok, first generate list of possible destinations
 	const halthandle_t *haltlist = plan->get_haltlist();
@@ -1590,19 +1627,12 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 				const bool overflown = (ziel_fab->get_eingang()[w].menge >= ziel_fab->get_eingang()[w].max);
 
 				if(  !welt->get_settings().get_just_in_time()  ) {
-
-					// distribution also to overflowing factories
-					if(  still_overflow  &&  !overflown  ) {
-						// not overflowing factory found
-						still_overflow = false;
-						dist_list.clear();
-					}
+					// without production stop when target overflowing, distribute to least overflow target
+					dist_list.insert_ordered( distribute_ware_t( halt, ziel_fab->get_eingang()[w].menge + 2000*overflown, ziel_fab->get_eingang()[w].max, (sint32)halt->get_ware_fuer_zielpos(ausgang[produkt].get_typ(),ware.get_zielpos()), ware ), distribute_ware_t::compare );
 				}
-
-				if(  !overflown  ||  (!welt->get_settings().get_just_in_time()  &&  still_overflow)  ) {
+				else if(  !overflown  ) {
 					// Station can only store up to a maximum amount of goods per square
 					const sint32 halt_left = (sint32)halt->get_capacity(2) - (sint32)halt->get_ware_summe(ware.get_besch());
-
 					dist_list.insert_ordered( distribute_ware_t( halt, halt_left, halt->get_capacity(2), (sint32)halt->get_ware_fuer_zielpos(ausgang[produkt].get_typ(),ware.get_zielpos()), ware ), distribute_ware_t::compare );
 				}
 			}
@@ -1641,7 +1671,8 @@ void fabrik_t::verteile_waren(const uint32 produkt)
 		// since it is assigned here to an unsigned variable!
 		best_ware.menge = menge;
 
-		if(  best->space_left<0  ) {
+		const sint32 space_left = welt->get_settings().get_just_in_time() ? best->space_left : (sint32)best_halt->get_capacity(2) - (sint32)best_halt->get_ware_summe(best_ware.get_besch());
+		if(  space_left<0  ) {
 
 			// find, what is most waiting here from us
 			ware_t most_waiting(ausgang[produkt].get_typ());
@@ -1869,7 +1900,7 @@ void fabrik_t::recalc_factory_status()
 }
 
 
-void fabrik_t::zeige_info() const
+void fabrik_t::zeige_info()
 {
 	gebaeude_t *gb = welt->lookup(pos)->find<gebaeude_t>();
 	create_win(new fabrik_info_t(this, gb), w_info, (long)gb );
@@ -1966,15 +1997,10 @@ void fabrik_t::info_conn(cbuffer_t& buf) const
 			buf.append("\n\n");
 		}
 		has_previous = true;
-		buf.append(ausgang.empty() && !besch->is_electricity_producer() ? translator::translate("Customers live in:") : translator::translate("Arbeiter aus:"));
+		buf.append( is_end_consumer() ? translator::translate("Customers live in:") : translator::translate("Arbeiter aus:") );
 
 		for(  uint32 c=0;  c<target_cities.get_count();  ++c  ) {
-			const stadt_t::factory_entry_t *const pax_entry = target_cities[c]->get_target_factories_for_pax().get_entry(this);
-			const stadt_t::factory_entry_t *const mail_entry = target_cities[c]->get_target_factories_for_mail().get_entry(this);
-			assert( pax_entry && mail_entry );
-
-			buf.printf("\n   %s     ", target_cities[c]->get_name() );
-			buf.printf( translator::translate("Pax <%i>  Mail <%i>"), pax_entry->supply, mail_entry->supply );
+			buf.append("\n");
 		}
 	}
 
@@ -1985,6 +2011,7 @@ void fabrik_t::info_conn(cbuffer_t& buf) const
 		}
 		has_previous = true;
 		buf.append(translator::translate("Connected stops"));
+
 		for(  uint i=0;  i<plan->get_haltlist_count();  i++  ) {
 			buf.printf("\n - %s", plan->get_haltlist()[i]->get_name() );
 		}
@@ -2126,4 +2153,17 @@ void fabrik_t::get_tile_list( vector_tpl<koord> &tile_list ) const
 			}
 		}
 	}
+}
+
+// Returns a list of goods produced by this factory. The caller must delete
+// the list when done
+slist_tpl<const ware_besch_t*> *fabrik_t::get_produced_goods() const
+{
+	slist_tpl<const ware_besch_t*> *goods = new slist_tpl<const ware_besch_t*>();
+
+	for (uint32 i = 0;  i < ausgang.get_count();  ++i) {
+		goods->append(ausgang[i].get_typ());
+	}
+
+	return goods;
 }

@@ -125,7 +125,7 @@ tourist_percentage = 16
 # The increase between the year will increase first slow then fast towards
 # the final years
 locality_factor[0]=1835,1
-locality_factor[1]=2050,10000
+locality_factor[1]=2050,2500
 
 # A factory will be added as worker's destination to a town, if it has either
 # is within factory_worker_radius
@@ -189,6 +189,9 @@ factory_enforce_demand = 1
 
 ##################################display stuff#################################
 
+# if defined, the default tool will try to calculate straight ways (like OpenTTD)
+straight_way_without_control = 0
+
 # player color can be fixed for several players or set totally random
 # in the latter case each player will get unique but random coloring
 # (default 0)
@@ -203,6 +206,10 @@ player_color[1] = 1,4
 # how long is a diagonal (512: faktor 2=1024/512, old way, 724: sqrt(2)=1024/724
 # THIS WILL BE ONLY USED, WHEN THIS FILE IS IN THE pakxyz/config!
 #diagonal_multiplier = 724
+
+# how height is a tile in z-direction (default 16, TTD 8)
+# THIS WILL BE ONLY USED, WHEN THIS FILE IS IN THE pakxyz/config!
+#tile_height = 16
 
 # Do you want to have random pedestrians in town? Look nice but needs some
 # CPU time to process them. (1=on, 0=off)
@@ -339,6 +346,13 @@ allow_buying_obsolete_vehicles = 1
 # vehicle can loose a part of their value, when the are once used
 # the loss is given in 1/1000th, i.e 300 mean the value will be 70%
 used_vehicle_reduction = 0
+
+# if a convoi runs on a way that belongs to another player, toll may
+# be charged. The number given is the percentage of the running cost
+# of the convoi or the way cost (include electrification if needed).
+# (default 0)
+toll_runningcost_percentage = 0
+toll_waycost_percentage = 0
 
 # Maintenance costs of buildings
 #maintenance_building = 2000
@@ -534,6 +548,12 @@ fast_forward = 50
 # likely to compensate for clients running slightly faster than the rest.
 #
 
+# Sets the local addresses Simutrans should listen on and use for making outgoing connections
+# By default it will use all local IPv4 and IPv6 addresses
+# This setting has no effect if Simutrans has been compiled with the USE_IP4_ONLY flag set!
+# The addresses listed will be tried in the order specified
+#listen = ::,0.0.0.0
+
 # How much delay before comands are executed on the clients.
 # A larger number will catch even clients running slightly ahead but cause delay.
 # This is set by the server side.
@@ -553,20 +573,35 @@ fast_forward = 50
 # Small values should improve the timing of the clients.
 #server_frames_between_checks = 256
 
-# Automatically announce server on the central server directory
-# 0 (default) = off, any other number is ID from
-# http://simutrans-germany.com/serverlist/
+# Automatically announce server on the central server directory (http://servers.simutrans.org/)
+# 0 (default) = off, 1 = on
 #server_announce = 0
 
-# intervall of announcement (if enabled)
-# 0=only on start/exit, -1=on join/leave, intervall>0 every x month
-#server_announce_intervall = 0
+# Interval of server announcement (if enabled)
+# Value is number of seconds between server announcements, default is 900 (15 minutes)
+# Minimum value is 60 (1 minute), for accurate listing it is recommended not to increase
+# this value to greater than 3600 (1 hour)
+# To disable announcements set server_announce to 0
+#server_announce_interval = 900
 
-# DNS name or IP of your server also IPv6 is accepted
-#server_name = 127.0.0.1
+# Fully Qualified Domain Name (FQDN) or IP address of your server (IPv6 or IPv4)
+#server_dns = 127.0.0.1
 
-# Additionally comment on your server; will be shown on game-info
-#server_comment = Testserver
+# Name of server in server listing
+#server_name = My Simutrans Server
 
-# Admin password for server; if not set, command-line tool nettool not usable
-#server_admin_pw = abc
+# Additional information about your server (for display on the list server)
+#server_comments = Comments about my server
+
+# Email address of server maintainer (for display on the list server)
+#server_email = maintainer@your.server
+
+# Pakset download URL (for display on the list server)
+#server_pakurl = http://your.domain/pakset.zip
+
+# Server info URL (for display on the list server)
+#server_infurl = http://your.domain/server-info.html
+
+# Pause server when no clients are connected
+#pause_server_no_clients = 1
+

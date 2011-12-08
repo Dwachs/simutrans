@@ -204,6 +204,8 @@ settings_t::settings_t() :
 	}
 
 	maint_building = 5000;	// normal buildings
+	way_toll_runningcost_percentage = 0;
+	way_toll_waycost_percentage = 0;
 
 	// stop buildings
 	cst_multiply_dock=-50000;
@@ -691,6 +693,8 @@ void settings_t::rdwr(loadsave_t *file)
 			}
 			file->rdwr_bool( drive_on_left );
 			file->rdwr_bool( signals_on_left );
+			file->rdwr_long( way_toll_runningcost_percentage );
+			file->rdwr_long( way_toll_waycost_percentage );
 		}
 		// otherwise the default values of the last one will be used
 	}
@@ -708,7 +712,9 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	umgebung_t::ground_object_probability = contents.get_int("random_grounds_probability", umgebung_t::ground_object_probability );
 	umgebung_t::moving_object_probability = contents.get_int("random_wildlife_probability", umgebung_t::moving_object_probability );
 
-	umgebung_t::verkehrsteilnehmer_info = contents.get_int("pedes_and_car_info", umgebung_t::verkehrsteilnehmer_info) != 0;
+	umgebung_t::straight_way_without_control = contents.get_int("straight_way_without_control", umgebung_t::straight_way_without_control) != 0;
+
+	umgebung_t::verkehrsteilnehmer_info = contents.get_int("pedes_and_car_info", umgebung_t::straight_way_without_control) != 0;
 	umgebung_t::tree_info = contents.get_int("tree_info", umgebung_t::tree_info) != 0;
 	umgebung_t::ground_info = contents.get_int("ground_info", umgebung_t::ground_info) != 0;
 	umgebung_t::townhall_info = contents.get_int("townhall_info", umgebung_t::townhall_info) != 0;
@@ -743,18 +749,58 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	umgebung_t::additional_client_frames_behind = contents.get_int("additional_client_frames_behind", umgebung_t::additional_client_frames_behind);
 	umgebung_t::network_frames_per_step = contents.get_int("server_frames_per_step", umgebung_t::network_frames_per_step );
 	umgebung_t::server_sync_steps_between_checks = contents.get_int("server_frames_between_checks", umgebung_t::server_sync_steps_between_checks );
+	umgebung_t::pause_server_no_clients = contents.get_int("pause_server_no_clients", umgebung_t::pause_server_no_clients );
 
-	umgebung_t::announce_server = contents.get_int("announce_server", umgebung_t::announce_server );
-	umgebung_t::announce_server = contents.get_int("server_announce", umgebung_t::announce_server );
-	umgebung_t::announce_server_intervall = contents.get_int("server_announce_intervall", umgebung_t::announce_server );
+	umgebung_t::server_announce = contents.get_int("announce_server", umgebung_t::server_announce );
+	umgebung_t::server_announce = contents.get_int("server_announce", umgebung_t::server_announce );
+	umgebung_t::server_announce_interval = contents.get_int("server_announce_intervall", umgebung_t::server_announce_interval );
+	umgebung_t::server_announce_interval = contents.get_int("server_announce_interval", umgebung_t::server_announce_interval );
+	if (umgebung_t::server_announce_interval < 60) {
+		umgebung_t::server_announce_interval = 60;
+	} else if (umgebung_t::server_announce_interval > 86400) {
+		umgebung_t::server_announce_interval = 86400;
+	}
+	if(  *contents.get("server_dns")  ) {
+		umgebung_t::server_dns = ltrim(contents.get("server_dns"));
+	}
 	if(  *contents.get("server_name")  ) {
 		umgebung_t::server_name = ltrim(contents.get("server_name"));
 	}
-	if(  *contents.get("server_comment")  ) {
-		umgebung_t::server_comment = ltrim(contents.get("server_comment"));
+	if(  *contents.get("server_comments")  ) {
+		umgebung_t::server_comments = ltrim(contents.get("server_comments"));
+	}
+	if(  *contents.get("server_email")  ) {
+		umgebung_t::server_email = ltrim(contents.get("server_email"));
+	}
+	if(  *contents.get("server_pakurl")  ) {
+		umgebung_t::server_pakurl = ltrim(contents.get("server_pakurl"));
+	}
+	if(  *contents.get("server_infurl")  ) {
+		umgebung_t::server_infurl = ltrim(contents.get("server_infurl"));
 	}
 	if(  *contents.get("server_admin_pw")  ) {
 		umgebung_t::server_admin_pw = ltrim(contents.get("server_admin_pw"));
+	}
+
+	// listen directive is a comma seperated list of IP addresses to listen on
+	if(  *contents.get("listen")  ) {
+		umgebung_t::listen.clear();
+		std::string s = ltrim(contents.get("listen"));
+
+		// Find index of first ',' copy from start of string to that position
+		// Set start index to last position, then repeat
+		// When ',' not found, copy remainder of string
+
+		size_t start = 0;
+		size_t end;
+
+		end = s.find_first_of(",");
+		umgebung_t::listen.append_unique( ltrim( s.substr( start, end ).c_str() ) );
+		while (  end != std::string::npos  ) {
+			start = end;
+			end = s.find_first_of( ",", start + 1 );
+			umgebung_t::listen.append_unique( ltrim( s.substr( start + 1, end - 1 - start ).c_str() ) );
+		}
 	}
 
 	drive_on_left = contents.get_int("drive_left", drive_on_left );
@@ -767,9 +813,7 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 		const char *test = ltrim(contents.get(name) );
 		if(*test) {
 			const int add_river = i<umgebung_t::river_types ? i : umgebung_t::river_types;
-			free( (void *)(umgebung_t::river_type[add_river]) );
-			umgebung_t::river_type[add_river] = NULL;
-			umgebung_t::river_type[add_river] = strdup( test );
+			umgebung_t::river_type[add_river] = test;
 			if(  add_river==umgebung_t::river_types  ) {
 				umgebung_t::river_types++;
 			}
@@ -1060,7 +1104,10 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	no_tree_climates = contents.get_int("no_tree_climates", no_tree_climates );
 	no_trees	= contents.get_int("no_trees", no_trees );
 
+	// those two are pak specific; but while the diagonal length affect traveling time (in is game critical) ...
 	pak_diagonal_multiplier = contents.get_int("diagonal_multiplier", pak_diagonal_multiplier );
+	// the height in z-direction will only cause pixel errors but not a different behaviour
+	umgebung_t::pak_tile_height_step = contents.get_int("tile_height", umgebung_t::pak_tile_height_step );
 
 	factory_spacing = contents.get_int("factory_spacing", factory_spacing );
 	crossconnect_factories = contents.get_int("crossconnect_factories", crossconnect_factories ) != 0;
@@ -1070,6 +1117,9 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	just_in_time = contents.get_int("just_in_time", just_in_time) != 0;
 	beginner_price_factor = contents.get_int("beginner_price_factor", beginner_price_factor ); /* this manipulates the good prices in beginner mode */
 	beginner_mode = contents.get_int("first_beginner", beginner_mode ); /* start in beginner mode */
+
+	way_toll_runningcost_percentage = contents.get_int("toll_runningcost_percentage", way_toll_runningcost_percentage );
+	way_toll_waycost_percentage = contents.get_int("toll_waycost_percentage", way_toll_waycost_percentage );
 
 	/* now the cost section */
 	cst_multiply_dock = contents.get_int64("cost_multiply_dock", cst_multiply_dock/(-100) ) * -100;

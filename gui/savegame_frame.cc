@@ -15,17 +15,18 @@
 
 #include <string>
 
-#include <sys/stat.h>
 #include <string.h>
 #include <time.h>
 
 #include "../pathes.h"
 
 #include "../simdebug.h"
+#include "../simsys.h"
 #include "../simwin.h"
 #include "../simintr.h"
 
 #include "../dataobj/umgebung.h"
+#include "../dataobj/translator.h"
 #include "../utils/simstring.h"
 
 #include "components/list_button.h"
@@ -34,12 +35,8 @@
 #define DIALOG_WIDTH (360)
 
 
-// we need this trick, with the function pointer.
-// Since during initialisations virtual functions do not work yet
-// in derived classes (since the object in question is not full initialized yet)
-// this functions returns true for files to be added.
 savegame_frame_t::savegame_frame_t(const char *suffix, const char *path, bool only_directories ) :
-	gui_frame_t("Load/Save"),
+gui_frame_t( translator::translate("Load/Save") ),
 	input(),
 	fnlabel("Filename"),
 	scrolly(&button_frame)
@@ -47,7 +44,6 @@ savegame_frame_t::savegame_frame_t(const char *suffix, const char *path, bool on
 	this->suffix = suffix;
 	this->fullpath = path;
 	this->only_directories = only_directories;
-	use_pak_extension = suffix==NULL  ||  strcmp( suffix, ".sve" )==0;
 	in_action = false;
 
 	// both NULL is not acceptable
@@ -104,11 +100,7 @@ void savegame_frame_t::fill_list()
 #else
 		sprintf( searchpath, "%s/*%s", SAVE_PATH, suffix==NULL ? "" : suffix );
 #endif
-#ifndef	_WIN32
-		mkdir(SAVE_PATH, 0700);
-#else
-		mkdir(SAVE_PATH);
-#endif
+		dr_mkdir(SAVE_PATH);
 		fullpath = SAVE_PATH_X;
 	}
 	else {
@@ -242,7 +234,7 @@ void savegame_frame_t::add_file(const char *filename, const char *pak, const boo
 	button->set_no_translate(true);
 	button->set_text(name);	// to avoid translation
 
-	const std::string compare_to = umgebung_t::objfilename.size()>0  ?  umgebung_t::objfilename.substr( 0, umgebung_t::objfilename.size()-1 ) + " -"  :  std::string();
+	std::string const compare_to = !umgebung_t::objfilename.empty() ? umgebung_t::objfilename.substr(0, umgebung_t::objfilename.size() - 1) + " -" : std::string();
 	// sort by date descending:
 	slist_tpl<entry>::iterator i = entries.begin();
 	slist_tpl<entry>::iterator end = entries.end();
@@ -302,14 +294,20 @@ bool savegame_frame_t::action_triggered( gui_action_creator_t *komp, value_t /* 
 	if(komp == &input || komp == &savebutton) {
 		// Save/Load Button or Enter-Key pressed
 		//---------------------------------------
-
 		if (strstr(ibuf,"net:")==ibuf) {
 			tstrncpy(buf,ibuf,lengthof(buf));
 		}
 		else {
-			tstrncpy(buf, SAVE_PATH_X, lengthof(buf));
+			if(fullpath) {
+				tstrncpy(buf, fullpath, lengthof(buf));
+			}
+			else {
+				buf[0] = 0;
+			}
 			strcat(buf, ibuf);
-			strcat(buf, suffix);
+			if (suffix) {
+				strcat(buf, suffix);
+			}
 		}
 		set_focus( NULL );
 		action(buf);
@@ -334,7 +332,7 @@ bool savegame_frame_t::action_triggered( gui_action_creator_t *komp, value_t /* 
 					tstrncpy(buf, fullpath, lengthof(buf));
 				}
 				strcat(buf, i->button->get_text());
-				if(fullpath) {
+				if(suffix) {
 					strcat(buf, suffix);
 				}
 

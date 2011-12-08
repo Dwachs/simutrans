@@ -130,15 +130,7 @@ leitung_t::~leitung_t()
 		}
 
 		if(neighbours==0) {
-			// delete in last or crossing
-//			if(welt->rem_powernet( net)) {
-				// but there is still something wrong with the logic here ...
-				// so we only delete, if still present in the world
-				delete net;
-//			}
-//			else {
-//				dbg->warning("~leitung()","net %p already deleted at (%i,%i)!",net,gr->get_pos().x,gr->get_pos().y);
-//			}
+			delete net;
 		}
 		spieler_t::add_maintenance(get_besitzer(), -besch->get_wartung());
 	}
@@ -607,7 +599,6 @@ void senke_t::step(long delta_t)
 
 	if(max_einkommen>(2000<<11)) {
 		get_besitzer()->buche(einkommen >> 11, get_pos().get_2d(), COST_POWERLINES);
-		get_besitzer()->buche(einkommen >> 11, get_pos().get_2d(), COST_INCOME);
 		einkommen = 0;
 		max_einkommen = 1;
 	}
@@ -695,5 +686,5 @@ void senke_t::info(cbuffer_t & buf) const
 	buf.printf( translator::translate("Net ID: %u\n"), (unsigned long)get_net() );
 	buf.printf( translator::translate("Demand: %u MW\n"), last_power_demand>>POWER_TO_MW );
 	buf.printf( translator::translate("Act. load: %u MW\n"), power_load>>POWER_TO_MW );
-	buf.printf( translator::translate("Usage: %u %%"), (100*power_load)/(last_power_demand>0?last_power_demand:1) );
+	buf.printf( translator::translate("Supplied: %u %%"), (100*power_load)/(last_power_demand>0?last_power_demand:1) );
 }

@@ -64,7 +64,7 @@ void help_frame_t::set_text(const char * buf)
 
 
 help_frame_t::help_frame_t() :
-	gui_frame_t("Help"),
+	gui_frame_t( translator::translate("Help") ),
 	scrolly(&flow)
 {
 	set_text("<title>Unnamed</title><p>No text set</p>");
@@ -77,7 +77,7 @@ help_frame_t::help_frame_t() :
 
 
 help_frame_t::help_frame_t(char const* const filename) :
-	gui_frame_t("Help"),
+	gui_frame_t( translator::translate("Help") ),
 	scrolly(&flow)
 {
 	// the key help texts are built automagically
@@ -189,4 +189,7 @@ void help_frame_t::resize(const koord delta)
 {
 	gui_frame_t::resize(delta);
 	scrolly.set_groesse(get_client_windowsize());
+	koord gr = get_client_windowsize() -flow.get_pos() - koord(scrollbar_t::BAR_SIZE, scrollbar_t::BAR_SIZE);
+	flow.set_groesse( gr );
+	flow.set_groesse( flow.get_text_size());
 }

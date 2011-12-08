@@ -35,7 +35,8 @@ koord convoi_filter_frame_t::filter_buttons_pos[FILTER_BUTTONS] = {
 	koord(21, 122),
 	koord(21, 138),
 	koord(21, 154),
-	koord(21, 170)
+	koord(21, 170),
+	koord(21, 303)
 };
 
 const char *convoi_filter_frame_t::filter_buttons_text[FILTER_BUTTONS] = {
@@ -56,34 +57,36 @@ const char *convoi_filter_frame_t::filter_buttons_text[FILTER_BUTTONS] = {
 	"clf_chk_monorail",
 	"clf_chk_maglev",
 	"clf_chk_narrowgauge",
-	"clf_chk_trams"
+	"clf_chk_trams",
+	"clf_chk_obsolete"
 };
 
 convoi_frame_t::filter_flag_t convoi_filter_frame_t::filter_buttons_types[FILTER_BUTTONS] = {
-    convoi_frame_t::name_filter,
-    convoi_frame_t::typ_filter,
-    convoi_frame_t::lkws_filter,
-    convoi_frame_t::zuege_filter,
-    convoi_frame_t::schiffe_filter,
-    convoi_frame_t::aircraft_filter,
-    convoi_frame_t::spezial_filter,
-    convoi_frame_t::noroute_filter,
-    convoi_frame_t::stucked_filter,
-    convoi_frame_t::noincome_filter,
-    convoi_frame_t::indepot_filter,
-    convoi_frame_t::nofpl_filter,
-    convoi_frame_t::noline_filter,
-    convoi_frame_t::ware_filter,
-    convoi_frame_t::monorail_filter,
-    convoi_frame_t::maglev_filter,
-    convoi_frame_t::narrowgauge_filter,
-	convoi_frame_t::tram_filter
+	convoi_frame_t::name_filter,
+	convoi_frame_t::typ_filter,
+	convoi_frame_t::lkws_filter,
+	convoi_frame_t::zuege_filter,
+	convoi_frame_t::schiffe_filter,
+	convoi_frame_t::aircraft_filter,
+	convoi_frame_t::spezial_filter,
+	convoi_frame_t::noroute_filter,
+	convoi_frame_t::stucked_filter,
+	convoi_frame_t::noincome_filter,
+	convoi_frame_t::indepot_filter,
+	convoi_frame_t::nofpl_filter,
+	convoi_frame_t::noline_filter,
+	convoi_frame_t::ware_filter,
+	convoi_frame_t::monorail_filter,
+	convoi_frame_t::maglev_filter,
+	convoi_frame_t::narrowgauge_filter,
+	convoi_frame_t::tram_filter,
+	convoi_frame_t::obsolete_filter
 };
 
 
 convoi_filter_frame_t::convoi_filter_frame_t(spieler_t *sp, convoi_frame_t *main_frame) :
-    gui_frame_t("clf_title", sp),
-    ware_scrolly(&ware_cont)
+	gui_frame_t( translator::translate("clf_title"), sp),
+	ware_scrolly(&ware_cont)
 {
 	unsigned i;
 	unsigned n;
@@ -142,7 +145,7 @@ convoi_filter_frame_t::convoi_filter_frame_t(spieler_t *sp, convoi_frame_t *main
 	ware_cont.set_groesse(koord(100, 16*n + 4));
 	ware_scrolly.set_groesse(koord(125, 16*16));
 
-	set_fenstergroesse(koord(255, 323));
+	set_fenstergroesse(koord(255, 339));
 }
 
 

@@ -335,8 +335,8 @@ void sim_new_handler()
 
 static const char *gimme_arg(int argc, char *argv[], const char *arg, int off)
 {
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], arg) == 0 && i < argc - off) {
+	for(  int i = 1;  i < argc;  i++  ) {
+		if(strcmp(argv[i], arg) == 0  &&  i < argc - off  ) {
 			return argv[i + off];
 		}
 	}
@@ -407,9 +407,9 @@ int simu_main(int argc, char** argv)
 			" -screensize WxH     set screensize to width W and height H\n"
 			" -server [PORT]      starts program as server (for network game)\n"
 			"                     without port specified uses 13353\n"
-			" -server_id NUM      ID for server announcements\n"
-			" -server_name NAME   name for server announcements\n"
-			" -server_comment TXT comment for server announcements\n"
+			" -announce           Enable server announcements\n"
+			" -server_dns FQDN/IP FQDN or IP address of server for announcements\n"
+			" -server_name NAME   Name of server for announcements\n"
 			" -server_admin_pw PW password for server administration\n"
 			" -singleuser         Save everything in program directory (portable version)\n"
 #ifdef DEBUG
@@ -455,6 +455,7 @@ int simu_main(int argc, char** argv)
 
 	// only the pak specifiy conf should overide this!
 	uint16 pak_diagonal_multiplier = umgebung_t::default_einstellungen.get_pak_diagonal_multiplier();
+	sint8 pak_tile_height = TILE_HEIGHT_STEP;
 
 	// parsing config/simuconf.tab
 	printf("Reading low level config data ...\n");
@@ -503,7 +504,7 @@ int simu_main(int argc, char** argv)
 			// reset to false (otherwise these settings will persist)
 			umgebung_t::default_einstellungen.set_freeplay( false );
 			umgebung_t::default_einstellungen.set_allow_player_change( true );
-			umgebung_t::announce_server = 0;
+			umgebung_t::server_announce = 0;
 		}
 	}
 
@@ -526,7 +527,7 @@ int simu_main(int argc, char** argv)
 		}
 	}
 
-	// unmgebung: overide previous settings
+	// umgebung: overide previous settings
 	if(  (gimme_arg(argc, argv, "-freeplay", 0) != NULL)  ) {
 		umgebung_t::default_einstellungen.set_freeplay( true );
 	}
@@ -590,7 +591,7 @@ int simu_main(int argc, char** argv)
 	}
 	else {
 		// no announce for clients ...
-		umgebung_t::announce_server = 0;
+		umgebung_t::server_announce = 0;
 	}
 
 	DBG_MESSAGE( "simmain::main()", "Version: " VERSION_NUMBER "  Date: " VERSION_DATE);
@@ -685,8 +686,7 @@ int simu_main(int argc, char** argv)
 		}
 		if(  umgebung_t::objfilename.empty()  ) {
 			// nothing to be loaded => exit
-			fprintf(stderr, "*** No pak set found ***\n\nMost likely, you have no pak set installed.\nPlease download and install also graphics (pak).\n");
-			dr_fatal_notify( "*** No pak set found ***\n\nMost likely, you have no pak set installed.\nPlease download and install also graphcis (pak).\n", 0 );
+			dr_fatal_notify("*** No pak set found ***\n\nMost likely, you have no pak set installed.\nPlease download and install also graphcis (pak).\n");
 			simgraph_exit();
 			return 0;
 		}
@@ -695,12 +695,13 @@ int simu_main(int argc, char** argv)
 
 	// now find the pak specific tab file ...
 	const string obj_conf = umgebung_t::objfilename + path_to_simuconf;
-	string dummy("");
+	string dummy;
 	if (simuconf.open(obj_conf.c_str())) {
 		sint16 idummy;
 		printf("parse_simuconf() at %s: ", obj_conf.c_str());
 		umgebung_t::default_einstellungen.parse_simuconf( simuconf, idummy, idummy, idummy, dummy );
 		pak_diagonal_multiplier = umgebung_t::default_einstellungen.get_pak_diagonal_multiplier();
+		pak_tile_height = TILE_HEIGHT_STEP;
 		simuconf.close();
 	}
 	// and parse again parse the user settings
@@ -725,10 +726,21 @@ int simu_main(int argc, char** argv)
 		// not possible for single user
 		umgebung_t::default_einstellungen.set_with_private_paks( false );
 	}
+	// parse ~/simutrans/pakxyz/config.tab"
+	if(umgebung_t::user_dir!=umgebung_t::program_dir  &&  umgebung_t::default_einstellungen.get_with_private_paks()  ) {
+		const string obj_conf = string(umgebung_t::user_dir) + umgebung_t::objfilename + "config/simuconf.tab";
+		if (simuconf.open(obj_conf.c_str())) {
+			sint16 idummy;
+			printf("parse_simuconf() at %s: ", obj_conf.c_str());
+			umgebung_t::default_einstellungen.parse_simuconf( simuconf, idummy, idummy, idummy, dummy );
+			simuconf.close();
+		}
+	}
 
 	// now (re)set the correct length from the pak
 	umgebung_t::default_einstellungen.set_pak_diagonal_multiplier( pak_diagonal_multiplier );
 	vehikel_basis_t::set_diagonal_multiplier( pak_diagonal_multiplier, pak_diagonal_multiplier );
+	TILE_HEIGHT_STEP = pak_tile_height;
 
 	convoihandle_t::init( 1024 );
 	linehandle_t::init( 1024 );
@@ -916,19 +928,19 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 	}
 
 	// query server stuff
-	ref_str = gimme_arg(argc, argv, "-server_id", 1);
+	// Enable server announcements
+	if(gimme_arg(argc, argv, "-announce", 0) != NULL) {
+		umgebung_t::server_announce = 1;
+	}
+
+	ref_str = gimme_arg(argc, argv, "-server_dns", 1);
 	if (ref_str != NULL) {
-		umgebung_t::announce_server = atoi(ref_str);
+		umgebung_t::server_dns = ref_str;
 	}
 
 	ref_str = gimme_arg(argc, argv, "-server_name", 1);
 	if (ref_str != NULL) {
 		umgebung_t::server_name = ref_str;
-	}
-
-	ref_str = gimme_arg(argc, argv, "-server_comment", 1);
-	if (ref_str != NULL) {
-		umgebung_t::server_comment = ref_str;
 	}
 
 	ref_str = gimme_arg(argc, argv, "-server_admin_pw", 1);
@@ -972,6 +984,10 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		umgebung_t::autosave = old_autosave;
 	}
 	else {
+		// override freeplay setting when provided on command line
+		if(  (gimme_arg(argc, argv, "-freeplay", 0) != NULL)  ) {
+			welt->get_settings().set_freeplay( true );
+		}
 		// just init view (world was loaded from file)
 		intr_set(welt, view);
 		win_set_welt(welt);

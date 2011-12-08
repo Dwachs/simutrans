@@ -49,6 +49,7 @@
 
 #include "sucher/bauplatz_sucher.h"
 #include "bauer/wegbauer.h"
+#include "bauer/brueckenbauer.h"
 #include "bauer/hausbauer.h"
 #include "bauer/fabrikbauer.h"
 #include "utils/cbuffer_t.h"
@@ -991,7 +992,17 @@ stadt_t::~stadt_t()
 			}
 		}
 	}
-	free( (void *)name );
+}
+
+
+static bool name_used(weighted_vector_tpl<stadt_t*> const& cities, char const* const name)
+{
+	for (weighted_vector_tpl<stadt_t*>::const_iterator i = cities.begin(), end = cities.end(); i != end; ++i) {
+		if (strcmp((*i)->get_name(), name) == 0) {
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -1024,34 +1035,22 @@ stadt_t::stadt_t(spieler_t* sp, koord pos, sint32 citizens) :
 	lo = ur = pos;
 
 	DBG_MESSAGE("stadt_t::stadt_t()", "Welt %p", welt);
-	fflush(NULL);
+
 	/* get a unique cityname */
-	/* 9.1.2005, prissi */
-	const weighted_vector_tpl<stadt_t*>& staedte = welt->get_staedte();
-	const int name_list_count = translator::get_count_city_name();
-
-	fflush(NULL);
-	// start at random position
-	int start_cont = simrand(name_list_count);
-
-	// get a unique name
-	const char* list_name;
-	list_name = translator::get_city_name(start_cont);
-	for (int i = 0; i < name_list_count; i++) {
-		// get a name
-		list_name = translator::get_city_name(start_cont + i);
-		// check if still unused
-		for (weighted_vector_tpl<stadt_t*>::const_iterator j = staedte.begin(), end = staedte.end(); j != end; ++j) {
-			// noch keine stadt mit diesem namen?
-			if (strcmp(list_name, (*j)->get_name()) == 0) goto next_name;
+	char                          const* n       = "simcity";
+	weighted_vector_tpl<stadt_t*> const& staedte = welt->get_staedte();
+	for (vector_tpl<char*> city_names(translator::get_city_name_list()); !city_names.empty();) {
+		size_t      const idx  = simrand(city_names.get_count());
+		char const* const cand = city_names[idx];
+		if (name_used(staedte, cand)) {
+			city_names.remove_at(idx);
+		} else {
+			n = cand;
+			break;
 		}
-		DBG_MESSAGE("stadt_t::stadt_t()", "'%s' is unique", list_name);
-		break;
-next_name:;
 	}
-	name = strdup(list_name);
-
-	DBG_MESSAGE("stadt_t::stadt_t()", "founding new city named '%s'", list_name);
+	DBG_MESSAGE("stadt_t::stadt_t()", "founding new city named '%s'", n);
+	name = n;
 
 	// 1. Rathaus bei 0 Leuten bauen
 	check_bau_rathaus(true);
@@ -1099,7 +1098,6 @@ stadt_t::stadt_t(karte_t* wl, loadsave_t* file) :
 	has_low_density = false;
 
 	wachstum = 0;
-	name = NULL;
 	stadtinfo_options = 3;
 
 	rdwr(file);
@@ -1240,7 +1238,6 @@ void stadt_t::rdwr(loadsave_t* file)
 }
 
 
-
 /**
  * Wird am Ende der Laderoutine aufgerufen, wenn die Welt geladen ist
  * und nur noch die Datenstrukturenneu verknuepft werden muessen.
@@ -1253,7 +1250,7 @@ void stadt_t::laden_abschliessen()
 	next_bau_step = 0;
 
 	// there might be broken savegames
-	if(name==NULL) {
+	if (!name) {
 		set_name( "simcity" );
 	}
 
@@ -1345,10 +1342,7 @@ void stadt_t::rotate90( const sint16 y_size )
 
 void stadt_t::set_name(const char *new_name)
 {
-	if(name==NULL  ||  strcmp(name,new_name)) {
-		free( (void *)name );
-		name = strdup( new_name );
-	}
+	name = new_name;
 	grund_t *gr = welt->lookup_kartenboden(pos);
 	if(gr) {
 		gr->set_text( new_name );
@@ -1526,11 +1520,12 @@ void stadt_t::neuer_monat( bool recalc_destinations )
 		recalc_target_attractions();
 	}
 
-	if (!stadtauto_t::list_empty()) {
+	if (!stadtauto_t::list_empty()  &&  s.get_verkehr_level()>0) {
 		// spawn eventuall citycars
 		// the more transported, the less are spawned
 		// the larger the city, the more spawned ...
 
+		/* original implementation that is replaced by integer-only version below
 		double pfactor = (double)(city_history_month[1][HIST_PAS_TRANSPORTED]) / (double)(city_history_month[1][HIST_PAS_GENERATED]+1);
 		double mfactor = (double)(city_history_month[1][HIST_MAIL_TRANSPORTED]) / (double)(city_history_month[1][HIST_MAIL_GENERATED]+1);
 		double gfactor = (double)(city_history_month[1][HIST_GOODS_RECIEVED]) / (double)(city_history_month[1][HIST_GOODS_NEEDED]+1);
@@ -1538,7 +1533,24 @@ void stadt_t::neuer_monat( bool recalc_destinations )
 		double factor = pfactor > mfactor ? (gfactor > pfactor ? gfactor : pfactor ) : mfactor;
 		factor = (1.0-factor)*city_history_month[1][HIST_CITICENS];
 		factor = log10( factor );
-		uint16 number_of_cars = simrand((uint16)(factor * s.get_verkehr_level())) / 16;
+		*/
+
+		// placeholder for fractions
+#		define decl_stat(name, i0, i1) sint64 name##_stat[2]; name##_stat[0] = city_history_month[1][i0];  name##_stat[1] = city_history_month[1][i1]+1;
+		// defines and initializes local sint64[2] arrays
+		decl_stat(pax, HIST_PAS_TRANSPORTED, HIST_PAS_GENERATED);
+		decl_stat(mail, HIST_MAIL_TRANSPORTED, HIST_MAIL_GENERATED);
+		decl_stat(good, HIST_GOODS_RECIEVED, HIST_GOODS_NEEDED);
+
+		// true if s1[0] / s1[1] > s2[0] / s2[1]
+#		define comp_stats(s1,s2) ( s1[0]*s2[1] > s2[0]*s1[1] )
+		// computes (1.0 - s[0]/s[1]) * city_history_month[1][HIST_CITICENS]
+#		define comp_factor(s) (city_history_month[1][HIST_CITICENS] *( s[1]-s[0] )) / s[1]
+
+		uint32 factor = comp_stats(pax_stat, mail_stat) ? (comp_stats(good_stat, pax_stat) ? comp_factor(good_stat) : comp_factor(pax_stat)) : comp_factor(mail_stat);
+		factor = log10(factor);
+
+		uint16 number_of_cars = simrand( factor * s.get_verkehr_level() ) / 16;
 
 		city_history_month[0][HIST_CITYCARS] = number_of_cars;
 		city_history_year[0][HIST_CITYCARS] += number_of_cars;
@@ -1747,20 +1759,30 @@ void stadt_t::step_passagiere()
 					factory_entry->factory->liefere_an(wtyp, pax_left_to_do);
 				}
 				// people who walk or mail delivered by hand do not count as transported or happy
+				start_halt->add_pax_walked(num_pax);
 			}
 			else if(  route_result==haltestelle_t::ROUTE_OVERCROWDED  ) {
 				merke_passagier_ziel(dest_pos, COL_ORANGE );
-				start_halt->add_pax_unhappy(pax_left_to_do);
-				if(  will_return  ) {
-					pax.get_ziel()->add_pax_unhappy(pax_left_to_do);
+				if (start_halt.is_bound()) {
+					start_halt->add_pax_unhappy(pax_left_to_do);
+					if(  will_return  ) {
+						pax.get_ziel()->add_pax_unhappy(pax_left_to_do);
+					}
+				}
+				else {
+					// all routes to goal are overcrowded -> register at all start halts
+					for(  uint32 s=0;  s<start_halts.get_count();  ++s  ) {
+						start_halts[s]->add_pax_unhappy(pax_left_to_do);
+						merke_passagier_ziel(dest_pos, COL_ORANGE);
+					}
 				}
 			}
 			else {
 				// since there is no route from any start halt -> register no route at all start halts
 				for(  uint32 s=0;  s<start_halts.get_count();  ++s  ) {
 					start_halts[s]->add_pax_no_route(pax_left_to_do);
-					merke_passagier_ziel(dest_pos, COL_DARK_ORANGE);
 				}
+				merke_passagier_ziel(dest_pos, COL_DARK_ORANGE);
 #ifdef DESTINATION_CITYCARS
 				//citycars with destination
 				erzeuge_verkehrsteilnehmer(start_halt->get_basis_pos(), step_count, ziel);
@@ -2103,7 +2125,7 @@ void stadt_t::check_bau_rathaus(bool new_town)
 		koord k;
 		int old_layout(0);
 
-		DBG_MESSAGE("check_bau_rathaus()", "bev=%d, new=%d name=%s", bev, neugruendung, name);
+		DBG_MESSAGE("check_bau_rathaus()", "bev=%d, new=%d name=%s", bev, neugruendung, name.c_str());
 
 		if(  bev!=0  ) {
 
@@ -2113,6 +2135,7 @@ void stadt_t::check_bau_rathaus(bool new_town)
 				return; // Rathaus ist schon okay
 			}
 			old_layout = gb->get_tile()->get_layout();
+			const sint8 old_z = gb->get_pos().z;
 			koord pos_alt = best_pos = gr->get_pos().get_2d() - gb->get_tile()->get_offset();
 			// guess layout for broken townhall's
 			if(besch_alt->get_b() != besch_alt->get_h()  &&  besch_alt->get_all_layouts()==1) {
@@ -2134,17 +2157,18 @@ void stadt_t::check_bau_rathaus(bool new_town)
 			koord groesse_alt = besch_alt->get_groesse(old_layout);
 
 			// do we need to move
-			if (old_layout<=besch->get_all_layouts()  &&  besch->get_b(old_layout) <= groesse_alt.x  &&  besch->get_h(old_layout) <= groesse_alt.y) {
+			if(  old_layout<=besch->get_all_layouts()  &&  besch->get_b(old_layout) <= groesse_alt.x  &&  besch->get_h(old_layout) <= groesse_alt.y  ) {
 				// no, the size is ok
 				// correct position if new townhall is smaller than old
-				if (old_layout == 0) {
+				if(  old_layout == 0  ) {
 					best_pos.y -= besch->get_h(old_layout) - groesse_alt.y;
 				}
 				else if (old_layout == 1) {
 					best_pos.x -= besch->get_b(old_layout) - groesse_alt.x;
 				}
 				umziehen = false;
-			} else {
+			}
+			else {
 				// we need to built a new road, thus we will use the old as a starting point (if found)
 				if (welt->lookup_kartenboden(townhall_road)  &&  welt->lookup_kartenboden(townhall_road)->hat_weg(road_wt)) {
 					alte_str = townhall_road;
@@ -2164,13 +2188,13 @@ void stadt_t::check_bau_rathaus(bool new_town)
 			}
 
 			// remove old townhall
-			if (gb) {
+			if(  gb  ) {
 				DBG_MESSAGE("stadt_t::check_bau_rathaus()", "delete townhall at (%s)", pos_alt.get_str());
 				hausbauer_t::remove(welt, NULL, gb);
 			}
 
 			// replace old space by normal houses level 0 (must be 1x1!)
-			if (umziehen) {
+			if(  umziehen  ) {
 				for (k.x = 0; k.x < groesse_alt.x; k.x++) {
 					for (k.y = 0; k.y < groesse_alt.y; k.y++) {
 						// we iterate over all tiles, since the townhalls are allowed sizes bigger than 1x1
@@ -2186,11 +2210,13 @@ void stadt_t::check_bau_rathaus(bool new_town)
 			}
 			else {
 				// make tiles flat, hausbauer_t::remove could have set some natural slopes
-				for (k.x = 0; k.x < besch->get_b(old_layout); k.x++) {
-					for (k.y = 0; k.y < besch->get_h(old_layout); k.y++) {
+				for(  k.x = 0;  k.x < besch->get_b(old_layout);  k.x++  ) {
+					for(  k.y = 0;  k.y < besch->get_h(old_layout);  k.y++  ) {
 						gr = welt->lookup_kartenboden(best_pos + k);
-						if (gr  &&  gr->ist_natur()) {
+						if(  gr  &&  gr->ist_natur()  ) {
+							// make flat and use right height
 							gr->set_grund_hang(hang_t::flach);
+							gr->set_pos( koord3d( best_pos + k, old_z ) );
 						}
 					}
 				}
@@ -2254,11 +2280,11 @@ void stadt_t::check_bau_rathaus(bool new_town)
 		// if not during initialization
 		if (!new_town) {
 			cbuffer_t buf;
-			buf.printf( translator::translate("%s wasted\nyour money with a\nnew townhall\nwhen it reached\n%i inhabitants."), name, get_einwohner() );
+			buf.printf(translator::translate("%s wasted\nyour money with a\nnew townhall\nwhen it reached\n%i inhabitants."), name.c_str(), get_einwohner());
 			welt->get_message()->add_message(buf, best_pos, message_t::city, CITY_KI, besch->get_tile(layout, 0, 0)->get_hintergrund(0, 0, 0));
 		}
 		else {
-			welt->lookup_kartenboden(best_pos)->set_text( name );
+			welt->lookup_kartenboden(best_pos + offset)->set_text( name );
 		}
 
 		if (neugruendung || umziehen) {
@@ -2744,10 +2770,16 @@ bool stadt_t::baue_strasse(const koord k, spieler_t* sp, bool forced)
 			// now we have to check for several problems ...
 			grund_t* bd2;
 			if(bd->get_neighbour(bd2, invalid_wt, koord::nsow[r])) {
-				if(bd2->get_typ()==grund_t::fundament) {
+				if(bd2->get_typ()==grund_t::fundament  ||  bd2->get_typ()==grund_t::wasser) {
 					// not connecting to a building of course ...
-				} else if (bd2->get_typ()!=grund_t::boden  &&  ribi_t::nsow[r]!=ribi_typ(bd2->get_grund_hang())) {
-					// not the same slope => tunnel or bridge
+				} else if (!bd2->ist_karten_boden()) {
+					// do not connect to elevated ways / bridges
+				} else if (bd2->get_typ()==grund_t::tunnelboden  &&  ribi_t::nsow[r]!=ribi_typ(bd2->get_grund_hang())) {
+					// not the correct slope
+				} else if (bd2->get_typ()==grund_t::brueckenboden
+					&&  (bd2->get_grund_hang()==hang_t::flach  ?  ribi_t::nsow[r]!=ribi_typ(bd2->get_weg_hang())
+					                                           :  ribi_t::rueckwaerts(ribi_t::nsow[r])!=ribi_typ(bd2->get_grund_hang()))) {
+					// not the correct slope
 				} else if(bd2->hat_weg(road_wt)) {
 					const gebaeude_t* gb = bd2->find<gebaeude_t>();
 					if(gb) {
@@ -2806,6 +2838,31 @@ bool stadt_t::baue_strasse(const koord k, spieler_t* sp, bool forced)
 			weg->set_gehweg(true);
 			bd->neuen_weg_bauen(weg, connection_roads, sp);
 			bd->calc_bild();	// otherwise the
+		}
+		// check to bridge a river
+		if (ribi_t::ist_einfach(connection_roads)) {
+			koord zv = koord(ribi_t::rueckwaerts(connection_roads));
+			grund_t *bd_next = welt->lookup_kartenboden( k + zv );
+			if (bd_next  &&  (bd_next->ist_wasser()  ||  (bd_next->hat_weg(water_wt)  &&  bd_next->get_weg(water_wt)->get_besch()->get_styp()==255))) {
+				// ok there is a river
+				const bruecke_besch_t *bridge = brueckenbauer_t::find_bridge(road_wt, 50, welt->get_timeline_year_month() );
+				const char *err = NULL;
+				koord3d end = brueckenbauer_t::finde_ende(welt, bd->get_pos(), zv, bridge, err, false);
+				if (err  ||   koord_distance( k, end.get_2d())>3) {
+					// try to find shortest possible
+					end = brueckenbauer_t::finde_ende(welt, bd->get_pos(), zv, bridge, err, true);
+				}
+				if (err==NULL  &&   koord_distance( k, end.get_2d())<=3) {
+					brueckenbauer_t::baue_bruecke(welt, welt->get_spieler(1), bd->get_pos(), end, zv, bridge, welt->get_city_road());
+					// try to build one connecting piece of road
+					baue_strasse( (end+zv).get_2d(), NULL, false);
+					// try to build a house near the bridge end
+					uint32 old_count = buildings.get_count();
+					for(uint8 i=0; i<lengthof(koord::neighbours)  &&  buildings.get_count() == old_count; i++) {
+						baue_gebaeude(end.get_2d()+zv+koord::neighbours[i]);
+					}
+				}
+			}
 		}
 		return true;
 	}

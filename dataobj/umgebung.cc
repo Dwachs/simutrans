@@ -7,29 +7,34 @@
 #include "../simcolor.h"
 #include "../simmesg.h"
 
+sint8 umgebung_t::pak_tile_height_step = 16;
 char umgebung_t::program_dir[1024];
 const char *umgebung_t::user_dir = 0;
 const char *umgebung_t::savegame_version_str = SAVEGAME_VER_NR;
+bool umgebung_t::straight_way_without_control = false;
 bool umgebung_t::networkmode = false;
 bool umgebung_t::restore_UI = false;
 extern uint16 network_server_port;
 uint16 const &umgebung_t::server = network_server_port;
 
-// if !=0 contains ID from simutrans-germany.com
-uint32 umgebung_t::announce_server = 0;
-// how often to announce
-// ==0 off
-// ==-1: only on join/leave
-// otherwise: every xx months
-sint32 umgebung_t::announce_server_intervall = 0;
+// Disable announce by default
+uint32 umgebung_t::server_announce = 0;
+// Minimum is every 60 seconds, default is every 15 minutes (900 seconds), maximum is 86400 (1 day)
+sint32 umgebung_t::server_announce_interval = 900;
+std::string umgebung_t::server_dns;
 std::string umgebung_t::server_name;
-std::string umgebung_t::server_comment;
+std::string umgebung_t::server_comments;
+std::string umgebung_t::server_email;
+std::string umgebung_t::server_pakurl;
+std::string umgebung_t::server_infurl;
 std::string umgebung_t::server_admin_pw;
+vector_tpl<std::string> umgebung_t::listen;
 
 long umgebung_t::server_frames_ahead = 4;
 long umgebung_t::additional_client_frames_behind = 0;
 long umgebung_t::network_frames_per_step = 4;
 uint32 umgebung_t::server_sync_steps_between_checks = 256;
+bool umgebung_t::pause_server_no_clients = false;
 
 // this is explicitely and interactively set by user => we do not touch it in init
 const char *umgebung_t::language_iso = "en";
@@ -54,6 +59,8 @@ bool umgebung_t::night_shift;
 bool umgebung_t::hide_with_transparency;
 bool umgebung_t::hide_trees;
 uint8 umgebung_t::hide_buildings;
+bool umgebung_t::hide_under_cursor;
+uint16 umgebung_t::cursor_hide_range;
 bool umgebung_t::use_transparency_station_coverage;
 uint8 umgebung_t::station_coverage_show;
 sint32 umgebung_t::show_names;
@@ -73,10 +80,7 @@ uint8 umgebung_t::default_sortmode;
 sint8 umgebung_t::default_mapmode;
 uint8 umgebung_t::show_month;
 sint32 umgebung_t::intercity_road_length;
-const char *umgebung_t::river_type[10] = {
-	0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0,
-};
+plainstring umgebung_t::river_type[10];
 uint8 umgebung_t::river_types;
 sint32 umgebung_t::autosave;
 uint32 umgebung_t::fps;
@@ -115,6 +119,8 @@ void umgebung_t::init()
 	hide_with_transparency = true;
 	hide_trees = false;
 	hide_buildings = umgebung_t::NOT_HIDE;
+	hide_under_cursor = false;
+	cursor_hide_range = 5;
 
 	/* station stuff */
 	use_transparency_station_coverage = true;
@@ -196,6 +202,10 @@ void umgebung_t::init()
 	front_window_text_color = COL_WHITE; // 215
 	bottom_window_bar_color = 4;
 	bottom_window_text_color = 209;	// dark grey
+
+	// Listen on all addresses by default
+	listen.append_unique("::");
+	listen.append_unique("0.0.0.0");
 }
 
 
@@ -291,7 +301,6 @@ void umgebung_t::rdwr(loadsave_t *file)
 		file->rdwr_bool( add_player_name_to_message );
 		file->rdwr_short( window_snap_distance );
 	}
-
 	else if(  file->is_loading()  ) {
 		// did not know about chat message, so we enable it
 		message_flags[0] |= (1 << message_t::chat);	// ticker
@@ -299,6 +308,11 @@ void umgebung_t::rdwr(loadsave_t *file)
 		message_flags[2] &= ~(1 << message_t::chat); // tiem window off
 		message_flags[3] &= ~(1 << message_t::chat); // do not ignore completely
 
+	}
+
+	if(  file->get_version()>=111001  ) {
+		file->rdwr_bool( hide_under_cursor );
+		file->rdwr_short( cursor_hide_range );
 	}
 
 	// server settings are not saved, since the are server specific and could be different on different servers on the save computers

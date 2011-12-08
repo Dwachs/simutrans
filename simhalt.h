@@ -29,7 +29,7 @@
 #define RECONNECTING (1)
 #define REROUTING (2)
 
-#define MAX_HALT_COST   7 // Total number of cost items
+#define MAX_HALT_COST   8 // Total number of cost items
 #define MAX_MONTHS     12 // Max history
 #define MAX_HALT_NON_MONEY_TYPES 7 // number of non money types in HALT's financial statistic
 #define HALT_ARRIVED   0 // the amount of ware that arrived here
@@ -39,15 +39,13 @@
 #define HALT_UNHAPPY		4 // number of unhappy passangers
 #define HALT_NOROUTE         5 // number of no-route passangers
 #define HALT_CONVOIS_ARRIVED             6 // number of convois arrived this month
+#define HALT_WALKED 7 // could walk to destination
 
 class cbuffer_t;
 class grund_t;
 class fabrik_t;
 class karte_t;
 class koord3d;
-#ifdef LAGER_NOT_IN_USE
-class lagerhaus_t;
-#endif
 class loadsave_t;
 class schedule_t;
 class spieler_t;
@@ -218,6 +216,8 @@ public:
 		static bool compare(const connection_t &a, const connection_t &b) { return a.halt.get_id() < b.halt.get_id(); }
 	};
 
+	bool is_transfer(const uint8 catg) const { return serving_schedules[catg] > 1u; }
+
 private:
 	slist_tpl<tile_t> tiles;
 
@@ -262,24 +262,6 @@ private:
 
 	/* station flags (most what enabled) */
 	uint8 enables;
-
-	/**
-	 * Found route and station uncrowded
-	 * @author Hj. Malthaner
-	 */
-	uint32 pax_happy;
-
-	/**
-	 * Found no route
-	 * @author Hj. Malthaner
-	 */
-	uint32 pax_no_route;
-
-	/**
-	 * Station crowded
-	 * @author Hj. Malthaner
-	 */
-	uint32 pax_unhappy;
 
 #ifdef USE_QUOTE
 	// for station rating
@@ -418,8 +400,9 @@ private:
 		// in member function search_route_resumable(): first transfer halt to get there
 		halthandle_t transfer;
 		uint16 best_weight;
-		uint16 depth:15;
+		uint16 depth:14;
 		bool destination:1;
+		bool overcrowded:1;
 	};
 
 	// store the best weight so far for a halt, and indicate whether it is a destination
@@ -496,6 +479,12 @@ public:
 	void add_pax_happy(int n);
 
 	/**
+	 * Station in walking distance
+	 * @author prissi
+	 */
+	void add_pax_walked(int n);
+
+	/**
 	 * Found no route
 	 * @author Hj. Malthaner
 	 */
@@ -507,14 +496,10 @@ public:
 	 */
 	void add_pax_unhappy(int n);
 
-	int get_pax_happy()    const { return pax_happy;    }
-	int get_pax_no_route() const { return pax_no_route; }
-	int get_pax_unhappy()  const { return pax_unhappy;  }
+	int get_pax_happy()    const { return (int)financial_history[0][HALT_HAPPY]; }
+	int get_pax_no_route() const { return (int)financial_history[0][HALT_NOROUTE]; }
+	int get_pax_unhappy()  const { return (int)financial_history[0][HALT_UNHAPPY]; }
 
-
-#ifdef LAGER_NOT_IN_USE
-	void set_lager(lagerhaus_t* l) { lager = l; }
-#endif
 
 	bool add_grund(grund_t *gb);
 	bool rem_grund(grund_t *gb);

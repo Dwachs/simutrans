@@ -35,6 +35,7 @@ protected:
 	uint8 automatic:1;
 	uint8 ticks_ns;
 	uint8 ticks_ow;
+	uint8 ticks_offset;
 
 	sint8 after_yoffset, after_xoffset;
 
@@ -60,6 +61,9 @@ public:
 
 	typ get_typ() const { return roadsign; }
 	const char* get_name() const { return "Roadsign"; }
+
+	// assuming this is a private way sign
+	uint16 get_player_mask() const { return (ticks_ow<<8)|ticks_ns; }
 
 	/**
 	 * waytype associated with this object
@@ -103,6 +107,8 @@ public:
 	void set_ticks_ns(uint8 ns) { ticks_ns = ns; }
 	uint8 get_ticks_ow() const { return ticks_ow; }
 	void set_ticks_ow(uint8 ow) { ticks_ow = ow; }
+	uint8 get_ticks_offset() const { return ticks_offset; }
+	void set_ticks_offset(uint8 offset) { ticks_offset = offset; }
 
 	inline void set_bild( image_id b ) { bild = b; }
 	image_id get_bild() const { return bild; }

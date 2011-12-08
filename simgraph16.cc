@@ -25,11 +25,8 @@
 
 #ifdef _MSC_VER
 #	include <io.h>
-#	include <direct.h>
 #	define W_OK 2
 #else
-#	include <sys/stat.h>
-#	include <fcntl.h>
 #	include <unistd.h>
 #endif
 
@@ -44,7 +41,7 @@
 # if defined(USE_C)  ||  !defined(__i386__)
 #  undef USE_C
 #  define USE_C
-#  if (__GNUC__>=4  &&  __GNUC_MINOR__>=2)  ||  !defined(__i386__)
+#  if GCC_ATLEAST(4, 2) || !defined(__i386__)
 #   define ALIGN_COPY
 #   warning "Needs to use slower copy with GCC > 4.2.x"
 #  endif
@@ -3885,11 +3882,7 @@ void display_snapshot()
 
 	char buf[80];
 
-#ifdef _WIN32
-	mkdir(SCRENSHOT_PATH);
-#else
-	mkdir(SCRENSHOT_PATH, 0700);
-#endif
+	dr_mkdir(SCRENSHOT_PATH);
 
 	// find the first not used screenshot image
 	do {

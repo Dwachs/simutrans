@@ -62,7 +62,7 @@ const uint8 citylist_frame_t::hist_type_color[karte_t::MAX_WORLD_COST] =
 	COL_LIGHT_PURPLE,
 	71 /*COL_GREEN*/,
 	COL_TURQUOISE,
-	COL_POWERLINES,
+	87,
 	COL_LIGHT_BLUE,
 	COL_BLUE,
 	COL_LIGHT_YELLOW,
@@ -91,7 +91,7 @@ const uint8 citylist_frame_t::hist_type_type[karte_t::MAX_WORLD_COST] =
 #define TOTAL_HEIGHT (TITLEBAR_HEIGHT+3*(LINESPACE+1)+42+1)
 
 citylist_frame_t::citylist_frame_t(karte_t * welt) :
-	gui_frame_t("City list"),
+	gui_frame_t(translator::translate("City list")),
 	sort_label(translator::translate("hl_txt_sort")),
 	stats(welt,sortby,sortreverse),
 	scrolly(&stats)

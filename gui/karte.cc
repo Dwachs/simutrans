@@ -836,11 +836,9 @@ void reliefkarte_t::zeichnen(koord pos)
 				            (pos.y*welt->get_groesse_y())/PAX_DESTINATIONS_SIZE);
 				max = koord(((pos.x+1)*welt->get_groesse_x())/PAX_DESTINATIONS_SIZE,
 				            ((pos.y+1)*welt->get_groesse_y())/PAX_DESTINATIONS_SIZE);
-				if(  max.x >= cur_off.x  &&  max.y>=cur_off.y  &&  min.x<cur_size.x  &&  min.y<cur_size.y  ) {
-					for( pos.x = min.x;  pos.x < max.x;  pos.x++  ) {
-						for( pos.y = min.y;  pos.y < max.y;  pos.y++  ) {
-							set_relief_farbe(pos, color);
-						}
+				for( pos.x = min.x;  pos.x < max.x;  pos.x++  ) {
+					for( pos.y = min.y;  pos.y < max.y;  pos.y++  ) {
+						set_relief_farbe(pos, color);
 					}
 				}
 			}
@@ -970,9 +968,13 @@ void reliefkarte_t::zeichnen(koord pos)
 			draw_schedule(pos);
 		}
 	}
-	else if(is_show_fab) {
-		// draw factory connections, if on a factory
-		const fabrik_t* const fab = draw_fab_connections(event_get_last_control_shift() & 1 ? COL_RED : COL_WHITE, pos);
+	else {
+		// Add factory name tooltips and draw factory connections, if on a factory
+		const fabrik_t* const fab = (is_show_fab) ?
+			draw_fab_connections(event_get_last_control_shift() & 1 ? COL_RED : COL_WHITE, pos)
+			:
+			fabrik_t::get_fab(welt, last_world_pos);
+
 		if(fab) {
 			koord fabpos = fab->get_pos().get_2d();
 			karte_to_screen( fabpos );

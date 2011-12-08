@@ -71,6 +71,8 @@ resolution dr_query_screen_resolution();
 int dr_os_open(int w, int h, int fullscreen);
 int dr_os_close(void);
 
+void dr_mkdir(char const* path);
+
 /* query home directory */
 char const* dr_query_homedir();
 
@@ -110,8 +112,7 @@ unsigned long dr_time(void);
 void dr_sleep(uint32 millisec);
 
 // error message in case of fatal events
-// if choice!=0 then there will be a scond button
-bool dr_fatal_notify(const char* msg, int choices);
+void dr_fatal_notify(char const* msg);
 
 /**
  * Some wrappers can save screenshots.
@@ -137,5 +138,7 @@ void dr_copy(const char *source, size_t length);
  * @author Knightly
  */
 size_t dr_paste(char *target, size_t max_length);
+
+int sysmain(int argc, char** argv);
 
 #endif

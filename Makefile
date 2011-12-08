@@ -54,16 +54,22 @@ endif
 
 
 ifeq ($(OSTYPE),cygwin)
+  SOURCES += simsys_w32_png.cc
   CFLAGS += -I/usr/include/mingw -mwin32
-  LIBS   += -lgdi32 -lwinmm -lz -lbz2
+  CCFLAGS += -I/usr/include/mingw -mwin32
+  LDFLAGS += -mno-cygwin
+  LIBS   += -lgdi32 -lwinmm -lwsock32 -lz -lbz2
 endif
 
 ifeq ($(OSTYPE),mingw)
   CC ?= gcc
   SOURCES += simsys_w32_png.cc
-  CFLAGS  += -mno-cygwin -DPNG_STATIC -DZLIB_STATIC -march=pentium
+  CFLAGS  += -DPNG_STATIC -DZLIB_STATIC -march=pentium
   ifeq ($(BACKEND),gdi)
     LIBS += -lunicows
+    ifeq  ($(WIN32_CONSOLE),)
+      LDFLAGS += -mwindows
+    endif
   endif
   LIBS += -lmingw32 -lgdi32 -lwinmm -lwsock32 -lz -lbz2
 endif
@@ -82,7 +88,9 @@ ifneq ($(OPTIMISE),)
     CFLAGS += -O3 -fno-schedule-insns
   ifneq ($(OSTYPE),mac)
     ifneq ($(OSTYPE),haiku)
-      CFLAGS += -minline-all-stringops
+      ifneq ($(OSTYPE),amiga)
+        CFLAGS += -minline-all-stringops
+      endif
     endif
   endif
 else
@@ -226,6 +234,7 @@ SOURCES += dings/wolke.cc
 SOURCES += dings/zeiger.cc
 SOURCES += font.cc
 SOURCES += freight_list_sorter.cc
+SOURCES += gui/ai_option_t.cc
 SOURCES += gui/banner.cc
 SOURCES += gui/baum_edit.cc
 SOURCES += gui/citybuilding_edit.cc
@@ -297,6 +306,7 @@ SOURCES += gui/optionen.cc
 SOURCES += gui/pakselector.cc
 SOURCES += gui/password_frame.cc
 SOURCES += gui/player_frame_t.cc
+SOURCES += gui/privatesign_info.cc
 SOURCES += gui/savegame_frame.cc
 SOURCES += gui/scenario_frame.cc
 SOURCES += gui/schedule_list.cc
@@ -430,7 +440,10 @@ ifeq ($(BACKEND),sdl)
       SDL_LDFLAGS := -framework SDL -framework Cocoa -I/System/Libraries/Frameworks/SDL/Headers SDLMain.m
     else
       SDL_CFLAGS  := -I$(MINGDIR)/include/SDL -Dmain=SDL_main
-      SDL_LDFLAGS := -lSDLmain -lSDL -mwindows
+      SDL_LDFLAGS := -lSDLmain -lSDL
+      ifeq  ($(WIN32_CONSOLE),)
+        SDL_LDFLAGS += -mwindows
+      endif
     endif
   else
     SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
@@ -449,7 +462,10 @@ ifeq ($(BACKEND),mixer_sdl)
   CFLAGS  += -DUSE_16BIT_DIB
   ifeq ($(SDL_CONFIG),)
     SDL_CFLAGS  := -I$(MINGDIR)/include/SDL -Dmain=SDL_main
-    SDL_LDFLAGS := -lmingw32 -lSDLmain -lSDL -mwindows
+    SDL_LDFLAGS := -lmingw32 -lSDLmain -lSDL
+    ifeq  ($(WIN32_CONSOLE),)
+      SDL_LDFLAGS += -mwindows
+    endif
   else
     SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
     SDL_LDFLAGS := $(shell $(SDL_CONFIG) --libs)
@@ -489,5 +505,7 @@ PROG     ?= sim
 include common.mk
 
 
-makeobj_prog:
+.PHONY: makeobj
+
+makeobj:
 	$(Q)$(MAKE) -e -C makeobj FLAGS="$(FLAGS)"
