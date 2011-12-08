@@ -1,8 +1,7 @@
 #include "connector_ship.h"
 
-#include "builder_road_station.h"
+#include "connector_generic.h"
 #include "vehikel_builder.h"
-#include "builder_way_obj.h"
 
 #include "../bt.h"
 #include "../datablock.h"
@@ -23,6 +22,14 @@
 #include "../../../dataobj/route.h"
 #include "../../../ifc/fahrer.h"
 
+enum connector_road_phases {
+	BUILD_HARBOUR = 0,
+	DIG_WATER = 1,
+	BUILD_SHIP_YARD = 2,
+	CREATE_SCHEDULE = 3,
+	BUY_SHIPS = 4,
+	READY = 5
+};
 
 class shipyard_searcher_t : public fahrer_t
 {
@@ -94,20 +101,22 @@ connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name) :
 	type = BT_CON_SHIP;
 	prototyper = NULL;
 	nr_vehicles = 0;
-	phase = 0;
+	phase = BUILD_HARBOUR;
 	harbour_pos = koord3d::invalid;
 	ourdepot = false;
 }
-connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, simple_prototype_designer_t *d, uint16 nr_veh) :
+connector_ship_t::connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_,
+				    const weg_besch_t *canal_besch_, simple_prototype_designer_t *d, uint16 nr_veh) :
 	bt_sequential_t( sp, name ), fab1(fab1, sp), fab2(fab2, sp)
 {
 	type = BT_CON_SHIP;
 	prototyper = d;
 	nr_vehicles = nr_veh;
-	phase = 0;
+	phase = BUILD_HARBOUR;
 	start_harbour_pos = start_;
 	harbour_pos = ziel_;
 	ourdepot = false;
+	canal_besch = canal_besch_;
 }
 
 connector_ship_t::~connector_ship_t()
@@ -136,6 +145,7 @@ void connector_ship_t::rdwr( loadsave_t *file, const uint16 version )
 	harbour_pos.rdwr(file);
 	start_harbour_pos.rdwr(file);
 	file->rdwr_bool(ourdepot);
+	ai_t::rdwr_weg_besch(file, canal_besch);
 }
 
 void connector_ship_t::rotate90( const sint16 y_size)
@@ -156,22 +166,32 @@ return_value_t *connector_ship_t::step()
 		karte_t *welt = sp->get_welt();
 		return_value_t *rv = new_return_value(RT_DONE_NOTHING);
 		switch(phase) {
-			case 0: {
+			case BUILD_HARBOUR: {
 				// Our first step: Build a harbour.
 				bool ok = true;
+				bool use_generic = false;
 				if (start_harbour_pos != fab1->get_pos()) {
 					ok = build_harbour(start_harbour_pos);
 				}
+				else {
+					use_generic = true;
+				}
 				if (ok  &&  harbour_pos != fab2->get_pos()) {
 					ok = build_harbour(harbour_pos);
+				}
+				else {
+					use_generic = true;
 				}
 				if (!ok) {
 					sp->get_log().warning( "connector_ship_t::step", "failed to build a harbour (route %s => %s)", fab1->get_name(), fab2->get_name() );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
+				if (use_generic  &&  canal_besch != NULL) {
+					append_child(new connector_generic_t(sp, "connector_generic(water)", start_harbour_pos, harbour_pos, canal_besch));
+				}
 				break;
 			}
-			case 1: {
+			case DIG_WATER: {
 				// test the digger
 				water_digger_t baubiber(welt, sp);
 
@@ -189,7 +209,7 @@ return_value_t *connector_ship_t::step()
 				break;
 			}
 
-			case 2: {
+			case BUILD_SHIP_YARD: {
 				// build depot
 				route_t route;
 				shipyard_searcher_t *werfti = new shipyard_searcher_t(welt, sp);
@@ -218,7 +238,7 @@ return_value_t *connector_ship_t::step()
 				break;
 			}
 
-			case 3: {
+			case CREATE_SCHEDULE: {
 				// create line
 				schedule_t *fpl = new schifffahrplan_t();
 
@@ -260,12 +280,28 @@ return_value_t *connector_ship_t::step()
 		}
 		sp->get_log().message( "connector_ship_t::step", "completed phase %d", phase);
 		phase ++;
-		rv->code = phase>4 ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
+		rv->code = phase>=READY ? RT_TOTAL_SUCCESS : RT_PARTIAL_SUCCESS;
 		return rv;
 	}
 	else {
 		// Step the childs.
-		return bt_sequential_t::step();
+		return_value_t *rv = bt_sequential_t::step();
+		if (rv->type == BT_CON_GENERIC) {
+			if (rv->is_ready() &&  rv->data  &&  rv->data->pos1.get_count()>2) {
+				start_harbour_pos = rv->data->pos1[0];
+				harbour_pos       = rv->data->pos1[1];
+				deppos            = rv->data->pos1[2];
+				phase = CREATE_SCHEDULE;
+				delete rv;
+				return new_return_value( RT_PARTIAL_SUCCESS );
+			}
+			else if (rv->is_failed()) {
+				sp->get_log().warning("connector_road_t::step", "connector_generic failed");
+				delete rv;
+				return new_return_value(RT_TOTAL_FAIL); // .. to kill this instance
+			}
+		}
+		return rv;
 	}
 }
 
@@ -366,6 +402,11 @@ const haus_besch_t* connector_ship_t::get_random_harbour(const uint16 time, cons
 koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 {
 	karte_t *welt = sp->get_welt();
+	// start on canal?
+	grund_t *gr = welt->lookup(pos);
+	if (!gr->ist_wasser()  &&  gr->hat_weg(water_wt)) {
+		return pos;
+	}
 	// sea pos (and not on harbour ... )
 	halthandle_t halt = haltestelle_t::get_halt(welt,pos,sp);
 	koord pos1 = pos.get_2d();
@@ -389,7 +430,7 @@ koord3d connector_ship_t::get_ship_target(koord3d pos, koord3d target) const
 		sp->get_log().warning( "connector_ship::get_ship_target()","no starting position found near (%s)", pos.get_str());
 	}
 	// no copy constructor for koord3d available :P
-	return koord3d(best_pos.get_2d(), best_pos.z);
+	return best_pos;
 }
 
 /**

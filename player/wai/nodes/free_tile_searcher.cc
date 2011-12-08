@@ -93,6 +93,9 @@ return_value_t *free_tile_searcher_t::step()
 			}
 		}
 	}
+	else if (gr->ist_wasser()  &&  wt == water_wt) {
+		data->pos1.append( gr->get_pos() );
+	}
 	else if (gr->is_halt()) {
 	}
 	else {

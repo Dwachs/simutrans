@@ -16,6 +16,9 @@
 #include "../../../dataobj/loadsave.h"
 #include "../../../dings/wayobj.h"
 
+// flag to indicate that no new ways have to be build
+#define no_ways 32
+
 bool cmp_reports(report_t *r1, report_t *r2) {
 	return r1 ? (r2 ? r1->gain_per_m > r2->gain_per_m : true) : (r2==NULL);
 }
@@ -74,6 +77,12 @@ return_value_t *industry_connection_planner_t::step()
 	const bool ship_allowed = sp->has_ship_transport();
 	if (road_allowed) {
 		report_t *report0 = plan_simple_connection(road_wt, prod);
+		if (report0) {
+			reports.insert_ordered(report0, cmp_reports);
+		}
+	}
+	if (ship_allowed) {
+		report_t *report0 = plan_simple_connection(water_wt, prod);
 		if (report0) {
 			reports.insert_ordered(report0, cmp_reports);
 		}
@@ -150,7 +159,7 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 			break;
 		case water_wt:
 			// p1, p2 contain positions of harbour
-			action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, p1, p2, cpd->d, report->nr_vehicles);
+			action = new connector_ship_t(sp, "connector_ship_t", *start, *ziel, p1, p2, cpd->wb, cpd->d, report->nr_vehicles);
 			break;
 		default:
 			sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","unhandled waytype %d", wt);
@@ -194,7 +203,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 
 	report_t *report1 = plan_simple_connection(wt, prod, !reverse ? land_pos : koord3d::invalid, !reverse ? koord3d::invalid : land_pos);
 	if (report1) {
-		report_t *report2 = plan_simple_connection(water_wt, prod, !reverse ? start_harbour : target_harbour, !reverse ? target_harbour : start_harbour, false /*no ind_connector*/);
+		report_t *report2 = plan_simple_connection((waytype_t) (water_wt | 32), prod, !reverse ? start_harbour : target_harbour, !reverse ? target_harbour : start_harbour, false /*no ind_connector*/);
 		if (report2) {
 			report1->merge_report(report2);
 		}
@@ -220,7 +229,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	d->max_weight = 0xffffffff;
 	d->min_speed  = 1;
 	d->not_obsolete = true;
-	d->wt = wt;
+	d->wt = (waytype_t)(wt & ~no_ways);
 	d->min_trans= 0;
 	d->distance = dist;
 	d->update();
@@ -250,10 +259,11 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 
 	// find the best way
 	vector_tpl<const weg_besch_t *> *ways;
-	if (wt!=water_wt) {
+	if ((wt & no_ways)==0) {
 		ways = wegbauer_t::get_way_list(wt, welt);
 	}
 	else {
+		assert( (wt & no_ways)==water_wt );
 		ways = new vector_tpl<const weg_besch_t *>(1);
 		ways->append(NULL);
 	}
@@ -264,9 +274,15 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 
 		// no builder -> player cannot build, ai should not build
 		if (wb  &&  wb->get_builder()==NULL) continue;
+		// do not build rivers
+		if (wt == water_wt  &&  wb->get_styp()==255) continue;
 
 		sint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
+
+		if (max_speed == 0) {
+			continue;
+		}
 
 		const uint32 tiles_per_month = welt->speed_to_tiles_per_month(kmh_to_speed(max_speed));
 

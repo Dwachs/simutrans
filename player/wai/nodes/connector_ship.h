@@ -27,7 +27,8 @@ public:
 	 * @param start, ziel: coordinates, where harbours should be built
 	 * @param d, nr_vehicles: passed to vehicle_builder
 	 */
-	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_, simple_prototype_designer_t *d, uint16 nr_veh);
+	connector_ship_t( ai_wai_t *sp, const char *name, const fabrik_t *fab1, const fabrik_t *fab2, koord3d start_, koord3d ziel_,
+			  const weg_besch_t *canal_besch, simple_prototype_designer_t *d, uint16 nr_veh);
 	~connector_ship_t();
 	virtual return_value_t *step();
 
@@ -36,6 +37,7 @@ public:
 	virtual void debug( log_t &file, string prefix );
 private:
 	wfabrik_t fab1, fab2;
+	const weg_besch_t *canal_besch;
 	simple_prototype_designer_t *prototyper;
 	uint16 nr_vehicles;
 	uint8 phase;
