@@ -24,8 +24,7 @@
 #include "../../../dataobj/loadsave.h"
 
 enum connector_road_phases {
-	CREATE_SCHEDULE = 0,
-	WAIT_FOR_VEHICLES= 1
+	CREATE_SCHEDULE = 0
 };
 
 connector_road_t::connector_road_t( ai_wai_t *sp, const char *name) :
