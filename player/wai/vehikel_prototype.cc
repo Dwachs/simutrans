@@ -275,7 +275,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 				//debug->message("VBAI", "[%2d] test vehicle %20s, Fr=%d, W=%d, L=%d(%d), P=%d, Vmin=%d, Vmax=%d", i, translator::translate(test_besch->get_name()), convoi_tpl[i+1].missing_freights,
 				//	convoi_tpl[i+1].weight, convoi_tpl[i+1].length, (convoi_tpl[i+1].length+255)/256, convoi_tpl[i+1].power, speed_to_kmh(convoi_tpl[i+1].min_top_speed), convoi_tpl[i+1].max_speed );
 
-				if (convoi_tpl[i+1].missing_freights==0 && convoi_tpl[i+1].max_speed >= min_speed ) {
+				if (test_besch->can_lead(NULL)  &&  convoi_tpl[i+1].missing_freights==0  &&  convoi_tpl[i+1].max_speed >= min_speed ) {
 					// evaluate
 					sint64 value = eval->valuate(convoi_tpl[i+1]);
 					//debug->message("VBAI", "[%2d] evalutated: %d", i, value);
@@ -284,6 +284,8 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 					if (value > best_value) {
 						best->set_data(convoi_tpl[i+1]);
 						best->value = value;
+						// rescale length
+						best->length = ( convoi_tpl[i].length + max(CARUNITS_PER_TILE/2, test_besch->get_length()) + CARUNITS_PER_TILE-1) / CARUNITS_PER_TILE;
 
 						// sofortkauf
 						if (value == 0x7fffffff) {
