@@ -87,7 +87,7 @@ bt_sequential_t::~bt_sequential_t()
 return_value_t* bt_sequential_t::step()
 {
 	uint32 num_childs = childs.get_count();
-	sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", name.c_str(), next_to_step, num_childs);
+	//sp->get_log().message("bt_sequential_t::step","%s: next %d of %d nodes", name.c_str(), next_to_step, num_childs);
 
 	if(  num_childs == 0  ) {
 		// We have nothing to do... => Kill us.

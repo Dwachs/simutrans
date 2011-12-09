@@ -69,7 +69,7 @@ return_value_t *factory_searcher_t::work()
 		return new_return_value(RT_PARTIAL_SUCCESS);
 	}
 	else {
-		sp->get_log().message( "factory_searcher_t::work()","found no route");
+		//sp->get_log().message( "factory_searcher_t::work()","found no route");
 	}
 
 

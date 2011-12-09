@@ -184,7 +184,7 @@ return_value_t *industry_manager_t::work()
 
 	if (next_cid == connections.get_count()) next_cid = 0;
 
-	sp->get_log().message("industry_manager_t::work","process connection %d", next_cid);
+	//sp->get_log().message("industry_manager_t::work","process connection %d", next_cid);
 
 	report_t* report = connections[next_cid]->get_report(sp);
 

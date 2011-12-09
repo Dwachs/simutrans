@@ -48,8 +48,8 @@ void ai_wai_t::step()
 		bt_root.append_child(industry_manager);
 		return;
 	}
-	log.message("", "");
-	log.message("ai_wai_t::step", "next step:");
+	//log.message("", "");
+	//log.message("ai_wai_t::step", "next step:");
 	return_value_t * rv = bt_root.step();
 	delete rv;
 
