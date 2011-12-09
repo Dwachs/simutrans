@@ -416,6 +416,7 @@ void simple_prototype_designer_t::rdwr(loadsave_t *file)
 	file->rdwr_bool(include_electric);
 	file->rdwr_bool(not_obsolete);
 	file->rdwr_long(min_trans);
+	file->rdwr_long(max_vehicles);
 
 	if (file->is_loading()) {
 		if (proto) {
@@ -454,7 +455,7 @@ sint64 simple_prototype_designer_t::valuate(const vehikel_prototype_t &proto)
 	if (production > 0) {
 		// net gain of whole line
 		// for max number of vehicles
-		const sint32 max_vehicles = max(distance / 8, 3);
+		const sint32 max_vehicles = min( this->max_vehicles, min( distance / 8, 3) );
 		value = ((capacity * freight_price +1500ll )/3000ll - maintenance *3) * (proto.max_speed) * min(max_vehicles, ((sint64)2*production*distance)/(proto.max_speed*capacity));
 	}
 	else {

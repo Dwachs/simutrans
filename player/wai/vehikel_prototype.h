@@ -118,6 +118,7 @@ public:
 	bool include_electric;
 	bool not_obsolete;
 	uint32 min_trans; // minimum capacity*speed
+	uint32 max_vehicles; // max number of vehicles, zero means unlimited
 
 	spieler_t *sp;
 

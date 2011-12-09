@@ -240,6 +240,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	d->wt = wt;
 	d->min_trans= 0;
 	d->distance = dist;
+	d->max_vehicles = wt == track_wt ? 1 : 0;
 	d->update();
 	const vehikel_prototype_t *proto = d->proto;
 
@@ -555,7 +556,7 @@ uint8 industry_connection_planner_t::get_max_station_length(waytype_t wt) const
 {
 	switch(wt) {
 		case road_wt:  return 1;
-		case track_wt: return 12;
+		case track_wt: return 8;
 		case water_wt: return 4;  // max length of ship convoys
 		default:  return 0;
 	}
