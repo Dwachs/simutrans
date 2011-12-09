@@ -336,7 +336,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 	debug->message("VBAI", "== Steps: %d", steps);
 	debug->message("VBAI", "== Best : %d", best_value);
 	for (uint8 i=0; i<best->besch.get_count(); i++) {
-		debug->message("VBAI", "-- [%2d]: %s", i, best->besch[i]->get_name() );
+		debug->message("VBAI", "-- [%2d]: %s", i, translator::translate(best->besch[i]->get_name()) );
 
 	}
 
