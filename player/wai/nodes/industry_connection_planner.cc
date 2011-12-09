@@ -164,13 +164,19 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 		default:
 			sp->get_log().warning("industry_connection_planner_t::plan_simple_connection","unhandled waytype %d", wt);
 	}
-	if (action  &&  create_industry_connector) {
-		industry_connector_t *connector = new industry_connector_t( sp, "industry_connector", *start, *ziel, freight );
-		connector->append_child(action);
-		report->action = connector;
+	if (action) {
+		if (create_industry_connector) {
+			industry_connector_t *connector = new industry_connector_t( sp, "industry_connector", *start, *ziel, freight );
+			connector->append_child(action);
+			report->action = connector;
+		}
+		else {
+			report->action = action;
+		}
 	}
 	else {
-		report->action = action;
+		delete report;
+		report = NULL;
 	}
 
 	cpd->d = NULL;
