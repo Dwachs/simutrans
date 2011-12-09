@@ -227,7 +227,7 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	d->freight = freight;
 	d->production = prod;
 	d->include_electric = false; // wt != road_wt;
-	d->max_length = wt != water_wt ? 1 : 4;
+	d->max_length = get_max_station_length(wt);
 	d->max_weight = 0xffffffff;
 	d->min_speed  = 1;
 	d->not_obsolete = true;
@@ -539,6 +539,22 @@ sint64 industry_connection_planner_t::calc_building_maint(const haus_besch_t* st
 {
 	return calc_building_maint(st, sp->get_welt());
 }
+
+
+/**
+ * max length of stations that can be planned
+ */
+
+uint8 industry_connection_planner_t::get_max_station_length(waytype_t wt) const
+{
+	switch(wt) {
+		case road_wt:  return 1;
+		case track_wt: return 12;
+		case water_wt: return 4;  // max length of ship convoys
+		default:  return 0;
+	}
+}
+
 
 void industry_connection_planner_t::rdwr( loadsave_t* file, const uint16 version)
 {

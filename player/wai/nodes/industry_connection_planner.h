@@ -51,6 +51,7 @@ private:
 	sint32 calc_production();
 	sint64 calc_building_cost(const haus_besch_t* st);
 	sint64 calc_building_maint(const haus_besch_t* st);
+	uint8 get_max_station_length(waytype_t wt) const;
 
 	wfabrik_t start;
 	wfabrik_t ziel;
