@@ -3,8 +3,6 @@
 #include "../ai_wai.h"
 #include "manager.h"
 #include "planner.h"
-#include "nodes/builder_road_station.h"
-#include "nodes/builder_way_obj.h"
 #include "nodes/connector_generic.h"
 #include "nodes/connector_road.h"
 #include "nodes/connector_ship.h"
@@ -31,8 +29,6 @@ bt_node_t* alloc_bt_node(uint16 type, ai_wai_t *sp)
 		case BT_IND_MNGR:       { industry_manager_t *im = new industry_manager_t(sp, ""); sp->set_industry_manager(im); return im; }
 
 		case BT_CON_ROAD:       return new connector_road_t(sp, "");
-		case BT_ROAD_STATION:   return new builder_road_station_t(sp, "", koord3d::invalid);
-		case BT_WAYOBJ:         return new builder_wayobj_t(sp, "", koord3d::invalid, koord3d::invalid, NULL);
 		case BT_CON_SHIP:       return new connector_ship_t(sp, "");
 		case BT_VEH_BUILDER:    return new vehikel_builder_t(sp, "");
 		case BT_FREE_TILE:      return new free_tile_searcher_t(sp, "");
