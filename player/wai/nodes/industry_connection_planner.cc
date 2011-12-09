@@ -251,14 +251,6 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	cpd->report = new report_t();
 	cpd->report->gain_per_m = 0x8000000000000000ll;
 
-	// speed bonus calculation see vehikel_t::calc_gewinn
-	const sint32 ref_speed = welt->get_average_speed(wt );
-	const sint32 speed_base = (100*speed_to_kmh(proto->min_top_speed))/ref_speed-100;
-	const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
-
-	// net gain per tile (matching freight)
-	const sint64 gain_per_tile = ((sint64)proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*proto->get_maintenance();
-
 	// find the best way
 	vector_tpl<const weg_besch_t *> *ways;
 	if (!no_ways_needed) {
@@ -285,6 +277,15 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		if (max_speed == 0) {
 			continue;
 		}
+
+		// speed bonus calculation see vehikel_t::calc_gewinn
+		// takes also way speed limit into account
+		const sint32 ref_speed = welt->get_average_speed(wt );
+		const sint32 speed_base = (100*speed_to_kmh( min(proto->min_top_speed, max_speed) ))/ref_speed-100;
+		const sint32 freight_price = freight->get_preis() * max( 128, 1000+speed_base*freight->get_speed_bonus());
+
+		// net gain per tile (matching freight)
+		const sint64 gain_per_tile = ((sint64)proto->get_capacity(freight) * freight_price +1500ll )/3000ll - 2*proto->get_maintenance();
 
 		const uint32 tiles_per_month = welt->speed_to_tiles_per_month(kmh_to_speed(max_speed));
 
