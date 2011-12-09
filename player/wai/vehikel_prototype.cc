@@ -103,6 +103,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 	// obey timeline
 	const uint32 month_now = (world->use_timeline() ? world->get_current_month() : 0);
 
+	const bool can_use_obsolete = !not_obsolete  &&  world->get_settings().get_allow_buying_obsolete_vehicles();
 	// something available?
 	if(vehikelbauer_t::get_info(wt)==NULL || vehikelbauer_t::get_info(wt)->empty()) {
 		return new vehikel_prototype_t(0);
@@ -116,7 +117,7 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 		// filter unwanted vehicles
 		// preliminary check: timeline, obsolete, electric (min_speed) (max_weight)
 		if ( test_besch->is_future(month_now) ||						// vehicle not available
-			 (not_obsolete  &&  test_besch->is_retired(month_now)) ||	// vehicle obsolete
+			 (!can_use_obsolete  &&  test_besch->is_retired(month_now)) ||	// vehicle obsolete
 			 (!include_electric && test_besch->get_engine_type()==vehikel_besch_t::electric) || // electric
 			 (kmh_to_speed(test_besch->get_geschw()) < min_speed) ||	// too slow
 			 (test_besch->get_gewicht() > max_weight) ) {				// too heavy
