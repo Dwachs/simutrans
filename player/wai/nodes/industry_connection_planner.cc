@@ -2,6 +2,7 @@
 
 #include "industry_connector.h"
 #include "industry_manager.h"
+#include "connector_rail.h"
 #include "connector_road.h"
 #include "connector_ship.h"
 #include "../vehikel_prototype.h"
@@ -81,6 +82,14 @@ return_value_t *industry_connection_planner_t::step()
 			reports.insert_ordered(report0, cmp_reports);
 		}
 	}
+
+	if (sp->has_rail_transport()) {
+		report_t *report0 = plan_simple_connection(track_wt, prod);
+		if (report0) {
+			reports.insert_ordered(report0, cmp_reports);
+		}
+	}
+
 	if (ship_allowed) {
 		report_t *report0 = plan_simple_connection(water_wt, prod);
 		if (report0) {
@@ -156,6 +165,9 @@ report_t* industry_connection_planner_t::plan_simple_connection(waytype_t wt, si
 	switch(wt & ~no_ways) {
 		case road_wt:
 			action = new connector_road_t(sp, "connector_road_t", *start, *ziel, p1, p2, cpd->wb, cpd->d, report->nr_vehicles);
+			break;
+		case track_wt:
+			action = new connector_rail_t(sp, "connector_rail_t", *start, *ziel, p1, p2, cpd->wb, cpd->d, report->nr_vehicles);
 			break;
 		case water_wt:
 			// p1, p2 contain positions of harbour
@@ -251,8 +263,8 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 	// we checked everything, now the plan can be developed
 
 	// cost for stations
-	const sint64 cost_buildings = 2*calc_building_cost(st) + calc_building_cost(dep);
-	const sint64 main_buildings = 2*calc_building_maint(st) + calc_building_maint(dep);
+	const sint64 cost_buildings = 2*calc_building_cost(st)*proto->length + calc_building_cost(dep);
+	const sint64 main_buildings = 2*calc_building_maint(st)*proto->length + calc_building_maint(dep);
 
 	// init report
 	cpd->report = new report_t();
@@ -556,7 +568,7 @@ uint8 industry_connection_planner_t::get_max_station_length(waytype_t wt) const
 {
 	switch(wt) {
 		case road_wt:  return 1;
-		case track_wt: return 8;
+		case track_wt: return 4;
 		case water_wt: return 4;  // max length of ship convoys
 		default:  return 0;
 	}

@@ -157,6 +157,10 @@ report_t* freight_connection_t::get_report(ai_wai_t *sp)
 	}
 	karte_t* welt = sp->get_welt();
 	convoihandle_t cnv0 = line->get_convoy(0);
+	// do not manage trains for now ...
+	if (line->get_linetype()==simline_t::trainline) {
+		return NULL;
+	}
 	// check for modernization of fleet ...
 	if (last_upgrade_check != welt->get_timeline_year_month() ) {
 		report_t *report = get_upgrade_report(sp, cnv0, false, last_upgrade_check);

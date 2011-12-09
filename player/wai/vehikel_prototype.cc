@@ -196,6 +196,10 @@ vehikel_prototype_t* vehikel_prototype_t::vehikel_search( vehikel_evaluator_t *e
 					//debug->message("VBAI", "[%2d] vehicle %20s avoided", i, test_besch->get_name());
 					continue;
 				}
+
+				if (wt==track_wt  &&  convoi_tpl[i].missing_freights==0  &&  prev_besch!=test_besch) {
+					continue;
+				}
 				// avoid vehicles with wrong freight that do not allow new couplings
 				if (i>0 && test_besch->get_zuladung()>0) {
 					// check for freight

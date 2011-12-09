@@ -144,6 +144,7 @@ ai_wai_t::ai_wai_t( karte_t *welt, uint8 nr ) :
 	factory_searcher = NULL;
 	road_transport = true;
 	ship_transport = true;
+	rail_transport = true;
 	construction_speed = 50;
 	next_construction_step = get_welt()->get_steps() + simrand( construction_speed ) + 25;
 	next_micromanage_step  = get_welt()->get_steps() + simrand( 20 ) + 20;

@@ -20,9 +20,10 @@ class free_tile_searcher_t : public bt_node_t
 	koord3d pos;
 	bool through; // force to search for places for through stations
 	waytype_t wt;
+	uint16 station_length;
 public:
 	free_tile_searcher_t( ai_wai_t *sp, const char* name );
-	free_tile_searcher_t( ai_wai_t *sp, const char* name, waytype_t wt, koord3d pos, bool through = false );
+	free_tile_searcher_t( ai_wai_t *sp, const char* name, waytype_t wt, koord3d pos, bool through = false, uint16 station_length = 1 );
 	virtual void rdwr( loadsave_t *file, const uint16 version );
 	virtual return_value_t *step();
 };

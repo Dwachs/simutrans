@@ -15,7 +15,7 @@ class connector_generic_t : public bt_sequential_t
 {
 public:
 	connector_generic_t( ai_wai_t *sp, const char *name);
-	connector_generic_t( ai_wai_t *sp, const char *name, koord3d start, koord3d ziel, const weg_besch_t *wb);
+	connector_generic_t( ai_wai_t *sp, const char *name, koord3d start, koord3d ziel, const weg_besch_t *wb, uint16 station_length=1);
 	virtual return_value_t *step();
 
 	virtual void rdwr( loadsave_t *file, const uint16 version );
@@ -27,6 +27,7 @@ private:
 	uint8 phase, force_through;
 	koord3d start, ziel, depot_pos;
 	waytype_t wt;
+	uint16 station_length;
 
 	koord3d_vector_t tile_list[2], through_tile_list[2];
 };

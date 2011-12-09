@@ -46,9 +46,8 @@ public:
 	void notify_wrapper(const void *);
 
 
-	// no air and train transport implemented
+	// no air transport implemented
 	virtual void set_air_transport( bool ) { air_transport = false; }
-	virtual void set_rail_transport( bool ) { rail_transport = false; }
 
 private:
 	log_t log;

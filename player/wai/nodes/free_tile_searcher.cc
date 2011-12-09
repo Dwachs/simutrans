@@ -14,18 +14,20 @@ free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name ) :
 	type = BT_FREE_TILE;
 }
 
-free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, waytype_t wt_, koord3d pos_, bool through ) :
+free_tile_searcher_t::free_tile_searcher_t( ai_wai_t *sp, const char* name, waytype_t wt_, koord3d pos_, bool through, uint16 station_length_ ) :
 	bt_node_t( sp, name ), pos(pos_)
 {
 	this->through = through;
 	type = BT_FREE_TILE;
 	wt = wt_;
+	station_length = station_length_;
 }
 
 void free_tile_searcher_t::rdwr( loadsave_t *file, const uint16 )
 {
 	pos.rdwr(file);
 	file->rdwr_bool(through);
+	file->rdwr_short(station_length);
 }
 
 return_value_t *free_tile_searcher_t::step()
@@ -38,7 +40,7 @@ return_value_t *free_tile_searcher_t::step()
 	}
 	datablock_t *data = new datablock_t();
 
-	const uint16 cov = sp->get_welt()->get_settings().get_station_coverage();
+	const uint16 cov = welt->get_settings().get_station_coverage();
 
 	// generate two list of candidate positions
 	vector_tpl<koord3d> list1, list2;
@@ -56,7 +58,7 @@ return_value_t *free_tile_searcher_t::step()
 		// Any halts here?
 		vector_tpl<koord> connected_halts, other_halts;
 		for( uint32 j = 0; j < one_more.get_count(); j++ ) {
-			halthandle_t halt = haltestelle_t::get_halt( sp->get_welt(), one_more[j], sp );
+			halthandle_t halt = haltestelle_t::get_halt( welt, one_more[j], sp );
 			if( halt.is_bound() && !( other_halts.is_contained(halt->get_basis_pos()) || connected_halts.is_contained(halt->get_basis_pos()) ) ) {
 				bool halt_connected = halt->get_fab_list().is_contained( fab );
 				for( slist_tpl< haltestelle_t::tile_t >::const_iterator iter = halt->get_tiles().begin(); iter != halt->get_tiles().end(); ++iter ) {
@@ -102,12 +104,12 @@ return_value_t *free_tile_searcher_t::step()
 		list1.append(pos);
 	}
 
-	if(!through) {
+	if(!through  &&  station_length == 1) {
 		vector_tpl<koord3d> *next = &list1;
 		for( uint8 k = 0; k < 2; k++ ) {
 			// On which tiles we can start?
 			for( uint32 j = 0; j < next->get_count(); j++ ) {
-				const grund_t* gr = sp->get_welt()->lookup( (*next)[j] );
+				const grund_t* gr = welt->lookup( (*next)[j] );
 				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  && !gr->find<gebaeude_t>() ) {
 					data->pos1.append_unique( gr->get_pos() );
 				}
@@ -121,13 +123,11 @@ return_value_t *free_tile_searcher_t::step()
 	}
 	// try to find a place for a durchgangshalt - append the neighbors of possible positions to tilelist
 	// remember the candidates for the stations in a separate list
-	if(through || data->pos1.empty() ) {
+	if(station_length == 1  &&  (through || data->pos1.empty() ) ) {
 		vector_tpl<koord3d> *next = &list1;
 		for( uint8 k = 0; k < 2; k++ ) {
 			for( uint32 j = 0; j < next->get_count(); j++ ) {
-				const grund_t* gr = sp->get_welt()->lookup( (*next)[j] );
-				// TODO: reicht diese Abfrage aus?? Es muss noch getestet werden, ob einem die Strasse gehört.
-				// Und was ist, wenn der Wegbauer aus dem geraden Stück eine T-Kreuzung macht?
+				const grund_t* gr = welt->lookup( (*next)[j] );
 				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(wt) &&  !gr->ist_uebergang() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
 					weg_t *w = gr->get_weg(wt);
 					const ribi_t::ribi ribi = w->get_ribi_unmasked();
@@ -151,6 +151,44 @@ return_value_t *free_tile_searcher_t::step()
 			next = &list2;
 		}
 	}
+
+	// much stricter search for places with length > 1...
+	if(station_length > 1) {
+		vector_tpl<koord3d> *next = &list1;
+		for( uint8 k = 0; k < 2; k++ ) {
+			for( uint32 j = 0; j < next->get_count(); j++ ) {
+				grund_t* gr = welt->lookup( (*next)[j] );
+				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->ist_natur() ){
+					// now go in all 4 directions
+					for(uint8 r=0; r<4; r++) {
+						grund_t *from = gr, *to = NULL;
+						koord3d first, last;
+						bool ok = true;
+						for(uint16 l=0; l<station_length  &&  ok; l++) {
+							// append the through station tile to the bautier route
+							ok = from->get_neighbour(to, invalid_wt, koord::nsow[r]);
+							//int dummy;
+							ok = ok  &&  to->ist_natur()  &&   to->get_hoehe()==gr->get_hoehe() &&  to->get_grund_hang() == hang_t::flach;
+
+							if (ok) {
+								if (l==0) first = to->get_pos();
+								if (l==station_length-1) last = from->get_pos();
+							}
+							from = to;
+						}
+						if (ok) {
+							data->pos1.append_unique( to->get_pos() );
+							data->pos1.append_unique( gr->get_pos() );
+							data->pos2.append_unique(first);
+							data->pos2.append_unique(last);
+						}
+					}
+				}
+			}
+			next = &list2;
+		}
+	}
+
 	if( !data->pos2.empty() ) {
 		for(uint32 j=0; j < data->pos1.get_count(); j++) {
 			sp->get_log().message( "free_tile_searcher::step", "data->pos1[%d] = %s", j,data->pos1[j].get_str());

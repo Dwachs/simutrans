@@ -29,9 +29,10 @@ connector_generic_t::connector_generic_t( ai_wai_t *sp, const char *name) :
 	start = koord3d::invalid;
 	ziel = koord3d::invalid;
 	depot_pos = koord3d::invalid;
+	station_length = 1;
 }
 
-connector_generic_t::connector_generic_t( ai_wai_t *sp, const char *name, koord3d start_, koord3d ziel_, const weg_besch_t *wb_) :
+connector_generic_t::connector_generic_t( ai_wai_t *sp, const char *name, koord3d start_, koord3d ziel_, const weg_besch_t *wb_, uint16 station_length_) :
 	bt_sequential_t( sp, name )
 {
 	type = BT_CON_GENERIC;
@@ -41,11 +42,12 @@ connector_generic_t::connector_generic_t( ai_wai_t *sp, const char *name, koord3
 	start = start_;
 	ziel = ziel_;
 	depot_pos = koord3d::invalid;
+	station_length = station_length_;
 
 	wt = weg_besch ? weg_besch->get_wtyp() : invalid_wt;
 
-	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, start));
-	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, ziel ));
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, start, false, station_length));
+	append_child(new free_tile_searcher_t( sp, "free_tile_searcher", wt, ziel , false, station_length));
 }
 
 void connector_generic_t::rdwr( loadsave_t *file, const uint16 version )
@@ -53,6 +55,7 @@ void connector_generic_t::rdwr( loadsave_t *file, const uint16 version )
 	bt_sequential_t::rdwr( file, version );
 	file->rdwr_byte(phase);
 	file->rdwr_byte(force_through);
+	file->rdwr_short(station_length);
 
 	ai_t::rdwr_weg_besch(file, weg_besch);
 	if (file->is_loading()) {
@@ -89,6 +92,8 @@ return_value_t *connector_generic_t::step()
 		sp->get_log().message("connector_generic_t::step", "phase %d of build route (%s) => (%s)", phase, start.get_str(), ziel.get_2d().get_str());
 		switch(phase) {
 			case 0: {
+				koord3d start_station_1, ziel_station_1;
+				koord3d start_station_2, ziel_station_2;
 				// need through station?
 				uint8 through = 0;
 				if( !through_tile_list[0].empty() ) {
@@ -170,12 +175,33 @@ return_value_t *connector_generic_t::step()
 								for(uint8 r=0; r<4; r++) {
 									grund_t *to;
 									// append the through station tile to the bautier route
-									if (gr->get_neighbour(to, wt, koord::nsow[r])) {
+									if (gr->get_neighbour(to, invalid_wt, koord::nsow[r])) {
 										sp->get_log().message( "connector_generic_t::step", "try neighbor (%s)", to->get_pos().get_str());
 										if (through_tile_list[i].is_contained(to->get_pos())) {
 											bool ribi_ok = !bautier.get_route().is_contained(to->get_pos());
-											if (!ribi_ok) {
-												ribi_ok = ribi_t::ist_gerade(bautier.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
+											if (station_length == 1) {
+												if (!ribi_ok) {
+													ribi_ok = ribi_t::ist_gerade(bautier.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
+												}
+											}
+											else {
+												// track backwards
+												grund_t *from = to, *next;
+												for(uint16 l=1; l<station_length  &&  ribi_ok; l++) {
+													ribi_ok = from->get_neighbour(next, invalid_wt, koord::nsow[r]);
+													ribi_ok = ribi_ok  &&  next->get_hoehe()==gr->get_hoehe()  && next->ist_natur();
+													from = next;
+												}
+												if (ribi_ok) {
+													if (i==0) {
+														start_station_1 = next->get_pos();
+														start_station_2 = gr->get_pos();
+													}
+													else {
+														ziel_station_1 = next->get_pos();
+														ziel_station_2 = gr->get_pos();
+													}
+												}
 											}
 											if (ribi_ok) {
 												if (i==0) {
@@ -210,7 +236,7 @@ return_value_t *connector_generic_t::step()
 
 				ok = found == 3;
 				if( !ok ) {
-					sp->get_log().warning( "connector_generic_t::step", "could not find places for road stations" );
+					sp->get_log().warning( "connector_generic_t::step", "could not find places for stations (wt=%d)", wt );
 					return new_return_value(RT_TOTAL_FAIL);
 				}
 				// get a suitable station
@@ -238,6 +264,23 @@ return_value_t *connector_generic_t::step()
 				sp->get_log().message( "connector_generic_t::step", "build route (%s) => (%s)", start.get_str(), ziel.get_2d().get_str());
 				uint8 completed = 0;
 
+				if (station_length > 1) {
+					// build first station
+					bauigel.calc_route(start_station_1, start_station_2);
+					bauigel.baue();
+					for(uint16 l=1; l<station_length  &&  ok; l++) {
+						ok = sp->call_general_tool(WKZ_STATION, start_station_1.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
+						if (!ok) sp->get_log().warning( "connector_generic_t::step", "failed to built station at (%s)", start_station_1.get_str() );
+						start_station_1 += koord( ribi_typ( start_station_2-start_station_1));
+					}
+					bauigel.calc_route(ziel_station_1, ziel_station_2);
+					bauigel.baue();
+					for(uint16 l=1; l<station_length  &&  ok; l++) {
+						ok = sp->call_general_tool(WKZ_STATION, ziel_station_1.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
+						if (!ok) sp->get_log().warning( "connector_generic_t::step", "failed to built station at (%s)", ziel_station_1.get_str() );
+						ziel_station_1 += koord( ribi_typ( ziel_station_2-ziel_station_1));
+					}
+				}
 				// build immediately 1x1 stations
 				ok = sp->call_general_tool(WKZ_STATION, start.get_2d(), through & 1 ? through_st->get_name() : terminal_st->get_name());
 				if (!ok) {

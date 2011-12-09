@@ -29,6 +29,7 @@ enum bt_types {
 	BT_FREE_TILE     = 306,
 	BT_CON_IND       = 307,
 	BT_CON_GENERIC   = 308,
+	BT_CON_RAIL      = 309,
 	// Remover:
 	BT_REMOVER       = 401
 };
