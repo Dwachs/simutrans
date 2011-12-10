@@ -169,69 +169,69 @@ return_value_t *connector_generic_t::step()
 					for(uint8 j=0; j<2; j++) {
 						// Sometimes reverse route is the best - try both ends of the routes
 						uint32 n = j==0 ? 0 : bautier.get_count()-1;
-						if( tile_list[i].is_contained( bautier.get_route()[n]) ) {
+						const koord3d &route_pos = bautier.get_route()[n];
+						for(uint32 k=0; k<tile_list[i].get_count(); k++) {
+							if (tile_list[i][k] != route_pos) {
+								continue;
+							}
 							// through station
 							if (through & (i+1) ) {
-								grund_t * gr = welt->lookup(bautier.get_route()[n]);
-								sp->get_log().message( "connector_generic_t::step", "found route to tile (%s)", gr->get_pos().get_str());
-								// now find the right neighbor
-								for(uint8 r=0; r<4; r++) {
-									grund_t *to;
-									// append the through station tile to the bautier route
-									if (gr->get_neighbour(to, invalid_wt, koord::nsow[r])) {
-										sp->get_log().message( "connector_generic_t::step", "try neighbor (%s)", to->get_pos().get_str());
-										if (through_tile_list[i].is_contained(to->get_pos())) {
-											bool ribi_ok = !bautier.get_route().is_contained(to->get_pos());
-											if (station_length == 1) {
-												if (!ribi_ok) {
-													ribi_ok = ribi_t::ist_gerade(bautier.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
-												}
-											}
-											else {
-												// track backwards
-												grund_t *from = to, *next;
-												for(uint16 l=1; l<station_length  &&  ribi_ok; l++) {
-													ribi_ok = from->get_neighbour(next, invalid_wt, koord::nsow[r]);
-													ribi_ok = ribi_ok  &&  next->get_hoehe()==gr->get_hoehe()  && next->ist_natur();
-													from = next;
-												}
-												if (ribi_ok) {
-													if (i==0) {
-														start_station_end = next->get_pos();
-														start_station_front = gr->get_pos();
-													}
-													else {
-														ziel_station_end = next->get_pos();
-														ziel_station_front = gr->get_pos();
-													}
-												}
-											}
-											if (ribi_ok) {
-												if (i==0) {
-													start = to->get_pos();
-												}
-												else {
-													ziel = to->get_pos();
-												}
-												sp->get_log().message( "connector_generic_t::step", "passt (%s)", to->get_pos().get_str());
-												found |= i+1;
-											}
-											else {
-												sp->get_log().warning( "connector_generic_t::step", "passt nicht: (%s)", to->get_pos().get_str());
-											}
-											// TODO: catch the else branch here
+								// through station begins here
+								const koord3d &through_pos = through_tile_list[i][k];
+								// .. and goes into this direction
+								const koord dir = koord(ribi_typ( through_pos-route_pos ));
+								sp->get_log().message( "connector_generic_t::step", "found route to tile (%s), station tile at (%s)", route_pos.get_str(), through_pos.get_2d().get_str());
+
+								bool ribi_ok = !bautier.get_route().is_contained(through_pos);
+
+								if (station_length == 1) {
+									if (!ribi_ok) {
+										grund_t* to = welt->lookup( through_pos );
+										ribi_ok = ribi_t::ist_gerade(bautier.get_route().get_ribi(n) & to->get_weg_ribi_unmasked(wt));
+									}
+								}
+								else {
+									// track backwards
+									koord3d pos = through_pos;
+									for(uint16 l=1; l<station_length  &&  ribi_ok; l++) {
+										pos += dir;
+										ribi_ok = !bautier.get_route().is_contained(pos);
+									}
+									if (ribi_ok) {
+										if (i==0) {
+											start_station_end = pos;
+											start_station_front = route_pos;
+										}
+										else {
+											ziel_station_end = pos;
+											ziel_station_front = route_pos;
 										}
 									}
+								}
+								if (ribi_ok) {
+									if (i==0) {
+										start = through_pos;
+									}
+									else {
+										ziel = through_pos;
+									}
+									sp->get_log().message( "connector_generic_t::step", "passt (%s)", through_pos.get_str());
+									found |= i+1;
+								}
+								else {
+									sp->get_log().warning( "connector_generic_t::step", "passt nicht: (%s)", through_pos.get_str());
 								}
 							}
 							// generic station - can be built on top of the last tile
 						 	else {
 								if (i==0) {
-									start = bautier.get_route()[n];
+									start = route_pos;
 								}
 								else {
-									ziel = bautier.get_route()[n];
+									ziel = route_pos;
 								}
+								// tile is unique
+								break;
 							}
 						}
 					}
@@ -239,6 +239,8 @@ return_value_t *connector_generic_t::step()
 
 				ok = found == 3;
 				if( !ok ) {
+					// TODO: if route is found but no station position, remove start/end tiles from tile lists
+					//       and restart route finding
 					sp->get_log().warning( "connector_generic_t::step", "could not find places for stations (wt=%d)", wt );
 					return new_return_value(RT_TOTAL_FAIL);
 				}

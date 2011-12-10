@@ -134,17 +134,13 @@ return_value_t *free_tile_searcher_t::step()
 						const ribi_t::ribi ribi = w->get_ribi_unmasked();
 						if (w->ist_entfernbar(sp)==NULL && ribi_t::ist_gerade(ribi)) {
 							grund_t *to;
-							bool found = false;
 							if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
-								data->pos1.append_unique( to->get_pos() );
-								found = true;
+								data->pos1.append( to->get_pos() );
+								data->pos2.append( gr->get_pos());
 							}
 							if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
-								data->pos1.append_unique( to->get_pos() );
-								found = true;
-							}
-							if (found) {
-								data->pos2.append_unique(gr->get_pos());
+								data->pos1.append( to->get_pos() );
+								data->pos2.append( gr->get_pos());
 							}
 						}
 					}
@@ -185,10 +181,10 @@ return_value_t *free_tile_searcher_t::step()
 							from = to;
 						}
 						if (ok) {
-							data->pos1.append_unique( to->get_pos() );
-							data->pos1.append_unique( begin->get_pos() );
-							data->pos2.append_unique( gr->get_pos() );
-							data->pos2.append_unique(last);
+							data->pos1.append( begin->get_pos() );
+							data->pos2.append( gr->get_pos() );
+							data->pos1.append( to->get_pos() );
+							data->pos2.append( last);
 						}
 					}
 				}
