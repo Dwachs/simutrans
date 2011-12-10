@@ -6,6 +6,7 @@
 #include "../../../dataobj/koord3d.h"
 #include "../../../simtypes.h"
 
+class haus_besch_t;
 class weg_besch_t;
 /**
  * Class that build a generic point-to-point connection
@@ -25,11 +26,21 @@ protected:
 	const weg_besch_t *weg_besch;
 private:
 	uint8 phase, force_through;
+	/**
+	 * target of connection: begin, end
+	 */
+	koord3d target_start, target_ziel;
+	/**
+	 * result of connecting: start and end position of convoy routes, position of depot
+	 */
 	koord3d start, ziel, depot_pos;
 	waytype_t wt;
 	uint16 station_length;
 
 	koord3d_vector_t tile_list[2], through_tile_list[2];
+
+	bool build_station(koord3d target, koord3d first, koord3d last, const haus_besch_t* besch, vector_tpl<koord3d>& undo_route) const;
+	void remove_station(vector_tpl<koord3d>& undo_route) const;
 };
 
 #endif

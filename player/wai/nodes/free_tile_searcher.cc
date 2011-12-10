@@ -157,44 +157,42 @@ return_value_t *free_tile_searcher_t::step()
 		vector_tpl<koord3d> *next = &list1;
 		for( uint8 k = 0; k < 2; k++ ) {
 			for( uint32 j = 0; j < next->get_count(); j++ ) {
+				// gr is first station tile
 				grund_t* gr = welt->lookup( (*next)[j] );
 				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->ist_natur() ){
 					// now go in all 4 directions
 					for(uint8 r=0; r<4; r++) {
-						grund_t *from = gr, *to = NULL;
-						koord3d first, last;
-						bool ok = true;
-						for(uint16 l=0; l<station_length  &&  ok; l++) {
+						// tile in front of station
+						grund_t *begin;
+						bool ok = gr->get_neighbour(begin, invalid_wt, -koord::nsow[r]);
+						//int dummy;
+						ok = ok  &&  begin->ist_natur()  &&   begin->get_hoehe()==gr->get_hoehe() &&  begin->get_grund_hang() == hang_t::flach;
+						if (!ok) {
+							continue;
+						}
+						grund_t *from = begin, *to = NULL;
+						koord3d last;
+						for(uint16 l=0; l<station_length+1  &&  ok; l++) {
 							// append the through station tile to the bautier route
 							ok = from->get_neighbour(to, invalid_wt, koord::nsow[r]);
 							//int dummy;
 							ok = ok  &&  to->ist_natur()  &&   to->get_hoehe()==gr->get_hoehe() &&  to->get_grund_hang() == hang_t::flach;
 
 							if (ok) {
-								if (l==0) first = to->get_pos();
-								if (l==station_length-1) last = from->get_pos();
+								if (l==station_length) last = from->get_pos();
 							}
 							from = to;
 						}
 						if (ok) {
 							data->pos1.append_unique( to->get_pos() );
-							data->pos1.append_unique( gr->get_pos() );
-							data->pos2.append_unique(first);
+							data->pos1.append_unique( begin->get_pos() );
+							data->pos2.append_unique( gr->get_pos() );
 							data->pos2.append_unique(last);
 						}
 					}
 				}
 			}
 			next = &list2;
-		}
-	}
-
-	if( !data->pos2.empty() ) {
-		for(uint32 j=0; j < data->pos1.get_count(); j++) {
-			sp->get_log().message( "free_tile_searcher::step", "data->pos1[%d] = %s", j,data->pos1[j].get_str());
-		}
-		for(uint32 j=0; j < data->pos2.get_count(); j++) {
-			sp->get_log().message( "free_tile_searcher::step", "data->pos2[%d] = %s", j,data->pos2[j].get_str());
 		}
 	}
 
