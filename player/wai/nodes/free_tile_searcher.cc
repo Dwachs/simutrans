@@ -104,56 +104,57 @@ return_value_t *free_tile_searcher_t::step()
 		list1.append(pos);
 	}
 
-	if(!through  &&  station_length == 1) {
-		vector_tpl<koord3d> *next = &list1;
-		for( uint8 k = 0; k < 2; k++ ) {
-			// On which tiles we can start?
-			for( uint32 j = 0; j < next->get_count(); j++ ) {
-				const grund_t* gr = welt->lookup( (*next)[j] );
-				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  && !gr->find<gebaeude_t>() ) {
-					data->pos1.append_unique( gr->get_pos() );
+	if(station_length == 1) {
+		if(!through) {
+			vector_tpl<koord3d> *next = &list1;
+			for( uint8 k = 0; k < 2; k++ ) {
+				// On which tiles we can start?
+				for( uint32 j = 0; j < next->get_count(); j++ ) {
+					const grund_t* gr = welt->lookup( (*next)[j] );
+					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  !gr->hat_wege()  &&  !gr->get_leitung()  && !gr->find<gebaeude_t>() ) {
+						data->pos1.append_unique( gr->get_pos() );
+					}
 				}
+				if( !data->pos1.empty() ) {
+					// Skip, if found tiles beneath halts.
+					break;
+				}
+				next = &list2;
 			}
-			if( !data->pos1.empty() ) {
-				// Skip, if found tiles beneath halts.
-				break;
-			}
-			next = &list2;
 		}
-	}
-	// try to find a place for a durchgangshalt - append the neighbors of possible positions to tilelist
-	// remember the candidates for the stations in a separate list
-	if(station_length == 1  &&  (through || data->pos1.empty() ) ) {
-		vector_tpl<koord3d> *next = &list1;
-		for( uint8 k = 0; k < 2; k++ ) {
-			for( uint32 j = 0; j < next->get_count(); j++ ) {
-				const grund_t* gr = welt->lookup( (*next)[j] );
-				if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(wt) &&  !gr->ist_uebergang() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
-					weg_t *w = gr->get_weg(wt);
-					const ribi_t::ribi ribi = w->get_ribi_unmasked();
-					if (w->ist_entfernbar(sp)==NULL && ribi_t::ist_gerade(ribi)) {
-						grund_t *to;
-						bool found = false;
-						if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
-							data->pos1.append_unique( to->get_pos() );
-							found = true;
-						}
-						if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
-							data->pos1.append_unique( to->get_pos() );
-							found = true;
-						}
-						if (found) {
-							data->pos2.append_unique(gr->get_pos());
+		// try to find a place for a durchgangshalt - append the neighbors of possible positions to tilelist
+		// remember the candidates for the stations in a separate list
+		if(through || data->pos1.empty() ) {
+			vector_tpl<koord3d> *next = &list1;
+			for( uint8 k = 0; k < 2; k++ ) {
+				for( uint32 j = 0; j < next->get_count(); j++ ) {
+					const grund_t* gr = welt->lookup( (*next)[j] );
+					if(  gr  &&  gr->get_grund_hang() == hang_t::flach  &&  gr->hat_weg(wt) &&  !gr->ist_uebergang() && !gr->get_leitung() &&  !gr->find<gebaeude_t>() && !gr->is_halt()  ) {
+						weg_t *w = gr->get_weg(wt);
+						const ribi_t::ribi ribi = w->get_ribi_unmasked();
+						if (w->ist_entfernbar(sp)==NULL && ribi_t::ist_gerade(ribi)) {
+							grund_t *to;
+							bool found = false;
+							if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_suedost)) )) {
+								data->pos1.append_unique( to->get_pos() );
+								found = true;
+							}
+							if (gr->get_neighbour(to, wt, koord((ribi_t::ribi)(ribi & ribi_t::dir_nordwest)) )) {
+								data->pos1.append_unique( to->get_pos() );
+								found = true;
+							}
+							if (found) {
+								data->pos2.append_unique(gr->get_pos());
+							}
 						}
 					}
 				}
+				next = &list2;
 			}
-			next = &list2;
 		}
 	}
-
-	// much stricter search for places with length > 1...
-	if(station_length > 1) {
+	else {
+		// much stricter search for places with length > 1...
 		vector_tpl<koord3d> *next = &list1;
 		for( uint8 k = 0; k < 2; k++ ) {
 			for( uint32 j = 0; j < next->get_count(); j++ ) {

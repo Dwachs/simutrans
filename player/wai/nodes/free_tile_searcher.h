@@ -25,6 +25,11 @@ public:
 	free_tile_searcher_t( ai_wai_t *sp, const char* name );
 	free_tile_searcher_t( ai_wai_t *sp, const char* name, waytype_t wt, koord3d pos, bool through = false, uint16 station_length = 1 );
 	virtual void rdwr( loadsave_t *file, const uint16 version );
+	/**
+	 * @returns in rv->data->pos1 valid station tiles,
+	 * if through stations are sought then rv->data->pos1 contains tiles in front of the through-station
+	 * tiles, which are in rv->data->pos2
+	 */
 	virtual return_value_t *step();
 };
 
