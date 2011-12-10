@@ -390,6 +390,12 @@ private:
 	waytype_t undo_type;
 
 public:
+	void swap_undo( waytype_t& wt, vector_tpl<koord3d>& tiles)
+	{
+		sim::swap(wt, undo_type);
+		swap(last_built, tiles);
+	}
+
 	void init_undo(waytype_t t, unsigned short max );
 	void add_undo(koord3d k);
 	sint64 undo();
