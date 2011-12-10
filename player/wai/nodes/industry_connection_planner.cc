@@ -289,6 +289,8 @@ connection_plan_data_t* industry_connection_planner_t::calc_plan_data(waytype_t 
 		if (wb  &&  wb->get_builder()==NULL) continue;
 		// do not build rivers
 		if (wb  &&  wt == water_wt  &&  wb->get_styp()==255) continue;
+		// do not build tram track for railroad
+		if (wb  &&  wt == track_wt  &&  wb->get_styp()==7) continue;
 
 		sint32 max_speed = proto->max_speed;
 		if (wb && wb->get_topspeed()< max_speed) max_speed=wb->get_topspeed();
