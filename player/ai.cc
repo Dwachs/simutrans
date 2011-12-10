@@ -625,6 +625,7 @@ void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 
 void ai_t::rdwr(loadsave_t *file)
 {
+	spieler_t::rdwr(file);
 	if(  file->get_version()<111001  ) {
 		// do not know about ai_t
 		return;
