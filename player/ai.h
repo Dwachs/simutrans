@@ -77,6 +77,7 @@ public:
 
 	// calls a general tool just like a human player work do
 	bool call_general_tool( int tool, koord k, const char *param );
+	bool call_general_tool( int tool, koord3d k, const char *param );
 
 	/**
 	 * Tells the player the result of tool-work commands

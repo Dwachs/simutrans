@@ -138,15 +138,20 @@ bool ai_t::call_general_tool( int tool, koord k, const char *param )
 {
 	grund_t *gr = welt->lookup_kartenboden(k);
 	koord3d pos = gr ? gr->get_pos() : koord3d::invalid;
+	return call_general_tool(tool, pos, param);
+}
+
+bool ai_t::call_general_tool( int tool, koord3d k, const char *param )
+{
 	const char *old_param = werkzeug_t::general_tool[tool]->get_default_param();
 	werkzeug_t::general_tool[tool]->set_default_param(param);
-	const char * err = werkzeug_t::general_tool[tool]->work( welt, this, pos );
+	const char * err = werkzeug_t::general_tool[tool]->work( welt, this, k );
 	if(err) {
 		if(*err) {
-			dbg->message("ai_t::call_general_tool()","failed for tool %i at (%s) because of \"%s\"", tool, pos.get_str(), err );
+			dbg->message("ai_t::call_general_tool()","failed for tool %i at (%s) because of \"%s\"", tool, k.get_str(), err );
 		}
 		else {
-			dbg->message("ai_t::call_general_tool()","not successful for tool %i at (%s)", tool, pos.get_str() );
+			dbg->message("ai_t::call_general_tool()","not successful for tool %i at (%s)", tool, k.get_str() );
 		}
 	}
 	werkzeug_t::general_tool[tool]->set_default_param(old_param);

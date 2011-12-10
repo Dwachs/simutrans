@@ -226,8 +226,8 @@ return_value_t *connector_ship_t::step()
 				}
 				const haus_besch_t* dep = hausbauer_t::get_random_station(haus_besch_t::depot, water_wt, welt->get_timeline_year_month(), 0);
 				ok = ok  &&  dep!=NULL;
-				if (ok && welt->lookup_kartenboden(deppos.get_2d())->get_depot()==NULL) {
-					ok = sp->call_general_tool(WKZ_DEPOT, deppos.get_2d(), dep->get_name());
+				if (ok && welt->lookup(deppos)->get_depot()==NULL) {
+					ok = sp->call_general_tool(WKZ_DEPOT, deppos, dep->get_name());
 					ourdepot = true;
 				}
 				if( !ok ) {
@@ -335,7 +335,7 @@ bool connector_ship_t::build_harbour(koord3d &pos) const
 
 	// build harbour immediately
 	if (ok) {
-		ok = sp->call_general_tool(WKZ_STATION, pos.get_2d(), fh->get_name());
+		ok = sp->call_general_tool(WKZ_STATION, pos, fh->get_name());
 	}
 	// harbour_pos now the Molenende
 	if (ok) {
@@ -352,16 +352,16 @@ void connector_ship_t::cleanup()
 	switch (phase) {
 		case 3: { // remove depot
 			if (ourdepot) {
-				sp->call_general_tool(WKZ_REMOVER, deppos.get_2d(), "");
+				sp->call_general_tool(WKZ_REMOVER, deppos, "");
 			}
 		} // fall through
 		case 2:
 		case 1: { // remove harbours
 			if (start_harbour_pos != fab1->get_pos()) {
-				sp->call_general_tool(WKZ_REMOVER, start_harbour_pos.get_2d(), "");
+				sp->call_general_tool(WKZ_REMOVER, start_harbour_pos, "");
 			}
 			if (harbour_pos != fab2->get_pos()) {
-				sp->call_general_tool(WKZ_REMOVER, harbour_pos.get_2d(), "");
+				sp->call_general_tool(WKZ_REMOVER, harbour_pos, "");
 			}
 		} // fall through
 		default: ;

@@ -349,7 +349,7 @@ return_value_t *connector_generic_t::step()
 					bauigel.baue();
 					// built depot
 					if ( welt->lookup(depot_pos)->get_depot()==NULL ) {
-						ok = sp->call_general_tool(WKZ_DEPOT, depot_pos.get_2d(), dep->get_name());
+						ok = sp->call_general_tool(WKZ_DEPOT, depot_pos, dep->get_name());
 					}
 				}
 				else {
@@ -411,7 +411,7 @@ bool connector_generic_t::build_station(koord3d target, koord3d front, koord3d l
 	}
 	koord dir = koord( ribi_typ( last-front ) );
 	uint8 start_index = 0;
-	vector_tpl<koord> station_tiles;
+	vector_tpl<koord3d> station_tiles;
 	if (station_length > 1) {
 		koord3d pos = front + dir;
 		// now figure out, which tile to build first,
@@ -446,7 +446,7 @@ ready:;
 	koord3d first = station_length>1  ?  front + dir : last;
 	bool ok = true;
 	for(sint16 l = start_index; l < station_length  &&  ok; l++) {
-		const koord pos = first.get_2d() + dir*l;
+		const koord3d pos = first + dir*l;
 		ok = sp->call_general_tool(WKZ_STATION, pos, station->get_name());
 		if (ok) {
 			station_tiles.append( pos );
@@ -454,7 +454,7 @@ ready:;
 		sp->get_log().warning( "connector_generic_t::build_station", "ok %d %d (%s)", ok, start_index, pos.get_str());
 	}
 	for(sint16 l = start_index-1; l >=0  &&  ok; l--) {
-		const koord pos = first.get_2d() + dir*l;
+		const koord3d pos = first + dir*l;
 		ok = sp->call_general_tool(WKZ_STATION, pos, station->get_name());
 		if (ok) {
 			station_tiles.append( pos );
@@ -464,7 +464,7 @@ ready:;
 	// in case of fail remove station tiles & ways
 	if (!ok) {
 		for(uint32 i=0; i<station_tiles.get_count(); i++) {
-			grund_t* gr = welt->lookup_kartenboden( station_tiles[i] );
+			grund_t* gr = welt->lookup_kartenboden( station_tiles[i].get_2d() );
 			while (gr->get_halt().is_bound()  &&  sp->call_general_tool(WKZ_REMOVER, station_tiles[i], ""));
 		}
 		waytype_t dummy_wt = wt;
@@ -480,8 +480,8 @@ void connector_generic_t::remove_station(vector_tpl<koord3d>& undo_route) const
 	karte_t *welt = sp->get_welt();
 	// remove station tiles
 	for(uint32 i=0; i<undo_route.get_count(); i++) {
-		const koord pos = undo_route[i].get_2d();
-		grund_t* gr = welt->lookup_kartenboden( pos );
+		const koord3d pos = undo_route[i];
+		grund_t* gr = welt->lookup( pos );
 		while (gr->get_halt().is_bound()  &&  sp->call_general_tool(WKZ_REMOVER, pos, ""));
 	}
 	// remove the way
