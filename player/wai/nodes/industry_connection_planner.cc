@@ -207,7 +207,7 @@ report_t* industry_connection_planner_t::plan_amph_connection(waytype_t wt, sint
 	// find position for harbour
 	koord3d start_harbour;
 	koord3d target_harbour = !reverse ? get_harbour_pos(*start, *ziel, start_harbour) : get_harbour_pos(*ziel, *start, start_harbour);
-	if (target_harbour == koord3d::invalid  ||  target_harbour == start_harbour) {
+	if (target_harbour == koord3d::invalid  ||  koord_distance(target_harbour, start_harbour) < 5) {
 		sp->get_log().warning("industry_connection_planner_t::plan_amph_connection", "no marine route");
 		return NULL;
 	}
