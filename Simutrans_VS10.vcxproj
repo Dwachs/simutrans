@@ -38,14 +38,14 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\simutrans-prog\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
-    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">libs\inc;$(IncludePath)</IncludePath>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">simutrans-trunk</TargetName>
+    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\Users\maria\Documents\simutrans-libs\inc;$(IncludePath)</IncludePath>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">simutrans-wai</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -65,7 +65,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winmm.lib;zlibstat.lib;advapi32.lib;ws2_32.lib;libbz2.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>libs\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\maria\Documents\simutrans-libs\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -109,6 +109,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="gui\components\gui_ding_view_t.cc" />
+    <ClCompile Include="gui\display_settings.cc" />
+    <ClCompile Include="gui\enlarge_map_frame_t.cc" />
     <ClCompile Include="music\no_midi.cc" />
     <ClCompile Include="player\ai.cc" />
     <ClCompile Include="player\ai_goods.cc" />
@@ -125,6 +128,28 @@
     <ClCompile Include="bauer\brueckenbauer.cc" />
     <ClCompile Include="boden\brueckenboden.cc" />
     <ClCompile Include="besch\reader\building_reader.cc" />
+    <ClCompile Include="player\ai_wai.cc" />
+    <ClCompile Include="player\wai\alloc_node.cc" />
+    <ClCompile Include="player\wai\bt.cc" />
+    <ClCompile Include="player\wai\manager.cc" />
+    <ClCompile Include="player\wai\nodes\connections_manager.cc" />
+    <ClCompile Include="player\wai\nodes\connector_generic.cc" />
+    <ClCompile Include="player\wai\nodes\connector_road.cc" />
+    <ClCompile Include="player\wai\nodes\connector_ship.cc" />
+    <ClCompile Include="player\wai\nodes\factory_searcher.cc" />
+    <ClCompile Include="player\wai\nodes\free_tile_searcher.cc" />
+    <ClCompile Include="player\wai\nodes\industry_connection_planner.cc" />
+    <ClCompile Include="player\wai\nodes\industry_connector.cc" />
+    <ClCompile Include="player\wai\nodes\industry_manager.cc" />
+    <ClCompile Include="player\wai\nodes\remover.cc" />
+    <ClCompile Include="player\wai\nodes\vehikel_builder.cc" />
+    <ClCompile Include="player\wai\planner.cc" />
+    <ClCompile Include="player\wai\report.cc" />
+    <ClCompile Include="player\wai\return_value.cc" />
+    <ClCompile Include="player\wai\utils\amphi_searcher.cc" />
+    <ClCompile Include="player\wai\utils\water_digger.cc" />
+    <ClCompile Include="player\wai\utils\wrapper.cc" />
+    <ClCompile Include="player\wai\vehikel_prototype.cc" />
     <ClCompile Include="sound\no_sound.cc" />
     <ClCompile Include="utils\cbuffer_t.cc" />
     <ClCompile Include="utils\checksum.cc" />
@@ -146,9 +171,7 @@
     <ClCompile Include="gui\curiositylist_stats_t.cc" />
     <ClCompile Include="gui\depot_frame.cc" />
     <ClCompile Include="dataobj\dingliste.cc" />
-    <ClCompile Include="gui\display_settings.cc" />
     <ClCompile Include="dataobj\einstellungen.cc" />
-    <ClCompile Include="gui\enlarge_map_frame_t.cc" />
     <ClCompile Include="gui\extend_edit.cc" />
     <ClCompile Include="besch\fabrik_besch.cc" />
     <ClCompile Include="gui\fabrik_info.cc" />
@@ -181,7 +204,6 @@
     <ClCompile Include="gui\components\gui_combobox.cc" />
     <ClCompile Include="gui\gui_container.cc" />
     <ClCompile Include="gui\gui_convoiinfo.cc" />
-    <ClCompile Include="gui\components\gui_ding_view_t.cc" />
     <ClCompile Include="gui\components\gui_fixedwidth_textarea.cc" />
     <ClCompile Include="gui\components\gui_flowtext.cc" />
     <ClCompile Include="gui\gui_frame.cc" />
@@ -361,6 +383,29 @@
     <ClInclude Include="player\ai_goods.h" />
     <ClInclude Include="gui\ai_option_t.h" />
     <ClInclude Include="player\ai_passenger.h" />
+    <ClInclude Include="player\ai_wai.h" />
+    <ClInclude Include="player\wai\alloc_node.h" />
+    <ClInclude Include="player\wai\bt.h" />
+    <ClInclude Include="player\wai\datablock.h" />
+    <ClInclude Include="player\wai\manager.h" />
+    <ClInclude Include="player\wai\nodes\connections_manager.h" />
+    <ClInclude Include="player\wai\nodes\connector_generic.h" />
+    <ClInclude Include="player\wai\nodes\connector_road.h" />
+    <ClInclude Include="player\wai\nodes\connector_ship.h" />
+    <ClInclude Include="player\wai\nodes\factory_searcher.h" />
+    <ClInclude Include="player\wai\nodes\free_tile_searcher.h" />
+    <ClInclude Include="player\wai\nodes\industry_connection_planner.h" />
+    <ClInclude Include="player\wai\nodes\industry_connector.h" />
+    <ClInclude Include="player\wai\nodes\industry_manager.h" />
+    <ClInclude Include="player\wai\nodes\remover.h" />
+    <ClInclude Include="player\wai\nodes\vehikel_builder.h" />
+    <ClInclude Include="player\wai\planner.h" />
+    <ClInclude Include="player\wai\report.h" />
+    <ClInclude Include="player\wai\return_value.h" />
+    <ClInclude Include="player\wai\utils\amphi_searcher.h" />
+    <ClInclude Include="player\wai\utils\water_digger.h" />
+    <ClInclude Include="player\wai\utils\wrapper.h" />
+    <ClInclude Include="player\wai\vehikel_prototype.h" />
     <ClInclude Include="tpl\array2d_tpl.h" />
     <ClInclude Include="tpl\array_tpl.h" />
     <ClInclude Include="gui\banner.h" />
@@ -610,7 +655,6 @@
     <ClInclude Include="besch\reader\sound_reader.h" />
     <ClInclude Include="tpl\sparse_tpl.h" />
     <ClInclude Include="besch\spezial_obj_tpl.h" />
-    <ClInclude Include="gui\sprachen.h" />
     <ClInclude Include="gui\stadt_info.h" />
     <ClInclude Include="besch\stadtauto_besch.h" />
     <ClInclude Include="gui\station_building_select.h" />
