@@ -134,6 +134,7 @@
     <ClCompile Include="player\wai\manager.cc" />
     <ClCompile Include="player\wai\nodes\connections_manager.cc" />
     <ClCompile Include="player\wai\nodes\connector_generic.cc" />
+    <ClCompile Include="player\wai\nodes\connector_rail.cc" />
     <ClCompile Include="player\wai\nodes\connector_road.cc" />
     <ClCompile Include="player\wai\nodes\connector_ship.cc" />
     <ClCompile Include="player\wai\nodes\factory_searcher.cc" />
@@ -390,6 +391,7 @@
     <ClInclude Include="player\wai\manager.h" />
     <ClInclude Include="player\wai\nodes\connections_manager.h" />
     <ClInclude Include="player\wai\nodes\connector_generic.h" />
+    <ClInclude Include="player\wai\nodes\connector_rail.h" />
     <ClInclude Include="player\wai\nodes\connector_road.h" />
     <ClInclude Include="player\wai\nodes\connector_ship.h" />
     <ClInclude Include="player\wai\nodes\factory_searcher.h" />
