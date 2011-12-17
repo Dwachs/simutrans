@@ -1,8 +1,8 @@
 /*
  * Copyright (c) 1997 - 2001 Hansjörg Malthaner
  *
- * This file is part of the Simutrans project under the artistic licence.
- * (see licence.txt)
+ * This file is part of the Simutrans project under the artistic license.
+ * (see license.txt)
  */
 
 #ifndef _simdepot_h
@@ -127,8 +127,7 @@ public:
 	 * @author Volker Meyer
 	 * @date  30.05.2003
 	 */
-	unsigned vehicle_count() const { return vehicles.get_count(); }
-	const slist_tpl<vehikel_t *> *get_vehicle_list() { return &vehicles; }
+	slist_tpl<vehikel_t*> const& get_vehicle_list() { return vehicles; }
 
 	/**
 	 * A new vehicle is bought and added to the vehicle list.

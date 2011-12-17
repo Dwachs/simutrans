@@ -54,7 +54,7 @@ ai_goods_t::ai_goods_t(karte_t *wl, uint8 nr) : ai_t(wl,nr)
 	ship_vehicle = NULL;
 	road_weg = NULL;
 
-	next_contruction_steps = welt->get_steps()+ 50;
+	next_construction_steps = welt->get_steps()+ 50;
 
 	road_transport = nr!=6;
 	rail_transport = nr>2;
@@ -736,7 +736,7 @@ void ai_goods_t::step()
 	}
 
 	// one route per month ...
-	if(  welt->get_steps() < next_contruction_steps  ) {
+	if(  welt->get_steps() < next_construction_steps  ) {
 		return;
 	}
 
@@ -957,7 +957,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 					length = (rail_engine->get_length() + count_rail*rail_vehicle->get_length()+CARUNITS_PER_TILE-1)/CARUNITS_PER_TILE;
 					if(suche_platz1_platz2(start, ziel, length)) {
 						state = ship_vehicle ? NR_BAUE_WATER_ROUTE : NR_BAUE_SIMPLE_SCHIENEN_ROUTE;
-						next_contruction_steps += 10;
+						next_construction_steps += 10;
 					}
 				}
 				// if state is still NR_BAUE_ROUTE1 then there are no sutiable places
@@ -965,7 +965,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 					// rail was too expensive or not successfull
 					count_rail = 255;
 					state = ship_vehicle ? NR_BAUE_WATER_ROUTE : NR_BAUE_STRASSEN_ROUTE;
-					next_contruction_steps += 10;
+					next_construction_steps += 10;
 				}
 			}
 			// no success at all?
@@ -1162,7 +1162,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		// remove stucked vehicles (only from roads!)
 		case CHECK_CONVOI:
 		{
-			next_contruction_steps = welt->get_steps() + simrand( ai_t::construction_speed ) + 25;
+			next_construction_steps = welt->get_steps() + simrand( ai_t::construction_speed ) + 25;
 
 			for( int i = welt->get_convoi_count()-1;  i>=0;  i--  ) {
 				const convoihandle_t cnv = welt->get_convoi(i);
@@ -1299,10 +1299,6 @@ void ai_goods_t::rdwr(loadsave_t *file)
 
 	xml_tag_t t( file, "ai_goods_t" );
 
-	// first: do all the administration
-	spieler_t::rdwr(file);
-
-	// general settings
 	ai_t::rdwr(file);
 
 	// then check, if we have to do something or the game is too old ...
@@ -1314,7 +1310,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 			road_vehicle = NULL;
 			road_weg = NULL;
 
-			next_contruction_steps = welt->get_steps()+simrand(400);
+			next_construction_steps = welt->get_steps()+simrand(400);
 			root = start = ziel = NULL;
 		}
 		return;
@@ -1338,7 +1334,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 
 	if(file->is_saving()) {
 		// save current pointers
-		sint32 delta_steps = next_contruction_steps-welt->get_steps();
+		sint32 delta_steps = next_construction_steps-welt->get_steps();
 		file->rdwr_long(delta_steps);
 		koord3d k3d = root ? root->get_pos() : koord3d::invalid;
 		k3d.rdwr(file);
@@ -1366,7 +1362,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 	}
 	else {
 		// since steps in loaded game == 0
-		file->rdwr_long(next_contruction_steps);
+		file->rdwr_long(next_construction_steps);
 		// reinit current pointers
 		koord3d k3d;
 		k3d.rdwr(file);

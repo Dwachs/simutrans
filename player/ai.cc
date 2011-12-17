@@ -33,11 +33,12 @@
 #include "../vehicle/simvehikel.h"
 
 
-/* The flesh for the place with road for headqurter searcher ... */
+/* The flesh for the place with road for headquarter searcher ... */
 bool ai_bauplatz_mit_strasse_sucher_t::strasse_bei(sint16 x, sint16 y) const {
 	grund_t *bd = welt->lookup_kartenboden( koord(x,y) );
 	return bd && bd->hat_weg(road_wt);
 }
+
 
 bool ai_bauplatz_mit_strasse_sucher_t::ist_platz_ok(koord pos, sint16 b, sint16 h, climate_bits cl) const {
 	if(bauplatz_sucher_t::ist_platz_ok(pos, b, h, cl)) {
@@ -626,6 +627,7 @@ void ai_t::add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 void ai_t::rdwr(loadsave_t *file)
 {
 	spieler_t::rdwr(file);
+
 	if(  file->get_version()<111001  ) {
 		// do not know about ai_t
 		return;
