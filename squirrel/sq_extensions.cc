@@ -26,3 +26,8 @@ SQRESULT sq_call_restricted(HSQUIRRELVM v, SQInteger params, SQBool retval, SQBo
 	v->_throw_if_no_ops = n;
 	return ret;
 }
+
+SQRESULT sq_resumevm(HSQUIRRELVM v, SQBool retval, SQBool raiseerror, SQInteger ops)
+{
+	return sq_wakeupvm(v, false, retval, raiseerror, false);
+}
