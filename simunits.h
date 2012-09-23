@@ -131,4 +131,9 @@
  */
 // Done in simworld.h: speed_to_tiles_per_month
 
+/*
+ * Computes ticks (in ms) to travel the number of tiles with given speed
+ */
+#define dist_per_speed_to_ticks(tiles,speed) (  ((tiles) << YARDS_PER_TILE_SHIFT) / (speed) )
+
 #endif /* simunits.h */

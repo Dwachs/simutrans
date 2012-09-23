@@ -208,13 +208,53 @@ public:
 		halthandle_t halt;
 		uint16 weight;
 
-		connection_t() : weight(0) { }
-		connection_t(halthandle_t _halt, uint16 _weight=0) : halt(_halt), weight(_weight) { }
+		struct time_average_t {
+			uint32 time;
+			uint32 weight;
+			uint32 last_weight;
+			time_average_t() : time(0), weight(0), last_weight(0) {}
+			void book_average(uint32 time, uint32 amount);
+			void age();
+			void merge(time_average_t &other);
+			void rdwr(loadsave_t *file);
+			void clear() { time = weight = last_weight = 0; }
+		};
+
+		time_average_t waiting;
+		time_average_t travel;
+
+		uint32 currently_waiting;
+		uint32 waiting_since;
+
+		uint32 last_age_time;
+		uint32 round_trip_time:32;
+
+		uint16 old_weight;
+		bool direct_link;
+
+		connection_t(halthandle_t _halt=halthandle_t(), uint16 _weight=0);
+		connection_t(loadsave_t *file);
 
 		bool operator == (const connection_t &other) const { return halt == other.halt; }
 		bool operator != (const connection_t &other) const { return halt != other.halt; }
 		static bool compare(const connection_t &a, const connection_t &b) { return a.halt.get_id() < b.halt.get_id(); }
+
+		void add_waiting(uint32 time, uint32 amount);
+		void book_average_waiting(uint32 amount);
+
+		void book_average_travel_time(uint32 time, uint32 amount);
+		void age_weights();
+
+		void merge(connection_t &other);
+		void clear_times() { waiting.clear(); travel.clear(); }
+
+		uint16 get_travel_time() { return travel.time / 1000 +1; }
+		uint16 get_waiting_time() { return waiting.time / 1000 +1; }
+
+		void rdwr(loadsave_t *file);
 	};
+
+	connection_t* get_connection(uint8 catg, halthandle_t halt) const;
 
 	bool is_transfer(const uint8 catg) const { return serving_schedules[catg] > 1u; }
 
@@ -225,6 +265,9 @@ private:
 
 	// List of all directly reachable halts with their respective connection weights
 	vector_tpl<connection_t>* connections;
+
+	void add_waiting(uint8 catg, halthandle_t halt, uint32 time, uint32 amount) const;
+	void change_waiting(uint8 catg, halthandle_t halt_from, halthandle_t halt_to, uint32 amount) const;
 
 	/**
 	 * A transfer/interchange is a halt whereby ware can change line or lineless convoy.
@@ -237,6 +280,9 @@ private:
 
 	// Array with different categries that contains all waiting goods at this stop
 	vector_tpl<ware_t> **waren;
+
+	uint32 last_recalc_time;
+	uint32 recalc_interval;
 
 	/**
 	 * Liste der angeschlossenen Fabriken
@@ -257,6 +303,8 @@ private:
 	 * Reconnect and reroute if counter different from welt->get_schedule_counter()
 	 */
 	static uint8 reconnect_counter;
+	static uint8 reroute_counter;
+	static uint32 last_reroute_finished;
 	// since we do partial routing, we remember the last offset
 	uint8 last_catg_index;
 
@@ -272,7 +320,7 @@ private:
 	 * versucht die ware mit beriets wartender ware zusammenzufassen
 	 * @author Hj. Malthaner
 	 */
-	bool vereinige_waren(const ware_t &ware);
+	ware_t* vereinige_waren(const ware_t &ware);
 
 	// add the ware to the internal storage, called only internally
 	void add_ware_to_halt(ware_t ware);
@@ -343,7 +391,9 @@ public:
 	 * returns the search number of connections
 	 * @author Hj. Malthaner
 	 */
-	sint32 rebuild_connections();
+	sint32 rebuild_connections(bool only_recalc_weights = false);
+
+	uint32 next_rebuild_weights_time() { return last_recalc_time + recalc_interval; }
 
 	uint8 get_reconnect_counter() const  { return reconnect_counter; }
 

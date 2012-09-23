@@ -304,6 +304,11 @@ private:
 
 	ribi_t::ribi alte_richtung;
 
+	// for travel time recording
+	bool recording;
+	uint32 start_time;
+	halthandle_t last_halt;
+
 	/**
 	* Initialize all variables with default values.
 	* Each constructor must call this method first!
@@ -405,6 +410,12 @@ private:
 	void unregister_stops();
 
 	uint32 move_to(karte_t const&, koord3d const& k, uint16 start_index);
+
+	void init_record_travel_time();
+
+	void start_record_travel_time(halthandle_t halt);
+
+	void end_record_travel_time(halthandle_t halt);
 
 public:
 	/**

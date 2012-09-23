@@ -1311,6 +1311,7 @@ void karte_t::init(settings_t* const sets, sint8 const* const h_field)
 	x_off = y_off = 0;
 
 	ticks = 0;
+	ticks_offset = 0;
 	last_step_ticks = ticks;
 	schedule_counter = 0;
 	// ticks = 0x7FFFF800;  // Testing the 31->32 bit step
@@ -3434,16 +3435,20 @@ void karte_t::step()
 
 		next_month_ticks += karte_t::ticks_per_world_month;
 
+		ticks_offset = 0;
 		// avoid overflow here ...
 		if(ticks>next_month_ticks) {
+			uint32 old_ticks = ticks;
 			ticks %= karte_t::ticks_per_world_month;
 			ticks += karte_t::ticks_per_world_month;
+			ticks_offset = ticks - old_ticks;
 			next_month_ticks = ticks+karte_t::ticks_per_world_month;
 			last_step_ticks %= karte_t::ticks_per_world_month;
 		}
 
 		DBG_DEBUG4("karte_t::step", "calling neuer_monat");
 		neuer_monat();
+		ticks_offset = 0;
 	}
 
 	DBG_DEBUG4("karte_t::step", "time calculations");

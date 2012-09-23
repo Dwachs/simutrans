@@ -336,6 +336,7 @@ private:
 	uint32 ticks;		      // ms since creation
 	uint32 last_step_ticks; // ticks counter at last steps
 	uint32 next_month_ticks;	// from now on is next month
+	uint32 ticks_offset;  // offset to account for overflow in ticks
 
 	// default time stretching factor
 	uint32 time_multiplier;
@@ -662,10 +663,15 @@ public:
 	uint8 get_jahreszeit() const { return season; }
 
 	/**
-	 * Zeit seit Kartenerzeugung/dem letzen laden in ms
+	 * Time since creation of map in ms
 	 * @author Hj. Malthaner
 	 */
 	uint32 get_zeit_ms() const { return ticks; }
+	/**
+	 * Offset to account for overflow in ticks
+	 * @author dwachs
+	 */
+	uint32 get_ticks_offset() const { return ticks_offset; }
 
 	/**
 	 * absolute month (count start year zero)

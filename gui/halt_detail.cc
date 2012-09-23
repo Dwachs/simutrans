@@ -266,6 +266,10 @@ void halt_detail_t::halt_detail_info()
 	buf.append("\n");
 	offset_y += LINESPACE;
 
+	karte_t *welt = halt->get_besitzer()->get_welt();
+	buf.printf("----- next rebuilding of weights in %ds\n", ((sint32)halt->next_rebuild_weights_time() - welt->get_zeit_ms()) / 1000);
+	offset_y += LINESPACE;
+
 	bool has_stops = false;
 
 	for (uint i=0; i<warenbauer_t::get_max_catg_index(); i++){
@@ -292,6 +296,18 @@ void halt_detail_t::halt_detail_info()
 					has_stops = true;
 
 					buf.printf("   %s <%u>", conn.halt->get_name(), conn.weight);
+					if (conn.weight>0) {
+						buf.printf("       add-travel [%ds, %ds] ", conn.weight, conn.round_trip_time);
+					}
+					if (conn.travel.weight>0) {
+						buf.printf("       travel [%ds, %d] ", conn.travel.time / 1000, conn.travel.weight, conn.round_trip_time / 1000);
+					}
+					if (conn.waiting.time>0) {
+						buf.printf("       waiting [%ds, %d] ", conn.waiting.time / 1000, conn.waiting.weight );
+					}
+					if (conn.currently_waiting>0) {
+						buf.printf("       current[%ds, %d] ", (welt->get_zeit_ms() - conn.waiting_since) / 1000, conn.currently_waiting);
+					}
 
 					// target button ...
 					button_t *pb = new button_t();
@@ -316,9 +332,9 @@ void halt_detail_t::halt_detail_info()
 	cont.set_groesse( txt_info.get_groesse() );
 
 	// ok, we have now this counter for pending updates
-	destination_counter = halt->get_reconnect_counter();
 	cached_line_count = halt->registered_lines.get_count();
 	cached_convoy_count = halt->registered_convoys.get_count();
+	last_refresh = welt->get_zeit_ms();
 }
 
 
@@ -362,7 +378,8 @@ bool halt_detail_t::action_triggered( gui_action_creator_t *, value_t extra)
 void halt_detail_t::zeichnen(koord pos, koord gr)
 {
 	if(halt.is_bound()) {
-		if(  halt->get_reconnect_counter()!=destination_counter  ||  cached_active_player!=halt->get_welt()->get_active_player()
+		karte_t *welt = halt->get_besitzer()->get_welt();
+		if(  (welt->get_zeit_ms()>last_refresh + 999)   ||  cached_active_player!=halt->get_welt()->get_active_player()
 				||  halt->registered_lines.get_count()!=cached_line_count  ||  halt->registered_convoys.get_count()!=cached_convoy_count  ) {
 			// fill buffer with halt detail
 			halt_detail_info();

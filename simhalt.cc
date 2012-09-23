@@ -70,6 +70,8 @@ stringhashtable_tpl<halthandle_t> haltestelle_t::all_names;
 
 uint8 haltestelle_t::status_step = 0;
 uint8 haltestelle_t::reconnect_counter = 0;
+uint8 haltestelle_t::reroute_counter = 0;
+uint32 haltestelle_t::last_reroute_finished = 0;
 
 void haltestelle_t::step_all()
 {
@@ -82,6 +84,11 @@ void haltestelle_t::step_all()
 		// always start with reconnection, rerouting will happen after complete reconnection
 		status_step = RECONNECTING;
 		reconnect_counter = schedule_counter;
+		iter = alle_haltestellen.begin();
+	}
+	else if (status_step != RECONNECTING  &&  reroute_counter != schedule_counter) {
+		status_step = REROUTING;
+		reroute_counter = schedule_counter;
 		iter = alle_haltestellen.begin();
 	}
 
@@ -101,6 +108,7 @@ void haltestelle_t::step_all()
 		status_step = REROUTING;
 	}
 	else if (status_step == REROUTING) {
+		last_reroute_finished = welt->get_zeit_ms();
 		status_step = 0;
 	}
 	iter = alle_haltestellen.begin();
@@ -339,7 +347,7 @@ haltestelle_t::haltestelle_t(karte_t* wl, koord k, spieler_t* sp)
 	besitzer_p = sp;
 
 	enables = NOT_ENABLED;
-	// force total reouting
+	// force total rerouting
 	reconnect_counter = welt->get_schedule_counter()-1;
 	last_catg_index = 255;
 
@@ -479,6 +487,7 @@ void haltestelle_t::rotate90( const sint16 y_size )
 const char* haltestelle_t::get_name() const
 {
 	const char *name = "Unknown";
+	if (this) {
 	if (tiles.empty()) {
 		name = "Unnamed";
 	}
@@ -487,6 +496,7 @@ const char* haltestelle_t::get_name() const
 		if(bd  &&  bd->get_flag(grund_t::has_text)) {
 			name = bd->get_text();
 		}
+	}
 	}
 	return name;
 }
@@ -853,6 +863,12 @@ bool haltestelle_t::step(uint8 what, sint16 &units_remaining)
 			recalc_status();
 			break;
 		default:
+			if (recalc_interval > 0  &&  welt->get_zeit_ms() > last_recalc_time + recalc_interval) {
+				units_remaining -= (rebuild_connections(true)/256)+2;
+			}
+			if (reconnect_counter != welt->get_schedule_counter()) {
+				return false;
+			}
 			break;
 	}
 	return true;
@@ -882,6 +898,28 @@ void haltestelle_t::neuer_monat()
 	}
 	// number of waitung should be constant ...
 	financial_history[0][HALT_WAITING] = financial_history[1][HALT_WAITING];
+
+	// dwachs: correct times for waiting time recording
+	if (uint32 offset = welt->get_ticks_offset()) {
+		for(  uint8 i=0;  i<warenbauer_t::get_max_catg_index();  i++  ){
+			for(  uint32 j=0; j<connections[i].get_count(); j++) {
+				connection_t& conn = (connections[i])[j];
+				conn.waiting_since += offset;
+			}
+		}
+		if (last_recalc_time < (last_recalc_time+offset)) {
+			last_recalc_time = 0;
+		}
+		else {
+			last_recalc_time += offset;
+		}
+		if (last_reroute_finished < (last_reroute_finished+offset)) {
+			last_reroute_finished = 0;
+		}
+		else {
+			last_reroute_finished += offset;
+		}
+	}
 }
 
 
@@ -904,6 +942,12 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 			return false;
 		}
 
+		// save connections weights
+		vector_tpl<connection_t> &conns = connections[last_catg_index];
+		for(uint32 i=0; i<conns.get_count(); i++) {
+			conns[i].old_weight = conns[i].weight;
+		}
+
 		if(waren[last_catg_index]) {
 
 			// first: clean out the array
@@ -922,6 +966,10 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 					// we are already there!
 					if(  ware.to_factory  ) {
 						liefere_an_fabrik(ware);
+					}
+					if (connection_t* conn = get_connection(last_catg_index, ware.get_zwischenziel())) {
+						//assert(conn->currently_waiting >= ware.menge);
+						conn->currently_waiting -= ware.menge;
 					}
 					continue;
 				}
@@ -951,9 +999,29 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 				vector_tpl<ware_t> &warray = *waren[last_catg_index];
 				uint32 last_ware_index = 0;
 				units_remaining -= warray.get_count();
+				const uint32 ticks = welt->get_zeit_ms();
 				while(  last_ware_index<warray.get_count()  ) {
-					search_route_resumable(warray[last_ware_index]);
-					if(  warray[last_ware_index].get_ziel()==halthandle_t()  ) {
+					ware_t &ware = warray[last_ware_index];
+					halthandle_t old_zwischenziel = ware.get_zwischenziel();
+
+					search_route_resumable(ware);
+
+					// route change: book waiting goods
+					if(  old_zwischenziel != ware.get_zwischenziel()) {
+						uint32 waiting_since = ticks;
+						if (connection_t* conn = get_connection(last_catg_index, old_zwischenziel)) {
+							//assert(conn->currently_waiting >= warray[last_ware_index].menge);
+							conn->currently_waiting -= ware.menge;
+							waiting_since = conn->waiting_since;
+						}
+						if (ware.get_zwischenziel()!=halthandle_t()  ) {
+							connection_t* conn = get_connection(last_catg_index, ware.get_zwischenziel());
+							//assert(conn);
+							conn->add_waiting(waiting_since, ware.menge);
+						}
+					}
+
+					if(  ware.get_ziel()==halthandle_t()  ) {
 						// remove invalid destinations
 						warray.remove_at(last_ware_index);
 					}
@@ -1013,11 +1081,7 @@ void haltestelle_t::remove_fabriken(fabrik_t *fab)
  * Returns the number of stops considered
  * @author Hj. Malthaner
  */
-#define WEIGHT_WAIT (8)
-#define WEIGHT_HALT (1)
-// the minimum weight of a connection from a transfer halt
-#define WEIGHT_MIN (WEIGHT_WAIT+WEIGHT_HALT)
-sint32 haltestelle_t::rebuild_connections()
+sint32 haltestelle_t::rebuild_connections(bool only_recalc_weights)
 {
 	// Knightly : halts which either immediately precede or succeed self halt in serving schedules
 	static vector_tpl<halthandle_t> consecutive_halts[256];
@@ -1031,8 +1095,13 @@ sint32 haltestelle_t::rebuild_connections()
 
 	// Hajo: first, remove all old entries
 	for(  uint8 i=0;  i<warenbauer_t::get_max_catg_index();  i++  ){
-		connections[i].clear();
 		serving_schedules[i] = 0;
+		// only reset weight
+		for(  uint32 j=0; j<connections[i].get_count(); j++) {
+			(connections[i])[j].weight = 65535u;
+			(connections[i])[j].round_trip_time = 0xffffffff;
+			(connections[i])[j].direct_link = false;
+		}
 		consecutive_halts[i].clear();
 	}
 	resort_freight_info = true;	// might result in error in routing
@@ -1040,13 +1109,12 @@ sint32 haltestelle_t::rebuild_connections()
 	last_catg_index = 255;	// must reroute everything
 	sint32 connections_searched = 0;
 
-// DBG_MESSAGE("haltestelle_t::rebuild_destinations()", "Adding new table entries");
-
 	const spieler_t *owner;
 	schedule_t *fpl;
 	const minivec_tpl<uint8> *goods_catg_index;
 
 	minivec_tpl<uint8> supported_catg_index(32);
+	minivec_tpl<uint32> aggregate_weights(32);
 
 	/*
 	 * In the first loops:
@@ -1058,6 +1126,7 @@ sint32 haltestelle_t::rebuild_connections()
 	uint32 current_index = 0;
 	while(  lines  ||  current_index < registered_convoys.get_count()  ) {
 
+		uint32 estimated_speed = 1;
 		// Now, collect the "fpl", "owner" and "add_catg_index" from line resp. convoy.
 		if( lines ) {
 			if(  current_index >= registered_lines.get_count()  ) {
@@ -1073,6 +1142,7 @@ sint32 haltestelle_t::rebuild_connections()
 			owner = line->get_besitzer();
 			fpl = line->get_schedule();
 			goods_catg_index = &line->get_goods_catg_index();
+			estimated_speed = line->get_convoy(0)->get_min_top_speed();
 		}
 		else {
 			const convoihandle_t cnv = registered_convoys[current_index];
@@ -1081,6 +1151,7 @@ sint32 haltestelle_t::rebuild_connections()
 			owner = cnv->get_besitzer();
 			fpl = cnv->get_schedule();
 			goods_catg_index = &cnv->get_goods_catg_index();
+			estimated_speed = cnv->get_min_top_speed();
 		}
 
 		// find the index from which to start processing
@@ -1092,9 +1163,11 @@ sint32 haltestelle_t::rebuild_connections()
 
 		// determine goods category indices supported by this halt
 		supported_catg_index.clear();
+		aggregate_weights.clear();
 		FOR(minivec_tpl<uint8>, const catg_index, *goods_catg_index) {
 			if(  is_enabled(catg_index)  ) {
 				supported_catg_index.append(catg_index);
+				aggregate_weights.append(0);
 				previous_halt[catg_index] = self;
 				consecutive_halts_fpl[catg_index].clear();
 			}
@@ -1108,45 +1181,90 @@ sint32 haltestelle_t::rebuild_connections()
 		INT_CHECK("simhalt.cc 612");
 
 		// now we add the schedule to the connection array
-		uint16 aggregate_weight = WEIGHT_WAIT;
-		for(  uint8 j=0;  j<fpl->get_count();  ++j  ) {
+		vector_tpl<halthandle_t> reachable_halts( fpl->get_count() );
+		for(  uint8 j=0;  j<=fpl->get_count();  ++j  ) {
 
 			halthandle_t current_halt = get_halt(welt, fpl->eintrag[(start_index+j)%fpl->get_count()].pos,owner);
 			if(  !current_halt.is_bound()  ) {
 				// ignore way points
 				continue;
 			}
-			if(  current_halt==self  ) {
-				// Knightly : check for consecutive halts which precede self halt
-				FOR(minivec_tpl<uint8>, const catg_index, supported_catg_index) {
-					if(  previous_halt[catg_index]!=self  ) {
-						consecutive_halts[catg_index].append_unique(previous_halt[catg_index]);
-						consecutive_halts_fpl[catg_index].append_unique(previous_halt[catg_index]);
-						previous_halt[catg_index] = self;
-					}
-				}
-				// reset aggregate weight
-				aggregate_weight = WEIGHT_WAIT;
-				continue;
-			}
 
-			aggregate_weight += WEIGHT_HALT;
 
-			FOR(minivec_tpl<uint8>, const catg_index, supported_catg_index) {
+			for(  uint8 ctg=0;  ctg<supported_catg_index.get_count();  ++ctg  ) {
+				const uint8 catg_index = supported_catg_index[ctg];
+
 				if(  current_halt->is_enabled(catg_index)  ) {
+
+					connection_t *const direct_connection = previous_halt[catg_index]->get_connection(catg_index, current_halt);
+					// add travel time
+					if (direct_connection  &&  direct_connection->travel.time > 0) {
+						aggregate_weights[ctg] += direct_connection->get_travel_time();
+					}
+					else {
+						// estimate travel time
+						const uint32 dist = koord_distance(current_halt->get_basis_pos(), previous_halt[catg_index]->get_basis_pos());
+						const uint32 travel_time = dist_per_speed_to_ticks(2*(uint64)dist, estimated_speed) / 1000 + 1;
+						connection_t newconn( current_halt, travel_time );
+						newconn.travel.time = travel_time;
+
+						aggregate_weights[ctg] += travel_time;
+					}
+					// add waiting time
+					if (direct_connection  &&  previous_halt[catg_index] == self) {
+						aggregate_weights[ctg] += direct_connection->get_waiting_time();
+						direct_connection->direct_link = true;
+					}
+					// it costs 1 second to halt here
+					aggregate_weights[ctg] ++;
+
+					// either add a new connection or update the weight of an existing connection where necessary
+					if(  current_halt!=self  ) {
+						connection_t *const existing_connection = connections[catg_index].insert_unique_ordered(connection_t( current_halt, aggregate_weights[ctg] ), connection_t::compare );
+						if(  existing_connection  &&  aggregate_weights[ctg] < existing_connection->weight  ) {
+							existing_connection->weight = aggregate_weights[ctg];
+						}
+					}
+					else {
+						// Knightly : check for consecutive halts which precede self halt
+						if(  previous_halt[catg_index]!=self  ) {
+							consecutive_halts[catg_index].append_unique(previous_halt[catg_index]);
+							consecutive_halts_fpl[catg_index].append_unique(previous_halt[catg_index]);
+						}
+
+						// calculate round trip times
+						bool first = true;
+						for( uint8 k=0; k<reachable_halts.get_count(); k++) {
+							if (reachable_halts[k]->is_enabled(supported_catg_index[ctg])) {
+								connection_t *connection = get_connection(supported_catg_index[ctg], reachable_halts[k]);
+								if (first) {
+									// subtract waiting time
+									aggregate_weights[ctg] -= connection->get_waiting_time();
+									first = false;
+								}
+								if (aggregate_weights[ctg] < connection->round_trip_time) {
+									connection->round_trip_time = aggregate_weights[ctg];
+								}
+							}
+						}
+						// reset weight
+						aggregate_weights[ctg] = 0;
+					}
+
 					// Knightly : check for consecutive halts which succeed self halt
 					if(  previous_halt[catg_index]==self  ) {
 						consecutive_halts[catg_index].append_unique(current_halt);
 						consecutive_halts_fpl[catg_index].append_unique(current_halt);
 					}
 					previous_halt[catg_index] = current_halt;
-
-					// either add a new connection or update the weight of an existing connection where necessary
-					connection_t *const existing_connection = connections[catg_index].insert_unique_ordered( connection_t( current_halt, aggregate_weight ), connection_t::compare );
-					if(  existing_connection  &&  aggregate_weight<existing_connection->weight  ) {
-						existing_connection->weight = aggregate_weight;
-					}
 				}
+			}
+
+			if(  current_halt!=self  )  {
+				reachable_halts.append(current_halt);
+			}
+			else {
+				reachable_halts.clear();
 			}
 		}
 
@@ -1157,6 +1275,62 @@ sint32 haltestelle_t::rebuild_connections()
 		}
 		connections_searched += fpl->get_count();
 	}
+
+	// remove disabled connections
+	// determine average round-trip time
+	uint32 sum_roundtrip_time = 0;
+	uint32 num_connections = 0;
+	for(  uint8 i=0;  i<warenbauer_t::get_max_catg_index();  i++  ){
+		vector_tpl<connection_t> &conn = connections[i];
+		for(  sint32 j=conn.get_count()-1; j>=0; j--) {
+			if (conn[j].round_trip_time == 0xffffffff) {
+				// reset goods transfer for all goods that wanted to use this link
+				if (conn[j].currently_waiting > 0) {
+					halthandle_t halt = conn[j].halt;
+					vector_tpl<ware_t> *&warray = waren[i];
+					for(uint32 k=0; k<(*warray).get_count(); k++) {
+						ware_t &ware = (*warray)[k];
+						if(ware.get_zwischenziel()==halt) {
+							ware.set_zwischenziel(halthandle_t());
+						}
+					}
+				}
+				// delete
+				conn.remove_at(j);
+			}
+			else {
+				if (!conn[j].direct_link) {
+					// clear stale time records
+					conn[j].clear_times();
+				}
+				num_connections ++;
+				sum_roundtrip_time += conn[j].round_trip_time;
+			}
+		}
+	}
+	if (num_connections > 0) {
+		recalc_interval = max( 10000u, (1000*sum_roundtrip_time) / num_connections ) / 2;
+	}
+	else {
+		recalc_interval = 0; // never recalculate weights
+	}
+	last_recalc_time = welt->get_zeit_ms();
+
+	// now check whether weights differ too much
+	// only trigger rerouting at most every 2 minutes
+	if (only_recalc_weights  &&  last_reroute_finished + 120000ul < welt->get_zeit_ms()) {
+		for(  uint8 i=0;  i<warenbauer_t::get_max_catg_index();  i++  ){
+			for(  uint32 j=0; j<connections[i].get_count(); j++) {
+				const connection_t& conn = (connections[i])[j];
+				uint16 diff = abs( (sint32)conn.old_weight - conn.weight);
+				if ( 4*diff > conn.round_trip_time ) {
+					reroute_counter = welt->get_schedule_counter() - 1;
+					return 0x7fff;
+				}
+			}
+		}
+	}
+
 	for(  uint8 i=0;  i<warenbauer_t::get_max_catg_index();  i++  ){
 		if (!consecutive_halts[i].empty()) {
 			if (consecutive_halts[i].get_count() == max_consecutive_halts_fpl[i]) {
@@ -1378,7 +1552,7 @@ int haltestelle_t::search_route( const halthandle_t *const start_halts, const ui
 
 						allocation_pointer++;
 						// as the next halt is not a destination add WEIGHT_MIN
-						open_list.insert( route_node_t(current_conn.halt, total_weight + WEIGHT_MIN) );
+						open_list.insert( route_node_t(current_conn.halt, total_weight) );
 					}
 					else {
 						// Case: non-optimal transfer halt -> put in closed list
@@ -1412,7 +1586,7 @@ int haltestelle_t::search_route( const halthandle_t *const start_halts, const ui
 					}
 					else {
 						// as the next halt is not a destination add WEIGHT_MIN
-						total_weight += WEIGHT_MIN;
+						total_weight += 0;
 					}
 
 					allocation_pointer++;
@@ -1588,6 +1762,10 @@ void haltestelle_t::search_route_resumable(  ware_t &ware   )
 		FOR(vector_tpl<connection_t>, const& current_conn, current_node.halt->connections[ware_catg_idx]) {
 			const uint16 reachable_halt_id = current_conn.halt.get_id();
 
+			if (current_weight > 65535u - current_conn.weight) {
+				// overflow
+				continue;
+			}
 			const uint16 total_weight = current_weight + current_conn.weight;
 
 			if(  !current_conn.halt.is_bound()  ) {
@@ -1722,6 +1900,10 @@ bool haltestelle_t::recall_ware( ware_t& w, uint32 menge )
 				w.menge = tmp.menge;
 				tmp.menge = 0;
 			}
+			if( connection_t *conn = get_connection(w.get_besch()->get_catg_index(), tmp.get_zwischenziel()) ) {
+				assert(conn->currently_waiting >= w.menge);
+				conn->currently_waiting -= w.menge;
+			}
 			book(w.menge, HALT_ARRIVED);
 			resort_freight_info = true;
 			return true;
@@ -1731,7 +1913,18 @@ bool haltestelle_t::recall_ware( ware_t& w, uint32 menge )
 	return false;
 }
 
+struct sort_waiting_t {
+	sint64 difftime;
+	haltestelle_t::connection_t* conn;
+	halthandle_t halt;
+	uint32 loaded;
+	uint32 load_max;
+	sort_waiting_t() : difftime(0), conn(NULL), halt(halthandle_t()), loaded(0), load_max(0) {}
+	sort_waiting_t(halthandle_t h, sint64 d, haltestelle_t::connection_t*c) : difftime(d), conn(c), halt(h), loaded(0), load_max(0) {}
 
+	bool operator == (const sort_waiting_t &a) const { return a.halt == halt; }
+	static bool compare(const sort_waiting_t &a, const sort_waiting_t &b) { return a.difftime >= b.difftime; }
+};
 
 // will load something compatible with wtyp into the car which schedule is fpl
 void haltestelle_t::hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *wtyp, uint32 maxi, const schedule_t *fpl, const spieler_t *sp )
@@ -1742,9 +1935,13 @@ void haltestelle_t::hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *wtyp
 	vector_tpl<ware_t> *warray = waren[wtyp->get_catg_index()];
 
 	if (warray && !warray->empty()) {
+		// book waiting times for link to first halt
+		connection_t *first = NULL;
 		// da wir schon an der aktuellem haltestelle halten
 		// startet die schleife ab 1, d.h. dem naechsten halt
 		const uint8 count = fpl->get_count();
+		vector_tpl<sort_waiting_t> sorted(count);
+		const uint32 time = welt->get_zeit_ms();
 		for(  uint8 i=1; i<count; i++  ) {
 			const uint8 wrap_i = (i + fpl->get_aktuell()) % count;
 
@@ -1753,8 +1950,35 @@ void haltestelle_t::hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *wtyp
 				// we will come later here again ...
 				break;
 			}
-			else if(  plan_halt.is_bound()  ) {
+			else if(  !plan_halt.is_bound()  ) {
+				continue;
+			}
 
+			// sort wrt to current waiting time
+			connection_t *c = get_connection(wtyp->get_catg_index(), plan_halt);
+			if (c) {
+				if (first==NULL) {
+					first = c;
+				}
+				if (c->currently_waiting > 0) {
+					// add each halt only once (sort per waiting time, operator== compares halt handles)
+					sorted.insert_unique_ordered(sort_waiting_t(plan_halt, ((sint64)time - c->waiting_since)*c->currently_waiting, c), sort_waiting_t::compare);
+				}
+			}
+		}
+
+		if (!sorted.empty()) {
+
+			// distribute free capacity to goods for a certain connection
+			uint32 dist = maxi;
+			for(uint32 i=0; i<sorted.get_count()  &&  dist>0; i++) {
+				if (sorted[i].conn->currently_waiting > 0) {
+					sorted[i].load_max = min(dist, sorted[i].conn->currently_waiting);
+					dist -= sorted[i].load_max;
+				}
+			}
+
+			{
 				// The random offset will ensure that all goods have an equal chance to be loaded.
 				sint32 offset = simrand(warray->get_count());
 				for(  uint32 i=0;  i<warray->get_count();  i++  ) {
@@ -1771,51 +1995,104 @@ void haltestelle_t::hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *wtyp
 					}
 
 					// goods without route -> returning passengers/mail
+					bool routed = false;
 					if(  !tmp.get_zwischenziel().is_bound()  ) {
+						resort_freight_info = true;
 						search_route_resumable(tmp);
 						if (!tmp.get_ziel().is_bound()) {
 							// no route anymore
 							tmp.menge = 0;
 							continue;
 						}
+						routed = true;
+						add_waiting(wtyp->get_catg_index(), tmp.get_zwischenziel(), welt->get_zeit_ms(), tmp.menge);
 					}
 
-					// compatible car and right target stop?
-					if(  tmp.get_zwischenziel()==plan_halt  ) {
+					uint32 index = sorted.get_count();
+					for(uint32 i=0; i<sorted.get_count(); i++) {
+						if (tmp.get_zwischenziel() == sorted[i].halt) {
+							index = i;
+							break;
+						}
+					}
+					// not found / no free capacity for our destination
+					if (index == sorted.get_count()  ||  (sorted[index].load_max==0  &&  !routed) ) {
+						continue;
+					}
+					sort_waiting_t &wts = sorted[index];
 
-						if(  plan_halt->is_overcrowded(wtyp->get_catg_index())  ) {
-							if (welt->get_settings().is_avoid_overcrowding() && tmp.get_ziel() != plan_halt) {
+					if (routed  &&  wts.load_max < tmp.menge) {
+						// try to retrieve free transport capacity from connections with less priority
+						uint32 diff = tmp.menge - wts.load_max;
+						for(uint32 i = sorted.get_count()-1; i>index  &&  diff>0; i--) {
+							const uint32 redist = min(diff, sorted[i].load_max);
+							if (redist) {
+								wts.load_max += redist;
+								sorted[i].load_max -= redist;
+								diff -= redist;
+							}
+						}
+						if (wts.load_max == 0) {
+							continue;
+						}
+					}
+
+					{
+						if(  wts.halt->is_overcrowded(wtyp->get_catg_index())  ) {
+							if (welt->get_settings().is_avoid_overcrowding() && tmp.get_ziel() != wts.halt) {
 								// do not go for transfer to overcrowded transfer stop
+								// TODO: capacity distribution needs to be fixed here ...
 								continue;
 							}
 						}
 
 						// not too much?
 						ware_t neu(tmp);
-						if(  tmp.menge > maxi  ) {
+						if(  tmp.menge > wts.load_max  ) {
 							// not all can be loaded
-							neu.menge = maxi;
-							tmp.menge -= maxi;
-							maxi = 0;
+							neu.menge = wts.load_max;
+							tmp.menge -= wts.load_max;
+							wts.load_max = 0;
 						}
 						else {
-							maxi -= tmp.menge;
+							wts.load_max -= tmp.menge;
 							// leave an empty entry => joining will more often work
 							tmp.menge = 0;
 						}
 						fracht.insert(neu);
 
-						book(neu.menge, HALT_DEPARTED);
-						resort_freight_info = true;
+						wts.loaded += neu.menge;
+						maxi -= neu.menge;
 
 						if (maxi==0) {
-							return;
+							break;
 						}
 					}
 				}
 
 				// nothing there to load
 			}
+			// now book waiting time for loaded goods
+			const uint32 ticks = welt->get_zeit_ms();
+			uint64 sum = 0;
+			uint32 loaded = 0;
+			for(uint32 i=0; i<sorted.get_count(); i++) {
+				if (sorted[i].loaded  >0) {
+					resort_freight_info = true;
+					book(sorted[i].loaded, HALT_DEPARTED);
+					sorted[i].conn->currently_waiting -= sorted[i].loaded;
+					loaded += sorted[i].loaded;
+					sum    += sorted[i].loaded * ( ticks - sorted[i].conn->waiting_since );
+					//sorted[i].conn->book_average_waiting(sorted[i].loaded );
+					//dbg->message("haltestelle_t::holeab", " at %s good %d, %s amount %d", get_name(), wtyp->get_catg_index(), sorted[i].halt->get_name(), sorted[i].loaded);
+				}
+			}
+			if (loaded) {
+				first->waiting.book_average( sum / loaded, loaded);
+			}
+		}
+		if (maxi==0) {
+			return;
 		}
 	}
 }
@@ -1852,7 +2129,7 @@ uint32 haltestelle_t::get_ware_fuer_zielpos(const ware_besch_t *wtyp, const koor
 }
 
 
-bool haltestelle_t::vereinige_waren(const ware_t &ware)
+ware_t* haltestelle_t::vereinige_waren(const ware_t &ware)
 {
 	// pruefen ob die ware mit bereits wartender ware vereinigt werden kann
 	vector_tpl<ware_t> * warray = waren[ware.get_besch()->get_catg_index()];
@@ -1862,15 +2139,16 @@ bool haltestelle_t::vereinige_waren(const ware_t &ware)
 			if(ware.same_destination(tmp)) {
 				if(  ware.get_zwischenziel().is_bound()  &&  ware.get_zwischenziel()!=self  ) {
 					// update route if there is newer route
+					change_waiting(ware.get_besch()->get_catg_index(), tmp.get_zwischenziel(), ware.get_zwischenziel(), tmp.menge);
 					tmp.set_zwischenziel( ware.get_zwischenziel() );
 				}
 				tmp.menge += ware.menge;
 				resort_freight_info = true;
-				return true;
+				return &tmp;
 			}
 		}
 	}
-	return false;
+	return NULL;
 }
 
 
@@ -1927,7 +2205,8 @@ uint32 haltestelle_t::starte_mit_route(ware_t ware)
 	}
 
 	// passt das zu bereits wartender ware ?
-	if(vereinige_waren(ware)) {
+	if(ware_t *tmp = vereinige_waren(ware)) {
+		add_waiting(tmp->get_besch()->get_catg_index(), tmp->get_zwischenziel(), welt->get_zeit_ms(), ware.menge);
 		// dann sind wir schon fertig;
 		return ware.menge;
 	}
@@ -1935,6 +2214,7 @@ uint32 haltestelle_t::starte_mit_route(ware_t ware)
 	// add to internal storage
 	add_ware_to_halt(ware);
 
+	add_waiting(ware.get_besch()->get_catg_index(), ware.get_zwischenziel(), welt->get_zeit_ms(), ware.menge);
 	return ware.menge;
 }
 
@@ -1976,7 +2256,14 @@ dbg->warning("haltestelle_t::liefere_an()","%d %s delivered to %s have no longer
 	}
 
 	// do we have already something going in this direction here?
-	if(  vereinige_waren(ware)  ) {
+	if(  ware_t *tmp = vereinige_waren(ware)  ) {
+		if (connection_t *conn = get_connection(tmp->get_besch()->get_catg_index(), tmp->get_zwischenziel())) {
+			conn->add_waiting(welt->get_zeit_ms(), ware.menge);
+		}
+		else {
+			// needs rerouting
+			tmp->set_zwischenziel(halthandle_t());
+		}
 		return ware.menge;
 	}
 
@@ -1990,6 +2277,7 @@ dbg->warning("haltestelle_t::liefere_an()","%d %s delivered to %s have no longer
 		DBG_MESSAGE("haltestelle_t::liefere_an()","%s: delivered goods (%d %s) to ??? via ??? could not be routed to their destination!",get_name(), ware.menge, translator::translate(ware.get_name()) );
 		return ware.menge;
 	}
+	add_waiting(ware.get_besch()->get_catg_index(), ware.get_zwischenziel(), welt->get_zeit_ms(), ware.menge);
 #if 1
 	// passt das zu bereits wartender ware ?
 	if(vereinige_waren(ware)) {
@@ -2243,6 +2531,21 @@ void haltestelle_t::transfer_goods(halthandle_t halt)
 			}
 			delete waren[i];
 			waren[i] = NULL;
+		}
+
+		vector_tpl<connection_t> & conn = connections[i];
+		vector_tpl<connection_t> & halt_conn = halt->connections[i];
+		for(uint32 j=0; j<conn.get_count(); j++) {
+			if (conn[j].halt == halt) {
+				continue;
+			}
+			connection_t *current = halt_conn.search_ordered(connection_t(conn[j].halt), connection_t::compare);
+			if(current) {
+				current->merge(conn[j]);
+			}
+			else {
+				halt_conn.insert_ordered(conn[j], connection_t::compare);
+			}
 		}
 	}
 }
@@ -2532,8 +2835,225 @@ void haltestelle_t::rdwr(loadsave_t *file)
 			financial_history[k][HALT_WALKED] = 0;
 		}
 	}
+
+	// now all the time related stuff
+	if (file->get_version() > 111003) {
+		if (file->is_saving()) {
+			uint8 max_catg_index = warenbauer_t::get_max_catg_index();
+			file->rdwr_byte(max_catg_index);
+			for(  uint8 i=0;  i<max_catg_index;  i++  ){
+				// save goods category
+				const char *tn = warenbauer_t::get_info_catg_index(i)->get_name();
+				file->rdwr_str(tn);
+				// now the connections
+				uint32 count = connections[i].get_count();
+				file->rdwr_long(count);
+				for(  uint32 j=0; j<count; j++) {
+					(connections[i])[j].rdwr(file);
+				}
+			}
+		}
+		else {
+			uint8 max_catg_index;
+			file->rdwr_byte(max_catg_index);
+			for(  uint8 i=0;  i<max_catg_index;  i++  ){
+				// read goods
+				char tn[256];
+				file->rdwr_str(tn, lengthof(tn));
+				const ware_besch_t *besch = warenbauer_t::get_info(tn);
+				// now the connections
+				uint32 count;
+				file->rdwr_long(count);
+				if (besch) {
+					// restore connection_t array
+					uint8 catg_index = besch->get_catg_index();
+					vector_tpl<connection_t> &cs = connections[catg_index];
+					cs.clear();
+					for(  uint32 j=0; j<count; j++) {
+						cs.append(connection_t(file));
+					}
+				}
+				else {
+					// this good is missing...
+					connection_t dummy;
+					for(  uint32 j=0; j<count; j++) {
+						dummy.rdwr(file);
+					}
+				}
+			}
+		}
+	}
 }
 
+void haltestelle_t::connection_t::time_average_t::book_average(uint32 time_, uint32 amount)
+{
+	time = ( (uint64)time*weight + (uint64)time_*amount) / (weight + amount);
+	weight += amount;
+}
+
+void haltestelle_t::connection_t::time_average_t::age()
+{
+	if (weight > last_weight) {
+		// adjust weight
+		last_weight = weight - (weight >> 3);
+	}
+	else {
+		// nothing happened
+		if (last_weight > 1) {
+			// decrease weight
+			last_weight -= last_weight >> 3;
+		}
+		else {
+			time -= time >> 4;
+		}
+	}
+	weight = last_weight;
+}
+
+
+void haltestelle_t::connection_t::time_average_t::merge(time_average_t &other)
+{
+	book_average(other.time, other.weight);
+	last_weight += other.last_weight;
+}
+
+
+void haltestelle_t::connection_t::time_average_t::rdwr(loadsave_t *file)
+{
+	file->rdwr_long(time);
+	file->rdwr_long(weight);
+	file->rdwr_long(last_weight);
+}
+
+
+haltestelle_t::connection_t::connection_t(halthandle_t _halt, uint16 _weight) :
+	halt(_halt), weight(_weight),
+	waiting(), travel(),
+	currently_waiting(0), waiting_since(0),
+	last_age_time(welt->get_zeit_ms()), round_trip_time(0xffffffff)
+{
+}
+
+
+haltestelle_t::connection_t::connection_t(loadsave_t *file)
+{
+	rdwr(file);
+	// will be recalculated in laden_abschliessen
+	currently_waiting = 0;
+	// will be recalculated in rebuild_connections
+	round_trip_time = 0;
+	last_age_time = 0;
+	weight = 0;
+}
+
+
+void haltestelle_t::connection_t::add_waiting(uint32 time, uint32 amount)
+{
+	if (currently_waiting > 0) {
+		sint64 w_time = (sint64)time - waiting_since;
+		waiting_since += (w_time*amount) / (amount + currently_waiting);
+	}
+	else {
+		waiting_since = time;
+	}
+	currently_waiting += amount;
+}
+
+
+void haltestelle_t::connection_t::book_average_waiting(uint32 amount)
+{
+	uint32 time = welt->get_zeit_ms();
+	while (time > last_age_time + 1000*round_trip_time) {
+		age_weights();
+	}
+	waiting.book_average(time - waiting_since, amount);
+
+	assert(currently_waiting >= amount);
+	currently_waiting -= amount;
+}
+
+
+void haltestelle_t::connection_t::book_average_travel_time(uint32 time, uint32 amount)
+{
+	while (welt->get_zeit_ms() > last_age_time + 1000*round_trip_time) {
+		age_weights();
+	}
+	travel.book_average(time, amount + 1);
+}
+
+
+void haltestelle_t::connection_t::age_weights()
+{
+	travel.age();
+	// take currently waiting into account
+	if(currently_waiting > 0) {
+		waiting.book_average(welt->get_zeit_ms() - waiting_since, currently_waiting);
+	}
+	waiting.age();
+
+	last_age_time += 1000*round_trip_time;
+}
+
+
+void haltestelle_t::connection_t::merge(connection_t &other)
+{
+	waiting.merge(other.waiting);
+	travel.merge(other.travel);
+	add_waiting(other.waiting_since, other.currently_waiting);
+}
+
+
+void haltestelle_t::connection_t::rdwr(loadsave_t *file)
+{
+	uint16 halt_id = halt.get_id();
+	file->rdwr_short(halt_id);
+	halt.set_id(halt_id);
+
+	waiting.rdwr(file);
+	travel.rdwr(file);
+	file->rdwr_long(waiting_since);
+}
+
+
+haltestelle_t::connection_t* haltestelle_t::get_connection(uint8 catg, halthandle_t halt) const
+{
+	vector_tpl<connection_t> & conn = connections[catg];
+	return conn.search_ordered(connection_t(halt), connection_t::compare);
+}
+
+
+void haltestelle_t::add_waiting(uint8 catg, halthandle_t halt, uint32 time, uint32 amount) const
+{
+	if (!halt.is_bound()) {
+		return;
+	}
+	//dbg->message("haltestelle_t::add_waiting", " at %s good %d, %s amount %d", get_name(), catg, halt->get_name(), amount);
+
+	vector_tpl<connection_t> & conn = connections[catg];
+	connection_t *c = conn.search_ordered(connection_t(halt), connection_t::compare);
+	//assert(c);
+	c->add_waiting(time, amount);
+}
+
+
+void haltestelle_t::change_waiting(uint8 catg, halthandle_t halt_from, halthandle_t halt_to, uint32 amount) const
+{
+	if (halt_to == halt_from  ||  amount == 0) {
+		return;
+	}
+	//dbg->message("haltestelle_t::change_waiting", " at %s good %d, from %s to %s amount %d", get_name(), catg, halt_from->get_name(), halt_to->get_name(), amount);
+	vector_tpl<connection_t> & conn = connections[catg];
+	connection_t *c = conn.search_ordered(connection_t(halt_from), connection_t::compare);
+
+	// add to new transfer
+	add_waiting(catg, halt_to, c ? c->waiting_since : welt->get_zeit_ms(), amount);
+
+	// retrieve from old transfer
+	if (c) {
+		assert(c->currently_waiting >= amount );
+		c->currently_waiting -= amount;
+	}
+}
 
 
 void haltestelle_t::laden_abschliessen()
@@ -2545,13 +3065,29 @@ void haltestelle_t::laden_abschliessen()
 			FOR(vector_tpl<ware_t>, & j, *warray) {
 				j.laden_abschliessen(welt, besitzer_p);
 			}
+			vector_tpl<connection_t> & conn = connections[i];
 			// merge identical entries (should only happen with old games)
 			for(unsigned j=0; j<warray->get_count(); j++) {
 				if(  (*warray)[j].menge==0  ) {
 					continue;
 				}
+				// initialize waiting state
+				connection_t *current = conn.search_ordered(connection_t((*warray)[j].get_zwischenziel()), connection_t::compare);
+				if(current) {
+					current->currently_waiting += (*warray)[j].menge;
+				}
+				else {
+					// create new entry
+					connection_t newc((*warray)[j].get_zwischenziel());
+					newc.add_waiting(welt->get_zeit_ms(), (*warray)[j].menge);
+					conn.insert_ordered(newc, connection_t::compare);
+				}
+
+				// merge identical entries (should only happen with old games)
 				for(unsigned k=j+1; k<warray->get_count(); k++) {
 					if(  (*warray)[k].menge>0  &&  (*warray)[j].same_destination( (*warray)[k] )  ) {
+						conn.search_ordered(connection_t((*warray)[j].get_zwischenziel()), connection_t::compare)->currently_waiting += (*warray)[k].menge;
+
 						(*warray)[j].menge += (*warray)[k].menge;
 						(*warray)[k].menge = 0;
 					}

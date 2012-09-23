@@ -168,6 +168,7 @@ void convoi_t::init(karte_t *wl, spieler_t *sp)
 
 	recalc_data_front = true;
 	recalc_data = true;
+	init_record_travel_time();
 }
 
 
@@ -924,6 +925,14 @@ bool convoi_t::drive_to()
 			wait_lock = 25000;
 		}
 		else {
+			// start recording of travel time
+			if (!recording) {
+				halthandle_t halt = haltestelle_t::get_halt(welt,start,get_besitzer());
+				if (halt.is_bound()) {
+					start_record_travel_time(halt);
+				}
+			}
+			// go on
 			vorfahren();
 			return true;
 		}
@@ -1239,6 +1248,13 @@ void convoi_t::new_month()
 			}
 		}
 	}
+
+	// dwachs: correct times for travel time recording
+	if (recording) {
+		if (uint32 offset = welt->get_ticks_offset()) {
+			start_time += offset;
+		}
+	}
 }
 
 
@@ -1376,6 +1392,8 @@ void convoi_t::ziel_erreicht()
 			halt->book(1, HALT_CONVOIS_ARRIVED);
 			state = LOADING;
 			go_on_ticks = WAIT_INFINITE;	// we will eventually wait from now on
+			// end of journey, book average travel time
+			end_record_travel_time(halt);
 		}
 		else {
 			// Neither depot nor station: waypoint
@@ -2288,6 +2306,21 @@ void convoi_t::rdwr(loadsave_t *file)
 		file->rdwr_bool(withdraw);
 	}
 
+	// TODO rdwr travel time information
+	// for old savegames init recording (start recording after first loading attempt)
+	if(file->get_version()<120000) {
+		init_record_travel_time();
+	}
+	else {
+		file->rdwr_bool(recording);
+	}
+	if(recording) {
+		uint16 id = last_halt.get_id();
+		file->rdwr_short(id);
+		last_halt.set_id(id);
+		file->rdwr_long(start_time);
+	}
+
 	if(file->get_version()>=111001) {
 		file->rdwr_long( distance_since_last_stop );
 		file->rdwr_long( sum_speed_limit );
@@ -2468,6 +2501,8 @@ void convoi_t::open_schedule_window( bool show )
 		// TODO: what happens if no client opens the window??
 	}
 	fpl->eingabe_beginnen();
+	// stop recording travel time
+	init_record_travel_time();
 }
 
 /**
@@ -2626,6 +2661,10 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 			v->beladen(halthandle_t());
 		}
 
+	}
+	// record first time when something was loaded
+	if (!recording) {
+		start_record_travel_time(halt);
 	}
 	freight_info_resort |= changed_loading_level;
 	if(  changed_loading_level  ) {
@@ -3444,4 +3483,44 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, sint32 other_speed, si
 	set_tiles_overtaking( 1+n_tiles );
 	other_overtaker->set_tiles_overtaking( -1-(n_tiles*(akt_speed-diff_speed))/akt_speed );
 	return true;
+}
+
+
+void convoi_t::init_record_travel_time()
+{
+	recording = false;
+	last_halt = halthandle_t();
+}
+
+
+void convoi_t::start_record_travel_time(halthandle_t halt)
+{
+	recording = true;
+	last_halt = halt;
+	start_time = welt->get_zeit_ms();
+}
+
+
+void convoi_t::end_record_travel_time(halthandle_t halt)
+{
+	if (!recording) {
+		return;
+	}
+	if (last_halt.is_bound()) {
+		const uint32 travel_time = welt->get_zeit_ms() - start_time;
+		for(uint8 i=0; i<anz_vehikel; i++) {
+			const uint8 catg = fahr[i]->get_fracht_typ()->get_catg_index();
+			const uint32 amount = fahr[i]->get_fracht_max();
+			haltestelle_t::connection_t *conn = last_halt->get_connection(catg, halt);
+			if (conn) {
+				conn->book_average_travel_time(travel_time, amount);
+				// book free capacity as zero waiting time
+				const uint32 free_capacity = amount - fahr[i]->get_fracht_menge();
+				if (free_capacity) {
+					conn->waiting.book_average(0, free_capacity);
+				}
+			}
+		}
+	}
+	recording = false;
 }
