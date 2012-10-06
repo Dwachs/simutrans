@@ -188,17 +188,20 @@ const char* script_vm_t::intern_prepare_call(call_type_t ct, const char* functio
 		sq_pop(job, 2); // array, root table
 	}
 	return err;
+	// stack: closure, root table (1st param)
 }
 
 
 const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool retvalue)
 {
+	// stack: closure, nparams*objects
 	const char* err = NULL;
 	bool suspended = sq_getvmstate(job) == SQ_VMSTATE_SUSPENDED;
 	// queue function call?
 	if (suspended  &&  ct == QUEUE) {
 		intern_queue_call(nparams, retvalue);
 		err = "suspended";
+		// stack: clean
 	}
 	if (suspended) {
 		intern_resume_call();
@@ -241,6 +244,7 @@ const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool 
 
 void script_vm_t::intern_resume_call()
 {
+	// stack: clean
 	// get retvalue flag
 	sq_pushregistrytable(job);
 	sq_pushstring(job, "retvalue", -1);
@@ -276,6 +280,7 @@ void script_vm_t::intern_resume_call()
 
 void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 {
+	// stack: closure, nparams*objects
 	SQInteger res;
 	// queue call: put closure and parameters in array
 	script_api::param<bool>::push(job, retvalue);
@@ -291,11 +296,41 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 	sq_pushstring(job, "queue", -1);
 	res = sq_get(job, -2);
 	// stack: array, registry, queue
-	sq_push(job, -3);
-	res = sq_arrayappend(job, -2);
+	// search queue whether our call is already there
+	sint32 size = sq_getsize(job, -1);
+	bool equal = false;
+	for(sint32 i=0; (i<size) && !equal; i++) {
+		sq_pushinteger(job, i);
+		sq_get(job, -2);
+		// stack: [...], queue[i]
+		sint32 n = sq_getsize(job, -1);
+		if (n != nparams+2) {
+			continue; // different number of arguments
+		}
+		equal = true;
+		for(sint32 j=0; (j<n)  &&  equal; j++) {
+			sq_pushinteger(job, j);
+			sq_get(job, -2);
+			// stack: array, registry, queue, queue[i], queue[i][j]
+			sq_pushinteger(job, j);
+			sq_get(job, -6);
+			equal = sq_cmp(job)==0;
+			sq_pop(job, 2);
+		}
+		sq_poptop(job);
+	}
+	// stack: array, registry, queue
+	if (!equal) {
+		sq_push(job, -3);
+		res = sq_arrayappend(job, -2);
+	}
+	else {
+		dbg->message("script_vm_t::intern_queue_call", "NOT QUEUED stack=%d", sq_gettop(job));
+	}
 	sq_pop(job, 3);
 
 	dbg->message("script_vm_t::intern_queue_call", "stack=%d", sq_gettop(job));
+	// stack: clean
 }
 
 
