@@ -36,7 +36,7 @@ namespace script_api {
 		if (!SQ_SUCCEEDED(push_constructor(vm, classname)) ) {
 			return -1;
 		}
-		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 1, true, false));
+		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 1, true, true));
 		sq_remove(vm, ok ? -2 : -1); // remove closure
 		return ok ? 1 : -1;
 	}
@@ -48,7 +48,7 @@ namespace script_api {
 			return -1;
 		}
 		param<A1>::push(vm, a1);
-		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 2, true, false));
+		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 2, true, true));
 		sq_remove(vm, ok ? -2 : -1); // remove closure
 		return ok ? 1 : -1;
 	}
@@ -61,7 +61,7 @@ namespace script_api {
 		}
 		param<A1>::push(vm, a1);
 		param<A2>::push(vm, a2);
-		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 3, true, false));
+		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 3, true, true));
 		sq_remove(vm, ok ? -2 : -1); // remove closure
 		return ok ? 1 : -1;
 	}
@@ -75,7 +75,7 @@ namespace script_api {
 		param<A1>::push(vm, a1);
 		param<A2>::push(vm, a2);
 		param<A3>::push(vm, a3);
-		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 4, true, false));
+		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 4, true, true));
 		sq_remove(vm, ok ? -2 : -1); // remove closure
 		return ok ? 1 : -1;
 	}
@@ -90,7 +90,7 @@ namespace script_api {
 		param<A2>::push(vm, a2);
 		param<A3>::push(vm, a3);
 		param<A4>::push(vm, a4);
-		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 5, true, false));
+		bool ok = SQ_SUCCEEDED(sq_call_restricted(vm, 5, true, true));
 		sq_remove(vm, ok ? -2 : -1); // remove closure
 		return ok ? 1 : -1;
 	}
