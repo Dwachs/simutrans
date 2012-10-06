@@ -36,30 +36,37 @@ public:
 
 	const char* get_error() const { return error_msg.c_str(); }
 
+	enum call_type_t {
+		FORCE = 1,
+		QUEUE = 2 ,
+		TRY = 3
+	};
+
+	static bool is_call_suspended(const char* err);
 
 #	define prep_function_call() \
-		const char* err = intern_start_function(function); \
+		const char* err = intern_prepare_call(ct, function); \
 		if (err) { \
 			return err; \
 		} \
 		int nparam = 1;
 
 #	define do_function_call() \
-		err = intern_call_function(nparam, true); \
+		err = intern_finish_call(ct, nparam, true); \
 		if (err == NULL) { \
-			ret = script_api::param<R>::get(vm, -1); \
-			sq_poptop(vm); \
+			ret = script_api::param<R>::get(job, -1); \
+			sq_poptop(job); \
 		} \
-		return NULL;
+		return err;
 
 	/**
 	 * calls scripted function
 	 * @param function function name of squirrel function
 	 * @returns error msg (or NULL if succeeded)
 	 */
-	const char* call_function(const char* function) {
+	const char* call_function(call_type_t ct, const char* function) {
 		prep_function_call();
-		return intern_call_function(nparam, false);
+		return intern_finish_call(ct, nparam, false);
 	}
 
 	/**
@@ -71,7 +78,7 @@ public:
 	 * @returns error msg (or NULL if succeeded)
 	 */
 	template<class R>
-	const char* call_function(const char* function, R& ret) {
+	const char* call_function(call_type_t ct, const char* function, R& ret) {
 		prep_function_call();
 		do_function_call();
 	}
@@ -87,38 +94,52 @@ public:
 	 * @returns error msg (or NULL if succeeded)
 	 */
 	template<class R, class A1>
-	const char* call_function(const char* function, R& ret, A1 arg1) {
+	const char* call_function(call_type_t ct, const char* function, R& ret, A1 arg1) {
 		prep_function_call();
-		script_api::param<A1>::push(vm, arg1); nparam++;
+		script_api::param<A1>::push(job, arg1); nparam++;
 		do_function_call();
 	}
 	template<class R, class A1, class A2>
-	const char* call_function(const char* function, R& ret, A1 arg1, A2 arg2) {
+	const char* call_function(call_type_t ct, const char* function, R& ret, A1 arg1, A2 arg2) {
 		prep_function_call();
-		script_api::param<A1>::push(vm, arg1); nparam++;
-		script_api::param<A1>::push(vm, arg2); nparam++;
+		script_api::param<A1>::push(job, arg1); nparam++;
+		script_api::param<A1>::push(job, arg2); nparam++;
 		do_function_call();
 	}
 	template<class R, class A1, class A2, class A3>
-	const char* call_function(const char* function, R& ret, A1 arg1, A2 arg2, A3 arg3) {
+	const char* call_function(call_type_t ct, const char* function, R& ret, A1 arg1, A2 arg2, A3 arg3) {
 		prep_function_call();
-		script_api::param<A1>::push(vm, arg1); nparam++;
-		script_api::param<A2>::push(vm, arg2); nparam++;
-		script_api::param<A3>::push(vm, arg3); nparam++;
+		script_api::param<A1>::push(job, arg1); nparam++;
+		script_api::param<A2>::push(job, arg2); nparam++;
+		script_api::param<A3>::push(job, arg3); nparam++;
 		do_function_call();
 	}
 
 
 private:
+	/// virtual machine running everything
 	HSQUIRRELVM vm;
+
+	/// thread in the virtual machine, used to run functions if vm is suspended
+	HSQUIRRELVM thread;
+
+	/// auxiliary variable, functions run in this machine
+	HSQUIRRELVM job;
+
 
 	plainstring error_msg;
 
 	/// prepare function call, used in templated call_function()
-	const char* intern_start_function(const char* function);
+	const char* intern_prepare_call(call_type_t ct, const char* function);
 
 	/// actually call function, used in templated call_function()
-	const char* intern_call_function(int nparams, bool retvalue);
+	const char* intern_finish_call(call_type_t ct, int nparams, bool retvalue);
+
+	void intern_queue_call(int nparams, bool retvalue);
+	void intern_resume_call();
+	const char* intern_call_function(call_type_t ct, int nparams, bool retvalue);
+	bool intern_prepare_queued(int &nparams, bool &retvalue);
+
 
 	/// custom error handler for compile and runtime errors of squirrel scripts
 	static void errorfunc(HSQUIRRELVM vm, const SQChar *s_,...);

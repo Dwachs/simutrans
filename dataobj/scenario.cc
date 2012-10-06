@@ -80,7 +80,7 @@ const char* scenario_t::init( const char *filename, karte_t *w )
 	plainstring mapfile;
 
 	// load savegame
-	if ((err = script->call_function("get_map_file", mapfile))) {
+	if ((err = script->call_function(script_vm_t::FORCE, "get_map_file", mapfile))) {
 		dbg->warning("scenario_t::init", "error [%s] calling get_map_file", err, filename);
 		return "No scenario map specified";
 	}
@@ -126,7 +126,7 @@ const char* scenario_t::init( const char *filename, karte_t *w )
 	welt->set_scenario(this);
 
 	// now call startup function
-	if ((err = script->call_function("start"))) {
+	if ((err = script->call_function(script_vm_t::QUEUE, "start"))) {
 		dbg->warning("scenario_t::init", "error [%s] calling start", err);
 	}
 
@@ -423,7 +423,7 @@ bool scenario_t::is_tool_allowed(spieler_t* sp, uint16 wkz_id, sint16 wt)
 	// then call script if available
 	if (what_scenario == SCRIPTED) {
 		bool ok = true;
-		const char* err = script->call_function("is_tool_allowed", ok, (uint8)(sp  ?  sp->get_player_nr() : PLAYER_UNOWNED), wkz_id, wt);
+		const char* err = script->call_function(script_vm_t::FORCE, "is_tool_allowed", ok, (uint8)(sp  ?  sp->get_player_nr() : PLAYER_UNOWNED), wkz_id, wt);
 		return err != NULL  ||  ok;
 	}
 
@@ -470,7 +470,7 @@ const char* scenario_t::is_work_allowed_here(spieler_t* sp, uint16 wkz_id, sint1
 	// which is done per client
 	if (what_scenario == SCRIPTED) {
 		static plainstring msg;
-		const char *err = script->call_function("is_work_allowed_here", msg, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED), wkz_id, pos);
+		const char *err = script->call_function(script_vm_t::FORCE, "is_work_allowed_here", msg, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED), wkz_id, pos);
 
 		return err == NULL ? msg.c_str() : NULL;
 	}
@@ -503,7 +503,11 @@ void scenario_t::step()
 		// player exists and has not won/lost yet
 		if (sp  &&  (((won | lost) & mask)==0)) {
 			sint32 percentage = 0;
-			script->call_function("is_scenario_completed", percentage, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
+			const char *err = script->call_function(script_vm_t::QUEUE, "is_scenario_completed", percentage, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
+			// call completed?
+			if (script_vm_t::is_call_suspended(err)) {
+				continue;
+			}
 			// won ?
 			if (percentage >= 100) {
 				new_won |= mask;
@@ -662,7 +666,7 @@ void scenario_t::rdwr(loadsave_t *file)
 
 				rdwr_error = !load_script(script_filename);
 				if (!rdwr_error) {
-					const char* err = script->call_function("resume_game");
+					const char* err = script->call_function(script_vm_t::FORCE, "resume_game");
 					if (err) {
 						dbg->warning("scenario_t::rdwr", "error [%s] calling resume_game", err);
 						rdwr_error = true;
@@ -681,7 +685,7 @@ void scenario_t::rdwr(loadsave_t *file)
 		}
 		else {
 			plainstring str;
-			script->call_function("save", str);
+			script->call_function(script_vm_t::FORCE, "save", str);
 			dbg->warning("scenario_t::rdwr", "write persistent scenario data: %s", str.c_str());
 			file->rdwr_str(str);
 		}
@@ -732,7 +736,8 @@ int scenario_t::completed(int player_nr)
 	sint32 percentage = 0;
 
 	if ( what_scenario == SCRIPTED ) {
-		script->call_function("is_scenario_completed", percentage, pl);
+		script->call_function(script_vm_t::TRY, "is_scenario_completed", percentage, pl);
+		// ignore if call was suspended
 	}
 	else if ( what_scenario == SCRIPTED_NETWORK ) {
 		cbuffer_t buf;

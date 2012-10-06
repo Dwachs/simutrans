@@ -74,8 +74,9 @@ private:
 	/**
 	 * Calls a script
 	 * @param function is the full function call including integer parameters
+	 * @returns true if call was successfull
 	 */
-	static plainstring call_script(const char* function, script_vm_t* script);
+	static bool call_script(const char* function, script_vm_t* script, plainstring& result);
 };
 
 #endif

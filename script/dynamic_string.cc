@@ -16,10 +16,12 @@ void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_updat
 {
 	if (script) {
 		plainstring s;
-		script->call_function(method, s, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
-		if ( s != (const char*)str) {
-			changed = true;
-			str = s;
+		const char* err = script->call_function(script_vm_t::QUEUE, method, s, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
+		if (!script_vm_t::is_call_suspended(err)) {
+			if ( s != (const char*)str) {
+				changed = true;
+				str = s;
+			}
 		}
 	}
 	else {
@@ -82,8 +84,11 @@ const char* dynamic_string::fetch_result(const char* function, script_vm_t *scri
 		if (umgebung_t::server) {
 			// directly call script if at server
 			if (script) {
-				plainstring str = call_script(function, script);
-				record_result(function, str);
+				// TODO catch 'call-suspended'
+				plainstring str;
+				if(call_script(function, script, str)) {
+					record_result(function, str);
+				}
 			}
 		}
 		else {
@@ -145,7 +150,7 @@ static const method_param_t scenario_methods[] = {
 };
 
 
-plainstring dynamic_string::call_script(const char* function, script_vm_t* script)
+bool dynamic_string::call_script(const char* function, script_vm_t* script, plainstring& str)
 {
 	int nparams = -1;
 
@@ -182,22 +187,26 @@ plainstring dynamic_string::call_script(const char* function, script_vm_t* scrip
 			ok = false;
 		}
 	}
-	plainstring str;
+
+	const char *err;
 	if (ok) {
 		switch(nparams) {
 			case 0:
-				script->call_function(method, str);
+				err = script->call_function(script_vm_t::QUEUE, method, str);
 				break;
 			case 1:
-				script->call_function(method, str, params[0]);
+				err = script->call_function(script_vm_t::QUEUE, method, str, params[0]);
 				break;
 			default:
 				assert(0);
+		}
+		if (script_vm_t::is_call_suspended(err)) {
+			ok = false;
 		}
 	}
 
 	// cleanup
 	delete [] method;
 
-	return str;
+	return ok;
 }
