@@ -78,7 +78,7 @@ const char* dynamic_string::fetch_result(const char* function, script_vm_t *scri
 	cached_string_t *entry = cached_results.get(function);
 
 	unsigned long const t = dr_time();
-	bool needs_update = entry == NULL  ||  force_update  ||  (t - entry->time > CACHE_TIME);
+	bool needs_update = entry == NULL  ||  entry->result==NULL  ||  force_update  ||  (t - entry->time > CACHE_TIME);
 
 	if (needs_update) {
 		if (umgebung_t::server) {
