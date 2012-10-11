@@ -16,6 +16,13 @@
 #include "../utils/cbuffer_t.h"
 #include "../utils/plainstring.h"
 
+
+// debug: store stack pointer
+#define BEGIN_STACK_WATCH(v) int stack_top = sq_gettop(v);
+// debug: compare stack pointer with expected stack pointer, raise warning if failure
+#define END_STACK_WATCH(v, delta) if ( (stack_top+(delta)) != sq_gettop(v)) { dbg->warning( __FUNCTION__, "(%d) stack in %d expected %d out %d", __LINE__,stack_top,stack_top+(delta),sq_gettop(v)); }
+
+
 // log file
 static log_t* script_log = NULL;
 // list of active scripts (they share the same log-file, error and print-functions)
@@ -88,8 +95,12 @@ script_vm_t::script_vm_t()
 	sq_pushstring(vm, "thread", -1);
 	thread = sq_newthread(vm, 100);
 	sq_newslot(vm, -3, false);
-	// create queue table
+	// create queue array
 	sq_pushstring(vm, "queue", -1);
+	sq_newarray(vm, 0);
+	sq_newslot(vm, -3, false);
+	// create queued-callbacks array
+	sq_pushstring(vm, "queued_callbacks", -1);
 	sq_newarray(vm, 0);
 	sq_newslot(vm, -3, false);
 	// pop registry
@@ -194,6 +205,7 @@ const char* script_vm_t::intern_prepare_call(call_type_t ct, const char* functio
 
 const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool retvalue)
 {
+	BEGIN_STACK_WATCH(job);
 	// stack: closure, nparams*objects
 	const char* err = NULL;
 	bool suspended = sq_getvmstate(job) == SQ_VMSTATE_SUSPENDED;
@@ -207,11 +219,26 @@ const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool re
 		intern_resume_call();
 	}
 	if (!suspended  ||  ct == FORCE) {
+		// set active callback if call could be suspended
+		if (ct == QUEUE) {
+			intern_make_pending_callback_active();
+		}
+		// mark as not queued
+		sq_pushregistrytable(job);
+		script_api::param<bool>::create_slot(job, "was_queued", false);
+		sq_poptop(job);
+
+		END_STACK_WATCH(job,0);
 		err = intern_call_function(ct, nparams, retvalue);
 	}
 	return err;
 }
 
+/**
+ * Calls function. If it was a queued call, also calls callbacks.
+ * Stack(job): expects closure, nparam*objects, on exit: return value (or clean stack if failure).
+ * @returns NULL on success, error message or "suspended" otherwise.
+ */
 const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool retvalue)
 {
 	dbg->message("script_vm_t::intern_call_function", "start: stack=%d nparams=%d ret=%d", sq_gettop(job), nparams, retvalue);
@@ -224,13 +251,25 @@ const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool 
 	if (sq_getvmstate(job) != SQ_VMSTATE_SUSPENDED) {
 		// remove closure
 		sq_remove(job, retvalue ? -2 : -1);
+		if (ct == QUEUE  &&  retvalue) {
+			// mark as not queued
+			sq_pushregistrytable(job);
+			sq_pushstring(job, "was_queued", -1);
+			sq_get(job, -2);
+			// notify call backs only if call was queued
+			bool notify = script_api::param<bool>::get(job, -1);
+			sq_pop(job, 2);
+
+			if (notify) {
+				intern_call_callbacks();
+			}
+		}
 	}
 	else {
 		// call suspended: pop dummy return value
 		if (retvalue) {
 			sq_poptop(job);
 		}
-		retvalue = false;
 		// save retvalue flag
 		sq_pushregistrytable(job);
 		script_api::param<bool>::create_slot(job, "retvalue", retvalue);
@@ -244,42 +283,64 @@ const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool 
 
 void script_vm_t::intern_resume_call()
 {
+	BEGIN_STACK_WATCH(job);
 	// stack: clean
 	// get retvalue flag
 	sq_pushregistrytable(job);
 	sq_pushstring(job, "retvalue", -1);
-	sq_get(vm, -2);
+	sq_get(job, -2);
 	bool retvalue = script_api::param<bool>::get(job, -1);
 	sq_poptop(job);
 	sq_pushstring(job, "nparams", -1);
-	sq_get(vm, -2);
+	sq_get(job, -2);
 	int nparams = script_api::param<sint32>::get(job, -1);
 	sq_pop(job, 2);
-	// resume vm
+	END_STACK_WATCH(job, 0);
+
+	// resume v.m.
 	if (!SQ_SUCCEEDED(sq_resumevm(job, retvalue))) {
 		retvalue = false;
 	}
 	// if finished, clear stack
 	if (sq_getvmstate(job) != SQ_VMSTATE_SUSPENDED) {
+		BEGIN_STACK_WATCH(job);
 		// remove closure & args
 		for(int i=0; i<nparams+1; i++) {
 			sq_remove(job, retvalue ? -2 : -1);
 		}
 		if (retvalue) {
-			sq_poptop(job); // TODO  do something meaningful with return value
+			intern_call_callbacks();
+			sq_poptop(job);
 		}
 		dbg->message("script_vm_t::intern_resume_call", "in between stack=%d", sq_gettop(job));
+		END_STACK_WATCH(job, -1-nparams-retvalue);
 
 		if (intern_prepare_queued(nparams, retvalue)) {
-			intern_call_function(QUEUE, nparams, retvalue);
+			const char* err = intern_call_function(QUEUE, nparams, retvalue);
+			if (err == NULL  &&  retvalue) {
+				// remove return value: call was queued thus remove return value from stack
+				sq_poptop(job);
+			}
+		}
+	}
+	else {
+		if (retvalue) {
+			sq_poptop(job);
 		}
 	}
 	dbg->message("script_vm_t::intern_resume_call", "stack=%d", sq_gettop(job));
 }
 
-
+/**
+ * Stack(job): expects closure, nparams*objects, clean on exit.
+ * Put call into registry.queue, callback into registry.queued_callbacks.
+ * Cleans registry.pending_callback.
+ * @param nparams number of parameter of the queued call
+ * @param retvalue whether the call would return something
+ */
 void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 {
+	BEGIN_STACK_WATCH(job);
 	// stack: closure, nparams*objects
 	SQInteger res;
 	// queue call: put closure and parameters in array
@@ -308,6 +369,7 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 			continue; // different number of arguments
 		}
 		equal = true;
+		// compare arguments of call (including closure and retvalue)
 		for(sint32 j=0; (j<n)  &&  equal; j++) {
 			sq_pushinteger(job, j);
 			sq_get(job, -2);
@@ -316,6 +378,22 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 			sq_get(job, -6);
 			equal = sq_cmp(job)==0;
 			sq_pop(job, 2);
+			// stack: array, registry, queue, queue[i]
+		}
+		// found identic call
+		// add callback to queue
+		if (equal) {
+			sq_pushstring(job, "queued_callbacks", -1);
+			sq_get(job, -4);
+			sq_pushinteger(job, i);
+			sq_get(job, -2);
+			// stack: array, registry, queue, queue[i], queued_callbacks, queued_callbacks[i]
+			sq_pushstring(job, "pending_callback", -1);
+			// delete pending_callback slot and push it
+			if (SQ_SUCCEEDED( sq_deleteslot(job, -6, true) )) {
+				sq_arrayappend(job, -2);
+			}
+			sq_pop(job, 2);
 		}
 		sq_poptop(job);
 	}
@@ -323,27 +401,46 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 	if (!equal) {
 		sq_push(job, -3);
 		res = sq_arrayappend(job, -2);
+		// add callback to queue
+		sq_pushstring(job, "queued_callbacks", -1);
+		sq_get(job, -3);
+		sq_newarray(job, 10);
+		// stack: array, registry, queue, queued_callbacks, queued_callbacks[end]
+		sq_pushstring(job, "pending_callback", -1);
+		// delete pending_callback slot and push it
+		if (SQ_SUCCEEDED( sq_deleteslot(job, -5, true) )) {
+			sq_arrayappend(job, -2);
+		}
+		sq_arrayappend(job, -2);
+		sq_poptop(job);
 	}
 	else {
 		dbg->message("script_vm_t::intern_queue_call", "NOT QUEUED stack=%d", sq_gettop(job));
 	}
 	sq_pop(job, 3);
 
+	END_STACK_WATCH(job, -nparams-1);
 	dbg->message("script_vm_t::intern_queue_call", "stack=%d", sq_gettop(job));
 	// stack: clean
 }
 
-
+/**
+ * Removes queue(0) and puts it on stack.
+ * Activates callback by intern_make_queued_callback_active().
+ * Stack(job): on success - closure, nparams*objects, on failure - unchanged.
+ * @param nparams number of parameters of the call on the stack
+ * @param retvalue whether queued call returns something
+ * @returns true if a new queued call is on the stack
+ */
 bool script_vm_t::intern_prepare_queued(int &nparams, bool &retvalue)
 {
-	SQInteger res;
+	BEGIN_STACK_WATCH(job);
 	// queued calls
 	sq_pushregistrytable(job);
 	sq_pushstring(job, "queue", -1);
-	res = sq_get(job, -2);
+	sq_get(job, -2);
 	sq_pushinteger(job, 0);
-	res = sq_get(job, -2);
-	if (SQ_SUCCEEDED(res)) {
+	if (SQ_SUCCEEDED(sq_get(job, -2))) {
 		// there are suspended jobs
 		// stack: registry, queue, array[ retvalue nparams*objects closure]
 		nparams = -2;
@@ -353,16 +450,181 @@ bool script_vm_t::intern_prepare_queued(int &nparams, bool &retvalue)
 		retvalue = script_api::param<bool>::get(job, -1);
 		sq_poptop(job);
 
+		intern_make_queued_callback_active();
 		// stack: registry, queue, array, closure, nparams*objects
+		END_STACK_WATCH(job, nparams+4);
+		// mark this call as queued
+		sq_pushstring(job, "was_queued", -1);
+		script_api::param<bool>::push(job, true);
+		sq_createslot(job, -6-nparams);
+		// cleanup
 		sq_remove(job, -2-nparams);
 		sq_arrayremove(job, -2-nparams, 0);
 		sq_remove(job, -2-nparams);
 		sq_remove(job, -2-nparams);
 		// stack: closure, nparams*objects
 		dbg->message("script_vm_t::intern_prepare_queued", "stack=%d nparams=%d ret=%d", sq_gettop(job), nparams, retvalue);
+
+		END_STACK_WATCH(job, nparams+1);
 		return true;
 	}
+	else {
+		// no suspended jobs: clean stack
+		sq_pop(job, 2);
+	}
+	END_STACK_WATCH(job, 0);
 	return false;
 }
 
 
+/**
+ * Prepare function call.
+ * Stack(vm): pushes registry, nret, closure, root.
+ */
+bool script_vm_t::intern_prepare_pending_callback(const char* function, sint32 nret)
+{
+	BEGIN_STACK_WATCH(vm);
+	sq_pushregistrytable(vm);
+	script_api::param<sint32>::push(vm, nret+1); // +1 to account for root table
+	sq_pushstring(vm, function, -1);
+	bool ok = SQ_SUCCEEDED(sq_get(vm, -3));
+	if (ok) {
+		// stack: registry, nret, closure, root
+		sq_pushroottable(vm);
+	}
+	else {
+		// stack: clear
+		sq_pop(vm, 2);
+	}
+	END_STACK_WATCH(vm, ok ? 4 : 0);
+	return ok;
+}
+
+/**
+ * Sets registry.pending_callback.
+ * Stack(vm): expects registry, nret, closure, nparams*objects; clears upon exit.
+ */
+void script_vm_t::intern_store_pending_callback(sint32 nparams)
+{
+	BEGIN_STACK_WATCH(vm);
+	// stack: registry, nret, closure, nparams*objects
+	// put closure and parameters in array
+	sq_newarray(vm, 0);
+	// stack: registry, nret, closure, nparams*objects, array
+	for(int i=0; i<nparams+2; i++) {
+		sq_push(vm, -2);
+		sq_arrayappend(vm, -2);
+		sq_remove(vm, -2);
+	}
+	// stack: registry, array
+	sq_pushstring(vm, "pending_callback", -1);
+	sq_push(vm, -2);
+	// stack: registry, array, string, array
+	sq_createslot(vm, -4);
+	sq_pop(vm, 2);
+	END_STACK_WATCH(vm,-nparams-3);
+}
+
+/**
+ * Deletes registry.pending_callback.
+ * Stack(vm): unchanged
+ */
+void script_vm_t::clear_pending_callback()
+{
+	sq_pushregistrytable(vm);
+	sq_pushstring(vm, "pending_callback", -1);
+	sq_deleteslot(vm, -1, false);
+	sq_poptop(vm);
+}
+
+/**
+ * Sets registry.active_callbacks.
+ * Deletes registry.queued_callbacks[0].
+ * Stack(vm) unchanged.
+ */
+void script_vm_t::intern_make_queued_callback_active()
+{
+	BEGIN_STACK_WATCH(vm);
+	sq_pushregistrytable(vm);
+	sq_pushstring(vm, "queued_callbacks", -1);
+	sq_get(vm, -2);
+	sq_pushstring(vm, "active_callbacks", -1);
+	sq_pushinteger(vm, 0);
+	if (SQ_SUCCEEDED(sq_get(vm, -3))) {
+		// stack: registry, queued_callbacks, "..", queued_callbacks[0]
+		// active_callbacks = queued_callbacks[0]
+		sq_createslot(vm, -4);
+		// remove queued_callbacks[0]
+		sq_arrayremove(vm, -1, 0);
+	}
+	else {
+		sq_poptop(vm);
+	}
+	sq_pop(vm,2);
+	END_STACK_WATCH(vm,0);
+}
+
+/**
+ * Sets registry.active_callbacks.
+ * Deletes registry.pending_callback.
+ * Stack(vm) unchanged.
+ */
+void script_vm_t::intern_make_pending_callback_active()
+{
+	BEGIN_STACK_WATCH(vm);
+	sq_pushregistrytable(vm);
+	sq_pushstring(vm, "active_callbacks", -1);
+	sq_pushstring(vm, "pending_callback", -1);
+	if (SQ_SUCCEEDED( sq_deleteslot(vm, -3, true) ) ) {
+		// stack: registry, "..", pending_callback
+		sq_createslot(vm, -3);
+	}
+	else {
+		// delete active_callbacks slot
+		sq_deleteslot(vm, -2, false);
+	}
+	sq_poptop(vm);
+	END_STACK_WATCH(vm,0);
+}
+
+/**
+ *
+ *
+ * Stack(job): return value, unchanged
+ */
+void script_vm_t::intern_call_callbacks()
+{
+	BEGIN_STACK_WATCH(job);
+	sq_pushregistrytable(job);
+	sq_pushstring(job, "active_callbacks", -1);
+	if (SQ_SUCCEEDED( sq_deleteslot(job, -2, true) ) ) {
+		BEGIN_STACK_WATCH(job);
+		if (SQ_SUCCEEDED( sq_arraypop(job, -1, true))) {
+			if (SQ_SUCCEEDED(sq_arraypop(job, -1, true))) {
+				sint32 nret = script_api::param<sint32>::get(job, -1);
+				sq_poptop(job);
+				BEGIN_STACK_WATCH(job);
+				// stack: retval, registry, active_cb, active_cb[end]=array[ nparams*objects closure]
+				int nparams = -1;
+				while( SQ_SUCCEEDED(sq_arraypop(job, -2-nparams, true))) {
+					nparams++;
+					// replace parameter by return value
+					if (nret > 0  &&  nret == nparams) {
+						sq_poptop(job);
+						sq_push(job, -4-nparams);
+					}
+				}
+				// stack: retval, registry, active_cb, active_cb[end], closure, nparams*objects
+				sq_call_restricted(job, nparams, false, true, 100);
+				// remove closure and finished callback
+				sq_pop(job, 1);
+				END_STACK_WATCH(job,0);
+			}
+			sq_poptop(job);
+		}
+		END_STACK_WATCH(job,0);
+		sq_poptop(job);
+	}
+	sq_poptop(job);
+	END_STACK_WATCH(job,0);
+}

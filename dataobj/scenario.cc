@@ -155,6 +155,13 @@ bool scenario_t::load_script(const char* filename)
 	}
 	register_export_function(script->get_vm(), welt);
 
+	// init strings
+	dynamic_string::init(script);
+	// register callback
+	if (umgebung_t::server) {
+		nwc_scenario_t::init(script);
+	}
+
 	// load scenario definition
 	err = script->call_script(filename);
 	if (err) {
