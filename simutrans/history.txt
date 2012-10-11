@@ -10,6 +10,8 @@
 	CHG: number of factories in new world dialog is now indeed the total number of factories (too many newbe mistakes here)
 	ADD: force a minimum distance between city attractions
 	ADD: Drag stops
+	CHG: reduced memory consumption when compiled with COLOUR_DEPTH=0, no copies of object images kept in memory
+	ADD: ctrl-click with link-factory tool actually removes links between factories
 
 
 Release of 111.3.1 (r5843 on 31-Jul-2012):
@@ -45,6 +47,7 @@ Release of 111.3 (r5772 on 10-Jun-2012):
 	CHG: Only founding a city when account is positive
 	CHG: powerlines will connect in directions a powerline can be build on a tile
 	ADD: threaded (but with graphic errors) tile redraw will by used automatically when fps too low
+	FIX: AI used wrong factories for bulding chains and build too long routes
 
 
 Release of 111.2.2 (r5583 on 20-Mar-2012):

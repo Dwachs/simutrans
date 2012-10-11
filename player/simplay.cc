@@ -130,7 +130,7 @@ spieler_t::~spieler_t()
 	while(  !messages.empty()  ) {
 		delete messages.remove_first();
 	}
-	destroy_win( (long)this );
+	destroy_win((ptrdiff_t)this);
 }
 
 
@@ -971,11 +971,11 @@ void spieler_t::add_maintenance(spieler_t *sp, sint32 change)
 {
 	if(sp) {
 #if MULTI_THREAD>1
-		pthread_mutex_lock( &laden_abschl_mutex  );
+		pthread_mutex_lock( &laden_abschl_mutex );
 #endif
 		sp->maintenance += change;
 #if MULTI_THREAD>1
-		pthread_mutex_unlock( &laden_abschl_mutex  );
+		pthread_mutex_unlock( &laden_abschl_mutex );
 #endif
 	}
 }

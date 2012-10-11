@@ -173,8 +173,9 @@ bool baum_t::plant_tree_on_coordinate(karte_t * welt, koord pos, const baum_besc
 				}
 			}
 			baum_t *b = new baum_t(welt, gr->get_pos(), besch); //plants the tree
-			if(random_age) {
-				b->geburt = welt->get_current_month() - simrand(400);
+			if(  random_age  ) {
+				b->geburt = welt->get_current_month() - simrand(703);
+				b->calc_off( welt->lookup( b->get_pos() )->get_grund_hang() );
 			}
 			gr->obj_add( b );
 			return true; //tree was planted - currently unused value is not checked
@@ -530,7 +531,6 @@ bool baum_t::check_season(long month)
 }
 
 
-
 void baum_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t d( file, "baum_t" );
@@ -597,7 +597,6 @@ void baum_t::zeige_info()
 }
 
 
-
 /**
  * @return Einen Beschreibungsstring für das Objekt, der z.B. in einem
  * Beobachtungsfenster angezeigt wird.
@@ -614,7 +613,6 @@ void baum_t::info(cbuffer_t & buf) const
 }
 
 
-
 void baum_t::entferne(spieler_t *sp)
 {
 	spieler_t::accounting(sp, welt->get_settings().cst_remove_tree, get_pos().get_2d(), COST_CONSTRUCTION);
@@ -622,12 +620,10 @@ void baum_t::entferne(spieler_t *sp)
 }
 
 
-
 void *baum_t::operator new(size_t /*s*/)
 {
 	return freelist_t::gimme_node(sizeof(baum_t));
 }
-
 
 
 void baum_t::operator delete(void *p)

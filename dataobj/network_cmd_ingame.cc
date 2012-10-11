@@ -968,6 +968,25 @@ network_broadcast_world_command_t* nwc_tool_t::clone(karte_t *welt)
 			dbg->warning("nwc_tool_t::clone", "wanted to execute(%d) from another world", get_id());
 			return NULL; // indicate failure
 		}
+		// do not open dialog windows across network
+		if (wkz_id & DIALOGE_TOOL) {
+			return NULL; // indicate failure
+		}
+		// check for map editor tools - they need unlocked public player
+		switch( wkz_id ) {
+			case WKZ_CHANGE_CITY_SIZE | GENERAL_TOOL:
+			case WKZ_BUILD_HAUS | GENERAL_TOOL:
+			case WKZ_LAND_CHAIN | GENERAL_TOOL:
+			case WKZ_CITY_CHAIN | GENERAL_TOOL:
+			case WKZ_BUILD_FACTORY | GENERAL_TOOL:
+			case WKZ_LINK_FACTORY | GENERAL_TOOL:
+			case WKZ_ADD_CITYCAR | GENERAL_TOOL:
+			case WKZ_INCREASE_INDUSTRY | SIMPLE_TOOL:
+			case WKZ_STEP_YEAR | SIMPLE_TOOL:
+			case WKZ_FILL_TREES | SIMPLE_TOOL:
+				player_nr = 1;
+			default: ;
+		}
 		if ( player_nr < PLAYER_UNOWNED  &&  !socket_list_t::get_client(our_client_id).is_player_unlocked(player_nr) ) {
 			if (wkz_id == (WKZ_ADD_MESSAGE_TOOL|SIMPLE_TOOL)) {
 				player_nr = PLAYER_UNOWNED;
@@ -1063,12 +1082,12 @@ void nwc_tool_t::tool_node_t::set_tool(werkzeug_t *wkz_) {
 }
 
 
-void nwc_tool_t::tool_node_t::client_set_werkzeug(werkzeug_t* &wkz_new, const char* new_param, bool store, karte_t *welt, spieler_t *sp)
+void nwc_tool_t::tool_node_t::client_set_werkzeug(werkzeug_t* &wkz_new, const char* new_param, karte_t *welt, spieler_t *sp)
 {
 	assert(wkz_new);
 	// call init, before calling work
 	wkz_new->set_default_param(new_param);
-	if (wkz_new->init(welt, sp)  ||  store) {
+	if (wkz_new->init(welt, sp)) {
 		// exit old tool
 		if (wkz) {
 			wkz->exit(welt, sp);
@@ -1125,7 +1144,7 @@ void nwc_tool_t::do_command(karte_t *welt)
 				// init command was not sent if wkz->is_init_network_safe() returned true
 				wkz->flags = 0;
 				// init tool and set default_param
-				tool_node->client_set_werkzeug(wkz, default_param, true, welt, sp);
+				tool_node->client_set_werkzeug(wkz, default_param, welt, sp);
 			}
 		}
 
@@ -1144,7 +1163,7 @@ void nwc_tool_t::do_command(karte_t *welt)
 			if(  init  ) {
 				// we should be here only if wkz->init() returns false
 				// no need to change active tool of world
-				tool_node->client_set_werkzeug(wkz, default_param, false, welt, sp);
+				tool_node->client_set_werkzeug(wkz, default_param, welt, sp);
 			}
 			// call WORK
 			else {
