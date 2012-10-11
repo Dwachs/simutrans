@@ -808,6 +808,7 @@ SQRESULT sq_deleteslot(HSQUIRRELVM v,SQInteger idx,SQBool pushval)
 	if(type(key) == OT_NULL) return sq_throwerror(v, _SC("null is not a valid key"));
 	SQObjectPtr res;
 	if(!v->DeleteSlot(*self, key, res)){
+		v->Pop();
 		return SQ_ERROR;
 	}
 	if(pushval)	v->GetUp(-1) = res;
