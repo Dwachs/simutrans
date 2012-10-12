@@ -241,6 +241,7 @@ const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool re
  */
 const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool retvalue)
 {
+	BEGIN_STACK_WATCH(job);
 	dbg->message("script_vm_t::intern_call_function", "start: stack=%d nparams=%d ret=%d", sq_gettop(job), nparams, retvalue);
 	const char* err = NULL;
 	// call the script
@@ -264,6 +265,7 @@ const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool 
 				intern_call_callbacks();
 			}
 		}
+		END_STACK_WATCH(job, -nparams-1 + retvalue);
 	}
 	else {
 		// call suspended: pop dummy return value
@@ -531,10 +533,13 @@ void script_vm_t::intern_store_pending_callback(sint32 nparams)
  */
 void script_vm_t::clear_pending_callback()
 {
+	BEGIN_STACK_WATCH(vm);
+
 	sq_pushregistrytable(vm);
 	sq_pushstring(vm, "pending_callback", -1);
-	sq_deleteslot(vm, -1, false);
+	sq_deleteslot(vm, -2, false);
 	sq_poptop(vm);
+	END_STACK_WATCH(vm,0);
 }
 
 /**
