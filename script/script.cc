@@ -299,34 +299,51 @@ void script_vm_t::intern_resume_call()
 	sq_pop(job, 2);
 	END_STACK_WATCH(job, 0);
 
+	// vm suspended, but not from call to our methods
+	if (nparams < 0) {
+		retvalue = false;
+	}
+
 	// resume v.m.
 	if (!SQ_SUCCEEDED(sq_resumevm(job, retvalue))) {
 		retvalue = false;
 	}
 	// if finished, clear stack
 	if (sq_getvmstate(job) != SQ_VMSTATE_SUSPENDED) {
-		BEGIN_STACK_WATCH(job);
-		// remove closure & args
-		for(int i=0; i<nparams+1; i++) {
-			sq_remove(job, retvalue ? -2 : -1);
-		}
-		if (retvalue) {
-			intern_call_callbacks();
-			sq_poptop(job);
-		}
-		dbg->message("script_vm_t::intern_resume_call", "in between stack=%d", sq_gettop(job));
-		END_STACK_WATCH(job, -1-nparams-retvalue);
 
-		if (intern_prepare_queued(nparams, retvalue)) {
-			const char* err = intern_call_function(QUEUE, nparams, retvalue);
-			if (err == NULL  &&  retvalue) {
-				// remove return value: call was queued thus remove return value from stack
+		if (nparams >=0 ) {
+			BEGIN_STACK_WATCH(job);
+			// remove closure & args
+			for(int i=0; i<nparams+1; i++) {
+				sq_remove(job, retvalue ? -2 : -1);
+			}
+			if (retvalue) {
+				intern_call_callbacks();
 				sq_poptop(job);
 			}
+			dbg->message("script_vm_t::intern_resume_call", "in between stack=%d", sq_gettop(job));
+			END_STACK_WATCH(job, -1-nparams-retvalue);
 		}
+		else {
+			// brute force clean stack
+			sq_settop(job, 0);
+		}
+
+		// make nparams invalid
+		sq_pushregistrytable(job);
+		script_api::param<sint32>::create_slot(job, "nparams", -1);
+		sq_poptop(job);
 	}
 	else {
 		if (retvalue) {
+			sq_poptop(job);
+		}
+	}
+
+	if (intern_prepare_queued(nparams, retvalue)) {
+		const char* err = intern_call_function(QUEUE, nparams, retvalue);
+		if (err == NULL  &&  retvalue) {
+			// remove return value: call was queued thus remove return value from stack
 			sq_poptop(job);
 		}
 	}
