@@ -176,8 +176,9 @@ public:
 	SQInteger _suspended_target;
 	SQInteger _suspended_traps;
 
-	SQInteger _ops_remaining;
-	bool _throw_if_no_ops;
+	SQInteger _ops_remaining;    /// number of ops the vm can do till break (matters only if _check_ops is true)
+	bool _check_ops;             /// do ops counting? default: false
+	bool _throw_if_no_ops;       /// is no-ops an error or can call suspended? (matters only if _check_ops is true)
 	bool _error_handler_called;
 };
 

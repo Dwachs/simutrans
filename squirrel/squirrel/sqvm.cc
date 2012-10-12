@@ -123,6 +123,7 @@ SQVM::SQVM(SQSharedState *ss)
 	INIT_CHAIN();ADD_TO_CHAIN(&_ss(this)->_gc_chain,this);
 	_ops_remaining = 0;
 	_throw_if_no_ops = false;
+	_check_ops = false;
 }
 
 void SQVM::Finalize()
@@ -701,18 +702,20 @@ exception_restore:
 	{
 		for(;;)
 		{
-			_ops_remaining --;
-			if (_ops_remaining < 0) {
-				if (_throw_if_no_ops) {
-					Raise_Error(_SC("script took too long") );
-					SQ_THROW();
-				}
-				else {
-					_suspended = SQTrue;
-					_suspended_root = ci->_root;
-					_suspended_traps = traps;
-					_suspended_target = -1;
-					return true;
+			if (_check_ops) {
+				_ops_remaining --;
+				if (_ops_remaining < 0) {
+					if (_throw_if_no_ops) {
+						Raise_Error(_SC("script took too long") );
+						SQ_THROW();
+					}
+					else {
+						_suspended = SQTrue;
+						_suspended_root = ci->_root;
+						_suspended_traps = traps;
+						_suspended_target = -1;
+						return true;
+					}
 				}
 			}
 			const SQInstruction &_i_ = *ci->_ip++;
