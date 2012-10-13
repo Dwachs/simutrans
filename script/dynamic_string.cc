@@ -12,6 +12,16 @@
 #include "../utils/simstring.h"
 
 
+struct cached_string_t {
+	plainstring result;
+	unsigned long time;
+	dynamic_string *listener;
+	cached_string_t(const char* str, long t, dynamic_string *l) : result(str), time(t), listener(l) {}
+};
+
+static plainstringhashtable_tpl<cached_string_t*> cached_results;
+
+
 void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_update)
 {
 	// generate function string
@@ -23,7 +33,18 @@ void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_updat
 
 		plainstring s;
 		const char* err = script->call_function(script_vm_t::QUEUE, method, s, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
-		if (!script_vm_t::is_call_suspended(err)) {
+
+		if (script_vm_t::is_call_suspended(err)) {
+			// activate listener
+			cached_string_t *entry = cached_results.get((const char*)buf);
+			if (entry == NULL) {
+				cached_results.set((const char*)buf, new cached_string_t(NULL, dr_time(), this));
+			}
+			else {
+				entry->listener = this;
+			}
+		}
+		else {
 			if ( s != (const char*)str) {
 				changed = true;
 				str = s;
@@ -48,15 +69,6 @@ void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_updat
 
 
 unsigned long const CACHE_TIME = 30000; // 30s
-
-struct cached_string_t {
-	plainstring result;
-	unsigned long time;
-	dynamic_string *listener;
-	cached_string_t(const char* str, long t, dynamic_string *l) : result(str), time(t), listener(l) {}
-};
-
-static plainstringhashtable_tpl<cached_string_t*> cached_results;
 
 
 dynamic_string::~dynamic_string()
