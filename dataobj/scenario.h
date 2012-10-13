@@ -231,11 +231,22 @@ public:
 	bool is_scripted() const { return what_scenario == SCRIPTED  ||  what_scenario == SCRIPTED_NETWORK; }
 
 	/**
+	 * Returns percentage of scenario completion.
+	 * @param player_nr player
 	 * @returns percentage of scenario completion:
 	 * if >= 100 then scenario is won
 	 * if < 0 then scenario is lost
 	 */
-	int completed(int player_nr);
+	sint32 get_completed(int player_nr);
+
+	/**
+	 * Sets percentage of scenario completion. Used as callback if script call got suspended.
+	 * @param player_nr player
+	 * @returns percentage of scenario completion
+	 * @returns dummy return value
+	 */
+	bool set_completed(sint32 player_nr, sint32 percentage);
+
 
 	void rotate90(const sint16 y_size);
 
