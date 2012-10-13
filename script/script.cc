@@ -333,6 +333,15 @@ void script_vm_t::intern_resume_call()
 		sq_pushregistrytable(job);
 		script_api::param<sint32>::create_slot(job, "nparams", -1);
 		sq_poptop(job);
+
+		// proceed with next call in queue
+		if (intern_prepare_queued(nparams, retvalue)) {
+			const char* err = intern_call_function(QUEUE, nparams, retvalue);
+			if (err == NULL  &&  retvalue) {
+				// remove return value: call was queued thus remove return value from stack
+				sq_poptop(job);
+			}
+		}
 	}
 	else {
 		if (retvalue) {
@@ -340,13 +349,6 @@ void script_vm_t::intern_resume_call()
 		}
 	}
 
-	if (intern_prepare_queued(nparams, retvalue)) {
-		const char* err = intern_call_function(QUEUE, nparams, retvalue);
-		if (err == NULL  &&  retvalue) {
-			// remove return value: call was queued thus remove return value from stack
-			sq_poptop(job);
-		}
-	}
 	dbg->message("script_vm_t::intern_resume_call", "stack=%d", sq_gettop(job));
 }
 
