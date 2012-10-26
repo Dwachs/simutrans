@@ -122,8 +122,10 @@ SQVM::SQVM(SQSharedState *ss)
 	ci = NULL;
 	INIT_CHAIN();ADD_TO_CHAIN(&_ss(this)->_gc_chain,this);
 	_ops_remaining = 0;
-	_throw_if_no_ops = false;
-	_check_ops = false;
+	_ops_default_increase = 10000;
+	_throw_if_no_ops = true;
+	_ops_increased = false;
+	_error_handler_called = false;
 }
 
 void SQVM::Finalize()
@@ -664,7 +666,7 @@ bool SQVM::IsFalse(SQObjectPtr &o)
 	return false;
 }
 
-bool SQVM::Execute(SQObjectPtr &closure, SQInteger nargs, SQInteger stackbase,SQObjectPtr &outres, SQBool raiseerror,ExecutionType et)
+bool SQVM::Execute(SQObjectPtr &closure, SQInteger nargs, SQInteger stackbase,SQObjectPtr &outres, SQBool raiseerror,ExecutionType et, SQBool can_suspend)
 {
 	if ((_nnativecalls + 1) > MAX_NATIVE_CALLS) { Raise_Error(_SC("Native stack overflow")); return false; }
 	_nnativecalls++;
@@ -697,27 +699,30 @@ bool SQVM::Execute(SQObjectPtr &closure, SQInteger nargs, SQInteger stackbase,SQ
 			break;
 	}
 
+	if (!can_suspend  &&  _nnativecalls == 1) {
+		_ops_remaining = _ops_remaining < 3*_ops_default_increase ? _ops_remaining+_ops_default_increase : 4*_ops_default_increase;
+	}
+
 exception_restore:
 	//
 	{
 		for(;;)
 		{
-			if (_check_ops) {
-				_ops_remaining --;
-				if (_ops_remaining < 0) {
-					if (_throw_if_no_ops) {
-						Raise_Error(_SC("script took too long") );
-						SQ_THROW();
-					}
-					else {
-						_suspended = SQTrue;
-						_suspended_root = ci->_root;
-						_suspended_traps = traps;
-						_suspended_target = -1;
-						return true;
-					}
+			_ops_remaining --;
+			if (_ops_remaining < 0) {
+				if (_throw_if_no_ops  ||  !can_suspend) {
+					Raise_Error(_SC("script took too long") );
+					SQ_THROW();
+				}
+				else {
+					_suspended = SQTrue;
+					_suspended_root = ci->_root;
+					_suspended_traps = traps;
+					_suspended_target = -1;
+					return true;
 				}
 			}
+
 			const SQInstruction &_i_ = *ci->_ip++;
 			//dumpstack(_stackbase);
 			//scprintf("\n[%d] %s %d %d %d %d\n",ci->_ip-ci->_iv->_vals,g_InstrDesc[_i_.op].name,arg0,arg1,arg2,arg3);
@@ -1542,14 +1547,14 @@ bool SQVM::DeleteSlot(const SQObjectPtr &self,const SQObjectPtr &key,SQObjectPtr
 	return true;
 }
 
-bool SQVM::Call(SQObjectPtr &closure,SQInteger nparams,SQInteger stackbase,SQObjectPtr &outres,SQBool raiseerror)
+bool SQVM::Call(SQObjectPtr &closure,SQInteger nparams,SQInteger stackbase,SQObjectPtr &outres,SQBool raiseerror, SQBool can_suspend)
 {
 #ifdef _DEBUG
 SQInteger prevstackbase = _stackbase;
 #endif
 	switch(type(closure)) {
 	case OT_CLOSURE:
-		return Execute(closure, nparams, stackbase, outres, raiseerror);
+		return Execute(closure, nparams, stackbase, outres, raiseerror, ET_CALL, can_suspend);
 		break;
 	case OT_NATIVECLOSURE:{
 		bool suspend;

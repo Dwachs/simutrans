@@ -1089,7 +1089,8 @@ SQRESULT sq_call(HSQUIRRELVM v,SQInteger params,SQBool retval,SQBool raiseerror)
 		v->Pop(params);//pop closure and args
 		return sq_throwerror(v,_SC("script took to long"));
 	}
-	if(v->Call(v->GetUp(-(params+1)),params,v->_top-params,res,raiseerror?true:false)){
+	// we correctly handle case that vm is suspended -> provide can_suspend == true
+	if(v->Call(v->GetUp(-(params+1)),params,v->_top-params,res,raiseerror?true:false, true /*can suspend*/)){
 
 		if(!v->_suspended) {
 			v->Pop(params);//pop closure and args

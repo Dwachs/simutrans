@@ -54,14 +54,15 @@ public:
 	SQVM(SQSharedState *ss);
 	~SQVM();
 	bool Init(SQVM *friendvm, SQInteger stacksize);
-	bool Execute(SQObjectPtr &func, SQInteger nargs, SQInteger stackbase, SQObjectPtr &outres, SQBool raiseerror, ExecutionType et = ET_CALL);
+	bool Execute(SQObjectPtr &func, SQInteger nargs, SQInteger stackbase, SQObjectPtr &outres, SQBool raiseerror, ExecutionType et = ET_CALL, SQBool can_suspend = false);
 	//starts a native call return when the NATIVE closure returns
 	bool CallNative(SQNativeClosure *nclosure, SQInteger nargs, SQInteger newbase, SQObjectPtr &retval,bool &suspend);
 	//starts a SQUIRREL call in the same "Execution loop"
 	bool StartCall(SQClosure *closure, SQInteger target, SQInteger nargs, SQInteger stackbase, bool tailcall);
 	bool CreateClassInstance(SQClass *theclass, SQObjectPtr &inst, SQObjectPtr &constructor);
 	//call a generic closure pure SQUIRREL or NATIVE
-	bool Call(SQObjectPtr &closure, SQInteger nparams, SQInteger stackbase, SQObjectPtr &outres,SQBool raiseerror);
+	// @param can_suspend is by default FALSE, only set it to true if you handle the case that vm is suspended after call.
+	bool Call(SQObjectPtr &closure, SQInteger nparams, SQInteger stackbase, SQObjectPtr &outres,SQBool raiseerror, SQBool can_suspend = false);
 	SQRESULT Suspend();
 
 	void CallDebugHook(SQInteger type,SQInteger forcedline=0);
@@ -176,9 +177,10 @@ public:
 	SQInteger _suspended_target;
 	SQInteger _suspended_traps;
 
-	SQInteger _ops_remaining;    /// number of ops the vm can do till break (matters only if _check_ops is true)
-	bool _check_ops;             /// do ops counting? default: false
-	bool _throw_if_no_ops;       /// is no-ops an error or can call suspended? (matters only if _check_ops is true)
+	SQInteger _ops_remaining;    /// number of ops the vm can do till break
+	SQInteger _ops_default_increase; /// default increment for _ops_remaining for pure native calls
+	bool _ops_increased;         /// _ops_remaining increased when Execute was called?
+	bool _throw_if_no_ops;       /// is no-ops an error or can call suspended? default: true
 	bool _error_handler_called;
 };
 

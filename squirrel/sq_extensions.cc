@@ -20,10 +20,11 @@ SQRESULT sq_call_restricted(HSQUIRRELVM v, SQInteger params, SQBool retval, SQBo
 		v->_ops_remaining += ops;
 	}
 	v->_throw_if_no_ops = throw_if_no_ops;
-	v->_check_ops = true;
+	v->_ops_increased   = true;
 
 	SQRESULT ret = sq_call(v, params, retval, true /*raise_error*/);
-	v->_check_ops = false;
+	v->_throw_if_no_ops = true;
+	v->_ops_increased   = false;
 	return ret;
 }
 
@@ -33,9 +34,10 @@ SQRESULT sq_resumevm(HSQUIRRELVM v, SQBool retval, SQInteger ops)
 		v->_ops_remaining += ops;
 	}
 	v->_throw_if_no_ops = false;
-	v->_check_ops = true;
+	v->_ops_increased   = true;
 
 	SQRESULT ret = sq_wakeupvm(v, false, retval, true /*raise_error*/, false);
-	v->_check_ops = false;
+	v->_throw_if_no_ops = true;
+	v->_ops_increased   = false;
 	return ret;
 }
