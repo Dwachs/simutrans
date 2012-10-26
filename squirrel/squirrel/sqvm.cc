@@ -496,12 +496,12 @@ bool SQVM::DerefInc(SQInteger op,SQObjectPtr &target, SQObjectPtr &self, SQObjec
 }
 
 #define arg0 (_i_._arg0)
-#define sarg0 ((SQInteger)*((signed char *)&_i_._arg0))
+#define sarg0 ((const SQInteger)*((const signed char *)&_i_._arg0))
 #define arg1 (_i_._arg1)
 #define sarg1 (*((const SQInt32 *)&_i_._arg1))
 #define arg2 (_i_._arg2)
 #define arg3 (_i_._arg3)
-#define sarg3 ((SQInteger)*((signed char *)&_i_._arg3))
+#define sarg3 ((const SQInteger)*((const signed char *)&_i_._arg3))
 
 SQRESULT SQVM::Suspend()
 {
@@ -731,7 +731,11 @@ exception_restore:
 #else
 				TARGET = (SQInteger)((SQUnsignedInteger32)arg1); continue;
 #endif
-			case _OP_LOADFLOAT: TARGET = *((SQFloat *)&arg1); continue;
+			case _OP_LOADFLOAT:
+				SQFloat v;
+				memcpy(&v, &arg1, sizeof(SQFloat));
+				TARGET = v;
+				continue;
 			case _OP_DLOAD: TARGET = ci->_literals[arg1]; STK(arg2) = ci->_literals[arg3];continue;
 			case _OP_TAILCALL:{
 				SQObjectPtr &t = STK(arg1);
@@ -920,7 +924,7 @@ exception_restore:
 					break;
 				case AAT_FLOAT:
 					val._type = OT_FLOAT;
-					val._unVal.fFloat = *((SQFloat *)&arg1);
+					memcpy(&val._unVal.fFloat, &arg1, sizeof(SQFloat));
 					break;
 				case AAT_BOOL:
 					val._type = OT_BOOL;

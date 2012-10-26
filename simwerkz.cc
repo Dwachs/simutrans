@@ -3547,11 +3547,19 @@ set_area_cov:
 
 image_id wkz_station_t::get_icon( spieler_t * ) const
 {
+	sint8 dummy;
+	const haus_besch_t *besch=get_besch(dummy);
 	if(  grund_t::underground_mode==grund_t::ugm_all  ) {
 		// in underground mode, buildings will be done invisible above ground => disallow such confusion
-		sint8 dummy;
-		const haus_besch_t *besch=get_besch(dummy);
 		if(  besch->get_utyp()!=haus_besch_t::generic_stop  ||  besch->get_extra()==air_wt) {
+			return IMG_LEER;
+		}
+		if(  besch->get_utyp()==haus_besch_t::generic_stop  &&  !besch->can_be_built_underground()) {
+			return IMG_LEER;
+		}
+	}
+	if(  grund_t::underground_mode==grund_t::ugm_none  ) {
+		if(  besch->get_utyp()==haus_besch_t::generic_stop  &&  !besch->can_be_built_aboveground()) {
 			return IMG_LEER;
 		}
 	}
@@ -3623,6 +3631,14 @@ const char *wkz_station_t::check_pos( karte_t *welt, spieler_t *sp, koord3d pos 
 			if(  besch->get_utyp()!=haus_besch_t::generic_stop  ||  besch->get_extra()==air_wt) {
 				msg = "Cannot built this station/building\nin underground mode here.";
 			}
+			if(  besch->get_utyp()==haus_besch_t::generic_stop  &&  !besch->can_be_built_underground()) {
+				msg = "Cannot built this station/building\nin underground mode here.";
+			}
+		}
+		if(  grund_t::underground_mode==grund_t::ugm_none  ) {
+			if(  besch->get_utyp()==haus_besch_t::generic_stop  &&  !besch->can_be_built_aboveground()) {
+				msg = "This station/building\ncan only be built underground.";
+			}
 		}
 	}
 	return msg;
@@ -3670,6 +3686,11 @@ const char *wkz_station_t::work( karte_t *welt, spieler_t *sp, koord3d pos )
 	halthandle_t halt = plan->get_halt();
 	if(halt.is_bound()  &&  !spieler_t::check_owner( sp, halt->get_besitzer())) {
 		return "Das Feld gehoert\neinem anderen Spieler\n";
+	}
+
+	// check underground / above ground
+	if (const char* msg = check_pos(welt, sp, pos)) {
+		return msg;
 	}
 
 	sint8 rotation = 0;
@@ -4576,7 +4597,7 @@ bool wkz_build_factory_t::init( karte_t *, spieler_t * )
 		cursor_area = fab->get_haus()->get_groesse(rotation);
 		return true;
 	}
-	return false;
+	return true;
 }
 
 /* builds an industry next to the cursor (default_param see above) */
@@ -4722,9 +4743,11 @@ bool wkz_headquarter_t::init( karte_t *, spieler_t *sp )
 {
 	// do no use this, if there is no next level to build ...
 	const haus_besch_t *besch = next_level(sp);
-	if (is_local_execution()  &&  besch) {
-		const int rotation = 0;
-		cursor_area = besch->get_groesse(rotation);
+	if (besch) {
+		if (is_local_execution()) {
+			const int rotation = 0;
+			cursor_area = besch->get_groesse(rotation);
+		}
 		return true;
 	}
 	return false;
