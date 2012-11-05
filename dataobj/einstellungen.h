@@ -18,6 +18,7 @@ class spieler_t;
 class loadsave_t;
 class tabfile_t;
 class weg_besch_t;
+class map_creator_t;
 
 struct road_timeline_t
 {
@@ -308,6 +309,8 @@ public:
 	 * @author Hj. Malthaner
 	 */
 	std::string heightfield;
+
+	map_creator_t *creator;
 
 	settings_t();
 

@@ -35,6 +35,7 @@ settings_t::settings_t() :
 	filename(""),
 	heightfield("")
 {
+	creator = NULL;
 	groesse_x = 256;
 	groesse_y = 256;
 

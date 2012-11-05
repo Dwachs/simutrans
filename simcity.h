@@ -538,7 +538,7 @@ public:
 	 * @param old_x, old_y: Generate no cities in (0,0) - (old_x, old_y)
 	 * @author Gerd Wachsmuth
 	 */
-	static vector_tpl<koord> *random_place(const karte_t *wl, sint32 anzahl, sint16 old_x, sint16 old_y);
+	static vector_tpl<koord> *random_place(const karte_t *wl, sint32 anzahl, sint16 old_x, sint16 old_y, vector_tpl<koord> const& filled_locations);
 	// geeigneten platz zur Stadtgruendung durch Zufall ermitteln
 
 	void zeige_info(void);

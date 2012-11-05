@@ -10,14 +10,16 @@
 
 
 #include "savegame_frame.h"
+#include "../tpl/plainstringhashtable_tpl.h"
 
-
+class map_creator_t;
 class settings_t;
 
 class load_relief_frame_t : public savegame_frame_t
 {
 private:
 	settings_t* sets;
+	plainstringhashtable_tpl<map_creator_t*> all_maps;
 
 protected:
 	virtual void action(const char *fullpath);
@@ -33,6 +35,7 @@ public:
 	const char *get_hilfe_datei() const { return "load_relief.txt"; }
 
 	load_relief_frame_t(settings_t*);
+	~load_relief_frame_t();
 };
 
 #endif

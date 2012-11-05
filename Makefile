@@ -207,6 +207,7 @@ SOURCES += dataobj/gameinfo.cc
 SOURCES += dataobj/koord.cc
 SOURCES += dataobj/koord3d.cc
 SOURCES += dataobj/loadsave.cc
+SOURCES += dataobj/map_creator.cc
 SOURCES += dataobj/marker.cc
 SOURCES += dataobj/network.cc
 SOURCES += dataobj/network_address.cc

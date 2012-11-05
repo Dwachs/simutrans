@@ -2980,7 +2980,7 @@ void stadt_t::baue()
 
 
 // find suitable places for cities
-vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl, sint16 old_x, sint16 old_y)
+vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl, sint16 old_x, sint16 old_y, vector_tpl<koord> const& filled_locations)
 {
 	int cl = 0;
 	for (int i = 0; i < MAX_CLIMATES; i++) {
@@ -3004,7 +3004,11 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 		const koord k = list->remove_first();
 		places.at( (2*k.x)/minimum_city_distance, (2*k.y)/minimum_city_distance).append(k);
 	}
-	// weigthed index vector into places array
+	// these places are already taken
+	FOR(vector_tpl<koord> const, k, filled_locations) {
+		places.at( (2*k.x)/minimum_city_distance, (2*k.y)/minimum_city_distance).clear();
+	}
+	// weighted index vector into places array
 	weighted_vector_tpl<koord> index_to_places(xmax*ymax);
 	for(uint32 i=0; i<xmax; i++) {
 		for(uint32 j=0; j<ymax; j++) {
@@ -3020,6 +3024,11 @@ vector_tpl<koord>* stadt_t::random_place(const karte_t* wl, const sint32 anzahl,
 	const uint32 xmax2 = wl->get_groesse_x()/minimum_city_distance+1;
 	const uint32 ymax2 = wl->get_groesse_y()/minimum_city_distance+1;
 	array2d_tpl< vector_tpl<koord> > result_places(xmax2, ymax2);
+
+	// these places are already taken
+	FOR(vector_tpl<koord> const, k, filled_locations) {
+		result_places.at( k.x/minimum_city_distance, k.y/minimum_city_distance ).append(k);
+	}
 
 	for (int i = 0; i < anzahl; i++) {
 		// check distances of all cities to their respective neightbours

@@ -75,6 +75,7 @@
 #include "dataobj/network_file_transfer.h"
 #include "dataobj/network_socket_list.h"
 #include "dataobj/network_cmd_ingame.h"
+#include "dataobj/map_creator.h"
 #include "dataobj/translator.h"
 #include "dataobj/loadsave.h"
 #include "dataobj/scenario.h"
@@ -969,18 +970,23 @@ void karte_t::create_rivers( sint16 number )
 
 void karte_t::distribute_groundobjs_cities(int new_anzahl_staedte, sint32 new_mittlere_einwohnerzahl, sint16 old_x, sint16 old_y)
 {
-DBG_DEBUG("karte_t::distribute_groundobjs_cities()","distributing rivers");
+	DBG_DEBUG("karte_t::distribute_groundobjs_cities()","distributing rivers");
 	if (umgebung_t::river_types > 0 && settings.get_river_number() > 0) {
 		create_rivers(settings.get_river_number());
 	}
 
-printf("Creating cities ...\n");
-DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
-	vector_tpl<koord> *pos = stadt_t::random_place(this, new_anzahl_staedte, old_x, old_y);
+	DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 
-	if(  !pos->empty()  ) {
+	vector_tpl<koord> scripted_pos;
+	if (settings.creator) {
+		settings.creator->create_cities(this, new_anzahl_staedte, scripted_pos);
+	}
+
+	vector_tpl<koord> *pos = stadt_t::random_place(this, new_anzahl_staedte - scripted_pos.get_count(), old_x, old_y, scripted_pos);
+
+	if(  !pos->empty()  ||   !scripted_pos.empty()  ) {
 		const sint32 old_anzahl_staedte = stadt.get_count();
-		new_anzahl_staedte = pos->get_count();
+		new_anzahl_staedte = pos->get_count() + scripted_pos.get_count();
 
 		// prissi if we could not generate enough positions ...
 		settings.set_anzahl_staedte(old_anzahl_staedte);
@@ -988,15 +994,21 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 		int const max_display_progress = 16 + 2 * (old_anzahl_staedte + new_anzahl_staedte) + 2 * new_anzahl_staedte + (old_x == 0 ? settings.get_factory_count() : 0);
 
 		// Ansicht auf erste Stadt zentrieren
-		if (old_x+old_y == 0)
-			change_world_position( koord3d((*pos)[0], min_hgt((*pos)[0])) );
+		if (old_x+old_y == 0) {
+			if (!scripted_pos.empty()) {
+				change_world_position( scripted_pos[0], min_hgt(scripted_pos[0]));
+			}
+			else {
+				change_world_position( koord3d((*pos)[0], min_hgt((*pos)[0])) );
+			}
+		}
 
 		{
 			// Loop only new cities:
 #ifdef DEBUG
 			uint32 tbegin = dr_time();
 #endif
-			for(  int i=0;  i<new_anzahl_staedte;  i++  ) {
+			for(  int i=0;  i<pos->get_count();  i++  ) {
 				stadt_t* s = new stadt_t(spieler[1], (*pos)[i], 1 );
 				DBG_DEBUG("karte_t::distribute_groundobjs_cities()","Erzeuge stadt %i with %ld inhabitants",i,(s->get_city_history_month())[HIST_CITICENS] );
 				add_stadt(s);
@@ -1020,7 +1032,7 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 			uint32 original_industry_gorwth = settings.get_industry_increase_every();
 			settings.set_industry_increase_every( 0 );
 
-			for(  uint32 i=old_anzahl_staedte;  i<stadt.get_count();  i++  ) {
+			for(  uint32 i=old_anzahl_staedte+scripted_pos.get_count();  i<stadt.get_count();  i++  ) {
 				// Hajo: do final init after world was loaded/created
 				stadt[i]->laden_abschliessen();
 
