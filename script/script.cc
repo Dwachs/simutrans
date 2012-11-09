@@ -253,7 +253,7 @@ const char* script_vm_t::intern_call_function(HSQUIRRELVM job, call_type_t ct, i
 		// remove closure
 		sq_remove(job, retvalue ? -2 : -1);
 		if (ct == QUEUE  &&  retvalue) {
-			// mark as not queued
+
 			sq_pushregistrytable(job);
 			sq_pushstring(job, "was_queued", -1);
 			sq_get(job, -2);
@@ -272,7 +272,7 @@ const char* script_vm_t::intern_call_function(HSQUIRRELVM job, call_type_t ct, i
 		if (retvalue) {
 			sq_poptop(job);
 		}
-		// save retvalue flag
+		// save retvalue flag, number of parameters
 		sq_pushregistrytable(job);
 		script_api::param<bool>::create_slot(job, "retvalue", retvalue);
 		script_api::param<sint32>::create_slot(job, "nparams", nparams);
@@ -347,6 +347,7 @@ void script_vm_t::intern_resume_call(HSQUIRRELVM job)
 		if (retvalue) {
 			sq_poptop(job);
 		}
+		END_STACK_WATCH(job, 0);
 	}
 
 	dbg->message("script_vm_t::intern_resume_call", "stack=%d", sq_gettop(job));
@@ -597,9 +598,12 @@ void script_vm_t::intern_make_pending_callback_active()
 	BEGIN_STACK_WATCH(vm);
 	sq_pushregistrytable(vm);
 	sq_pushstring(vm, "active_callbacks", -1);
+	sq_newarray(vm, 1);
 	sq_pushstring(vm, "pending_callback", -1);
-	if (SQ_SUCCEEDED( sq_deleteslot(vm, -3, true) ) ) {
-		// stack: registry, "..", pending_callback
+	if (SQ_SUCCEEDED( sq_deleteslot(vm, -4, true) ) ) {
+		// stack: registry, "..", array[], pending_callback
+		sq_arrayappend(vm, -2);
+		// stack: registry, "..", array[ 0=>pending_callback ]
 		sq_createslot(vm, -3);
 	}
 	else {
