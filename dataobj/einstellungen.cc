@@ -789,6 +789,9 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	umgebung_t::visualize_schedule = contents.get_int("visualize_schedule",umgebung_t::visualize_schedule )!=0;
 	umgebung_t::show_vehicle_states = contents.get_int("show_vehicle_states",umgebung_t::show_vehicle_states );
 
+	umgebung_t::hide_rail_return_ticket = contents.get_int("hide_rail_return_ticket",umgebung_t::hide_rail_return_ticket );
+	umgebung_t::chat_window_transparency = contents.get_int("chat_transparency",umgebung_t::chat_window_transparency );
+
 	// network stuff
 	umgebung_t::server_frames_ahead = contents.get_int("server_frames_ahead", umgebung_t::server_frames_ahead );
 	umgebung_t::additional_client_frames_behind = contents.get_int("additional_client_frames_behind", umgebung_t::additional_client_frames_behind);

@@ -1,6 +1,4 @@
 /*
- * Copyright (c) 1997 - 2004 Hj. Malthaner
- *
  * This file is part of the Simutrans project under the artistic licence.
  * (see licence.txt)
  *
@@ -33,23 +31,23 @@ banner_t::banner_t( karte_t *w) : gui_frame_t(""),
 {
 	last_ms = dr_time();
 	line = 0;
-	logo.set_pos( koord( 238, 40 ) );
-	add_komponente( &logo );
-	const koord size( D_BUTTON_WIDTH*3+40, 16+113+12*LINESPACE+2*D_BUTTON_HEIGHT+12 );
+	const koord size( D_MARGIN_LEFT+3*D_BUTTON_WIDTH+2*D_H_SPACE+D_MARGIN_RIGHT, 16+113+11*LINESPACE+2*D_BUTTON_HEIGHT+10 );
 	set_fenstergroesse( size );
-	new_map.init( button_t::roundbox, "Neue Karte", koord( 10, size.y-16-2*D_BUTTON_HEIGHT-12 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	logo.set_pos( koord( size.x-D_MARGIN_RIGHT-skinverwaltung_t::logosymbol->get_bild(0)->get_pic()->w, 40 ) );
+	add_komponente( &logo );
+	new_map.init( button_t::roundbox, "Neue Karte", koord( BUTTON1_X, size.y-16-2*D_BUTTON_HEIGHT-12 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
 	new_map.add_listener( this );
 	add_komponente( &new_map );
-	load_map.init( button_t::roundbox, "Load game", koord( 10+D_BUTTON_WIDTH+10, size.y-16-2*D_BUTTON_HEIGHT-12 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	load_map.init( button_t::roundbox, "Load game", koord( BUTTON2_X, size.y-16-2*D_BUTTON_HEIGHT-12 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
 	load_map.add_listener( this );
 	add_komponente( &load_map );
-	load_scenario.init( button_t::roundbox, "Load scenario", koord( 10+D_BUTTON_WIDTH+10, size.y-16-D_BUTTON_HEIGHT-7 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	load_scenario.init( button_t::roundbox, "Load scenario", koord( BUTTON2_X, size.y-16-D_BUTTON_HEIGHT-7 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
 	load_scenario.add_listener( this );
 	add_komponente( &load_scenario );
-	join_map.init( button_t::roundbox, "join game", koord( 10+2*D_BUTTON_WIDTH+20, size.y-16-2*D_BUTTON_HEIGHT-12 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	join_map.init( button_t::roundbox, "join game", koord( BUTTON3_X, size.y-16-2*D_BUTTON_HEIGHT-12 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
 	join_map.add_listener( this );
 	add_komponente( &join_map );
-	quit.init( button_t::roundbox, "Beenden", koord( 10+2*D_BUTTON_WIDTH+20, size.y-16-D_BUTTON_HEIGHT-7 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	quit.init( button_t::roundbox, "Beenden", koord( BUTTON3_X, size.y-16-D_BUTTON_HEIGHT-7 ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
 	quit.add_listener( this );
 	add_komponente( &quit );
 }
@@ -90,42 +88,45 @@ bool banner_t::action_triggered( gui_action_creator_t *komp, value_t)
 	return true;
 }
 
-#define COL_PT (6)
+#define COL_PT (5)
 
 void banner_t::zeichnen(koord pos, koord gr )
 {
 	gui_frame_t::zeichnen( pos, gr );
+
+	// Hajo: add white line on top since this frame has no title bar.
+	display_fillbox_wh(pos.x, pos.y + 16, gr.x, 1, COL_GREY6, false);
+
 	KOORD_VAL yp = pos.y+22;
-	display_shadow_proportional( pos.x+10, yp, COL_PT, COL_BLACK, "This is a beta version of Simutrans:", true );
+	pos.x += D_MARGIN_LEFT;
+	display_shadow_proportional( pos.x, yp, COL_PT, COL_BLACK, "This is Simutrans" SIM_VERSION_BUILD_STRING , true );
 	yp += LINESPACE+5;
 #ifdef REVISION
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "Version " VERSION_NUMBER " " VERSION_DATE " r" QUOTEME(REVISION), true );
+	display_shadow_proportional( pos.x, yp, COL_WHITE, COL_BLACK, "Version " VERSION_NUMBER " " VERSION_DATE " r" QUOTEME(REVISION), true );
 #else
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "Version " VERSION_NUMBER " " VERSION_DATE, true );
+	display_shadow_proportional( pos.x, yp, COL_WHITE, COL_BLACK, "Version " VERSION_NUMBER " " VERSION_DATE, true );
 #endif
 	yp += LINESPACE+7;
 
-	display_shadow_proportional( pos.x+10, yp, COL_PT, COL_BLACK, "This version is developed by", true );
+	display_shadow_proportional( pos.x, yp, COL_PT, COL_BLACK, "The version is developed by", true );
 	yp += LINESPACE+5;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "the simutrans team, based on", true );
+	display_shadow_proportional( pos.x+24, yp, COL_WHITE, COL_BLACK, "the simutrans team", true );
 	yp += LINESPACE+2;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "Simutrans 0.84.21.2 by", true );
+	display_shadow_proportional( pos.x+24, yp, COL_WHITE, COL_BLACK, "under the Artistic Licence", true );
 	yp += LINESPACE+2;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "Hansj\366rg Malthaner et al.", true );
-	yp += LINESPACE+2;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "under Artistic Licence.", true );
+	display_shadow_proportional( pos.x+24, yp, COL_WHITE, COL_BLACK, "based on Simutrans 84.22.1", true );
 	yp += LINESPACE+7;
 
-	display_shadow_proportional( pos.x+10, yp, COL_LIGHT_ORANGE, COL_BLACK, "Selling of the program is forbidden.", true );
+	display_shadow_proportional( pos.x, yp, COL_ORANGE, COL_BLACK, "Selling of the program is forbidden.", true );
 	yp += LINESPACE+5;
 
-	display_shadow_proportional( pos.x+10, yp, COL_PT, COL_BLACK, "For questions and support please visit:", true );
+	display_shadow_proportional( pos.x, yp, COL_PT, COL_BLACK, "For questions and support please visit:", true );
 	yp += LINESPACE+2;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "http://www.simutrans.com", true );
+	display_shadow_proportional( pos.x+24, yp, COL_WHITE, COL_BLACK, "http://www.simutrans.com", true );
 	yp += LINESPACE+2;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "http://forum.simutrans.com", true );
+	display_shadow_proportional( pos.x+24, yp, COL_WHITE, COL_BLACK, "http://forum.simutrans.com", true );
 	yp += LINESPACE+2;
-	display_shadow_proportional( pos.x+10+24, yp, COL_WHITE, COL_BLACK, "http://wiki.simutrans-germany.com/", true );
+	display_shadow_proportional( pos.x+24, yp, COL_WHITE, COL_BLACK, "http://wiki.simutrans-germany.com/", true );
 	yp += LINESPACE+7;
 
 	// now the scrolling
@@ -133,13 +134,10 @@ void banner_t::zeichnen(koord pos, koord gr )
 #include "../scrolltext.h"
 	};
 
-	// Hajo: add while line on top since this frame has no title bar.
-	display_fillbox_wh(pos.x, pos.y + 16, gr.x, 1, COL_GREY6, false);
-
 	const KOORD_VAL text_line = (line / 9) * 2;
 	const KOORD_VAL text_offset = line % 9;
-	const KOORD_VAL left = pos.x+10;
-	const KOORD_VAL width = gr.x-20;
+	const KOORD_VAL left = pos.x;
+	const KOORD_VAL width = gr.x-D_MARGIN_LEFT-D_MARGIN_RIGHT;
 
 	display_fillbox_wh(left, yp, width, 52, COL_GREY1, true);
 	display_fillbox_wh(left, yp - 1, width, 1, COL_GREY3, false);

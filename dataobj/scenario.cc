@@ -654,13 +654,8 @@ void scenario_t::rdwr(loadsave_t *file)
 
 				rdwr_error = !load_script(script_filename);
 				if (!rdwr_error) {
-					const char* err = script->call_function(script_vm_t::FORCE, "resume_game");
-					if (err) {
-						dbg->warning("scenario_t::rdwr", "error [%s] calling resume_game", err);
-						rdwr_error = true;
-					}
 					// restore persistent data
-					err = script->eval_string(str);
+					const char* err = script->eval_string(str);
 					if (err) {
 						dbg->warning("scenario_t::rdwr", "error [%s] evaluating persistent scenario data", err);
 						rdwr_error = true;
@@ -695,6 +690,14 @@ void scenario_t::rdwr(loadsave_t *file)
 			forbidden_tools.append(new forbidden_t());
 		}
 		forbidden_tools[i]->rdwr(file);
+	}
+
+	if (file->is_loading()  &&  !rdwr_error) {
+		const char* err = script->call_function(script_vm_t::FORCE, "resume_game");
+		if (err) {
+			dbg->warning("scenario_t::rdwr", "error [%s] calling resume_game", err);
+			rdwr_error = true;
+		}
 	}
 }
 
