@@ -1124,7 +1124,7 @@ SQRESULT sq_wakeupvm(HSQUIRRELVM v,SQBool wakeupret,SQBool retval,SQBool raiseer
 		v->Pop();
 	} else if(target != -1) { v->GetAt(v->_stackbase+v->_suspended_target).Null(); }
 	SQObjectPtr dummy;
-	if(!v->Execute(dummy,-1,-1,ret,raiseerror,throwerror?SQVM::ET_RESUME_THROW_VM : SQVM::ET_RESUME_VM)) {
+	if(!v->Execute(dummy,-1,-1,ret,raiseerror,throwerror?SQVM::ET_RESUME_THROW_VM : SQVM::ET_RESUME_VM, true /*can_suspend*/)) {
 		return SQ_ERROR;
 	}
 	if(retval)
