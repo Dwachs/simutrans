@@ -166,7 +166,7 @@ bool script_vm_t::is_call_suspended(const char* err)
 }
 
 
-const char* script_vm_t::intern_prepare_call(call_type_t ct, const char* function)
+const char* script_vm_t::intern_prepare_call(HSQUIRRELVM &job, call_type_t ct, const char* function)
 {
 	const char* err = NULL;
 	bool suspended = sq_getvmstate(vm) == SQ_VMSTATE_SUSPENDED;
@@ -203,7 +203,7 @@ const char* script_vm_t::intern_prepare_call(call_type_t ct, const char* functio
 }
 
 
-const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool retvalue)
+const char* script_vm_t::intern_finish_call(HSQUIRRELVM job, call_type_t ct, int nparams, bool retvalue)
 {
 	BEGIN_STACK_WATCH(job);
 	// stack: closure, nparams*objects
@@ -211,12 +211,12 @@ const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool re
 	bool suspended = sq_getvmstate(job) == SQ_VMSTATE_SUSPENDED;
 	// queue function call?
 	if (suspended  &&  ct == QUEUE) {
-		intern_queue_call(nparams, retvalue);
+		intern_queue_call(job, nparams, retvalue);
 		err = "suspended";
 		// stack: clean
 	}
 	if (suspended) {
-		intern_resume_call();
+		intern_resume_call(job);
 	}
 	if (!suspended  ||  ct == FORCE) {
 		// set active callback if call could be suspended
@@ -229,7 +229,7 @@ const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool re
 		sq_poptop(job);
 
 		END_STACK_WATCH(job,0);
-		err = intern_call_function(ct, nparams, retvalue);
+		err = intern_call_function(job, ct, nparams, retvalue);
 	}
 	return err;
 }
@@ -239,7 +239,7 @@ const char* script_vm_t::intern_finish_call(call_type_t ct, int nparams, bool re
  * Stack(job): expects closure, nparam*objects, on exit: return value (or clean stack if failure).
  * @returns NULL on success, error message or "suspended" otherwise.
  */
-const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool retvalue)
+const char* script_vm_t::intern_call_function(HSQUIRRELVM job, call_type_t ct, int nparams, bool retvalue)
 {
 	BEGIN_STACK_WATCH(job);
 	dbg->message("script_vm_t::intern_call_function", "start: stack=%d nparams=%d ret=%d", sq_gettop(job), nparams, retvalue);
@@ -262,7 +262,7 @@ const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool 
 			sq_pop(job, 2);
 
 			if (notify) {
-				intern_call_callbacks();
+				intern_call_callbacks(job);
 			}
 		}
 		END_STACK_WATCH(job, -nparams-1 + retvalue);
@@ -283,7 +283,7 @@ const char* script_vm_t::intern_call_function(call_type_t ct, int nparams, bool 
 	return err;
 }
 
-void script_vm_t::intern_resume_call()
+void script_vm_t::intern_resume_call(HSQUIRRELVM job)
 {
 	BEGIN_STACK_WATCH(job);
 	// stack: clean
@@ -318,7 +318,7 @@ void script_vm_t::intern_resume_call()
 				sq_remove(job, retvalue ? -2 : -1);
 			}
 			if (retvalue) {
-				intern_call_callbacks();
+				intern_call_callbacks(job);
 				sq_poptop(job);
 			}
 			dbg->message("script_vm_t::intern_resume_call", "in between stack=%d", sq_gettop(job));
@@ -335,8 +335,8 @@ void script_vm_t::intern_resume_call()
 		sq_poptop(job);
 
 		// proceed with next call in queue
-		if (intern_prepare_queued(nparams, retvalue)) {
-			const char* err = intern_call_function(QUEUE, nparams, retvalue);
+		if (intern_prepare_queued(job, nparams, retvalue)) {
+			const char* err = intern_call_function(job, QUEUE, nparams, retvalue);
 			if (err == NULL  &&  retvalue) {
 				// remove return value: call was queued thus remove return value from stack
 				sq_poptop(job);
@@ -359,7 +359,7 @@ void script_vm_t::intern_resume_call()
  * @param nparams number of parameter of the queued call
  * @param retvalue whether the call would return something
  */
-void script_vm_t::intern_queue_call(int nparams, bool retvalue)
+void script_vm_t::intern_queue_call(HSQUIRRELVM job, int nparams, bool retvalue)
 {
 	BEGIN_STACK_WATCH(job);
 	// stack: closure, nparams*objects
@@ -452,7 +452,7 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
  * @param retvalue whether queued call returns something
  * @returns true if a new queued call is on the stack
  */
-bool script_vm_t::intern_prepare_queued(int &nparams, bool &retvalue)
+bool script_vm_t::intern_prepare_queued(HSQUIRRELVM job, int &nparams, bool &retvalue)
 {
 	BEGIN_STACK_WATCH(job);
 	// queued calls
@@ -615,7 +615,7 @@ void script_vm_t::intern_make_pending_callback_active()
  *
  * Stack(job): return value, unchanged
  */
-void script_vm_t::intern_call_callbacks()
+void script_vm_t::intern_call_callbacks(HSQUIRRELVM job)
 {
 	BEGIN_STACK_WATCH(job);
 	sq_pushregistrytable(job);

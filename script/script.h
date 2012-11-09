@@ -51,14 +51,15 @@ public:
 	static bool is_call_suspended(const char* err);
 
 #	define prep_function_call() \
-		const char* err = intern_prepare_call(ct, function); \
+		HSQUIRRELVM job; \
+		const char* err = intern_prepare_call(job, ct, function); \
 		if (err) { \
 			return err; \
 		} \
 		int nparam = 1;
 
 #	define do_function_call() \
-		err = intern_finish_call(ct, nparam, true); \
+		err = intern_finish_call(job, ct, nparam, true); \
 		if (err == NULL) { \
 			ret = script_api::param<R>::get(job, -1); \
 			sq_poptop(job); \
@@ -72,7 +73,7 @@ public:
 	 */
 	const char* call_function(call_type_t ct, const char* function) {
 		prep_function_call();
-		return intern_finish_call(ct, nparam, false);
+		return intern_finish_call(job, ct, nparam, false);
 	}
 
 	/**
@@ -172,30 +173,30 @@ private:
 	/// thread in the virtual machine, used to run functions if vm is suspended
 	HSQUIRRELVM thread;
 
-	/// auxiliary variable, functions run in this machine
-	HSQUIRRELVM job;
-
 
 	plainstring error_msg;
 
-	/// prepare function call, used in templated call_function()
-	const char* intern_prepare_call(call_type_t ct, const char* function);
+	/// @{
+	/// @name Helper functions to call, suspend, queue calls to scripted functions
+
+	/// prepare function call, used in templated call_function(), sets job to vm that should run function
+	const char* intern_prepare_call(HSQUIRRELVM &job, call_type_t ct, const char* function);
 
 	/// actually call function, used in templated call_function(),
 	/// does also: resume suspended call, queue current call
-	const char* intern_finish_call(call_type_t ct, int nparams, bool retvalue);
+	const char* intern_finish_call(HSQUIRRELVM job, call_type_t ct, int nparams, bool retvalue);
 
 	/// queues current call
-	void intern_queue_call(int nparams, bool retvalue);
+	static void intern_queue_call(HSQUIRRELVM job, int nparams, bool retvalue);
 
 	/// resumes a suspended call. calls callbacks.
-	void intern_resume_call();
+	void intern_resume_call(HSQUIRRELVM job);
 
 	/// calls function. If it was a queued call, also calls callbacks.
-	const char* intern_call_function(call_type_t ct, int nparams, bool retvalue);
+	static const char* intern_call_function(HSQUIRRELVM job, call_type_t ct, int nparams, bool retvalue);
 
 	/// pops an queued call and puts it on the stack, also activates corresponding callbacks
-	bool intern_prepare_queued(int &nparams, bool &retvalue);
+	bool intern_prepare_queued(HSQUIRRELVM job, int &nparams, bool &retvalue);
 
 	/// prepare function call to callback, used in templated prepare_callback()
 	bool intern_prepare_pending_callback(const char* function, sint32 nret);
@@ -210,7 +211,9 @@ private:
 	void intern_make_pending_callback_active();
 
 	/// calls all active callbacks
-	void intern_call_callbacks();
+	static void intern_call_callbacks(HSQUIRRELVM job);
+
+	/// @}
 
 	/// custom error handler for compile and runtime errors of squirrel scripts
 	static void errorfunc(HSQUIRRELVM vm, const SQChar *s_,...);
