@@ -699,7 +699,7 @@ bool SQVM::Execute(SQObjectPtr &closure, SQInteger nargs, SQInteger stackbase,SQ
 			break;
 	}
 
-	if (!can_suspend  &&  _nnativecalls == 1) {
+	if (!can_suspend) {
 		_ops_remaining = _ops_remaining < 3*_ops_default_increase ? _ops_remaining+_ops_default_increase : 4*_ops_default_increase;
 	}
 
