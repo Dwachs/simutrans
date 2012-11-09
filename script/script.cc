@@ -363,20 +363,19 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 {
 	BEGIN_STACK_WATCH(job);
 	// stack: closure, nparams*objects
-	SQInteger res;
 	// queue call: put closure and parameters in array
 	script_api::param<bool>::push(job, retvalue);
 	sq_newarray(job, 0); // to hold parameters for queued calls
 	// stack: closure, nparams*objects, retvalue, array
 	for(int i=nparams+2; i>0; i--) {
 		sq_push(job, -2);
-		res = sq_arrayappend(job, -2);
+		sq_arrayappend(job, -2);
 		sq_remove(job, -2);
 	}
 	// stack: array
 	sq_pushregistrytable(job);
 	sq_pushstring(job, "queue", -1);
-	res = sq_get(job, -2);
+	sq_get(job, -2);
 	// stack: array, registry, queue
 	// search queue whether our call is already there
 	sint32 size = sq_getsize(job, -1);
@@ -421,7 +420,7 @@ void script_vm_t::intern_queue_call(int nparams, bool retvalue)
 	// stack: array, registry, queue
 	if (!equal) {
 		sq_push(job, -3);
-		res = sq_arrayappend(job, -2);
+		sq_arrayappend(job, -2);
 		// add callback to queue
 		sq_pushstring(job, "queued_callbacks", -1);
 		sq_get(job, -3);
