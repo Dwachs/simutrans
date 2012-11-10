@@ -171,21 +171,20 @@ const char* script_vm_t::intern_prepare_call(HSQUIRRELVM &job, call_type_t ct, c
 	const char* err = NULL;
 	bool suspended = sq_getvmstate(vm) == SQ_VMSTATE_SUSPENDED;
 
-	if (!suspended) {
-		job = vm;
-	}
-	else {
-		switch (ct) {
-			case FORCE:
-				job = thread;
-				break;
-			case QUEUE:
-				job = vm;
-				break;
-			case TRY:
+	switch (ct) {
+		case FORCE:
+			job = vm;
+			break;
+		case TRY:
+			if (suspended) {
 				return "suspended";
-		}
+			}
+			// fall through
+		case QUEUE:
+			job = thread;
+			break;
 	}
+
 	dbg->message("script_vm_t::intern_prepare_call", "ct=%d function=%s stack=%d", ct, function, sq_gettop(job));
 	sq_pushroottable(job);
 	sq_pushstring(job, function, -1);
