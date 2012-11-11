@@ -234,7 +234,6 @@ public:
 	/**
 	 * Sets percentage of scenario completion. Used as callback if script call got suspended.
 	 * @param player_nr player
-	 * @returns percentage of scenario completion
 	 * @returns dummy return value
 	 */
 	bool set_completed(sint32 player_nr, sint32 percentage);

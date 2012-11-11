@@ -41,11 +41,11 @@ public:
 	enum call_type_t {
 		FORCE = 1, ///< function has to return, raise error if not
 		QUEUE = 2, ///< function call can be queued, return value can be propagated by call back
-		TRY = 3    ///< function call will not be queued, if virtual machine is suspended just return
+		TRY   = 3  ///< function call will not be queued, if virtual machine is suspended just return
 	};
 
 	/**
-	 * @param err error string returned call_script
+	 * @param err error string returned by call_script
 	 * @return whether the call was suspended
 	 */
 	static bool is_call_suspended(const char* err);
@@ -170,7 +170,7 @@ private:
 	/// virtual machine running everything
 	HSQUIRRELVM vm;
 
-	/// thread in the virtual machine, used to run functions if vm is suspended
+	/// thread in the virtual machine, used to run functions that can be suspended
 	HSQUIRRELVM thread;
 
 
