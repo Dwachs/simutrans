@@ -124,7 +124,6 @@ SQVM::SQVM(SQSharedState *ss)
 	_ops_remaining = 0;
 	_ops_default_increase = 10000;
 	_throw_if_no_ops = true;
-	_ops_increased = false;
 	_error_handler_called = false;
 }
 

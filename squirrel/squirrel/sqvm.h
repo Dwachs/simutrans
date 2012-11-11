@@ -179,7 +179,6 @@ public:
 
 	SQInteger _ops_remaining;    /// number of ops the vm can do till break
 	SQInteger _ops_default_increase; /// default increment for _ops_remaining for pure native calls
-	bool _ops_increased;         /// _ops_remaining increased when Execute was called?
 	bool _throw_if_no_ops;       /// is no-ops an error or can call suspended? default: true
 	bool _error_handler_called;
 };
