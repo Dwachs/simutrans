@@ -5,7 +5,7 @@
 #include "../utils/cbuffer_t.h"
 #include "../simsys.h"
 
-/*!
+/**
  * what to do after loading
  */
 void pakselector_t::action(const char *fullpath)
@@ -30,9 +30,9 @@ const char *pakselector_t::get_info(const char *)
 }
 
 
-/*!
+/**
  * This method is called if an action is triggered
- * \author Hj. Malthaner
+ * @author Hj. Malthaner
  */
 bool pakselector_t::action_triggered(gui_action_creator_t *komp, value_t v)
 {
@@ -92,8 +92,11 @@ void pakselector_t::fill_list()
 	int y = 0;
 	FOR(slist_tpl<dir_entry_t>, const& i, entries) {
 
-		if (i.type == LI_HEADER ) {
+		if (i.type == LI_HEADER && this->num_sections > 1) {
 			y += D_BUTTON_HEIGHT;
+			continue;
+		}
+		if (i.type == LI_HEADER && this->num_sections <= 1) {
 			continue;
 		}
 
@@ -106,14 +109,20 @@ void pakselector_t::fill_list()
 			// no addons for this
 			i.del->set_visible(false);
 			i.del->disable();
-			if(entries.get_count()==2) {
-				// list contains only one header, one pakset entry without addons => no need to question further ...
-				umgebung_t::objfilename = (std::string)i.button->get_text() + "/";
-			}
+
+			// if list contains only one header, one pakset entry without addons
+			// store path to pakset temporary, reset later if more choices available
+			umgebung_t::objfilename = (std::string)i.button->get_text() + "/";
+			// if umgebung_t::objfilename is non-empty then simmain.cc will close the window immediately
 		}
 		y += D_BUTTON_HEIGHT;
 	}
 	chdir( umgebung_t::program_dir );
+
+	if(entries.get_count() > this->num_sections+1) {
+ 		// empty path as more than one pakset is present, user has to choose
+		umgebung_t::objfilename = "";
+	}
 
 	button_frame.set_groesse(koord(get_fenstergroesse().x-1, y ));
 	set_fenstergroesse(koord(get_fenstergroesse().x, D_TITLEBAR_HEIGHT+30+y+3*LINESPACE+4+1));
@@ -134,8 +143,11 @@ void pakselector_t::set_fenstergroesse(koord groesse)
 	FOR(slist_tpl<dir_entry_t>, const& i, entries) {
 		// resize all but delete button
 
-		if (i.type == LI_HEADER) {
+		if (i.type == LI_HEADER && this->num_sections > 1) {
 			y += D_BUTTON_HEIGHT;
+			continue;
+		}
+		if (i.type == LI_HEADER && this->num_sections <= 1) {
 			continue;
 		}
 
