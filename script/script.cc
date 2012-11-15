@@ -606,6 +606,8 @@ void script_vm_t::intern_make_pending_callback_active()
 		sq_createslot(vm, -3);
 	}
 	else {
+		// stack: registry, "..", array[]
+		sq_poptop(vm);
 		// delete active_callbacks slot
 		sq_deleteslot(vm, -2, false);
 	}
