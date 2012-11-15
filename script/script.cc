@@ -195,7 +195,7 @@ const char* script_vm_t::intern_prepare_call(HSQUIRRELVM &job, call_type_t ct, c
 	}
 	else {
 		err = "Function not found";
-		sq_pop(job, 2); // array, root table
+		sq_poptop(job); // array, root table
 	}
 	return err;
 	// stack: closure, root table (1st param)
