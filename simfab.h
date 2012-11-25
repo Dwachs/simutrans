@@ -22,6 +22,7 @@
 
 class spieler_t;
 class stadt_t;
+class ware_t;
 
 
 /**
@@ -52,12 +53,13 @@ class stadt_t;
 #define MAX_FAB_REF_LINE            (6)
 
 // statistics for goods
-#define MAX_FAB_GOODS_STAT          (3)
+#define MAX_FAB_GOODS_STAT          (4)
 // common to both input and output goods
 #define FAB_GOODS_STORAGE           (0)
 // input goods
 #define FAB_GOODS_RECEIVED          (1)
-#define FAB_GOODS_CONSUMED          (2)
+#define FAB_GOODS_CONSUMED        (2)
+#define FAB_GOODS_TRANSIT                 (3)
 // output goods
 #define FAB_GOODS_DELIVERED         (1)
 #define FAB_GOODS_PRODUCED          (2)
@@ -87,14 +89,21 @@ private:
 	// Knightly : statistics for each goods
 	sint64 statistics[MAX_MONTH][MAX_FAB_GOODS_STAT];
 	sint64 weighted_sum_storage;
+
+	/// clears statistics, transit, and weighted_sum_storage
+	void init_stats();
 public:
+	ware_production_t() : type(NULL), menge(0), max(0)
+	{
+		init_stats();
+	}
+
 	const ware_besch_t* get_typ() const { return type; }
 	void set_typ(const ware_besch_t *t) { type=t; }
 
 	// Knightly : functions for manipulating goods statistics
-	void init_stats();
 	void roll_stats(sint64 aggregate_weight);
-	void rdwr_stats(loadsave_t *file);
+	void rdwr(loadsave_t *file);
 	const sint64* get_stats() const { return *statistics; }
 	void book_stat(sint64 value, int stat_type) { assert(stat_type<MAX_FAB_GOODS_STAT); statistics[0][stat_type] += value; }
 	void set_stat(sint64 value, int stat_type) { assert(stat_type<MAX_FAB_GOODS_STAT); statistics[0][stat_type] = value; }
@@ -113,8 +122,9 @@ public:
 	}
 	void book_weighted_sum_storage(sint64 delta_time);
 
-	sint32 menge;	// in internal untis shifted by precision_bits (see produktion)
+	sint32 menge;	// in internal units shifted by precision_bits (see step)
 	sint32 max;
+	sint32 transit;
 };
 
 
@@ -197,7 +207,7 @@ private:
 	vector_tpl<stadt_t *> target_cities;
 
 	spieler_t *besitzer_p;
-	karte_t *welt;
+	static karte_t *welt;
 
 	const fabrik_besch_t *besch;
 
@@ -221,8 +231,8 @@ private:
 	sint32 prodfactor_pax;
 	sint32 prodfactor_mail;
 
-	array_tpl<ware_production_t> eingang; //< das einganslagerfeld
-	array_tpl<ware_production_t> ausgang; //< das ausgangslagerfeld
+	array_tpl<ware_production_t> eingang; ///< array for input/consumed goods
+	array_tpl<ware_production_t> ausgang; ///< array for output/produced goods
 
 	/**
 	 * Zeitakkumulator für Produktion
@@ -230,6 +240,9 @@ private:
 	 */
 	sint32 delta_sum;
 	uint32 delta_menge;
+
+	// production remainder when scaled to PRODUCTION_DELTA_T. added back next step to eliminate cumulative error
+	uint32 menge_remainder;
 
 	// Knightly : number of rounds where there is active production or consumption
 	uint8 activity_count;
@@ -335,6 +348,8 @@ private:
 		uint32 get_scaled_demand() const { return scaled_demand; }
 	};
 
+	void update_transit_intern( const ware_t *ware, bool add );
+
 	/**
 	 * Arrival data for calculating pax/mail boost
 	 * @author Knightly
@@ -355,11 +370,8 @@ private:
 	// create some smoke on the map
 	void smoke() const;
 
-	/**
-	 * increase the amount for a time delta_t scaled to a fixed time PRODUCTION_DELTA_T
-	 * @author Hj. Malthaner - original
-	 */
-	uint32 produktion(uint32 produkt, long delta_t) const;
+	// scales the amount of production based on the amount already in storage
+	uint32 scale_output_production(const uint32 product, uint32 menge) const;
 
 public:
 	fabrik_t(karte_t *welt, loadsave_t *file);
@@ -373,6 +385,9 @@ public:
 	const sint64* get_stats() const { return *statistics; }
 	sint64 get_stat(int month, int stat_type) const { assert(stat_type<MAX_FAB_STAT); return statistics[month][stat_type]; }
 	void book_stat(sint64 value, int stat_type) { assert(stat_type<MAX_FAB_STAT); statistics[0][stat_type] += value; }
+
+
+	static void update_transit( const ware_t *ware, bool add );
 
 	/**
 	 * convert internal units to displayed values
@@ -471,7 +486,8 @@ public:
 	 * 0 wenn Produktionsstopp,
 	 * -1 wenn Ware nicht verarbeitet wird
 	 */
-	sint32 verbraucht(const ware_besch_t *);             // Nimmt fab das an ??
+	sint8 is_needed(const ware_besch_t *);
+
 	sint32 liefere_an(const ware_besch_t *, sint32 menge);
 
 	void step(long delta_t);                  // fabrik muss auch arbeiten

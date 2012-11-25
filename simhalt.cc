@@ -235,6 +235,10 @@ DBG_MESSAGE("haltestelle_t::remove()","removing segment from %d,%d,%d", pos.x, p
 			DBG_MESSAGE("haltestelle_t::remove()",  "removing building" );
 			hausbauer_t::remove( welt, sp, gb );
 			bd = NULL;	// no need to recalc image
+			// removing the building could have destroyed this halt already
+			if (!halt.is_bound()){
+				return true;
+			}
 		}
 	}
 
@@ -438,8 +442,13 @@ haltestelle_t::~haltestelle_t()
 	self.detach();
 
 	for(unsigned i=0; i<warenbauer_t::get_max_catg_index(); i++) {
-		delete waren[i];
-		waren[i] = NULL;
+		if (waren[i]) {
+			FOR(vector_tpl<ware_t>, const &w, *waren[i]) {
+				fabrik_t::update_transit(&w, false);
+			}
+			delete waren[i];
+			waren[i] = NULL;
+		}
 	}
 	free( waren );
 	delete[] connections;
@@ -963,6 +972,7 @@ bool haltestelle_t::reroute_goods(sint16 &units_remaining)
 					search_route_resumable(warray[last_ware_index]);
 					if(  warray[last_ware_index].get_ziel()==halthandle_t()  ) {
 						// remove invalid destinations
+						fabrik_t::update_transit( &warray[last_ware_index], false);
 						warray.remove_at(last_ware_index);
 					}
 					else {
@@ -1704,7 +1714,6 @@ void haltestelle_t::liefere_an_fabrik(const ware_t& ware) const
 }
 
 
-
 /* retrieves a ware packet for any destination in the list
  * needed, if the factory in question wants to remove something
  */
@@ -1731,6 +1740,7 @@ bool haltestelle_t::recall_ware( ware_t& w, uint32 menge )
 				tmp.menge = 0;
 			}
 			book(w.menge, HALT_ARRIVED);
+			fabrik_t::update_transit( &w, false );
 			resort_freight_info = true;
 			return true;
 		}
@@ -1991,57 +2001,21 @@ dbg->warning("haltestelle_t::liefere_an()","%d %s delivered to %s have no longer
 	// not near enough => we need to do a rerouting
 	search_route_resumable(ware);
 	if (!ware.get_ziel().is_bound()) {
-		// target no longer there => delete
-
-		INT_CHECK("simhalt 1364");
-
 		DBG_MESSAGE("haltestelle_t::liefere_an()","%s: delivered goods (%d %s) to ??? via ??? could not be routed to their destination!",get_name(), ware.menge, translator::translate(ware.get_name()) );
+		// target halt no longer there => delete and remove from fab in transit
+		fabrik_t::update_transit( &ware, false );
 		return ware.menge;
 	}
-#if 1
 	// passt das zu bereits wartender ware ?
 	if(vereinige_waren(ware)) {
 		// dann sind wir schon fertig;
 		return ware.menge;
 	}
-#endif
 	// add to internal storage
 	add_ware_to_halt(ware);
 
 	return ware.menge;
 }
-
-
-
-#ifdef USE_QUOTE
-// rating of this place ...
-const char *
-haltestelle_t::quote_bezeichnung(int quote, convoihandle_t cnv) const
-{
-    const char *str = "unbekannt";
-
-    if(quote < 0) {
-	str = translator::translate("miserabel");
-    } else if(quote < 30) {
-	str = translator::translate("schlecht");
-    } else if(quote < 60) {
-	str = translator::translate("durchschnitt");
-    } else if(quote < 90) {
-	str = translator::translate("gut");
-    } else if(quote < 120) {
-	str = translator::translate("sehr gut");
-    } else if(quote < 150) {
-	str = translator::translate("bestens");
-    } else if(quote < 180) {
-	str = translator::translate("excellent");
-    } else {
-	str = translator::translate("spitze");
-    }
-
-    return str;
-}
-#endif
-
 
 
 void haltestelle_t::info(cbuffer_t & buf) const
@@ -2460,7 +2434,8 @@ void haltestelle_t::rdwr(loadsave_t *file)
 			}
 			k.rdwr( file );
 		}
-	} else {
+	}
+	else {
 		FOR(slist_tpl<tile_t>, const& i, tiles) {
 			k = i.grund->get_pos();
 			k.rdwr( file );
@@ -2499,8 +2474,12 @@ void haltestelle_t::rdwr(loadsave_t *file)
 				for(int i = 0; i < count; i++) {
 					// add to internal storage (use this function, since the old categories were different)
 					ware_t ware(welt,file);
-					if(  ware.menge  &&  welt->ist_in_kartengrenzen(ware.get_zielpos())  ) {
+					if(  ware.menge>0  &&  welt->ist_in_kartengrenzen(ware.get_zielpos())  ) {
 						add_ware_to_halt(ware);
+						if(  file->get_version() <= 112000  ) {
+							// restore intransit information
+							fabrik_t::update_transit( &ware, true );
+						}
 					}
 					else if(  ware.menge>0  ) {
 						dbg->error( "haltestelle_t::rdwr()", "%i of %s to %s ignored!", ware.menge, ware.get_name(), ware.get_zielpos().get_str() );
