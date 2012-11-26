@@ -598,6 +598,8 @@ void scenario_t::step()
 		}
 	}
 
+	script->call_function(script_vm_t::QUEUE, "step");
+
 	// update texts
 	if (win_get_magic(magic_scenario_info) ) {
 		update_scenario_texts();

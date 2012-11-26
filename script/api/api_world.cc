@@ -20,6 +20,16 @@ SQInteger push_time(HSQUIRRELVM vm, uint32 yearmonth)
 	return 1;
 }
 
+// pushes table = { ticks = , next_month_ticks = }
+SQInteger world_get_ticks(HSQUIRRELVM vm)
+{
+	sq_newtableex(vm, 3);
+	param<uint32>::create_slot(vm, "ticks", welt->get_zeit_ms() );
+	param<uint32>::create_slot(vm, "ticks_per_month", welt->ticks_per_world_month );
+	param<uint32>::create_slot(vm, "next_month_ticks", welt->get_next_month_ticks() );
+	return 1;
+}
+
 
 SQInteger world_get_time(HSQUIRRELVM vm)
 {
@@ -109,6 +119,14 @@ void export_world(HSQUIRRELVM vm)
 	 * @typemask table()
 	 */
 	STATIC register_function(vm, world_get_time, "get_time", 1, ".");
+
+	/**
+	 * Returns precise in-game time.
+	 * @returns table { "ticks" = .., "next_month_ticks" = .. }
+	 * @typemask table()
+	 */
+	STATIC register_function(vm, world_get_ticks, "get_ticks", 1, ".");
+
 	/**
 	 * Get monthly statistics of total number of citizens.
 	 * @returns array, index [0] corresponds to current month

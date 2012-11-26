@@ -7,6 +7,7 @@
 #include "../api_function.h"
 #include "../../dataobj/scenario.h"
 #include "../../simfab.h"
+#include "../../bauer/fabrikbauer.h"
 
 using namespace script_api;
 
@@ -103,6 +104,46 @@ SQInteger world_get_factory_by_index(HSQUIRRELVM vm)
 }
 
 
+koord3d build_city_factory(const char* city_factory, koord target)
+{
+	koord3d pos(target, 0);
+	const fabrik_besch_t *besch =  fabrikbauer_t::get_fabesch(city_factory);
+	if (besch  &&  besch->get_platzierung() == fabrik_besch_t::Stadt  &&  welt->is_within_limits(pos.get_2d())) {
+		fabrikbauer_t::baue_hierarchie(NULL, besch, -1 /*random prodbase*/, 0, &pos, welt->get_spieler(1), 10000);
+	}
+	return pos;
+}
+
+
+bool factory_set_base_production(fabrik_t *fab, sint32 prod)
+{
+	if (fab) {
+		fab->set_base_production( ( (sint64)prod << (26l-(long)welt->ticks_per_world_month_shift)) / DEFAULT_PRODUCTION_FACTOR);
+	}
+	return true;
+}
+
+
+sint32 factory_get_base_production(fabrik_t *fab)
+{
+	if (fab) {
+		return ( (sint64)fab->get_base_production() * DEFAULT_PRODUCTION_FACTOR) >>(26l-(long)welt->ticks_per_world_month_shift);
+	}
+	return 0;
+}
+
+
+uint32 factory_get_base_consumption(fabrik_t *fab, const ware_besch_t* input)
+{
+	for(uint32 i=0; i<fab->get_eingang().get_count(); i++) {
+		if ( fab->get_eingang()[i].get_typ()==input ) {
+			return ( fab->get_besch()->get_lieferant(i)->get_verbrauch() * factory_get_base_production(fab) ) / 256;
+		}
+	}
+	return 0;
+}
+
+
 void export_factory(HSQUIRRELVM vm)
 {
 	/**
@@ -178,6 +219,11 @@ void export_factory(HSQUIRRELVM vm)
 	 * @returns array of coordinates of consumers
 	 */
 	register_method(vm, &fabrik_t::get_lieferziele, "get_consumers");
+
+	register_local_method(vm, &factory_get_base_production, "get_base_production");
+	register_local_method(vm, &factory_set_base_production, "set_base_production");
+	register_method(vm, &fabrik_t::get_current_production, "get_current_production");
+	register_local_method(vm, &factory_get_base_consumption, "get_base_consumption");
 
 	/**
 	 * Get list of consumers of this factory.
@@ -304,4 +350,7 @@ void export_factory(HSQUIRRELVM vm)
 
 	// pop class
 	end_class(vm);
+
+
+	register_method(vm, &build_city_factory, "build_city_factory");
 }

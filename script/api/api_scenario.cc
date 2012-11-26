@@ -14,7 +14,6 @@ using namespace script_api;
 
 static char buf[40];
 
-
 static plainstring double_to_string(double f, sint32 decimals)
 {
 	number_to_string(buf, f, decimals);
@@ -32,6 +31,8 @@ static plainstring money_to_string_intern(sint64 m)
 	money_to_string(buf, m);
 	return buf;
 }
+
+uint32 sim_async_rand(const uint32 max);
 
 
 void export_scenario(HSQUIRRELVM vm)
@@ -58,6 +59,9 @@ void export_scenario(HSQUIRRELVM vm)
 	 * @return content of loaded file
 	 */
 	register_method(vm, &scenario_t::load_language_file, "load_language_file");
+
+	register_method(vm, &sim_async_rand, "rand");
+
 
 	/**
 	 * Pretty-print floating point numbers, use language specific separator for powers of thousands.
