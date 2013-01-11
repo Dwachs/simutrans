@@ -147,7 +147,9 @@ settings_t::settings_t() :
 #endif
 
 	/* minimum spacing between two factories */
-	factory_spacing = 6;
+	min_factory_spacing = 6;
+	max_factory_spacing = 40;
+	max_factory_spacing_percentage = 0; // off
 
 	/* prissi: do not distribute goods to overflowing factories */
 	just_in_time = true;
@@ -208,6 +210,12 @@ settings_t::settings_t() :
 		startingmoneyperyear[i].money = 0;
 		startingmoneyperyear[i].interpol = 0;
 	}
+
+	// six month time frame for starting first conovi
+	remove_dummy_player_months = 6;
+
+	// off
+	unprotect_abondoned_player_months = 0;
 
 	maint_building = 5000;	// normal buildings
 	way_toll_runningcost_percentage = 0;
@@ -458,7 +466,7 @@ void settings_t::rdwr(loadsave_t *file)
 
 			file->rdwr_long(electric_promille );
 
-			file->rdwr_short(factory_spacing );
+			file->rdwr_short(min_factory_spacing );
 			file->rdwr_bool(crossconnect_factories );
 			file->rdwr_short(crossconnect_factor );
 
@@ -722,6 +730,16 @@ void settings_t::rdwr(loadsave_t *file)
 
 		if(  file->get_version()>=112001  ) {
 			file->rdwr_short( factory_maximum_intransit_percentage );
+		}
+
+		if(  file->get_version()>=112002  ) {
+			file->rdwr_short( remove_dummy_player_months );
+			file->rdwr_short( unprotect_abondoned_player_months );
+		}
+
+		if(  file->get_version()>=112003  ) {
+			file->rdwr_short( max_factory_spacing );
+			file->rdwr_short( max_factory_spacing_percentage );
 		}
 		// otherwise the default values of the last one will be used
 	}
@@ -1126,7 +1144,9 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 		locality_factor_per_year[j].factor = 0;
 	}
 
-	// player colors
+	// player stuff
+	remove_dummy_player_months = contents.get_int("remove_dummy_player_months", remove_dummy_player_months );
+	unprotect_abondoned_player_months = contents.get_int("unprotect_abondoned_player_months", unprotect_abondoned_player_months );
 	default_player_color_random = contents.get_int("random_player_colors", default_player_color_random ) != 0;
 	for(  int i = 0;  i<MAX_PLAYER_COUNT;  i++  ) {
 		char name[32];
@@ -1169,7 +1189,10 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	// the height in z-direction will only cause pixel errors but not a different behaviour
 	umgebung_t::pak_tile_height_step = contents.get_int("tile_height", umgebung_t::pak_tile_height_step );
 
-	factory_spacing = contents.get_int("factory_spacing", factory_spacing );
+	min_factory_spacing = contents.get_int("factory_spacing", min_factory_spacing );
+	min_factory_spacing = contents.get_int("min_factory_spacing", min_factory_spacing );
+	max_factory_spacing = contents.get_int("max_factory_spacing", max_factory_spacing );
+	max_factory_spacing_percentage = contents.get_int("max_factory_spacing_percentage", max_factory_spacing_percentage );
 	crossconnect_factories = contents.get_int("crossconnect_factories", crossconnect_factories ) != 0;
 	crossconnect_factor = contents.get_int("crossconnect_factories_percentage", crossconnect_factor );
 	electric_promille = contents.get_int("electric_promille", electric_promille );

@@ -591,10 +591,10 @@ void stadt_t::add_gebaeude_to_stadt(const gebaeude_t* gb, bool ordered)
 					}
 					else {
 						if(  ordered  ) {
-							buildings.insert_ordered(add_gb, tile->get_besch()->get_level() + 1, compare_gebaeude_pos, 16);
+							buildings.insert_ordered(add_gb, tile->get_besch()->get_level() + 1, compare_gebaeude_pos);
 						}
 						else {
-							buildings.append(add_gb, tile->get_besch()->get_level() + 1, 16);
+							buildings.append(add_gb, tile->get_besch()->get_level() + 1);
 						}
 					}
 					add_gb->set_stadt(this);
@@ -623,7 +623,7 @@ void stadt_t::remove_gebaeude_from_stadt(gebaeude_t* gb)
 void stadt_t::update_gebaeude_from_stadt(gebaeude_t* gb)
 {
 	buildings.remove(gb);
-	buildings.append(gb, gb->get_tile()->get_besch()->get_level() + 1, 16);
+	buildings.append(gb, gb->get_tile()->get_besch()->get_level() + 1);
 }
 
 
@@ -992,7 +992,7 @@ stadt_t::~stadt_t()
 				stadt_t *city = welt->suche_naechste_stadt(gb->get_pos().get_2d());
 				gb->set_stadt( city );
 				if(city) {
-					city->buildings.append(gb,gb->get_passagier_level(),16);
+					city->buildings.append(gb, gb->get_passagier_level());
 				}
 			}
 			else {
@@ -1879,8 +1879,7 @@ void stadt_t::add_target_city(stadt_t *const city)
 {
 	target_cities.append(
 		city,
-		weight_by_distance( city->get_einwohner()+1, shortest_distance( get_center(), city->get_center() ) ),
-		64u
+		weight_by_distance( city->get_einwohner()+1, shortest_distance( get_center(), city->get_center() ) )
 	);
 }
 
@@ -1899,8 +1898,7 @@ void stadt_t::add_target_attraction(gebaeude_t *const attraction)
 	assert( attraction != NULL );
 	target_attractions.append(
 		attraction,
-		weight_by_distance( attraction->get_passagier_level() << 4, shortest_distance( get_center(), attraction->get_pos().get_2d() ) ),
-		64u
+		weight_by_distance( attraction->get_passagier_level() << 4, shortest_distance( get_center(), attraction->get_pos().get_2d() ) )
 	);
 }
 
@@ -2141,7 +2139,7 @@ void stadt_t::check_bau_spezial(bool new_town)
 					if (!new_town) {
 						cbuffer_t buf;
 						buf.printf( translator::translate("With a big festival\n%s built\na new monument.\n%i citicens rejoiced."), get_name(), get_einwohner() );
-						welt->get_message()->add_message(buf, best_pos, message_t::city, CITY_KI, besch->get_tile(0)->get_hintergrund(0, 0, 0));
+						welt->get_message()->add_message(buf, best_pos + koord(1, 1), message_t::city, CITY_KI, besch->get_tile(0)->get_hintergrund(0, 0, 0));
 					}
 				}
 			}
@@ -2465,14 +2463,14 @@ void stadt_t::baue_gebaeude(const koord k)
 		if (sum_gewerbe > sum_industrie  &&  sum_gewerbe > sum_wohnung) {
 			h = hausbauer_t::get_gewerbe(0, current_month, cl);
 			if (h != NULL) {
-				arb += h->get_level() * 20;
+				arb += (h->get_level()+1) * 20;
 			}
 		}
 
 		if (h == NULL  &&  sum_industrie > sum_gewerbe  &&  sum_industrie > sum_wohnung) {
 			h = hausbauer_t::get_industrie(0, current_month, cl);
 			if (h != NULL) {
-				arb += h->get_level() * 20;
+				arb += (h->get_level()+1) * 20;
 			}
 		}
 
@@ -2480,7 +2478,7 @@ void stadt_t::baue_gebaeude(const koord k)
 			h = hausbauer_t::get_wohnhaus(0, current_month, cl);
 			if (h != NULL) {
 				// will be aligned next to a street
-				won += h->get_level() * 10;
+				won += (h->get_level()+1) * 10;
 			}
 		}
 

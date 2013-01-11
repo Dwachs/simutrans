@@ -480,6 +480,8 @@ DBG_MESSAGE("convoi_t::laden_abschliessen()","next_stop_index=%d", next_stop_ind
 		}
 		fpl->eingabe_abschliessen();
 	}
+	// remove wrong freight
+	check_freight();
 	// some convois had wrong old direction in them
 	if(  state<DRIVING  ||  state==LOADING  ) {
 		alte_richtung = fahr[0]->get_fahrtrichtung();
@@ -522,10 +524,7 @@ void convoi_t::rotate90( const sint16 y_size )
 		fahr[i]->rotate90_freight_destinations( y_size );
 	}
 	// eventually correct freight destinations (and remove all stale freight)
-	for(  int i=0;  i<anz_vehikel;  i++  ) {
-		fahr[i]->remove_stale_freight();
-	}
-	freight_info_resort = true;
+	check_freight();
 }
 
 
@@ -1546,6 +1545,17 @@ void convoi_t::set_erstes_letztes()
 }
 
 
+// remove wrong freight when schedule changes etc.
+void convoi_t::check_freight()
+{
+	for(unsigned i=0; i<anz_vehikel; i++) {
+		fahr[i]->remove_stale_freight();
+	}
+	calc_loading();
+	freight_info_resort = true;
+}
+
+
 bool convoi_t::set_schedule(schedule_t * f)
 {
 	if(  state==SELF_DESTRUCT  ) {
@@ -1593,10 +1603,7 @@ bool convoi_t::set_schedule(schedule_t * f)
 	}
 
 	// remove wrong freight
-	for(unsigned i=0; i<anz_vehikel; i++) {
-		fahr[i]->remove_stale_freight();
-	}
-	freight_info_resort = true;
+	check_freight();
 
 	// ok, now we have a schedule
 	if(old_state!=INITIAL) {
@@ -2086,6 +2093,9 @@ void convoi_t::rdwr(loadsave_t *file)
 						gr->find<crossing_t>()->add_to_crossing(v);
 					}
 				}
+				if(  gr->get_top()>253  ) {
+					dbg->warning( "convoi_t::rdwr()", "cannot put vehicle on ground at (%s)", gr->get_pos().get_str() );
+				}
 				gr->obj_add(v);
 				v->clear_flag(ding_t::not_on_map);
 			}
@@ -2550,7 +2560,7 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 
 	// now find out station length
 	int station_length=0;
-	if(gr->ist_wasser()) {
+	if(  gr->ist_wasser()  ) {
 		// harbour has any size
 		station_length = 24*16;
 	}
@@ -3063,14 +3073,13 @@ void convoi_t::check_pending_updates()
 		}
 
 		if (state != INITIAL) {
+			// remove wrong freight
+			check_freight();
+
 			if(is_same  ||  is_depot) {
 				/* same destination
-				 * We are already there => remove wrong freight and keep current state
+				 * We are already there => keep current state
 				 */
-				for(uint8 i=0; i<anz_vehikel; i++) {
-					fahr[i]->remove_stale_freight();
-				}
-				freight_info_resort = true;
 			}
 			else {
 				// need re-routing

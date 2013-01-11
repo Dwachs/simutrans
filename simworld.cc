@@ -762,7 +762,7 @@ DBG_MESSAGE("karte_t::destroy()", "attraction list destroyed");
 assert( depot_t::get_depot_list().empty() );
 
 DBG_MESSAGE("karte_t::destroy()", "world destroyed");
-	printf("World destroyed.\n");
+	dbg->important("World destroyed.");
 }
 
 
@@ -782,7 +782,7 @@ void karte_t::rem_convoi(convoihandle_t const cnv)
 void karte_t::add_stadt(stadt_t *s)
 {
 	settings.set_anzahl_staedte(settings.get_anzahl_staedte() + 1);
-	stadt.append(s, s->get_einwohner(), 64);
+	stadt.append(s, s->get_einwohner());
 
 	// Knightly : add links between this city and other cities as well as attractions
 	FOR(weighted_vector_tpl<stadt_t*>, const c, stadt) {
@@ -954,7 +954,7 @@ void karte_t::create_rivers( sint16 number )
 				last_koord = k;
 				// using h*h as weight would give mountian sources more preferences
 				// on the other hand most rivers do not string near summits ...
-				mountain_tiles.append( k, h, 256 );
+				mountain_tiles.append( k, h );
 			}
 		}
 	}
@@ -1014,13 +1014,14 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","distributing rivers");
 		create_rivers(settings.get_river_number());
 	}
 
-printf("Creating cities ...\n");
+dbg->important("Creating cities ...");
 DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 	vector_tpl<koord> *pos = stadt_t::random_place(this, new_anzahl_staedte, old_x, old_y);
 
 	if(  !pos->empty()  ) {
 		const sint32 old_anzahl_staedte = stadt.get_count();
 		new_anzahl_staedte = pos->get_count();
+		dbg->important("Creating cities: %d", new_anzahl_staedte);
 
 		// prissi if we could not generate enough positions ...
 		settings.set_anzahl_staedte(old_anzahl_staedte);
@@ -1087,9 +1088,6 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 							old_progress ++;
 							display_progress(old_progress, max_display_progress);
 						}
-						else {
-							printf("*");fflush(NULL);
-						}
 						not_updated = true;
 					}
 					current_month += diff;
@@ -1100,9 +1098,6 @@ DBG_DEBUG("karte_t::distribute_groundobjs_cities()","prepare cities");
 				if(is_display_init()) {
 					old_progress ++;
 					display_progress(old_progress, max_display_progress);
-				}
-				else {
-					printf("*");fflush(NULL);
 				}
 			}
 
@@ -1496,7 +1491,7 @@ DBG_DEBUG("karte_t::init()","built timeline");
 
 	nosave_warning = nosave = false;
 
-	printf("Creating factories ...\n");
+	dbg->important("Creating factories ...");
 	fabrikbauer_t::neue_karte(this);
 	// new system ...
 	int const max_display_progress = 16 + settings.get_anzahl_staedte() * 4 + settings.get_factory_count();
@@ -1520,7 +1515,7 @@ DBG_DEBUG("karte_t::init()","built timeline");
 	// tourist attractions
 	fabrikbauer_t::verteile_tourist(this, settings.get_tourist_attractions());
 
-	printf("Preparing startup ...\n");
+	dbg->important("Preparing startup ...");
 	if(zeiger == 0) {
 		zeiger = new zeiger_t(this, koord3d::invalid, NULL );
 	}
@@ -2454,6 +2449,10 @@ bool karte_t::change_player_tool(uint8 cmd, uint8 player_nr, uint16 param, bool 
 			if ( (param != spieler_t::HUMAN  &&  !public_player_unlocked)  ||  param >= spieler_t::MAX_AI) {
 				return false;
 			}
+			// range check, player already existent?
+			if ( player_nr >= PLAYER_UNOWNED  ||   get_spieler(player_nr) ) {
+				return false;
+			}
 			if (exec) {
 				new_spieler( player_nr, param );
 				// activate/deactivate AI immediately
@@ -2472,6 +2471,16 @@ bool karte_t::change_player_tool(uint8 cmd, uint8 player_nr, uint16 param, bool 
 			}
 			if (exec) {
 				settings.set_freeplay( !settings.is_freeplay() );
+			}
+			return true;
+		}
+		case delete_player: {
+			// range check, player existent?
+			if ( player_nr >= PLAYER_UNOWNED  ||   get_spieler(player_nr)==NULL ) {
+				return false;
+			}
+			if (exec) {
+				remove_player(player_nr);
 			}
 			return true;
 		}
@@ -2810,7 +2819,7 @@ bool karte_t::rem_fab(fabrik_t *fab)
 void karte_t::add_ausflugsziel(gebaeude_t *gb)
 {
 	assert(gb != NULL);
-	ausflugsziele.append( gb, gb->get_tile()->get_besch()->get_level(), 16 );
+	ausflugsziele.append( gb, gb->get_tile()->get_besch()->get_level() );
 
 	// Knightly : add links between this attraction and all cities
 	FOR(weighted_vector_tpl<stadt_t*>, const c, stadt) {
@@ -3334,36 +3343,32 @@ void karte_t::neuer_monat()
 
 	INT_CHECK("simworld 1282");
 
-//	DBG_MESSAGE("karte_t::neuer_monat()","players");
-	if (letzter_monat == 0 && !settings.is_freeplay()) {
-		// remove all player (but first and second) who went bankrupt during last year
-		for(int i=2; i<MAX_PLAYER_COUNT-1; i++) {
+
+	// spieler
+	for(uint i=0; i<MAX_PLAYER_COUNT; i++) {
+		if(i>=2  &&  letzter_monat == 0  &&  !settings.is_freeplay()  ) {
+			// remove all player (but first and second) who went bankrupt during last year
 			if(  spieler[i] != NULL  &&
 				spieler[i]->get_finance_history_year(0,COST_NETWEALTH)<=0  &&
 				spieler[i]->get_finance_history_year(0,COST_MAINTENANCE)==0  &&
 				spieler[i]->get_maintenance()==0  &&
 				spieler[i]->get_finance_history_year(0,COST_ALL_CONVOIS)==0  )
 			{
-				delete spieler[i];
-				spieler[i] = 0;
-				// if currently still active => reset to default human
-				if(  i == active_player_nr  ) {
-					i = 0;
-					active_player = spieler[0];
-				}
+				remove_player(i);
 			}
 		}
-		// update the window
-		ki_kontroll_t* playerwin = (ki_kontroll_t*)win_get_magic(magic_ki_kontroll_t);
-		if (playerwin) {
-			playerwin->update_data();
+
+		if(  spieler[i] != NULL  ) {
+			// if returns false -> remove player
+			if (!spieler[i]->neuer_monat()) {
+				remove_player(i);
+			}
 		}
 	}
-	// spieler
-	for(int i=0; i<MAX_PLAYER_COUNT; i++) {
-		if(  spieler[i] != NULL  ) {
-			spieler[i]->neuer_monat();
-		}
+	// update the window
+	ki_kontroll_t* playerwin = (ki_kontroll_t*)win_get_magic(magic_ki_kontroll_t);
+	if(  playerwin  ) {
+		playerwin->update_data();
 	}
 
 	INT_CHECK("simworld 1289");
@@ -4586,7 +4591,10 @@ bool karte_t::laden(const char *filename)
 
 	DBG_MESSAGE("karte_t::laden", "loading game from '%s'", filename);
 
-	if (strstart(filename, "net:")) {
+	// reloading same game? Remeber pos
+	const koord oldpos = settings.get_filename()[0]>0  &&  strncmp(filename,settings.get_filename(),strlen(settings.get_filename()))==0 ? ij_off : koord::invalid;
+
+	if(  strstart(filename, "net:")  ) {
 		// probably finish network mode?
 		if(  umgebung_t::networkmode  ) {
 			network_core_shutdown();
@@ -4690,6 +4698,10 @@ DBG_MESSAGE("karte_t::laden()","Savegame version is %d", file.get_version());
 		else if(  umgebung_t::networkmode  ) {
 			step_mode = PAUSE_FLAG|FIX_RATIO;
 			switch_active_player( last_active_player_nr, true );
+			if(  ist_in_kartengrenzen(oldpos)  ) {
+				// go to position when last disconnected
+				change_world_position( oldpos );
+			}
 		}
 		else {
 			step_mode = NORMAL;
@@ -4906,6 +4918,8 @@ DBG_DEBUG("karte_t::laden", "init felder ok");
 	next_month_ticks = 	( (ticks >> karte_t::ticks_per_world_month_shift) + 1 ) << karte_t::ticks_per_world_month_shift;
 	last_step_ticks = ticks;
 	steps = 0;
+	network_frame_count = 0;
+	sync_steps = 0;
 	step_mode = PAUSE_FLAG;
 
 DBG_MESSAGE("karte_t::laden()","savegame loading at tick count %i",ticks);
@@ -4950,7 +4964,7 @@ DBG_MESSAGE("karte_t::laden()", "init player");
 	stadt.resize(settings.get_anzahl_staedte());
 	for (int i = 0; i < settings.get_anzahl_staedte(); ++i) {
 		stadt_t *s = new stadt_t(this, file);
-		stadt.append( s, s->get_einwohner(), 64 );
+		stadt.append( s, s->get_einwohner());
 	}
 
 	DBG_MESSAGE("karte_t::laden()","loading blocks");
@@ -5071,10 +5085,7 @@ DBG_MESSAGE("karte_t::laden()", "init player");
 		DBG_MESSAGE("karte_t::laden()","%d halts loaded",halt_count);
 		for(int i=0; i<halt_count; i++) {
 			halthandle_t halt = haltestelle_t::create( this, file );
-			if(halt->existiert_in_welt()) {
-				halt->get_besitzer()->halt_add(halt);
-			}
-			else {
+			if(!halt->existiert_in_welt()) {
 				dbg->warning("karte_t::laden()", "could not restore stop near %i,%i", halt->get_init_pos().x, halt->get_init_pos().y );
 			}
 		}
@@ -5165,7 +5176,7 @@ DBG_MESSAGE("karte_t::laden()", "laden_abschliesen for tiles finished" );
 	FOR(weighted_vector_tpl<stadt_t*>, const s, stadt) {
 		s->laden_abschliessen();
 		s->recalc_target_cities();
-		new_weighted_stadt.append(s, s->get_einwohner(), 64);
+		new_weighted_stadt.append(s, s->get_einwohner());
 		INT_CHECK("simworld 1278");
 	}
 	swap(stadt, new_weighted_stadt);
@@ -5737,6 +5748,29 @@ const char *karte_t::new_spieler(uint8 new_player, uint8 type)
 	}
 	settings.set_player_type(new_player, type);
 	return NULL;
+}
+
+
+void karte_t::remove_player(uint8 player_nr)
+{
+	if ( player_nr!=1  &&  player_nr<PLAYER_UNOWNED  &&  spieler[player_nr]!=NULL) {
+		spieler[player_nr]->ai_bankrupt();
+		delete spieler[player_nr];
+		spieler[player_nr] = 0;
+		nwc_chg_player_t::company_removed(player_nr);
+		// if default human, create new instace of it (to avoid crashes)
+		if(  player_nr == 0  ) {
+			spieler[0] = new spieler_t( this, 0 );
+		}
+		// if currently still active => reset to default human
+		if(  player_nr == active_player_nr  ) {
+			active_player_nr = 0;
+			active_player = spieler[0];
+			if(  !umgebung_t::server  ) {
+				create_win( display_get_width()/2-128, 40, new news_img("Bankrott:\n\nDu bist bankrott.\n"), w_info, magic_none);
+			}
+		}
+	}
 }
 
 

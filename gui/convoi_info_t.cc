@@ -213,6 +213,7 @@ void convoi_info_t::zeichnen(koord pos, koord gr)
 		destroy_win(this);
 	}
 	else {
+		// make titlebar dirty to display the correct coordinates
 		if(cnv->get_besitzer()==cnv->get_welt()->get_active_player()) {
 			if(  line_bound  &&  !cnv->get_line().is_bound()  ) {
 				remove_komponente( &line_button );
@@ -265,6 +266,7 @@ enable_home:
 
 		// all gui stuff set => display it
 		gui_frame_t::zeichnen(pos, gr);
+		set_dirty();
 
 		PUSH_CLIP(pos.x+1,pos.y+D_TITLEBAR_HEIGHT,gr.x-2,gr.y-D_TITLEBAR_HEIGHT);
 

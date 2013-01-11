@@ -22,53 +22,20 @@ struct cached_string_t {
 static plainstringhashtable_tpl<cached_string_t*> cached_results;
 
 
-void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_update)
+unsigned long const CACHE_TIME = 10000; // 10s
+
+
+cached_string_t* get_cashed_result(const char* function, unsigned long cache_time)
 {
-	// generate function string
-	cbuffer_t buf;
-	buf.printf("%s(%d)", method, sp ? sp->get_player_nr() : PLAYER_UNOWNED);
+	cached_string_t *entry = cached_results.get(function);
 
-	if (script) {
-		script->prepare_callback("dynamicstring_record_result", 2, (const char*)buf, "");
-
-		plainstring s;
-		const char* err = script->call_function(script_vm_t::QUEUE, method, s, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
-
-		if (script_vm_t::is_call_suspended(err)) {
-			// activate listener
-			cached_string_t *entry = cached_results.get((const char*)buf);
-			if (entry == NULL) {
-				cached_results.set((const char*)buf, new cached_string_t(NULL, dr_time(), this));
-			}
-			else {
-				entry->listener = this;
-			}
-		}
-		else {
-			if ( s != (const char*)str) {
-				changed = true;
-				str = s;
-			}
-		}
-		script->clear_pending_callback();
-	}
-	else {
-		if (umgebung_t::networkmode  &&  !umgebung_t::server) {
-			plainstring s = dynamic_string::fetch_result( (const char*)buf, NULL, this, force_update);
-			if ( s == NULL) {
-				s = "Waiting for server response...";
-			}
-			if ( s != (const char*)str) {
-				str = s;
-				changed = true;
-			}
+	if (entry) {
+		if (dr_time() - entry->time > cache_time) {
+			entry = NULL;
 		}
 	}
+	return entry;
 }
-
-
-
-unsigned long const CACHE_TIME = 30000; // 30s
 
 
 dynamic_string::~dynamic_string()
@@ -91,16 +58,69 @@ void dynamic_string::init(script_vm_t *script)
 }
 
 
+void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_update)
+{
+	// generate function string
+	cbuffer_t buf;
+	buf.printf("%s(%d)", method, sp ? sp->get_player_nr() : PLAYER_UNOWNED);
+	const char* function = (const char*)buf;
+	plainstring s;
+
+	if (script) {
+		cached_string_t *entry = NULL;
+		if (!force_update) {
+			entry = get_cashed_result(function, CACHE_TIME);
+		}
+		if (entry) {
+			// valid cache entry
+			s = entry->result.c_str();
+		}
+		else {
+			script->prepare_callback("dynamicstring_record_result", 2, function, "");
+
+			const char* err = script->call_function(script_vm_t::QUEUE, method, s, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED));
+
+			if (script_vm_t::is_call_suspended(err)) {
+				// activate listener
+				cached_string_t *entry = cached_results.get((const char*)buf);
+				if (entry == NULL) {
+					cached_results.set(function, new cached_string_t(NULL, dr_time(), this));
+				}
+				else {
+					entry->listener = this;
+				}
+			}
+			else {
+				// or store result
+				record_result(function, s);
+			}
+			script->clear_pending_callback();
+		}
+	}
+	else {
+		if (umgebung_t::networkmode  &&  !umgebung_t::server) {
+			s = dynamic_string::fetch_result( function, script, this, force_update);
+			if ( s == NULL) {
+				s = "Waiting for server response...";
+			}
+		}
+	}
+	if ( s != (const char*)str) {
+		str = s;
+		changed = true;
+	}
+}
+
+
 const char* dynamic_string::fetch_result(const char* function, script_vm_t *script, dynamic_string *listener, bool force_update)
 {
 	//dbg->warning("dynamic_string::fetch_result", "function = '%s'", function);
-	cached_string_t *entry = cached_results.get(function);
+	cached_string_t *entry = get_cashed_result(function, CACHE_TIME);
 
-	unsigned long const t = dr_time();
-	bool needs_update = entry == NULL  ||  force_update  ||  (t - entry->time > CACHE_TIME);
+	bool const needs_update = entry == NULL  ||  force_update;
 
 	if (needs_update) {
-		if (umgebung_t::server) {
+		if (script != NULL  ||  umgebung_t::server) {
 			// directly call script if at server
 			if (script) {
 				// suspended calls have to be caught by script callbacks
@@ -117,24 +137,19 @@ const char* dynamic_string::fetch_result(const char* function, script_vm_t *scri
 			// send request
 			nwc_scenario_t *nwc = new nwc_scenario_t();
 			nwc->function = function;
-			nwc->what = (entry == NULL  ||  force_update)  ?  nwc_scenario_t::CALL_SCRIPT_ANSWER : nwc_scenario_t::CALL_SCRIPT;
+			nwc->what     = nwc_scenario_t::CALL_SCRIPT_ANSWER;
 			network_send_server(nwc);
 		}
+		// entry maybe invalid now, fetch again
+		entry = cached_results.get(function);
 	}
-	// entry maybe invalid now, fetch again
-	entry = cached_results.get(function);
-	const char *result = entry ? entry->result.c_str() : NULL;
 
-	//dbg->warning("dynamic_string::fetch_result", "... = '%s'", result);
-	return result;
+	return entry ? entry->result.c_str() : NULL;
 }
 
 
 bool dynamic_string::record_result(const char* function, plainstring result)
 {
-	dbg->warning("dynamic_string::record_result", "function = '%s'", function);
-	dbg->warning("dynamic_string::record_result", "... = '%s'", result.c_str());
-
 	cached_string_t *new_entry = new cached_string_t(result, dr_time(), NULL);
 	cached_string_t *entry = cached_results.set(function, new_entry);
 	if (entry == NULL) {

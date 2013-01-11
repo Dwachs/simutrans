@@ -61,6 +61,10 @@
 #include "gui/fahrplan_gui.h"
 #include "gui/line_management_gui.h"
 #include "gui/schedule_list.h"
+#include "gui/stadt_info.h"
+#include "gui/message_frame_t.h"
+#include "gui/message_option_t.h"
+#include "gui/fabrik_info.h"
 
 
 
@@ -469,7 +473,10 @@ void rdwr_all_win(loadsave_t *file)
 					case magic_ki_kontroll_t:  w = new ki_kontroll_t(wl); break;
 					case magic_schedule_rdwr_dummy: w = new fahrplan_gui_t(wl); break;
 					case magic_line_schedule_rdwr_dummy: w = new line_management_gui_t(wl); break;
-
+					case magic_city_info_t:    w = new stadt_info_t(wl); break;
+					case magic_messageframe:   w = new message_frame_t(wl); break;
+					case magic_message_options: w = new message_option_t(wl); break;
+					case magic_factory_info:   w = new fabrik_info_t(wl); break;
 
 					default:
 						if(  id>=magic_finances_t  &&  id<magic_finances_t+MAX_PLAYER_COUNT  ) {
@@ -806,6 +813,9 @@ void display_win(int win)
 				wins[win].sticky,
 				komp->is_weltpos(),
 				wins[win].flags );
+		if(  wins[win].gui->is_dirty()  ) {
+//			mark_rect_dirty_wc( wins[win].pos.x, wins[win].pos.y, wins[win].pos.x+gr.x, wins[win].pos.y+16 );
+		}
 	}
 	// mark top window, if requested
 	if(umgebung_t::window_frame_active  &&  (unsigned)win==wins.get_count()-1) {

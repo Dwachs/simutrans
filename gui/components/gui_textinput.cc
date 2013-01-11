@@ -22,6 +22,7 @@ gui_textinput_t::gui_textinput_t() :
 	scroll_offset(0),
 	align(ALIGN_LEFT),
 	textcol(COL_BLACK),
+	text_dirty(false),
 	cursor_reference_time(0),
 	focus_recieved(false)
 { }
@@ -61,6 +62,7 @@ bool gui_textinput_t::remove_selection()
 		size_t end_pos = ::max(head_cursor_pos, tail_cursor_pos);
 		tail_cursor_pos = head_cursor_pos = start_pos;
 		do {
+			text_dirty = true;
 			text[start_pos++] = text[end_pos];
 		} while(  text[end_pos++]!=0  );
 		return true;
@@ -83,7 +85,10 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 			switch(ev->ev_code) {
 					// handled by container
 				case SIM_KEY_ENTER:
-					call_listeners((long)1);
+					if(  text_dirty  ) {
+						text_dirty = false;
+						call_listeners((long)1);
+					}
 				case SIM_KEY_TAB:
 					// Knightly : focus is going to be lost -> reset cursor positions to select the whole text by default
 					head_cursor_pos = len;
@@ -114,6 +119,7 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 							len = strlen(text);
 						}
 						tail_cursor_pos = ( head_cursor_pos += dr_paste(text + head_cursor_pos, max - len - 1) );
+						text_dirty = true;
 					}
 					break;
 				case 24:
@@ -123,6 +129,7 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 						const size_t end_pos = ::max(head_cursor_pos, tail_cursor_pos);
 						dr_copy(text + start_pos, end_pos - start_pos);
 						remove_selection();
+						text_dirty = true;
 					}
 					break;
 				case SIM_KEY_DOWN: // down arrow
@@ -206,6 +213,7 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 				case SIM_KEY_BACKSPACE:
 					// backspace
 					// Knightly : check and remove any selected text first
+					text_dirty |= len>0;
 					if(  !remove_selection()  &&  head_cursor_pos>0  ) {
 						if (  head_cursor_pos<len  ) {
 							size_t prev_pos = head_cursor_pos;
@@ -218,16 +226,19 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 							tail_cursor_pos = head_cursor_pos = get_prev_char(text, head_cursor_pos);
 							text[head_cursor_pos] = 0;
 						}
+						text_dirty = true;
 					}
 					break;
 				case SIM_KEY_DELETE:
 					// delete
 					// Knightly : check and remove any selected text first
+					text_dirty |= len>0;
 					if(  !remove_selection()  &&  head_cursor_pos<=len  ) {
 						size_t next_pos = get_next_char(text, head_cursor_pos);
 						for(  size_t pos=head_cursor_pos;  pos<len;  pos++  ) {
 							text[pos] = text[pos+(next_pos-head_cursor_pos)];
 						}
+						text_dirty = true;
 					}
 					break;
 				default:
@@ -242,6 +253,7 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 						// recalculate text length after deleting selection
 						len = strlen(text);
 					}
+					text_dirty = true;
 
 					// test, if we have top convert letter
 					char letter[8];
@@ -296,6 +308,7 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 						memcpy( text+len, letter, num_letter );
 						text[len+num_letter] = 0;
 					}
+					text_dirty = true;
 					tail_cursor_pos = ( head_cursor_pos += num_letter );
 					/* end default */
 			}
@@ -342,7 +355,9 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 		tail_cursor_pos = 0;
 	}
 	else if(  ev->ev_class==INFOWIN  &&  ev->ev_code==WIN_UNTOP  ) {
-		call_listeners((long)0);
+		if(  text_dirty  ) {
+			call_listeners((long)0);
+		}
 		return true;
 	}
 	return false;
@@ -388,7 +403,7 @@ void gui_textinput_t::display_with_cursor(koord offset, bool cursor_active, bool
 		// Knightly : recalculate scroll offset
 		const KOORD_VAL text_width = proportional_string_width(text);
 		const KOORD_VAL view_width = groesse.x - 3;
-		const KOORD_VAL cursor_offset = proportional_string_len_width(text, head_cursor_pos);
+		const KOORD_VAL cursor_offset = cursor_active ? proportional_string_len_width(text, head_cursor_pos) : 0;
 		if(  text_width<=view_width  ) {
 			// case : text is shorter than displayable width of the text input
 			//			-> the only case where left and right alignments differ
@@ -468,6 +483,7 @@ void gui_textinput_t::set_text(char *text, size_t max)
 	// Knightly : whole text is selected by default
 	head_cursor_pos = strlen(text);
 	tail_cursor_pos = 0;
+	text_dirty = false;
 }
 
 

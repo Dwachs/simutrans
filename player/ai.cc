@@ -70,6 +70,16 @@ bool ai_bauplatz_mit_strasse_sucher_t::ist_platz_ok(koord pos, sint16 b, sint16 
 /************************** and now the "real" helper functions ***************/
 
 
+/* return the halt on the map ground */
+halthandle_t ai_t::get_halt(const koord pos ) const
+{
+	if(  grund_t *gr = welt->lookup_kartenboden(pos)  ) {
+		return haltestelle_t::get_halt( welt, gr->get_pos(), this );
+	}
+	return halthandle_t();
+}
+
+
 /* returns true,
  * if there is already a connection
  * @author prissi
@@ -228,7 +238,7 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 			}
 			else {
 				koord test(x,y);
-				if(  haltestelle_t::get_halt(welt,test,this).is_bound()  ) {
+				if(  get_halt(test).is_bound()  ) {
 DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 
 					// we are on a station that belongs to us
@@ -354,8 +364,14 @@ bool ai_t::built_update_headquarter()
 				}
 			}
 			// needs new place?
-			if(place==koord::invalid  &&  !halt_list.empty()) {
-				stadt_t *st = welt->suche_naechste_stadt(halt_list.front()->get_basis_pos());
+			if(place==koord::invalid) {
+				stadt_t *st = NULL;
+				FOR(slist_tpl<halthandle_t>, const halt, haltestelle_t::get_alle_haltestellen()) {
+					if(  halt->get_besitzer()==this  ) {
+						st = welt->suche_naechste_stadt(halt->get_basis_pos());
+						break;
+					}
+				}
 				if(st) {
 					bool is_rotate=besch->get_all_layouts()>1;
 					place = ai_bauplatz_mit_strasse_sucher_t(welt).suche_platz(st->get_pos(), besch->get_b(), besch->get_h(), besch->get_allowed_climate_bits(), &is_rotate);

@@ -151,9 +151,11 @@ private:
 
 	sint32 passenger_factor;
 
-	sint16 factory_spacing;
+	sint16 min_factory_spacing;
+	sint16 max_factory_spacing;
+	sint16 max_factory_spacing_percentage;
 
-	/*no goods will put in route, when stored>max_storage and goods_in_transit*maximum_intransit_percentage/100>max_storage  */
+	/*no goods will put in route, when stored>gemax_storage and goods_in_transit*maximum_intransit_percentage/100>max_storage  */
 	uint16 factory_maximum_intransit_percentage;
 
 	/* prissi: crossconnect all factories (like OTTD and similar games) */
@@ -304,6 +306,10 @@ public:
 	bool default_player_color_random;
 	uint8 default_player_color[MAX_PLAYER_COUNT][2];
 
+	// remove dummy companies and remove password from abandoned companies
+	uint16 remove_dummy_player_months;
+	uint16 unprotect_abondoned_player_months;
+
 public:
 	/**
 	 * If map is read from a heightfield, this is the name of the heightfield.
@@ -409,7 +415,9 @@ public:
 
 	sint16 get_special_building_distance() const { return special_building_distance; }
 
-	sint16 get_factory_spacing() const { return factory_spacing; }
+	sint16 get_min_factory_spacing() const { return min_factory_spacing; }
+	sint16 get_max_factory_spacing() const { return max_factory_spacing; }
+	sint16 get_max_factory_spacing_percent() const { return max_factory_spacing_percentage; }
 	sint16 get_crossconnect_factor() const { return crossconnect_factor; }
 	bool is_crossconnect_factories() const { return crossconnect_factories; }
 
@@ -531,6 +539,9 @@ public:
 	sint32 get_bonus_basefactor() const { return bonus_basefactor; }
 
 	bool get_allow_underground_transformers() const { return allow_underground_transformers; }
+
+	uint16 get_remove_dummy_player_months() const { return remove_dummy_player_months; }
+	uint16 get_unprotect_abondoned_player_months() const { return unprotect_abondoned_player_months; }
 };
 
 #endif
