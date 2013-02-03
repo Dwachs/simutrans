@@ -122,7 +122,7 @@ SQVM::SQVM(SQSharedState *ss)
 	ci = NULL;
 	INIT_CHAIN();ADD_TO_CHAIN(&_ss(this)->_gc_chain,this);
 	_ops_remaining = 0;
-	_ops_default_increase = 10000;
+	_ops_grace_amount = 500;
 	_throw_if_no_ops = true;
 	_error_handler_called = false;
 }
@@ -698,10 +698,6 @@ bool SQVM::Execute(SQObjectPtr &closure, SQInteger nargs, SQInteger stackbase,SQ
 			break;
 	}
 
-	if (!can_suspend) {
-		_ops_remaining = _ops_remaining < 3*_ops_default_increase ? _ops_remaining+_ops_default_increase : 4*_ops_default_increase;
-	}
-
 exception_restore:
 	//
 	{
@@ -709,16 +705,20 @@ exception_restore:
 		{
 			_ops_remaining --;
 			if (_ops_remaining < 0) {
-				if (_throw_if_no_ops  ||  !can_suspend) {
-					Raise_Error(_SC("script took too long") );
-					SQ_THROW();
-				}
-				else {
+				// suspend vm
+				if (can_suspend  &&  !_throw_if_no_ops) {
 					_suspended = SQTrue;
 					_suspended_root = ci->_root;
 					_suspended_traps = traps;
 					_suspended_target = -1;
 					return true;
+				}
+				else {
+					// throw error (if within unsuspendable function give some grace opcodes)
+					if (_throw_if_no_ops  ||  (_ops_remaining + _ops_grace_amount < 0) ) {
+						Raise_Error(_SC("script took too long: remain = %d grac = %d"), _ops_remaining, _ops_grace_amount);
+						SQ_THROW();
+					}
 				}
 			}
 

@@ -178,7 +178,7 @@ public:
 	SQInteger _suspended_traps;
 
 	SQInteger _ops_remaining;    /// number of ops the vm can do till break
-	SQInteger _ops_default_increase; /// default increment for _ops_remaining for pure native calls
+	SQInteger _ops_grace_amount; /// raise error if _ops_remaining is less than  -_ops_grace_amount for pure native calls
 	bool _throw_if_no_ops;       /// is no-ops an error or can call suspended? default: true
 	bool _error_handler_called;
 };
