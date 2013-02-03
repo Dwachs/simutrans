@@ -16,7 +16,7 @@ void sq_raise_error(HSQUIRRELVM vm, const SQChar *s, ...)
 
 SQRESULT sq_call_restricted(HSQUIRRELVM v, SQInteger params, SQBool retval, SQBool throw_if_no_ops, SQInteger ops)
 {
-	if(v->_ops_remaining < 4*ops) {
+	if(v->_ops_remaining < 4*ops  &&  sq_getvmstate(v)==SQ_VMSTATE_IDLE) {
 		v->_ops_remaining += ops;
 	}
 
