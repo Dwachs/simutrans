@@ -223,20 +223,23 @@ public:
 	bool is_scripted() const { return what_scenario == SCRIPTED  ||  what_scenario == SCRIPTED_NETWORK; }
 
 	/**
+	 * Get percentage of scenario completion. Does not call script to update this value.
+	 * On clients: call server for update via dynamic_string logic.
+	 *
 	 * Returns percentage of scenario completion.
 	 * @param player_nr player
 	 * @returns percentage of scenario completion:
 	 * if >= 100 then scenario is won
 	 * if < 0 then scenario is lost
 	 */
-	sint32 get_completed(int player_nr);
+	sint32 get_completion(int player_nr);
 
 	/**
 	 * Sets percentage of scenario completion. Used as callback if script call got suspended.
 	 * @param player_nr player
 	 * @returns dummy return value
 	 */
-	bool set_completed(sint32 player_nr, sint32 percentage);
+	bool set_completion(sint32 player_nr, sint32 percentage);
 
 
 	void rotate90(const sint16 y_size);
@@ -289,6 +292,10 @@ public:
 	const char* get_error_text();
 
 
+	/**
+	 * Calls scripted is_scenario_completed. Caches this value in statistics of spieler_t.
+	 * Server sends update of won/lost if necessary.
+	 */
 	void step();
 
 	/// @{

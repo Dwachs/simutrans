@@ -144,7 +144,7 @@ koord3d tunnelbauer_t::finde_ende(karte_t *welt, spieler_t *sp, koord3d pos, koo
 
 	while(true) {
 		pos = pos + zv;
-		if(!welt->ist_in_kartengrenzen(pos.get_2d())) {
+		if(!welt->is_within_limits(pos.get_2d())) {
 			return koord3d::invalid;
 		}
 
@@ -272,7 +272,7 @@ const char *tunnelbauer_t::baue( karte_t *welt, spieler_t *sp, koord pos, const 
 		}
 	}
 
-	if(!welt->ist_in_kartengrenzen(end.get_2d())) {
+	if(!welt->is_within_limits(end.get_2d())) {
 		return "Tunnel must start on single way!";
 	}
 
@@ -569,6 +569,13 @@ const char *tunnelbauer_t::remove(karte_t *welt, spieler_t *sp, koord3d start, w
 			if(t) {
 				t->entferne(sp);
 				delete t;
+			}
+			if (leitung_t *lt = gr->get_leitung()) {
+				// remove single powerlines
+				if ( (lt->get_ribi()  & ~ribi_typ(gr->get_grund_hang())) == ribi_t::keine ) {
+					lt->entferne(sp);
+					delete lt;
+				}
 			}
 		}
 		else {

@@ -354,7 +354,7 @@ haltestelle_t::haltestelle_t(karte_t* wl, koord k, spieler_t* sp)
 	sortierung = freight_list_sorter_t::by_name;
 	init_financial_history();
 
-	if(welt->ist_in_kartengrenzen(k)) {
+	if(welt->is_within_limits(k)) {
 		welt->access(k)->set_halt(self);
 	}
 }
@@ -1324,7 +1324,9 @@ int haltestelle_t::search_route( const halthandle_t *const start_halts, const ui
 				// count the connected transfer halts (including end halt)
 				uint8 t = current_node.halt->is_transfer(ware_catg_idx);
 				FOR(vector_tpl<connection_t>, const& i, current_node.halt->connections[ware_catg_idx]) {
-					if (t > 1) break;
+					if (t > 1) {
+						break;
+					}
 					t += i.halt.is_bound() && i.halt->is_transfer(ware_catg_idx);
 				}
 				return_ware->set_zwischenziel(  t<=1  ?  current_halt_data.transfer  : halthandle_t());
@@ -1752,11 +1754,11 @@ void haltestelle_t::hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *wtyp
 	// this allows for separate high speed and normal service
 	vector_tpl<ware_t> *warray = waren[wtyp->get_catg_index()];
 
-	if (warray && !warray->empty()) {
+	if(  warray  &&  !warray->empty()  ) {
 		// da wir schon an der aktuellem haltestelle halten
 		// startet die schleife ab 1, d.h. dem naechsten halt
 		const uint8 count = fpl->get_count();
-		for(  uint8 i=1; i<count; i++  ) {
+		for(  uint8 i=1;  i<count;  i++  ) {
 			const uint8 wrap_i = (i + fpl->get_aktuell()) % count;
 
 			const halthandle_t plan_halt = haltestelle_t::get_halt(welt, fpl->eintrag[wrap_i].pos, sp);
@@ -1764,10 +1766,18 @@ void haltestelle_t::hole_ab( slist_tpl<ware_t> &fracht, const ware_besch_t *wtyp
 				// we will come later here again ...
 				break;
 			}
-			else if(  plan_halt.is_bound()  ) {
+			else if(  !plan_halt.is_bound()  ) {
+				if(  grund_t *gr = welt->lookup( fpl->eintrag[wrap_i].pos )  ) {
+					if(  gr->get_depot()  ) {
+						// do not load for stops after a depot
+						break;
+					}
+				}
+			}
+			else {
 
 				// The random offset will ensure that all goods have an equal chance to be loaded.
-				sint32 offset = simrand(warray->get_count());
+				uint32 offset = simrand(warray->get_count());
 				for(  uint32 i=0;  i<warray->get_count();  i++  ) {
 					ware_t &tmp = (*warray)[ i+offset ];
 
@@ -2452,7 +2462,6 @@ void haltestelle_t::rdwr(loadsave_t *file)
 		k.rdwr( file );
 	}
 
-	short count;
 	const char *s;
 	init_pos = tiles.empty() ? koord::invalid : tiles.front().grund->get_pos().get_2d();
 	if(file->is_saving()) {
@@ -2461,8 +2470,14 @@ void haltestelle_t::rdwr(loadsave_t *file)
 			if(warray) {
 				s = "y";	// needs to be non-empty
 				file->rdwr_str(s);
-				count = warray->get_count();
-				file->rdwr_short(count);
+				if(  file->get_version() <= 112002  ) {
+					uint16 count = warray->get_count();
+					file->rdwr_short(count);
+				}
+				else {
+					uint32 count = warray->get_count();
+					file->rdwr_long(count);
+				}
 				FOR(vector_tpl<ware_t>, & ware, *warray) {
 					ware.rdwr(welt,file);
 				}
@@ -2470,19 +2485,26 @@ void haltestelle_t::rdwr(loadsave_t *file)
 		}
 		s = "";
 		file->rdwr_str(s);
-
 	}
 	else {
 		// restoring all goods in the station
 		char s[256];
 		file->rdwr_str(s, lengthof(s));
 		while(*s) {
-			file->rdwr_short(count);
+			uint32 count;
+			if(  file->get_version() <= 112002  ) {
+				uint16 scount;
+				file->rdwr_short(scount);
+				count = scount;
+			}
+			else {
+				file->rdwr_long(count);
+			}
 			if(count>0) {
-				for(int i = 0; i < count; i++) {
+				for(  uint32 i = 0;  i < count;  i++  ) {
 					// add to internal storage (use this function, since the old categories were different)
 					ware_t ware(welt,file);
-					if(  ware.menge>0  &&  welt->ist_in_kartengrenzen(ware.get_zielpos())  ) {
+					if(  ware.menge>0  &&  welt->is_within_limits(ware.get_zielpos())  ) {
 						add_ware_to_halt(ware);
 						if(  file->get_version() <= 112000  ) {
 							// restore intransit information
@@ -2500,6 +2522,7 @@ void haltestelle_t::rdwr(loadsave_t *file)
 		// old games save the list with stations
 		// however, we have to rebuilt them anyway for the new format
 		if(file->get_version()<99013) {
+			uint16 count;
 			file->rdwr_short(count);
 			warenziel_t dummy;
 			for(int i=0; i<count; i++) {

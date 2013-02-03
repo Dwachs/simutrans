@@ -25,6 +25,7 @@
 #include "player/simplay.h"
 #include "simsound.h"
 #include "simintr.h"
+#include "simloadingscreen.h"
 #include "simticker.h"
 #include "simmesg.h"
 #include "simwerkz.h"
@@ -725,9 +726,13 @@ int simu_main(int argc, char** argv)
 	simgraph_init(disp_width, disp_height, fullscreen);
 	DBG_MESSAGE("simmain", ".. results in disp_width=%d, disp_height=%d", display_get_width(), display_get_height());
 
+	// The loading screen needs to be initialized
+	loadingscreen::bootstrap();
+
+	show_pointer(1);
+
 	// if no object files given, we ask the user
 	if(  umgebung_t::objfilename.empty()  ) {
-		show_pointer(1);
 		ask_objfilename();
 		if(  umgebung_t::quit_simutrans  ) {
 			simgraph_exit();
@@ -750,7 +755,6 @@ int simu_main(int argc, char** argv)
 				return 0;
 			}
 		}
-		show_pointer(0);
 	}
 
 	// now find the pak specific tab file ...

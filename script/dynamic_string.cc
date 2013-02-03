@@ -167,7 +167,6 @@ bool dynamic_string::record_result(const char* function, plainstring result)
 }
 
 
-
 /// Struct for checking number of parameters
 struct method_param_t {
 	const char* name;
@@ -184,6 +183,15 @@ static const method_param_t scenario_methods[] = {
 	{ "get_about_text", 1 },
 	{ "get_short_description", 1}
 };
+
+
+void get_scenario_completion(plainstring &res, int player_nr)
+{
+	cbuffer_t buf;
+	sint32 percent = script_api::welt->get_scenario()->get_completion(player_nr);
+	buf.printf("%d", percent);
+	res = (const char*)buf;
+}
 
 
 bool dynamic_string::call_script(const char* function, script_vm_t* script, plainstring& str)
@@ -230,9 +238,17 @@ bool dynamic_string::call_script(const char* function, script_vm_t* script, plai
 			case 0:
 				err = script->call_function(script_vm_t::QUEUE, method, str);
 				break;
+
 			case 1:
-				err = script->call_function(script_vm_t::QUEUE, method, str, params[0]);
+
+				if ( strcmp(method, "is_scenario_completed")==0 ) {
+					get_scenario_completion(str, params[0]);
+				}
+				else {
+					err = script->call_function(script_vm_t::QUEUE, method, str, params[0]);
+				}
 				break;
+
 			default:
 				assert(0);
 		}

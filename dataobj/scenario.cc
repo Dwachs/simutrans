@@ -114,7 +114,7 @@ const char* scenario_t::init( const char *scenario_base, const char *scenario_na
 	rotation = 0;
 
 	// callback
-	script->register_callback(&scenario_t::set_completed, "scenario_t_set_completed");
+	script->register_callback(&scenario_t::set_completion, "scenario_t_set_completion");
 
 	// register ourselves
 	welt->set_scenario(this);
@@ -540,7 +540,20 @@ void scenario_t::step()
 		uint16 mask = 1 << i;
 		// player exists and has not won/lost yet
 		if (sp  &&  (((won | lost) & mask)==0)) {
-			sint32 percentage = get_completed(i);
+			sint32 percentage = 0;
+			// callback
+			script->prepare_callback("scenario_t_set_completion", 2, i, percentage );
+			// call script
+			const char *err = script->call_function(script_vm_t::QUEUE, "is_scenario_completed", percentage, i);
+
+			if (script_vm_t::is_call_suspended(err)) {
+				percentage = sp->get_scenario_completion();
+			}
+			else {
+				sp->set_scenario_completion(percentage);
+			}
+			// clear callback
+			script->clear_pending_callback();
 			// won ?
 			if (percentage >= 100) {
 				new_won |= mask;
@@ -715,7 +728,7 @@ void scenario_t::rdwr(loadsave_t *file)
 					// load translations
 					translator::load_files_from_folder( scenario_path.c_str(), "scenario" );
 					// callback
-					script->register_callback(&scenario_t::set_completed, "scenario_t_set_completed");
+					script->register_callback(&scenario_t::set_completion, "scenario_t_set_completion");
 				}
 				else {
 					dbg->warning("scenario_t::rdwr", "could not load script file %s", (const char*)script_filename);
@@ -765,7 +778,7 @@ void scenario_t::rotate90(const sint16 y_size)
 
 
 // return percentage completed
-sint32 scenario_t::get_completed(int player_nr)
+sint32 scenario_t::get_completion(int player_nr)
 {
 	if ( what_scenario == 0  ||  player_nr < 0  ||  player_nr >= PLAYER_UNOWNED) {
 		return 0;
@@ -779,34 +792,30 @@ sint32 scenario_t::get_completed(int player_nr)
 		return -1;
 	}
 
-	// call script to get precise numbers
 	sint32 percentage = 0;
+	spieler_t *sp = welt->get_spieler(player_nr);
 
 	if ( what_scenario == SCRIPTED ) {
-		// callback
-		script->prepare_callback("scenario_t_set_completed", 2, player_nr, percentage );
-		// call script
-		const char *err = script->call_function(script_vm_t::QUEUE, "is_scenario_completed", percentage, pl);
-		if (script_vm_t::is_call_suspended(err)) {
-			spieler_t *sp = welt->get_spieler(player_nr);
-			if (sp) {
-				percentage = sp->get_finance_history_month(0, COST_SCENARIO_COMPLETED);
-			}
+		// take cached value
+		if (sp) {
+			percentage = sp->get_scenario_completion();
 		}
-		// clear callback
-		script->clear_pending_callback();
 	}
 	else if ( what_scenario == SCRIPTED_NETWORK ) {
 		cbuffer_t buf;
 		buf.printf("is_scenario_completed(%d)", pl);
 		const char *ret = dynamic_string::fetch_result((const char*)buf, NULL, NULL);
 		percentage = ret ? atoi(ret) : 0;
+		// cache value
+		if (sp) {
+			sp->set_scenario_completion(percentage);
+		}
 	}
 	return min( 100, percentage);
 }
 
 
-bool scenario_t::set_completed(sint32 player_nr, sint32 percentage)
+bool scenario_t::set_completion(sint32 player_nr, sint32 percentage)
 {
 	if ( player_nr < 0  ||  player_nr >= PLAYER_UNOWNED) {
 		return false;
@@ -815,7 +824,7 @@ bool scenario_t::set_completed(sint32 player_nr, sint32 percentage)
 	if (sp == NULL) {
 		return false;
 	}
-	sp->buche(percentage - sp->get_finance_history_month(0, COST_SCENARIO_COMPLETED), COST_SCENARIO_COMPLETED);
+	sp->set_scenario_completion(percentage);;
 
 	uint16 mask = 1 << player_nr;
 	// check won/lost

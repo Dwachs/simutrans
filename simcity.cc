@@ -1021,7 +1021,7 @@ stadt_t::stadt_t(spieler_t* sp, koord pos, sint32 citizens) :
 	pax_destinations_new(koord(PAX_DESTINATIONS_SIZE, PAX_DESTINATIONS_SIZE))
 {
 	welt = sp->get_welt();
-	assert(welt->ist_in_kartengrenzen(pos));
+	assert(welt->is_within_limits(pos));
 
 	step_count = 0;
 	pax_destinations_new_change = 0;
@@ -1862,7 +1862,7 @@ koord stadt_t::get_zufallspunkt() const
 	if(!buildings.empty()) {
 		gebaeude_t* const gb = pick_any_weighted(buildings);
 		koord k = gb->get_pos().get_2d();
-		if(!welt->ist_in_kartengrenzen(k)) {
+		if(!welt->is_within_limits(k)) {
 			// this building should not be in this list, since it has been already deleted!
 			dbg->error("stadt_t::get_zufallspunkt()", "illegal building in city list of %s: %p removing!", this->get_name(), gb);
 			const_cast<stadt_t*>(this)->buildings.remove(gb);
@@ -2555,7 +2555,7 @@ void stadt_t::erzeuge_verkehrsteilnehmer(koord pos, sint32 level, koord target)
 		koord k;
 		for (k.y = pos.y - 1; k.y <= pos.y + 1; k.y++) {
 			for (k.x = pos.x - 1; k.x <= pos.x + 1; k.x++) {
-				if (welt->ist_in_kartengrenzen(k)) {
+				if (welt->is_within_limits(k)) {
 					grund_t* gr = welt->lookup_kartenboden(k);
 					const weg_t* weg = gr->get_weg(road_wt);
 
@@ -2892,7 +2892,7 @@ bool stadt_t::baue_strasse(const koord k, spieler_t* sp, bool forced)
 					end = brueckenbauer_t::finde_ende(welt, NULL, bd->get_pos(), zv, bridge, err, true);
 				}
 				if (err==NULL  &&   koord_distance( k, end.get_2d())<=3) {
-					brueckenbauer_t::baue_bruecke(welt, welt->get_spieler(1), bd->get_pos(), end, zv, bridge, welt->get_city_road());
+					brueckenbauer_t::baue_bruecke(welt, NULL, bd->get_pos(), end, zv, bridge, welt->get_city_road());
 					// try to build one connecting piece of road
 					baue_strasse( (end+zv).get_2d(), NULL, false);
 					// try to build a house near the bridge end
@@ -2916,7 +2916,7 @@ void stadt_t::baue()
 	const koord k(lo + koord::koord_random(ur.x - lo.x + 2,ur.y - lo.y + 2)-koord(1,1) );
 
 	// do not build on any border tile
-	if(  !welt->ist_in_kartengrenzen(k+koord(1,1))  ||  k.x<=0  ||  k.y<=0  ) {
+	if(  !welt->is_within_limits(k+koord(1,1))  ||  k.x<=0  ||  k.y<=0  ) {
 		return;
 	}
 

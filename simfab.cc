@@ -640,12 +640,12 @@ fabrik_t::fabrik_t(karte_t* wl, loadsave_t* file)
 		dbg->warning( "fabrik_t::fabrik_t()", "No pak-file for factory at (%s) - will not be built!", pos.get_str() );
 		return;
 	}
-	else if(  !welt->ist_in_kartengrenzen(pos.get_2d())  ) {
+	else if(  !welt->is_within_limits(pos.get_2d())  ) {
 		dbg->warning( "fabrik_t::fabrik_t()", "%s is not a valid position! (Will not be built!)", pos.get_str() );
 		besch = NULL; // to get rid of this broken factory later...
 	}
 	else {
-		baue(rotate, false);
+		baue(rotate, false, false);
 		// now get rid of construction image
 		for(  sint16 y=0;  y<besch->get_haus()->get_h(rotate);  y++  ) {
 			for(  sint16 x=0;  x<besch->get_haus()->get_b(rotate);  x++  ) {
@@ -755,7 +755,7 @@ fabrik_t::~fabrik_t()
 }
 
 
-void fabrik_t::baue(sint32 rotate, bool build_fields)
+void fabrik_t::baue(sint32 rotate, bool build_fields, bool force_initial_prodbase)
 {
 	this->rotate = rotate;
 	pos_origin = welt->lookup_kartenboden(pos_origin.get_2d())->get_pos();
@@ -795,7 +795,9 @@ void fabrik_t::baue(sint32 rotate, bool build_fields)
 			}
 			sint32 field_prod = prodbase - org_prodbase;
 			// adjust prodbase
-			set_base_production( max(field_prod, org_prodbase) );
+			if (force_initial_prodbase) {
+				set_base_production( max(field_prod, org_prodbase) );
+			}
 		}
 	}
 }
@@ -1121,6 +1123,11 @@ DBG_DEBUG("fabrik_t::rdwr()","loading factory '%s'",s);
 
 	if(  file->get_version()>=112002  ) {
 		file->rdwr_long( lieferziele_active_last_month );
+	}
+
+	// suppliers / consumers will be recalculated in laden_abschliessen
+	if (file->is_loading()  &&  welt->get_settings().is_crossconnect_factories()) {
+		lieferziele.clear();
 	}
 
 	// information on fields ...
