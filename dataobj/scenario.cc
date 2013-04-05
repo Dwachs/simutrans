@@ -569,9 +569,6 @@ void scenario_t::step()
 		return;
 	}
 
-	uint16 new_won = 0;
-	uint16 new_lost = 0;
-
 	// first check, whether win/loss state of any player changed
 	for(uint32 i=0; i<PLAYER_UNOWNED; i++) {
 		spieler_t *sp = welt->get_spieler(i);
@@ -598,19 +595,8 @@ void scenario_t::step()
 			}
 			// clear callback
 			script->clear_pending_callback();
-
-			// won ?
-			if (percentage >= 100) {
-				new_won |= mask;
-			}
-			// lost ?
-			else if (percentage < 0) {
-				new_lost |= mask;
-			}
 		}
 	}
-
-	update_won_lost(new_won, new_lost);
 
 	// update texts
 	if (win_get_magic(magic_scenario_info) ) {
@@ -877,7 +863,7 @@ bool scenario_t::set_completion(sint32 player_nr, sint32 percentage)
 	if (sp == NULL) {
 		return false;
 	}
-	sp->set_scenario_completion(percentage);;
+	sp->set_scenario_completion(percentage);
 
 	uint16 mask = 1 << player_nr;
 	// check won/lost
