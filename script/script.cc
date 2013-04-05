@@ -346,7 +346,6 @@ void script_vm_t::intern_resume_call(HSQUIRRELVM job)
 		if (retvalue) {
 			sq_poptop(job);
 		}
-		END_STACK_WATCH(job, 0);
 	}
 
 	dbg->message("script_vm_t::intern_resume_call", "stack=%d", sq_gettop(job));
