@@ -508,9 +508,16 @@ void rdwr_all_win(loadsave_t *file)
 				bool sticky, rollup;
 				file->rdwr_bool( sticky );
 				file->rdwr_bool( rollup );
+				// now load the window
+				uint32 count = wins.get_count();
 				w->rdwr( file );
-				wins.back().sticky = sticky;
-				wins.back().rollup = rollup;
+
+				// restore sticky / rollup status
+				// ensure that the new status is to currently loaded window
+				if (wins.get_count() >= count) {
+					wins.back().sticky = sticky;
+					wins.back().rollup = rollup;
+				}
 			}
 		}
 	}
@@ -1033,7 +1040,6 @@ void move_win(int win, event_t *ev)
 	const koord delta = to_pos - from_pos;
 
 	wins[win].pos += delta;
-
 	// need to mark all of old and new positions dirty
 	mark_rect_dirty_wc( from_pos.x, from_pos.y, from_pos.x+from_gr.x, from_pos.y+from_gr.y );
 	mark_rect_dirty_wc( to_pos.x, to_pos.y, to_pos.x+to_gr.x, to_pos.y+to_gr.y );
@@ -1388,6 +1394,9 @@ void win_display_flush(double konto)
 	// redraw all?
 	if(windows_dirty) {
 		mark_rect_dirty_wc( 0, 0, disp_width, disp_height );
+		if(wl) {
+			wl->set_background_dirty();
+		}
 		windows_dirty = false;
 	}
 	display_set_clip_wh( 0, menu_height, disp_width, disp_height-menu_height+1 );
@@ -1478,7 +1487,7 @@ void win_display_flush(double konto)
 	// @author prissi - also show date if desired
 	// since seaons 0 is always summer for backward compatibility
 	static char const* const seasons[] = { "q2", "q3", "q4", "q1" };
-	char const* const season = translator::translate(seasons[wl->get_jahreszeit()]);
+	char const* const season = translator::translate(seasons[wl->get_season()]);
 	char const* const month_ = translator::get_month_name(month % 12);
 	switch (umgebung_t::show_month) {
 		case umgebung_t::DATE_FMT_GERMAN_NO_SEASON:
@@ -1532,9 +1541,9 @@ void win_display_flush(double konto)
 	}
 
 	// season color
-	display_color_img( skinverwaltung_t::seasons_icons->get_bild_nr(wl->get_jahreszeit()), 2, disp_height-15, 0, false, true );
+	display_color_img( skinverwaltung_t::seasons_icons->get_bild_nr(wl->get_season()), 2, disp_height-15, 0, false, true );
 	if(  tooltip_check  &&  tooltip_xpos<14  ) {
-		tooltip_text = translator::translate(seasons[wl->get_jahreszeit()]);
+		tooltip_text = translator::translate(seasons[wl->get_season()]);
 		tooltip_check = false;
 	}
 

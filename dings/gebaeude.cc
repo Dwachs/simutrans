@@ -100,7 +100,7 @@ gebaeude_t::gebaeude_t(karte_t *welt, koord3d pos, spieler_t *sp, const haus_til
 	init();
 	if(t) {
 		set_tile(t,true);	// this will set init time etc.
-		spieler_t::add_maintenance(get_besitzer(), welt->get_settings().maint_building * tile->get_besch()->get_level());
+		spieler_t::add_maintenance(get_besitzer(), welt->get_settings().maint_building * tile->get_besch()->get_level(), tile->get_besch()->get_finance_waytype());
 	}
 
 	grund_t *gr=welt->lookup(pos);
@@ -135,7 +135,7 @@ gebaeude_t::~gebaeude_t()
 	count = 0;
 	anim_time = 0;
 	if(tile) {
-		spieler_t::add_maintenance(get_besitzer(), -welt->get_settings().maint_building*tile->get_besch()->get_level());
+		spieler_t::add_maintenance(get_besitzer(), -welt->get_settings().maint_building*tile->get_besch()->get_level(), tile->get_besch()->get_finance_waytype());
 	}
 }
 
@@ -371,11 +371,11 @@ void gebaeude_t::calc_bild()
 
 image_id gebaeude_t::get_bild() const
 {
-	if(umgebung_t::hide_buildings!=0) {
+	if(umgebung_t::hide_buildings!=0  &&  tile->has_image()) {
 		// opaque houses
 		if(get_haustyp()!=unbekannt) {
 			return umgebung_t::hide_with_transparency ? skinverwaltung_t::fussweg->get_bild_nr(0) : skinverwaltung_t::construction_site->get_bild_nr(0);
-		} else if(  (umgebung_t::hide_buildings == umgebung_t::ALL_HIDDEN_BUIDLING  &&  tile->get_besch()->get_utyp() < haus_besch_t::weitere)  ||  !tile->has_image()) {
+		} else if(  (umgebung_t::hide_buildings == umgebung_t::ALL_HIDDEN_BUIDLING  &&  tile->get_besch()->get_utyp() < haus_besch_t::weitere)) {
 			// hide with transparency or tile without information
 			if(umgebung_t::hide_with_transparency) {
 				if(tile->get_besch()->get_utyp() == haus_besch_t::fabrik  &&  ptr.fab->get_besch()->get_platzierung() == fabrik_besch_t::Wasser) {
@@ -875,7 +875,7 @@ void gebaeude_t::rdwr(loadsave_t *file)
  */
 void gebaeude_t::laden_abschliessen()
 {
-	spieler_t::add_maintenance(get_besitzer(), welt->get_settings().maint_building * tile->get_besch()->get_level());
+	spieler_t::add_maintenance(get_besitzer(), welt->get_settings().maint_building * tile->get_besch()->get_level(), tile->get_besch()->get_finance_waytype());
 
 	// citybuilding, but no town?
 	if(  tile->get_offset()==koord(0,0)  ) {
@@ -907,7 +907,7 @@ void gebaeude_t::entferne(spieler_t *sp)
 	if (tile->get_besch()->get_utyp() < haus_besch_t::bahnhof) {
 		cost *= tile->get_besch()->get_level() + 1;
 	}
-	spieler_t::accounting(sp, cost, get_pos().get_2d(), COST_CONSTRUCTION);
+	spieler_t::book_construction_costs(sp, cost, get_pos().get_2d(), tile->get_besch()->get_finance_waytype());
 
 	// may need to update next buildings, in the case of start, middle, end buildings
 	if(tile->get_besch()->get_all_layouts()>1  &&  get_haustyp()==unbekannt) {

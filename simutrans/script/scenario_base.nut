@@ -63,6 +63,13 @@ function is_work_allowed_here(pl, tool_id, pos)
 	return null
 }
 
+
+function is_schedule_allowed(pl, schedule)
+{
+	return null
+}
+
+
 // declare getter functions
 function get_map_file()
 {
@@ -130,7 +137,12 @@ function recursive_save(table, indent, table_stack)
 	foreach(key, val in table) {
 		str += indent
 		if (!isarray) {
-			str += key + " = "
+			if (typeof(key)=="string") {
+				str += key + " = "
+			}
+			else {
+				str += "[" + key + "] = "
+			}
 		}
 		while( typeof(val) == "weakref" )
 			val = val.ref
@@ -158,9 +170,15 @@ function recursive_save(table, indent, table_stack)
 			default:
 				str += "\"unknown\""
 		}
-		str += "\n"
+		if (str.slice(-1) != "\n") {
+			str += ",\n"
+		}
+		else {
+			str = str.slice(0,-1) + ",\n"
+		}
+
 	}
-	str += (isarray ? "]" : "}") + "\n"
+	str += indent.slice(0,-1) + (isarray ? "]" : "}") + "\n"
 	return str
 }
 
@@ -464,6 +482,76 @@ class city_x extends extend_get {
 class settings {
 }
 
+/**
+ * base class of map objects (ding_t)
+ */
+class map_object_x extends extend_get {
+	/// coordinates
+	x = -1
+	y = -1
+	z = -1
+
+	// do not call this directly
+	constructor(x_, y_, z_) {
+		x = x_
+		y = y_
+		z = z_
+	}
+}
+
+class schedule_x {
+	/// waytype
+	waytype = 0
+	/// the entries
+	entries = null
+
+	constructor(w, e)
+	{
+		waytype = w
+		entries = e
+	}
+}
+
+class schedule_entry_x {
+	/// coordinate
+	x = -1
+	y = -1
+	z = -1
+	/// load percentage
+	load = 0
+	/// waiting
+	wait = 0
+
+	constructor(pos, l, w)
+	{
+		x = pos.x
+		y = pos.y
+		z = pos.z
+		load = l
+		wait = w
+	}
+}
+
+class dir {
+	static none           = 0
+	static north          = 1
+	static east           = 2
+	static northeast      = 3
+	static south          = 4
+	static northsouth     = 5
+	static southeast      = 6
+	static northsoutheast = 7
+	static west           = 8
+	static northwest      = 9
+	static eastwest       = 10
+	static northeastwest  = 11
+	static southwest      = 12
+	static northsouthwest = 13
+	static southeastwest  = 14
+	static all            = 15
+
+	static nsew = [1, 4, 2, 8]
+}
 /**
  * The same metamethod magic as in the class extend_get.
  * Seems to be impossible to achieve for both tables and classes without code duplication.

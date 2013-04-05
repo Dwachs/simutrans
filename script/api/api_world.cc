@@ -5,11 +5,10 @@
 #include "../api_class.h"
 #include "../api_function.h"
 #include "../../simworld.h"
+#include "../../player/simplay.h"
 
 using namespace script_api;
 
-#define begin_class(c,p) push_class(vm, c);
-#define end_class() sq_pop(vm,1);
 #define STATIC
 
 // pushes table = { year = , month = }
@@ -48,12 +47,28 @@ vector_tpl<sint64> const& get_world_stat(karte_t* welt, bool monthly, sint32 IND
 }
 
 
+bool world_remove_player(karte_t *welt, spieler_t *sp)
+{
+	if (sp == NULL) {
+		return false;
+	}
+	// first test
+	bool ok = welt->change_player_tool(karte_t::delete_player, sp->get_player_nr(), 0, true /*unlocked*/, false /*exec*/);
+	if (!ok) {
+		return false;
+	}
+	// now call - will not have immediate effect in network games
+	welt->call_change_player_tool(karte_t::delete_player, sp->get_player_nr(), 0, true /*scripted*/);
+	return true;
+}
+
+
 void export_world(HSQUIRRELVM vm)
 {
 	/**
 	 * Table with methods to access the world, the universe, and everything.
 	 */
-	begin_class("world", "extend_get");
+	begin_class(vm, "world", "extend_get");
 
 	/**
 	 * Checks whether given coordinate is valid.
@@ -73,7 +88,20 @@ void export_world(HSQUIRRELVM vm)
 	 * Current season.
 	 * @returns season (0=winter, 1=spring, 2=summer, 3=autumn)
 	 */
-	STATIC register_method(vm, &karte_t::get_jahreszeit, "get_season");
+	STATIC register_method(vm, &karte_t::get_season, "get_season");
+
+	/**
+	 * Removes player company: removes all assets. Use with care.
+	 *
+	 * If pl is the first player (nr == 0) it is restarted immediately.
+	 * Public player (nr == 1) cannot be removed.
+	 *
+	 * In network games, there will be a delay between the call to this function and the removal of the player.
+	 *
+	 * @param pl player to be removed
+	 * @returns whether operation was successfull
+	 */
+	STATIC register_method(vm, &world_remove_player, "remove_player", true);
 
 	/**
 	 * Returns current in-game time.
@@ -211,5 +239,5 @@ void export_world(HSQUIRRELVM vm)
 	 */
 	STATIC register_method_fv(vm, &get_world_stat, "get_year_transported_goods", freevariable2<bool,sint32>(false, karte_t::WORLD_TRANSPORTED_GOODS), true );
 
-	end_class();
+	end_class(vm);
 }

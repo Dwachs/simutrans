@@ -11,6 +11,7 @@
 #include "../dataobj/einstellungen.h"
 #include "../dataobj/umgebung.h"
 #include "../dataobj/translator.h"
+#include "../player/finance.h" // MAX_PLAYER_HISTORY_YEARS
 #include "../vehicle/simvehikel.h"
 #include "settings_stats.h"
 
@@ -256,8 +257,8 @@ void settings_routing_stats_t::read(settings_t* const sets)
 void settings_economy_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
-	INIT_NUM( "remove_dummy_player_months", sets->get_remove_dummy_player_months(), 0, 144, 12, false );
-	INIT_NUM( "unprotect_abondoned_player_months", sets->get_unprotect_abondoned_player_months(), 0, 144, 12, false );
+	INIT_NUM( "remove_dummy_player_months", sets->get_remove_dummy_player_months(), 0, MAX_PLAYER_HISTORY_YEARS*12, 12, false );
+	INIT_NUM( "unprotect_abondoned_player_months", sets->get_unprotect_abondoned_player_months(), 0, MAX_PLAYER_HISTORY_YEARS*12, 12, false );
 	SEPERATOR
 	INIT_COST( "starting_money", sets->get_starting_money(sets->get_starting_year()), 1, 0x7FFFFFFFul, 10000, false );
 	INIT_NUM( "pay_for_total_distance", sets->get_pay_for_total_distance_mode(), 0, 2, gui_numberinput_t::AUTOLINEAR, true );
@@ -490,8 +491,8 @@ void settings_climates_stats_t::init(settings_t* const sets)
 	INIT_NUM_NEW( "forest_base_size", sets->get_forest_base_size(), 10, 255, 1, false );
 	INIT_NUM_NEW( "forest_map_size_divisor", sets->get_forest_map_size_divisor(), 2, 255, 1, false );
 	INIT_NUM_NEW( "forest_count_divisor", sets->get_forest_count_divisor(), 2, 255, 1, false );
-	INIT_NUM_NEW( "forest_inverse_spare_tree_density", sets->get_forest_inverse_spare_tree_density(), 0, 100, 1, false );
-	INIT_NUM( "max_no_of_trees_on_square", sets->get_max_no_of_trees_on_square(), 1, 6, 1, true );
+	INIT_NUM_NEW( "forest_inverse_spare_tree_density", sets->get_forest_inverse_spare_tree_density(), 33, 10000, 10, false );
+	INIT_NUM( "max_no_of_trees_on_square", sets->get_max_no_of_trees_on_square(), 1, 5, 1, true );
 	INIT_NUM_NEW( "tree_climates", sets->get_tree_climates(), 0, 255, 1, false );
 	INIT_NUM_NEW( "no_tree_climates", sets->get_no_tree_climates(), 0, 255, 1, false );
 

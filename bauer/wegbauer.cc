@@ -913,7 +913,7 @@ void wegbauer_t::do_terraforming()
 			changed = true;
 			if (last_terraformed != i) {
 				// charge player
-				spieler_t::accounting(sp, welt->get_settings().cst_set_slope, from->get_pos().get_2d(), COST_CONSTRUCTION);
+				spieler_t::book_construction_costs(sp, welt->get_settings().cst_set_slope, from->get_pos().get_2d(), ignore_wt);
 			}
 		}
 		// change slope of to
@@ -928,7 +928,7 @@ void wegbauer_t::do_terraforming()
 			}
 			changed = true;
 			// charge player
-			spieler_t::accounting(sp, welt->get_settings().cst_set_slope, to->get_pos().get_2d(), COST_CONSTRUCTION);
+			spieler_t::book_construction_costs(sp, welt->get_settings().cst_set_slope, to->get_pos().get_2d(), ignore_wt);
 			last_terraformed = i+1; // do not pay twice for terraforming one tile
 		}
 		// recalc slope image of neighbors
@@ -1026,7 +1026,7 @@ void wegbauer_t::check_for_bridge(const grund_t* parent_from, const grund_t* fro
 				sint8 num_slopes = (from->get_grund_hang() == hang_t::flach) ? 1 : -1;
 				// On the end tile, we haven't to subtract way_count_slope, since is_allowed_step isn't called with this tile.
 				num_slopes += (gr_end->get_grund_hang() == hang_t::flach) ? 1 : 0;
-				next_gr.append(next_gr_t(welt->lookup(end), length * cost_difference + num_slopes*welt->get_settings().way_count_slope, build_straight));
+				next_gr.append(next_gr_t(welt->lookup(end), length * cost_difference + num_slopes*welt->get_settings().way_count_slope, build_straight | build_tunnel_bridge));
 				min_length = length+1;
 			}
 			else {
@@ -1042,7 +1042,7 @@ void wegbauer_t::check_for_bridge(const grund_t* parent_from, const grund_t* fro
 		koord3d end = tunnelbauer_t::finde_ende( welt, sp, from->get_pos(), zv, besch->get_wtyp());
 		if(  end != koord3d::invalid  &&  !ziel.is_contained(end)  ) {
 			uint32 length = koord_distance(from->get_pos(), end);
-			next_gr.append(next_gr_t(welt->lookup(end), length * cost_difference, build_straight ));
+			next_gr.append(next_gr_t(welt->lookup(end), length * cost_difference, build_straight | build_tunnel_bridge ));
 			return;
 		}
 	}
@@ -1303,7 +1303,7 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 				// now add it to the array ...
 				next_gr.append(next_gr_t(to, new_cost, do_terraform ? build_straight | terraform : 0));
 			}
-			else if(tmp->parent!=NULL  &&  r==straight_dir) {
+			else if(tmp->parent!=NULL  &&  r==straight_dir  &&  (tmp->count & build_tunnel_bridge)==0) {
 				// try to build a bridge or tunnel here, since we cannot go here ...
 				check_for_bridge(tmp->parent->gr,gr,ziel);
 			}
@@ -1982,18 +1982,18 @@ bool wegbauer_t::baue_tunnelboden()
 				tunnel->neuen_weg_bauen(weg, route.get_ribi(i), sp);
 				tunnel->obj_add(new tunnel_t(welt, route[i], sp, tunnel_besch));
 				weg->set_max_speed(tunnel_besch->get_topspeed());
-				spieler_t::add_maintenance( sp, -weg->get_besch()->get_wartung());
+				spieler_t::add_maintenance( sp, -weg->get_besch()->get_wartung(), weg->get_besch()->get_finance_waytype());
 			} else {
 				tunnel->obj_add(new tunnel_t(welt, route[i], sp, tunnel_besch));
 				leitung_t *lt = new leitung_t(welt, tunnel->get_pos(), sp);
 				lt->set_besch( wb );
 				tunnel->obj_add( lt );
 				lt->laden_abschliessen();
-				spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung());
+				spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung(), powerline_wt);
 			}
 			tunnel->calc_bild();
 			cost -= tunnel_besch->get_preis();
-			spieler_t::add_maintenance( sp,  tunnel_besch->get_wartung() );
+			spieler_t::add_maintenance( sp,  tunnel_besch->get_wartung(), tunnel_besch->get_finance_waytype() );
 		}
 		else if(gr->get_typ()==grund_t::tunnelboden) {
 			// check for extension only ...
@@ -2007,15 +2007,15 @@ bool wegbauer_t::baue_tunnelboden()
 					gr->obj_add( lt );
 				} else {
 					lt->leitung_t::laden_abschliessen();	// only change powerline aspect
-					spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung());
+					spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung(), powerline_wt);
 				}
 			}
 			tunnel_t *tunnel = gr->find<tunnel_t>();
 			assert( tunnel );
 			// take the faster way
 			if(  !keep_existing_faster_ways  ||  (tunnel->get_besch()->get_topspeed() < tunnel_besch->get_topspeed())  ) {
-				spieler_t::add_maintenance(sp, -tunnel->get_besch()->get_wartung());
-				spieler_t::add_maintenance(sp,  tunnel_besch->get_wartung() );
+				spieler_t::add_maintenance(sp, -tunnel->get_besch()->get_wartung(), tunnel->get_besch()->get_finance_waytype());
+				spieler_t::add_maintenance(sp,  tunnel_besch->get_wartung(), tunnel->get_besch()->get_finance_waytype() );
 
 				tunnel->set_besch(tunnel_besch);
 				weg_t *weg = gr->get_weg(tunnel_besch->get_waytype());
@@ -2032,7 +2032,7 @@ bool wegbauer_t::baue_tunnelboden()
 			}
 		}
 	}
-	spieler_t::accounting(sp, cost, route[0].get_2d(), COST_CONSTRUCTION);
+	spieler_t::book_construction_costs(sp, cost, route[0].get_2d(), tunnel_besch->get_waytype());
 	return true;
 }
 
@@ -2101,7 +2101,7 @@ void wegbauer_t::baue_strasse()
 			else {
 				// we take ownership => we take care to maintain the roads completely ...
 				spieler_t *s = weg->get_besitzer();
-				spieler_t::add_maintenance(s, -weg->get_besch()->get_wartung());
+				spieler_t::add_maintenance(s, -weg->get_besch()->get_wartung(), weg->get_besch()->get_finance_waytype());
 				// cost is the more expensive one, so downgrading is between removing and new buidling
 				cost -= max( weg->get_besch()->get_preis(), besch->get_preis() );
 				weg->set_besch(besch);
@@ -2111,7 +2111,7 @@ void wegbauer_t::baue_strasse()
 					weg->set_max_speed( wo->get_besch()->get_topspeed() );
 				}
 				weg->set_gehweg(add_sidewalk);
-				spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung());
+				spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung(), weg->get_besch()->get_finance_waytype());
 				weg->set_besitzer(sp);
 			}
 		}
@@ -2131,7 +2131,7 @@ void wegbauer_t::baue_strasse()
 		}
 		gr->calc_bild();	// because it may be a crossing ...
 		reliefkarte_t::get_karte()->calc_map_pixel(k);
-		spieler_t::accounting(sp, cost, k, COST_CONSTRUCTION);
+		spieler_t::book_construction_costs(sp, cost, k, road_wt);
 	} // for
 }
 
@@ -2193,7 +2193,7 @@ void wegbauer_t::baue_schiene()
 				if(  change_besch  ) {
 					// we take ownership => we take care to maintain the roads completely ...
 					spieler_t *s = weg->get_besitzer();
-					spieler_t::add_maintenance( s, -weg->get_besch()->get_wartung());
+					spieler_t::add_maintenance( s, -weg->get_besch()->get_wartung(), weg->get_besch()->get_finance_waytype());
 					// cost is the more expensive one, so downgrading is between removing and new buidling
 					cost -= max( weg->get_besch()->get_preis(), besch->get_preis() );
 					weg->set_besch(besch);
@@ -2202,7 +2202,7 @@ void wegbauer_t::baue_schiene()
 					if (wo  &&  wo->get_besch()->get_topspeed() < weg->get_max_speed()) {
 						weg->set_max_speed( wo->get_besch()->get_topspeed() );
 					}
-					spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung());
+					spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung(), weg->get_besch()->get_finance_waytype());
 					weg->set_besitzer(sp);
 				}
 			}
@@ -2227,7 +2227,7 @@ void wegbauer_t::baue_schiene()
 
 			gr->calc_bild();
 			reliefkarte_t::get_karte()->calc_map_pixel( gr->get_pos().get_2d() );
-			spieler_t::accounting(sp, cost, gr->get_pos().get_2d(), COST_CONSTRUCTION);
+			spieler_t::book_construction_costs(sp, cost, gr->get_pos().get_2d(), besch->get_finance_waytype());
 
 			if((i&3)==0) {
 				INT_CHECK( "wegbauer 1584" );
@@ -2257,7 +2257,7 @@ void wegbauer_t::baue_leitung()
 			if(gr->ist_natur()) {
 				// remove trees etc.
 				sint64 cost = gr->remove_trees();
-				spieler_t::accounting(sp, -cost, gr->get_pos().get_2d(), COST_CONSTRUCTION);
+				spieler_t::book_construction_costs(sp, -cost, gr->get_pos().get_2d(), powerline_wt);
 			}
 			lt = new leitung_t( welt, route[i], sp );
 			gr->obj_add(lt);
@@ -2270,12 +2270,12 @@ void wegbauer_t::baue_leitung()
 			// modernize the network
 			if( !keep_existing_faster_ways  ||  lt->get_besch()->get_topspeed() < besch->get_topspeed()  ) {
 				build_powerline = true;
-				spieler_t::add_maintenance( lt->get_besitzer(),  -lt->get_besch()->get_wartung() );
+				spieler_t::add_maintenance( lt->get_besitzer(),  -lt->get_besch()->get_wartung(), powerline_wt );
 			}
 		}
 		if (build_powerline) {
 			lt->set_besch(besch);
-			spieler_t::accounting(sp, -besch->get_preis(), gr->get_pos().get_2d(), COST_CONSTRUCTION);
+			spieler_t::book_construction_costs(sp, -besch->get_preis(), gr->get_pos().get_2d(), powerline_wt);
 			// this adds maintenance
 			lt->leitung_t::laden_abschliessen();
 			reliefkarte_t::get_karte()->calc_map_pixel( gr->get_pos().get_2d() );

@@ -116,6 +116,7 @@ DBG_DEBUG("depot_frame_t::depot_frame_t()","get_max_convoi_length()=%i",depot->g
 	line_selector.add_listener(this);
 	line_selector.set_highlight_color( depot->get_besitzer()->get_player_color1() + 1);
 	line_selector.set_wrapping(false);
+	line_selector.set_focusable(true);
 	add_komponente(&line_selector);
 	depot->get_besitzer()->simlinemgmt.sort_lines();
 
@@ -248,6 +249,16 @@ DBG_DEBUG("depot_frame_t::depot_frame_t()","get_max_convoi_length()=%i",depot->g
 	set_resizemode( diagonal_resize );
 
 	depot->clear_command_pending();
+}
+
+
+// free memory: all the image_data_t
+depot_frame_t::~depot_frame_t()
+{
+	clear_ptr_vector(pas_vec);
+	clear_ptr_vector(electrics_vec);
+	clear_ptr_vector(loks_vec);
+	clear_ptr_vector(waggons_vec);
 }
 
 
@@ -587,30 +598,23 @@ void depot_frame_t::add_to_vehicle_list(const vehikel_besch_t *info)
 		}
 	}
 
-	gui_image_list_t::image_data_t img_data;
-
-	img_data.image = info->get_basis_bild();
-	img_data.count = 0;
-	img_data.lcolor = img_data.rcolor = EMPTY_IMAGE_BAR;
-	img_data.text = info->get_name();
+	gui_image_list_t::image_data_t* img_data = new gui_image_list_t::image_data_t(info->get_name(), info->get_basis_bild());
 
 	if(  info->get_engine_type() == vehikel_besch_t::electric  &&  (info->get_ware()==warenbauer_t::passagiere  ||  info->get_ware()==warenbauer_t::post)  ) {
 		electrics_vec.append(img_data);
-		vehicle_map.set(info, &electrics_vec.back());
 	}
 	// since they come "pre-sorted" for the vehikelbauer, we have to do nothing to keep them sorted
 	else if(info->get_ware()==warenbauer_t::passagiere  ||  info->get_ware()==warenbauer_t::post) {
 		pas_vec.append(img_data);
-		vehicle_map.set(info, &pas_vec.back());
 	}
 	else if(info->get_leistung() > 0  ||  info->get_zuladung()==0) {
 		loks_vec.append(img_data);
-		vehicle_map.set(info, &loks_vec.back());
 	}
 	else {
 		waggons_vec.append(img_data);
-		vehicle_map.set(info, &waggons_vec.back());
 	}
+	// add reference to map
+	vehicle_map.set(info, img_data);
 }
 
 
@@ -627,37 +631,12 @@ void depot_frame_t::build_vehicle_lists()
 
 	const int month_now = get_welt()->get_timeline_year_month();
 
-	/*
-	 * The next block calculates upper bounds for the sizes of the vectors.
-	 * If the vectors get resized, the vehicle_map becomes invalid, therefore
-	 * we need to resize them before filling them.
-	 */
-	if(electrics_vec.empty()  &&  pas_vec.empty()  &&  loks_vec.empty()  &&  waggons_vec.empty()) {
-		int loks = 0, waggons = 0, pax=0, electrics = 0;
-		FOR(slist_tpl<vehikel_besch_t const*>, const info, depot->get_vehicle_type()) {
-			if(  info->get_engine_type() == vehikel_besch_t::electric  &&  (info->get_ware()==warenbauer_t::passagiere  ||  info->get_ware()==warenbauer_t::post)) {
-				electrics++;
-			}
-			else if(info->get_ware()==warenbauer_t::passagiere  ||  info->get_ware()==warenbauer_t::post) {
-				pax++;
-			}
-			else if(info->get_leistung() > 0  ||  info->get_zuladung()==0) {
-				loks++;
-			}
-			else {
-				waggons++;
-			}
-		}
-		pas_vec.resize(pax);
-		electrics_vec.resize(electrics);
-		loks_vec.resize(loks);
-		waggons_vec.resize(waggons);
-	}
-	pas_vec.clear();
-	electrics_vec.clear();
-	loks_vec.clear();
-	waggons_vec.clear();
-
+	// free vectors
+	clear_ptr_vector(pas_vec);
+	clear_ptr_vector(electrics_vec);
+	clear_ptr_vector(loks_vec);
+	clear_ptr_vector(waggons_vec);
+	// clear map
 	vehicle_map.clear();
 
 	// we do not allow to built electric vehicle in a depot without electrification
@@ -771,7 +750,7 @@ void depot_frame_t::update_data()
 
 	const vehikel_besch_t *veh = NULL;
 
-	convoi_pics.clear();
+	clear_ptr_vector( convoi_pics );
 	if(  cnv.is_bound()  &&  cnv->get_vehikel_anzahl() > 0  ) {
 		for(  unsigned i=0;  i < cnv->get_vehikel_anzahl();  i++  ) {
 			// just make sure, there is this vehicle also here!
@@ -780,33 +759,29 @@ void depot_frame_t::update_data()
 				add_to_vehicle_list( info );
 			}
 
-			gui_image_list_t::image_data_t img_data;
-			img_data.image = cnv->get_vehikel(i)->get_besch()->get_basis_bild();
-			img_data.count = 0;
-			img_data.lcolor = img_data.rcolor= EMPTY_IMAGE_BAR;
-			img_data.text = cnv->get_vehikel(i)->get_besch()->get_name();
+			gui_image_list_t::image_data_t* img_data = new gui_image_list_t::image_data_t(info->get_name(), info->get_basis_bild());
 			convoi_pics.append(img_data);
 		}
 
 		/* color bars for current convoi: */
-		convoi_pics[0].lcolor = cnv->front()->get_besch()->can_follow(NULL) ? COL_GREEN : COL_YELLOW;
+		convoi_pics[0]->lcolor = cnv->front()->get_besch()->can_follow(NULL) ? COL_GREEN : COL_YELLOW;
 		{
 			unsigned i;
 			for(  i = 1;  i < cnv->get_vehikel_anzahl();  i++  ) {
-				convoi_pics[i - 1].rcolor = cnv->get_vehikel(i-1)->get_besch()->can_lead(cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
-				convoi_pics[i].lcolor     = cnv->get_vehikel(i)->get_besch()->can_follow(cnv->get_vehikel(i-1)->get_besch()) ? COL_GREEN : COL_RED;
+				convoi_pics[i - 1]->rcolor = cnv->get_vehikel(i-1)->get_besch()->can_lead(cnv->get_vehikel(i)->get_besch()) ? COL_GREEN : COL_RED;
+				convoi_pics[i]->lcolor     = cnv->get_vehikel(i)->get_besch()->can_follow(cnv->get_vehikel(i-1)->get_besch()) ? COL_GREEN : COL_RED;
 			}
-			convoi_pics[i - 1].rcolor = cnv->get_vehikel(i-1)->get_besch()->can_lead(NULL) ? COL_GREEN : COL_YELLOW;
+			convoi_pics[i - 1]->rcolor = cnv->get_vehikel(i-1)->get_besch()->can_lead(NULL) ? COL_GREEN : COL_YELLOW;
 		}
 
 		// change green into blue for retired vehicles
 		for(  unsigned i = 0;  i < cnv->get_vehikel_anzahl();  i++  ) {
 			if(  cnv->get_vehikel(i)->get_besch()->is_future(month_now)  ||  cnv->get_vehikel(i)->get_besch()->is_retired(month_now)  ) {
-				if(  convoi_pics[i].lcolor == COL_GREEN  ) {
-					convoi_pics[i].lcolor = COL_BLUE;
+				if(  convoi_pics[i]->lcolor == COL_GREEN  ) {
+					convoi_pics[i]->lcolor = COL_BLUE;
 				}
-				if(  convoi_pics[i].rcolor == COL_GREEN  ) {
-					convoi_pics[i].rcolor = COL_BLUE;
+				if(  convoi_pics[i]->rcolor == COL_GREEN  ) {
+					convoi_pics[i]->rcolor = COL_BLUE;
 				}
 			}
 		}
@@ -888,7 +863,6 @@ void depot_frame_t::update_data()
 	}
 	line_selector.append_element( new gui_scrolled_list_t::const_text_scrollitem_t( line_seperator, COL_BLACK ) );
 	line_selector.set_selection(0);
-	line_selector.set_focusable(true);
 	selected_line = linehandle_t();
 
 	// check all matching lines
@@ -1026,16 +1000,16 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *komp, value_t p)
 			image_from_convoi_list( p.i, last_meta_event_get_class() == EVENT_DOUBLE_CLICK);
 		}
 		else if(  komp == &pas  &&  last_meta_event_get_class() != EVENT_DOUBLE_CLICK  ) {
-			image_from_storage_list(&pas_vec[p.i]);
+			image_from_storage_list(pas_vec[p.i]);
 		}
 		else if(  komp == &electrics  &&  last_meta_event_get_class() != EVENT_DOUBLE_CLICK  ) {
-			image_from_storage_list(&electrics_vec[p.i]);
+			image_from_storage_list(electrics_vec[p.i]);
 		}
 		else if(  komp == &loks  &&  last_meta_event_get_class() != EVENT_DOUBLE_CLICK  ) {
-			image_from_storage_list(&loks_vec[p.i]);
+			image_from_storage_list(loks_vec[p.i]);
 		}
 		else if(  komp == &waggons  &&  last_meta_event_get_class() != EVENT_DOUBLE_CLICK  ) {
-			image_from_storage_list(&waggons_vec[p.i]);
+			image_from_storage_list(waggons_vec[p.i]);
 		}
 		//
 		else if(  komp == &bt_obsolete  ) {
@@ -1081,7 +1055,10 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *komp, value_t p)
 					selected_line = linehandle_t();
 					apply_line();
 				}
-				set_focus( NULL );
+				// HACK mark line_selector temporarily unfocusable.
+				// We call set_focus(NULL) later if we can.
+				// Calling set_focus(NULL) now would have no effect due to logic in gui_container_t::infowin_event.
+				line_selector.set_focusable( false );
 				return true;
 			}
 			else if(  selection == 1  ) { // create new line
@@ -1094,7 +1071,7 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *komp, value_t p)
 							fpl->sprintf_schedule( buf );
 						}
 					}
-					set_focus( NULL );
+					line_selector.set_focusable( false );
 					depot->call_depot_tool('l', convoihandle_t(), buf);
 				}
 				return true;
@@ -1119,7 +1096,7 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *komp, value_t p)
 				apply_line();
 				return true;
 			}
-			set_focus( NULL );
+			line_selector.set_focusable( false );
 		}
 		else if(  komp == &vehicle_filter  ) {
 			depot->selected_filter = vehicle_filter.get_selection();
@@ -1146,6 +1123,13 @@ bool depot_frame_t::infowin_event(const event_t *ev)
 	}
 
 	const bool swallowed = gui_frame_t::infowin_event(ev);
+
+	// HACK make line_selector focusable again
+	// now we can release focus
+	if (!line_selector.is_focusable( ) ) {
+		line_selector.set_focusable( true );
+		set_focus(NULL);
+	}
 
 	if(IS_WINDOW_CHOOSE_NEXT(ev)) {
 
@@ -1456,13 +1440,13 @@ void depot_frame_t::draw_vehicle_info_text(koord pos)
 
 	if(  (sel_index != -1)  &&  (tabs.getroffen(x - pos.x, y - pos.y - 16))  ) {
 		// cursor over a vehicle in the selection list
-		const vector_tpl<gui_image_list_t::image_data_t>& vec = (lst == &electrics ? electrics_vec : (lst == &pas ? pas_vec : (lst == &loks ? loks_vec : waggons_vec)));
-		veh_type = vehikelbauer_t::get_info( vec[sel_index].text );
-		if(  vec[sel_index].lcolor == COL_RED  ||  veh_action == va_sell  ) {
+		const vector_tpl<gui_image_list_t::image_data_t*>& vec = (lst == &electrics ? electrics_vec : (lst == &pas ? pas_vec : (lst == &loks ? loks_vec : waggons_vec)));
+		veh_type = vehikelbauer_t::get_info( vec[sel_index]->text );
+		if(  vec[sel_index]->lcolor == COL_RED  ||  veh_action == va_sell  ) {
 			// don't show new_vehicle_length_sb when can't actually add the highlighted vehicle, or selling from inventory
 			new_vehicle_length_sb_force_zero = true;
 		}
-		if(  vec[sel_index].count > 0  ) {
+		if(  vec[sel_index]->count > 0  ) {
 			resale_value = calc_restwert( veh_type );
 		}
 	}

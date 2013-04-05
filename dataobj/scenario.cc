@@ -13,6 +13,7 @@
 #include "../dataobj/umgebung.h"
 #include "../dataobj/network.h"
 #include "../dataobj/network_cmd_scenario.h"
+#include "../dataobj/fahrplan.h"
 
 #include "../utils/cbuffer_t.h"
 
@@ -95,7 +96,7 @@ const char* scenario_t::init( const char *scenario_base, const char *scenario_na
 		// savegame location
 		buf.clear();
 		buf.printf("%s%s/%s", scenario_base, scenario_name_, mapfile.c_str());
-		if (!welt->laden( buf )) {
+		if (!welt->load( buf )) {
 			dbg->warning("scenario_t::init", "error loading savegame %s", err, (const char*)buf);
 			return "Could not load scenario map!";
 		}
@@ -171,9 +172,9 @@ void scenario_t::koord_w2sq(koord &k) const
 {
 	switch( rotation ) {
 		// 0: do nothing
-		case 1: k = koord(k.y, welt->get_groesse_y()-1 - k.x); break;
-		case 2: k = koord(welt->get_groesse_x()-1 - k.x, welt->get_groesse_y()-1 - k.y); break;
-		case 3: k = koord(welt->get_groesse_x()-1 - k.y, k.x); break;
+		case 1: k = koord(k.y, welt->get_size().y-1 - k.x); break;
+		case 2: k = koord(welt->get_size().x-1 - k.x, welt->get_size().y-1 - k.y); break;
+		case 3: k = koord(welt->get_size().x-1 - k.y, k.x); break;
 		default: break;
 	}
 }
@@ -186,6 +187,22 @@ void scenario_t::koord_sq2w(koord &k)
 	koord_w2sq(k);
 	// restore original rotation
 	rotation = 4 - rotation;
+}
+
+
+void scenario_t::ribi_w2sq(ribi_t::ribi &r) const
+{
+	if (rotation) {
+		r = ( ( (r << 4) | r) >> rotation) & 15;
+	}
+}
+
+
+void scenario_t::ribi_sq2w(ribi_t::ribi &r) const
+{
+	if (rotation) {
+		r = ( ( (r << 4) | r) << rotation) >> 4 & 15;
+	}
 }
 
 
@@ -512,6 +529,27 @@ const char* scenario_t::is_work_allowed_here(spieler_t* sp, uint16 wkz_id, sint1
 }
 
 
+const char* scenario_t::is_schedule_allowed(spieler_t* sp, schedule_t* schedule)
+{
+	// sanity checks
+	if (schedule == NULL) {
+		return "";
+	}
+	if (schedule->empty()  ||  umgebung_t::server) {
+		// empty schedule, networkgame: all allowed
+		return NULL;
+	}
+	// call script
+	if (what_scenario == SCRIPTED) {
+		static plainstring msg;
+		const char *err = script->call_function(script_vm_t::FORCE, "is_schedule_allowed", msg, (uint8)(sp ? sp->get_player_nr() : PLAYER_UNOWNED), schedule);
+
+		return err == NULL ? msg.c_str() : NULL;
+	}
+	return NULL;
+}
+
+
 const char* scenario_t::get_error_text()
 {
 	if (script) {
@@ -546,6 +584,12 @@ void scenario_t::step()
 			// call script
 			const char *err = script->call_function(script_vm_t::QUEUE, "is_scenario_completed", percentage, i);
 
+			// script might have deleted the player
+			sp = welt->get_spieler(i);
+			if (sp == NULL) {
+				continue;
+			}
+
 			if (script_vm_t::is_call_suspended(err)) {
 				percentage = sp->get_scenario_completion();
 			}
@@ -554,6 +598,7 @@ void scenario_t::step()
 			}
 			// clear callback
 			script->clear_pending_callback();
+
 			// won ?
 			if (percentage >= 100) {
 				new_won |= mask;
@@ -710,14 +755,22 @@ void scenario_t::rdwr(loadsave_t *file)
 				script = NULL;
 			}
 			else {
-				// restore paths
-				scenario_path = (umgebung_t::program_dir + umgebung_t::objfilename + "scenario/" + scenario_name.c_str() + "/").c_str();
-
 				// load script
 				cbuffer_t script_filename;
-				script_filename.printf("%s/scenario.nut", scenario_path.c_str());
 
+				// try addon directory first
+				scenario_path = ( std::string("addons/") + umgebung_t::objfilename + "scenario/" + scenario_name.c_str() + "/").c_str();
+				script_filename.printf("%sscenario.nut", scenario_path.c_str());
 				rdwr_error = !load_script(script_filename);
+
+				// failed, try scenario from pakset directory
+				if (rdwr_error) {
+					scenario_path = (umgebung_t::program_dir + umgebung_t::objfilename + "scenario/" + scenario_name.c_str() + "/").c_str();
+					script_filename.clear();
+					script_filename.printf("%sscenario.nut", scenario_path.c_str());
+					rdwr_error = !load_script(script_filename);
+				}
+
 				if (!rdwr_error) {
 					// restore persistent data
 					const char* err = script->eval_string(str);

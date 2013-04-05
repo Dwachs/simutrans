@@ -243,7 +243,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\script\api\api_gui.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\script\api\api_halt.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\script\api\api_map_objects.cc"
 				>
 			</File>
 			<File
@@ -259,7 +267,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\script\api\api_schedule.cc"
+				>
+			</File>
+			<File
 				RelativePath=".\script\api\api_settings.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\script\api\api_simple.cc"
 				>
 			</File>
 			<File
@@ -472,6 +488,10 @@
 			</File>
 			<File
 				RelativePath=".\dings\field.cc"
+				>
+			</File>
+			<File
+				RelativePath=".\player\finance.cc"
 				>
 			</File>
 			<File

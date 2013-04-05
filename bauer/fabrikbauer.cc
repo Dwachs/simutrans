@@ -52,8 +52,8 @@ static void add_factory_to_fab_map(karte_t const* const welt, fabrik_t const* co
 	sint16       const  rotate  = fab->get_rotate();
 	sint16       const  start_y = max(0, pos.y - spacing);
 	sint16       const  start_x = max(0, pos.x - spacing);
-	sint16       const  end_y   = min(welt->get_groesse_y() - 1, pos.y + hbesch.get_h(rotate) + spacing);
-	sint16       const  end_x   = min(welt->get_groesse_x() - 1, pos.x + hbesch.get_b(rotate) + spacing);
+	sint16       const  end_y   = min(welt->get_size().y - 1, pos.y + hbesch.get_h(rotate) + spacing);
+	sint16       const  end_x   = min(welt->get_size().x - 1, pos.x + hbesch.get_b(rotate) + spacing);
 	for (sint16 y = start_y; y < end_y; ++y) {
 		for (sint16 x = start_x; x < end_x; ++x) {
 			fab_map[fab_map_w * y + x / 8] |= 1 << (x % 8);
@@ -66,16 +66,16 @@ static void add_factory_to_fab_map(karte_t const* const welt, fabrik_t const* co
 // create map with all factories and exclusion area
 void init_fab_map( karte_t *welt )
 {
-	fab_map_w = ((welt->get_groesse_x()+7)/8);
-	fab_map.resize( fab_map_w*welt->get_groesse_y() );
-	for( int i=0;  i<fab_map_w*welt->get_groesse_y();  i++ ) {
+	fab_map_w = ((welt->get_size().x+7)/8);
+	fab_map.resize( fab_map_w*welt->get_size().y );
+	for( int i=0;  i<fab_map_w*welt->get_size().y;  i++ ) {
 		fab_map[i] = 0;
 	}
 	FOR(slist_tpl<fabrik_t*>, const f, welt->get_fab_list()) {
 		add_factory_to_fab_map(welt, f);
 	}
 	if(  welt->get_settings().get_max_factory_spacing_percent()  ) {
-		DISTANCE = (welt->get_groesse_max() * welt->get_settings().get_max_factory_spacing_percent()) / 100l;
+		DISTANCE = (welt->get_size_max() * welt->get_settings().get_max_factory_spacing_percent()) / 100l;
 	}
 	else {
 		DISTANCE = welt->get_settings().get_max_factory_spacing();
@@ -110,48 +110,41 @@ class factory_bauplatz_mit_strasse_sucher_t: public bauplatz_sucher_t  {
 public:
 	factory_bauplatz_mit_strasse_sucher_t(karte_t *welt) : bauplatz_sucher_t(welt) {}
 
-	bool strasse_bei(sint16 x, sint16 y) const {
-		grund_t *bd = welt->lookup_kartenboden( koord(x,y) );
-		return bd && bd->hat_weg(road_wt);
-	}
+	virtual bool ist_platz_ok(koord pos, sint16 b, sint16 h, climate_bits cl) const
+	{
+		if(  !bauplatz_sucher_t::ist_platz_ok(pos, b, h, cl)  ) {
+			return false;
+		}
+		bool next_to_road = false;
 
-	virtual bool ist_platz_ok(koord pos, sint16 b, sint16 h, climate_bits cl) const {
-		if(bauplatz_sucher_t::ist_platz_ok(pos, b, h, cl)) {
-			// try to built a little away from previous factory
-			for(sint16 y=pos.y;  y<pos.y+h;  y++  ) {
-				for(sint16 x=pos.x;  x<pos.x+b;  x++  ) {
-					if( is_factory_at(x,y)  ) {
-						return false;
-					}
-					grund_t *gr = welt->lookup_kartenboden(koord(x,y));
-					if(gr->get_leitung()!=NULL  ||  welt->lookup(gr->get_pos()+koord3d(0,0,1))!=NULL) {
+		for (sint16 x = -1; x < b; x++) {
+			for (sint16 y = -1;  y < h; y++) {
+				koord k(pos + koord(x,y));
+				grund_t *gr = welt->lookup_kartenboden(k);
+				if (!gr) {
+					return false;
+				}
+				if (	0 <= x  &&  x < b-1  &&  0 <= y  &&  y < h-1) {
+					// inside: nothing on top like elevated monorails?
+					if(  gr->get_leitung()!=NULL  ||  welt->lookup(gr->get_pos()+koord3d(0,0,1)  )!=NULL) {
 						// something on top (monorail or powerlines)
 						return false;
 					}
+
 				}
-			}
-			// check to not built on a road
-			int i, j;
-			for(j=pos.x; j<pos.x+b; j++) {
-				for(i=pos.y; i<pos.y+h; i++) {
-					if(strasse_bei(j,i)) {
+				else {
+					// border but not corner: near a road if possible
+					if (!next_to_road  &&  (0 <= x  ||  x < b-1)  &&  (0 <= y  ||  y < h-1)) {
+						next_to_road = gr->hat_weg(road_wt);
+					}
+					// try to built a little away from previous factory
+					if( is_factory_at(k.x, k.y)  ) {
 						return false;
 					}
 				}
 			}
-			// now check for road connection
-			for(i = pos.y; i < pos.y + h; i++) {
-				if(strasse_bei(pos.x - 1, i) ||  strasse_bei(pos.x + b, i)) {
-					return true;
-				}
-			}
-			for(i = pos.x; i < pos.x + b; i++) {
-				if(strasse_bei(i, pos.y - 1) ||  strasse_bei(i, pos.y + h)) {
-					return true;
-				}
-			}
 		}
-		return false;
+		return next_to_road;
 	}
 };
 
@@ -356,7 +349,7 @@ void fabrikbauer_t::verteile_tourist(karte_t* welt, int max_number)
 
 	int retrys = max_number*4;
 	while(current_number<max_number  &&  retrys-->0) {
-		koord3d	pos=koord3d( koord::koord_random(welt->get_groesse_x(),welt->get_groesse_y()),1);
+		koord3d	pos=koord3d( koord::koord_random(welt->get_size().x,welt->get_size().y),1);
 		const haus_besch_t *attraction=hausbauer_t::waehle_sehenswuerdigkeit(welt->get_timeline_year_month(),true,(climate)simrand((int)arctic_climate+1));
 
 		// no attractions for that climate or too new
@@ -537,7 +530,7 @@ int fabrikbauer_t::baue_hierarchie(koord3d* parent, const fabrik_besch_t* info, 
 	if(welt->cannot_save()  &&  parent==NULL  &&  !can_factory_tree_rotate(info)  ) {
 		org_rotation = welt->get_settings().get_rotation();
 		for(  int i=0;  i<3  &&  welt->cannot_save();  i++  ) {
-			pos->rotate90( welt->get_groesse_y()-info->get_haus()->get_h(rotate) );
+			pos->rotate90( welt->get_size().y-info->get_haus()->get_h(rotate) );
 			welt->rotate90();
 		}
 		assert( !welt->cannot_save() );
@@ -633,7 +626,7 @@ int fabrikbauer_t::baue_hierarchie(koord3d* parent, const fabrik_besch_t* info, 
 		// must rotate back?
 		if(org_rotation>=0) {
 			for (int i = 0; i < 4 && welt->get_settings().get_rotation() != org_rotation; ++i) {
-				pos->rotate90( welt->get_groesse_y()-1 );
+				pos->rotate90( welt->get_size().y-1 );
 				welt->rotate90();
 			}
 			welt->update_map();
@@ -685,7 +678,7 @@ DBG_MESSAGE("fabrikbauer_t::baue_hierarchie","lieferanten %i, lcount %i (need %i
 			// for sources (oil fields, forests ... ) prefer thoses with a smaller distance
 			const unsigned distance = koord_distance(fab->get_pos(),our_fab->get_pos());
 
-			if(distance>6) {//  &&  distance < simrand(welt->get_groesse_x()+welt->get_groesse_y())) {
+			if(distance>6) {//  &&  distance < simrand(welt->get_size().x+welt->get_size().y)) {
 				// ok, this would match
 				// but can she supply enough?
 
@@ -962,7 +955,7 @@ next_ware_check:
 					// we cannot built this factory here
 					continue;
 				}
-				koord   testpos = in_city ? pick_any_weighted(welt->get_staedte())->get_pos() : koord::koord_random(welt->get_groesse_x(), welt->get_groesse_y());
+				koord   testpos = in_city ? pick_any_weighted(welt->get_staedte())->get_pos() : koord::koord_random(welt->get_size().x, welt->get_size().y);
 				koord3d pos =  welt->lookup_kartenboden( testpos )->get_pos();
 				int     rotation=simrand(fab->get_haus()->get_all_layouts()-1);
 				if(!in_city) {

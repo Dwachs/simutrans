@@ -4,6 +4,7 @@
 #include "../simcity.h"
 #include "../simfab.h"
 #include "../bauer/warenbauer.h"
+#include "../dataobj/fahrplan.h"
 #include "../dataobj/scenario.h"
 #include "../player/simplay.h"
 #include "../utils/plainstring.h"
@@ -126,6 +127,15 @@ namespace script_api {
 		return param<sint16>::push(vm, v);
 	}
 
+
+	ding_t::typ param<ding_t::typ>::get(HSQUIRRELVM vm, SQInteger index)
+	{
+		return (ding_t::typ)(param<uint8>::get(vm, index));
+	}
+	SQInteger param<ding_t::typ>::push(HSQUIRRELVM vm, ding_t::typ const& v)
+	{
+		return param<uint8>::push(vm, v);
+	}
 // floats
 	double param<double>::get(HSQUIRRELVM vm, SQInteger index)
 	{
@@ -143,7 +153,10 @@ namespace script_api {
 	const char* param<const char*>::get(HSQUIRRELVM vm, SQInteger index)
 	{
 		const char* str = NULL;
-		sq_getstring(vm, index, &str);
+		if (!SQ_SUCCEEDED(sq_getstring(vm, index, &str))) {
+			sq_raise_error(vm, "Supplied string parameter is null");
+			return NULL;
+		}
 		return str;
 	}
 	SQInteger param<const char*>::push(HSQUIRRELVM vm, const char* const& v)
@@ -285,6 +298,16 @@ namespace script_api {
 			sq_raise_error(vm, "no factory at position (%s)", pos.get_str());
 		}
 		return fab;
+	}
+
+	SQInteger param<fabrik_t*>::push(HSQUIRRELVM vm, fabrik_t* const& fab)
+	{
+		if (fab == NULL) {
+			sq_pushnull(vm); return 1;
+		}
+		koord pos(fab->get_pos().get_2d());
+		welt->get_scenario()->koord_w2sq(pos);
+		return push_instance(vm, "factory_x", pos.x, pos.y);
 	}
 
 
@@ -430,6 +453,24 @@ namespace script_api {
 	{
 		return welt->get_scenario();
 	}
+
+
+	SQInteger param<linieneintrag_t>::push(HSQUIRRELVM vm, linieneintrag_t const& v)
+	{
+		return push_instance(vm, "schedule_entry_x", v.pos, v.ladegrad, v.waiting_time_shift);
+	}
+
+
+	SQInteger param<schedule_t*>::push(HSQUIRRELVM vm, schedule_t* const& v)
+	{
+		if (v) {
+			return push_instance(vm, "schedule_x", v->get_waytype(), v->eintrag);
+		}
+		else {
+			sq_pushnull(vm); return 1;
+		}
+	}
+
 
 	settings_t* param<settings_t*>::get(HSQUIRRELVM, SQInteger)
 	{

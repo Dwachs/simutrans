@@ -94,7 +94,7 @@ static inthashtable_tpl<uint32, char*> ground_texts;
 
 void grund_t::set_text(const char *text)
 {
-	const uint32 n = get_ground_text_key(pos,welt->get_groesse_y());
+	const uint32 n = get_ground_text_key(pos,welt->get_size().y);
 	if(  text  ) {
 		char *new_text = strdup(text);
 		free(ground_texts.remove(n));
@@ -117,7 +117,7 @@ const char *grund_t::get_text() const
 {
 	const char *result = 0;
 	if(  get_flag(has_text)  ) {
-		result = ground_texts.get( get_ground_text_key(pos,welt->get_groesse_y()) );
+		result = ground_texts.get( get_ground_text_key(pos,welt->get_size().y) );
 		if(result==NULL) {
 			return "undef";
 		}
@@ -402,6 +402,30 @@ grund_t::~grund_t()
 }
 
 
+uint8 grund_t::get_border_direction() const
+{
+	uint8 border=0;
+
+	if( pos.x == 0 ) {
+		border |= ribi_t::west;
+	}
+
+	if( pos.y == 0 ) {
+		border |= ribi_t::nord;
+	}
+
+	if( pos.x == welt->get_size().x-1 ) {
+		border |= ribi_t::ost;
+	}
+
+	if( pos.y == welt->get_size().y-1 ) {
+		border |= ribi_t::sued;
+	}
+
+	return border;
+}
+
+
 void grund_t::sort_trees()
 {
 	if (get_typ() != boden) {
@@ -422,7 +446,7 @@ void grund_t::sort_trees()
 
 void grund_t::rotate90()
 {
-	pos.rotate90( welt->get_groesse_y()-1 );
+	pos.rotate90( welt->get_size().y-1 );
 	slope = hang_t::rotate90( slope );
 	// then rotate the things on this tile
 	uint8 trees = 0, offset = 0;
@@ -450,9 +474,9 @@ void grund_t::finish_rotate90()
 	text_map ground_texts_rotating;
 	// first get the old hashes
 	FOR(text_map, iter, ground_texts) {
-		koord3d k = get_ground_koord3d_key( iter.key, welt->get_groesse_y() );
-		k.rotate90( welt->get_groesse_y()-1 );
-		ground_texts_rotating.put( get_ground_text_key(k,welt->get_groesse_x()), iter.value );
+		koord3d k = get_ground_koord3d_key( iter.key, welt->get_size().y );
+		k.rotate90( welt->get_size().y-1 );
+		ground_texts_rotating.put( get_ground_text_key(k,welt->get_size().x), iter.value );
 	}
 	ground_texts.clear();
 	// then transfer all rotated texts
@@ -469,7 +493,7 @@ void grund_t::enlarge_map( sint16, sint16 new_size_y )
 	text_map ground_texts_enlarged;
 	// we have recalculate the keys
 	FOR(text_map, iter, ground_texts) {
-		koord3d k = get_ground_koord3d_key( iter.key, welt->get_groesse_y() );
+		koord3d k = get_ground_koord3d_key( iter.key, welt->get_size().y );
 		ground_texts_enlarged.put( get_ground_text_key(k,new_size_y), iter.value );
 	}
 	ground_texts.clear();
@@ -525,12 +549,18 @@ void grund_t::info(cbuffer_t& buf) const
 				buf.append("\n");
 			}
 			obj_bei(0)->info(buf);
+			buf.append("\n");
 			if(flags&has_way2) {
 				buf.append(translator::translate(get_weg_nr(1)->get_name()));
 				buf.append("\n");
 				obj_bei(1)->info(buf);
+				buf.append("\n");
 				if(ist_uebergang()) {
-					find<crossing_t>(2)->get_logic()->info(buf);
+					crossing_t* crossing = find<crossing_t>(2);
+					buf.append(translator::translate(crossing->get_name()));
+					buf.append("\n");
+					crossing->get_logic()->info(buf);
+					buf.append("\n");
 				}
 			}
 		}
@@ -653,7 +683,7 @@ void grund_t::mark_image_dirty()
 	if(bild_nr!=IMG_LEER) {
 		// better not try to twist your brain to follow the retransformation ...
 		const sint16 rasterweite=get_tile_raster_width();
-		const koord diff = pos.get_2d()-welt->get_world_position()-welt->get_ansicht_ij_offset();
+		const koord diff = pos.get_2d()-welt->get_world_position()-welt->get_view_ij_offset();
 		const sint16 x = (diff.x-diff.y)*(rasterweite/2);
 		const sint16 y = (diff.x+diff.y)*(rasterweite/4) + tile_raster_scale_y( -get_disp_height()*TILE_HEIGHT_STEP, rasterweite) + ((display_get_width()/rasterweite)&1)*(rasterweite/4);
 		// mark the region after the image as dirty
@@ -946,9 +976,78 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 }
 
 
-void grund_t::display_if_visible(sint16 const xpos, sint16 const ypos, sint16 const raster_tile_width) const
+void grund_t::display_border(const sint16 xpos, const sint16 ypos, const sint16 raster_tile_width, const uint8 border_direction)
 {
-	if (!get_flag(grund_t::draw_as_ding) && is_karten_boden_visible()) {
+	if(!ist_karten_boden()){
+		return;
+	}
+
+	// We'll paint black 8*height from the center of the tile upwards, size width/2 on top borders (west and north)
+
+	if( border_direction & ribi_t::west ) {
+		const int height_to_paint = tile_raster_scale_y( TILE_HEIGHT_STEP*8, raster_tile_width);
+		const int corner_height = tile_raster_scale_y( corner1(slope)*TILE_HEIGHT_STEP,raster_tile_width);
+
+		//const int y_origin = ypos - corner_height  + tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width) - height_to_paint;
+		const int y_origin = ypos - corner_height - tile_raster_scale_y( TILE_HEIGHT_STEP*5, raster_tile_width);
+
+		display_fillbox_wh_clip(xpos, y_origin, raster_tile_width>>1, height_to_paint, COL_BLACK, false);
+
+		set_flag(dirty);
+	}
+
+	if( border_direction & ribi_t::nord ) {
+
+		const int height_to_paint = tile_raster_scale_y( TILE_HEIGHT_STEP*8, raster_tile_width);
+		const int corner_height = tile_raster_scale_y( corner3(slope)*TILE_HEIGHT_STEP,raster_tile_width);
+
+		const int y_origin = ypos - corner_height  - tile_raster_scale_y( TILE_HEIGHT_STEP*5, raster_tile_width);
+
+		display_fillbox_wh_clip(xpos + (raster_tile_width>>1), y_origin, raster_tile_width>>1, height_to_paint, COL_BLACK, false);
+
+		set_flag(dirty);
+	}
+
+	// We'll paint black 2*height from the center of the tile downwards, size width/2 on bottom borders (south and east)
+	if( border_direction & ribi_t::ost ) {
+		const int height_to_paint = tile_raster_scale_y( TILE_HEIGHT_STEP*2, raster_tile_width);
+		const int corner_height = tile_raster_scale_y( corner3(slope)*TILE_HEIGHT_STEP,raster_tile_width);
+
+		const int y_origin = ypos - corner_height  + tile_raster_scale_y( TILE_HEIGHT_STEP*3, raster_tile_width);
+
+		display_fillbox_wh_clip(xpos + (raster_tile_width>>1), y_origin, raster_tile_width>>1, height_to_paint, COL_BLACK, false);
+
+		set_flag(dirty);
+
+	}
+
+	if( border_direction & ribi_t::sued ) {
+		const int height_to_paint = tile_raster_scale_y( TILE_HEIGHT_STEP*2, raster_tile_width);
+		const int corner_height = tile_raster_scale_y( corner1(slope)*TILE_HEIGHT_STEP,raster_tile_width);
+
+		const int y_origin = ypos - corner_height  + tile_raster_scale_y( TILE_HEIGHT_STEP*3, raster_tile_width);
+
+		display_fillbox_wh_clip(xpos, y_origin, raster_tile_width>>1, height_to_paint, COL_BLACK, false);
+
+		set_flag(dirty);
+	}
+}
+
+
+void grund_t::display_if_visible(sint16 xpos, sint16 ypos, sint16 raster_tile_width)
+{
+
+	if(!is_karten_boden_visible()) {
+		return;
+	}
+
+	const uint8 border = get_border_direction();
+
+	if(border) {
+		display_border(xpos, ypos, raster_tile_width, border);
+	}
+
+	if(!get_flag(grund_t::draw_as_ding)) {
 		display_boden(xpos, ypos, raster_tile_width);
 	}
 }
@@ -1466,7 +1565,7 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, spieler_t *sp)
 
 		// just add the maintenance
 		if(sp && !ist_wasser()) {
-			spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung());
+			spieler_t::add_maintenance( sp, weg->get_besch()->get_wartung(), weg->get_besch()->get_finance_waytype() );
 			weg->set_besitzer( sp );
 		}
 
@@ -1511,7 +1610,6 @@ DBG_MESSAGE("grund_t::weg_entfernen()","weg %p",weg);
 			// Not all ways (i.e. with styp==7) will imply crossins, so wie hav to check
 			crossing_t* cr = find<crossing_t>(1);
 			if(cr) {
-				dinge.remove(cr);
 				cr->entferne(0);
 				delete cr;
 				// restore speed limit
@@ -1597,6 +1695,8 @@ bool grund_t::remove_everything_from_way(spieler_t* sp, waytype_t wt, ribi_t::ri
 	// check, if the way must be totally removed?
 	weg_t *weg = get_weg(wt);
 	if(weg) {
+		waytype_t wt = weg->get_waytype();
+		waytype_t finance_wt = weg->get_besch()->get_finance_waytype();
 		const koord here = pos.get_2d();
 
 		// stopps
@@ -1734,7 +1834,7 @@ DBG_MESSAGE("wkz_wayremover()","change remaining way to ribi %d",add);
 		}
 		// we have to pay?
 		if(costs) {
-			spieler_t::accounting(sp, costs, here, COST_CONSTRUCTION);
+			spieler_t::book_construction_costs(sp, costs, here, finance_wt);
 		}
 	}
 	return true;

@@ -67,10 +67,10 @@ protected:
 	sint16 drag_height;
 
 	bool drag(karte_t *welt, koord pos, sint16 h, int &n);
-	virtual sint16 get_drag_height(grund_t *gr) = 0;
+	virtual sint16 get_drag_height(karte_t *welt, koord pos) = 0;
 	bool check_dragging();
 public:
-	wkz_raise_lower_base_t(uint16 id) : werkzeug_t(id | GENERAL_TOOL) { offset = Z_GRID; }
+	wkz_raise_lower_base_t(uint16 id) : werkzeug_t(id | GENERAL_TOOL), is_dragging(false), drag_height(0) { offset = Z_GRID; }
 	image_id get_icon(spieler_t*) const OVERRIDE { return grund_t::underground_mode==grund_t::ugm_all ? IMG_LEER : icon; }
 	bool init(karte_t*, spieler_t*) OVERRIDE { is_dragging = false; return true; }
 	bool exit(karte_t*, spieler_t*) OVERRIDE { is_dragging = false; return true; }
@@ -86,6 +86,11 @@ public:
 	 * if work() is called with is_dragging==true then is_dragging is reseted
 	 */
 	bool is_work_network_save() const OVERRIDE { return is_dragging;}
+
+	/**
+	 * @return true if this tool operates over the grid, not the map tiles.
+	 */
+	bool is_grid_tool() const {return true;}
 };
 
 class wkz_raise_t : public wkz_raise_lower_base_t {
@@ -94,7 +99,7 @@ public:
 	char const* get_tooltip(spieler_t const* const sp) const OVERRIDE { return tooltip_with_price("Anheben", sp->get_welt()->get_settings().cst_alter_land); }
 	char const* check_pos(karte_t*, spieler_t*, koord3d) OVERRIDE;
 	char const* work(karte_t*, spieler_t*, koord3d) OVERRIDE;
-	sint16 get_drag_height(grund_t *gr) OVERRIDE;
+	sint16 get_drag_height(karte_t *welt, koord pos) OVERRIDE;
 };
 
 class wkz_lower_t : public wkz_raise_lower_base_t {
@@ -103,7 +108,7 @@ public:
 	char const* get_tooltip(spieler_t const* const sp) const OVERRIDE { return tooltip_with_price("Absenken", sp->get_welt()->get_settings().cst_alter_land); }
 	char const* check_pos(karte_t*, spieler_t*, koord3d) OVERRIDE;
 	char const* work(karte_t*, spieler_t*, koord3d) OVERRIDE;
-	sint16 get_drag_height(grund_t *gr) OVERRIDE;
+	sint16 get_drag_height(karte_t *welt, koord pos) OVERRIDE;
 };
 
 /* slope tool definitions */
@@ -189,7 +194,9 @@ public:
 class wkz_plant_tree_t : public kartenboden_werkzeug_t {
 public:
 	wkz_plant_tree_t() : kartenboden_werkzeug_t(WKZ_PLANT_TREE | GENERAL_TOOL) {}
+	image_id get_icon(spieler_t *) const { return baum_t::get_anzahl_besch() > 0 ? icon : IMG_LEER; }
 	char const* get_tooltip(spieler_t const*) const OVERRIDE { return translator::translate( "Plant tree" ); }
+	bool init(karte_t*, spieler_t*) { return baum_t::get_anzahl_besch() > 0; }
 	char const* move(karte_t* const welt, spieler_t* const sp, uint16 const b, koord3d const k) OVERRIDE;
 	char const* work(karte_t*, spieler_t*, koord3d) OVERRIDE;
 	bool is_init_network_save() const OVERRIDE { return true; }
@@ -511,7 +518,9 @@ public:
 class wkz_forest_t : public two_click_werkzeug_t {
 public:
 	wkz_forest_t() : two_click_werkzeug_t(WKZ_FOREST | GENERAL_TOOL) {}
+	image_id get_icon(spieler_t *) const { return baum_t::get_anzahl_besch() > 0 ? icon : IMG_LEER; }
 	char const* get_tooltip(spieler_t const*) const OVERRIDE { return translator::translate("Add forest"); }
+	bool init( karte_t *welt, spieler_t *sp) { return  baum_t::get_anzahl_besch() > 0  &&  two_click_werkzeug_t::init(welt, sp); }
 private:
 	char const* do_work(karte_t*, spieler_t*, koord3d const&, koord3d const&) OVERRIDE;
 	void mark_tiles(karte_t*, spieler_t*, koord3d const&, koord3d const&) OVERRIDE;
@@ -819,8 +828,9 @@ class wkz_fill_trees_t : public werkzeug_t {
 public:
 	wkz_fill_trees_t() : werkzeug_t(WKZ_FILL_TREES | SIMPLE_TOOL) {}
 	char const* get_tooltip(spieler_t const*) const OVERRIDE { return translator::translate("Fill trees"); }
+	image_id get_icon(spieler_t *) const { return baum_t::get_anzahl_besch() > 0 ? icon : IMG_LEER; }
 	bool init( karte_t *welt, spieler_t * ) {
-		if(  default_param  ) {
+		if(  baum_t::get_anzahl_besch() > 0  &&  default_param  ) {
 			baum_t::fill_trees( welt, atoi(default_param) );
 		}
 		return false;

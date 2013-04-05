@@ -31,6 +31,7 @@
 #include "../vehicle/simvehikel.h"
 
 #include "ai_passenger.h"
+#include "finance.h"
 
 
 ai_passenger_t::ai_passenger_t(karte_t *wl, uint8 nr) : ai_t( wl, nr )
@@ -72,7 +73,7 @@ bool ai_passenger_t::set_active(bool new_state)
 halthandle_t ai_passenger_t::get_our_hub( const stadt_t *s ) const
 {
 	FOR(slist_tpl<halthandle_t>, const halt, haltestelle_t::get_alle_haltestellen()) {
-		if(  halt->get_besitzer()==this  ) {
+		if(  halt->get_besitzer()==(const spieler_t *)this  ) {
 			if(  halt->get_pax_enabled()  &&  (halt->get_station_type()&haltestelle_t::busstop)!=0  ) {
 				koord h=halt->get_basis_pos();
 				if(h.x>=s->get_linksoben().x  &&  h.y>=s->get_linksoben().y  &&  h.x<=s->get_rechtsunten().x  &&  h.y<=s->get_rechtsunten().y  ) {
@@ -146,8 +147,8 @@ koord ai_passenger_t::find_harbour_pos(karte_t* welt, const stadt_t *s )
 	sint32 bestdist = 999999;
 
 	// try to find an airport place as close to the city as possible
-	for(  k.y=max(6,s->get_linksoben().y-10); k.y<=min(welt->get_groesse_y()-3-6,s->get_rechtsunten().y+10); k.y++  ) {
-		for(  k.x=max(6,s->get_linksoben().x-25); k.x<=min(welt->get_groesse_x()-3-6,s->get_rechtsunten().x+10); k.x++  ) {
+	for(  k.y=max(6,s->get_linksoben().y-10); k.y<=min(welt->get_size().y-3-6,s->get_rechtsunten().y+10); k.y++  ) {
+		for(  k.x=max(6,s->get_linksoben().x-25); k.x<=min(welt->get_size().x-3-6,s->get_rechtsunten().x+10); k.x++  ) {
 			sint32 testdist = koord_distance( k, s->get_pos() );
 			if(  testdist<bestdist  ) {
 				if(  k.x+2<s->get_linksoben().x  ||  k.y+2<s->get_linksoben().y  ||  k.x>=s->get_rechtsunten().x  ||  k.y>=s->get_rechtsunten().y  ) {
@@ -443,7 +444,7 @@ bool ai_passenger_t::create_water_transport_vehikel(const stadt_t* start_stadt, 
 halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int rotation)
 {
 	// not too close to border?
-	if(pos.x<6  ||  pos.y<6  ||  pos.x+3+6>=welt->get_groesse_x()  ||  pos.y+3+6>=welt->get_groesse_y()  ) {
+	if(pos.x<6  ||  pos.y<6  ||  pos.x+3+6>=welt->get_size().x  ||  pos.y+3+6>=welt->get_size().y  ) {
 		return halthandle_t();
 	}
 	// ok, not prematurely doomed
@@ -574,15 +575,15 @@ static koord find_airport_pos(karte_t* welt, const stadt_t *s )
 	sint32 bestdist = 999999;
 
 	// try to find an airport place as close to the city as possible
-	for(  k.y=max(6,s->get_linksoben().y-10); k.y<=min(welt->get_groesse_y()-3-6,s->get_rechtsunten().y+10); k.y++  ) {
-		for(  k.x=max(6,s->get_linksoben().x-25); k.x<=min(welt->get_groesse_x()-3-6,s->get_rechtsunten().x+10); k.x++  ) {
+	for(  k.y=max(6,s->get_linksoben().y-10); k.y<=min(welt->get_size().y-3-6,s->get_rechtsunten().y+10); k.y++  ) {
+		for(  k.x=max(6,s->get_linksoben().x-25); k.x<=min(welt->get_size().x-3-6,s->get_rechtsunten().x+10); k.x++  ) {
 			sint32 testdist = koord_distance( k, s->get_pos() );
 			if(  testdist<bestdist  ) {
 				if(  k.x+2<s->get_linksoben().x  ||  k.y+2<s->get_linksoben().y  ||  k.x>=s->get_rechtsunten().x  ||  k.y>=s->get_rechtsunten().y  ) {
 					// malus for out of town
 					testdist += 5;
 				}
-				if(  testdist<bestdist  &&  welt->ist_platz_frei( k, 3, 3, NULL, ALL_CLIMATES )  ) {
+				if(  testdist<bestdist  &&  welt->square_is_free( k, 3, 3, NULL, ALL_CLIMATES )  ) {
 					bestpos = k;
 					bestdist = testdist;
 				}
@@ -940,7 +941,7 @@ void ai_passenger_t::step()
 			 * The second condition may happen due to extensive replacement operations;
 			 * in such a case it is save enough to expand anyway.
 			 */
-			if(!(konto>0  ||  finance_history_month[0][COST_ASSETS]+konto>starting_money)  ) {
+			if(!(finance->get_account_balance()>0  ||  finance->has_money_or_assets())  ) {
 				return;
 			}
 
@@ -1217,7 +1218,7 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 		// despite its name: try airplane
 		case NR_BAUE_AIRPORT_ROUTE:
 			// try airline (if we are wealthy enough) ...
-			if(  !air_transport  ||  finance_history_month[1][COST_CASH] < starting_money  ||
+			if(  !air_transport  ||  finance->get_history_com_month(1, ATC_CASH) < finance->get_starting_money()  ||
 			     !end_stadt  ||  !create_air_transport_vehikel( start_stadt, end_stadt )  ) {
 				state = NR_BAUE_CLEAN_UP;
 			}

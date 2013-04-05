@@ -7,6 +7,7 @@
 
 /* Helper routines for AIs */
 
+#include "finance.h"
 #include "ai.h"
 
 #include "../simcity.h"
@@ -191,8 +192,8 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 	}
 
 	DBG_MESSAGE("ai_t::suche_platz()","at (%i,%i) for size (%i,%i)",xpos,ypos,off.x,off.y);
-	int maxy = min( welt->get_groesse_y(), ypos + off.y + cov );
-	int maxx = min( welt->get_groesse_x(), xpos + off.x + cov );
+	int maxy = min( welt->get_size().y, ypos + off.y + cov );
+	int maxx = min( welt->get_size().x, xpos + off.x + cov );
 	for (int y = max(0,ypos-cov);  y < maxy;  y++) {
 		for (int x = max(0,xpos-cov);  x < maxx;  x++) {
 			platz = koord(x,y);
@@ -317,7 +318,7 @@ bool ai_t::built_update_headquarter()
 	if(besch!=NULL) {
 		// cost is negative!
 		sint64 const cost = welt->get_settings().cst_multiply_headquarter * besch->get_level() * besch->get_b() * besch->get_h();
-		if(  konto+cost > starting_money ) {
+		if(  finance->get_account_balance()+cost > finance->get_starting_money() ) {
 			// and enough money left ...
 			koord place = get_headquarter_pos();
 			if(place!=koord::invalid) {
@@ -420,8 +421,8 @@ bool ai_t::find_harbour(koord &start, koord &size, koord target)
 	int dist=0x7FFFFFFF;
 	koord k;
 	// now find a nice shore next to here
-	for(  k.y=max(1,shore.y-5);  k.y<shore.y+6  &&  k.y<welt->get_groesse_y()-2; k.y++  ) {
-		for(  k.x=max(1,shore.x-5);  k.x<shore.x+6  &&  k.y<welt->get_groesse_x()-2; k.x++  ) {
+	for(  k.y=max(1,shore.y-5);  k.y<shore.y+6  &&  k.y<welt->get_size().y-2; k.y++  ) {
+		for(  k.x=max(1,shore.x-5);  k.x<shore.x+6  &&  k.y<welt->get_size().x-2; k.x++  ) {
 			grund_t *gr = welt->lookup_kartenboden(k);
 			if(gr  &&  gr->get_grund_hang()!=0  &&  hang_t::ist_wegbar(gr->get_grund_hang())  &&  gr->ist_natur()  &&  gr->get_hoehe()==welt->get_grundwasser()  &&  !gr->is_halt()) {
 				koord zv = koord(gr->get_grund_hang());
@@ -488,7 +489,7 @@ DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection
 	bauigel.calc_route(welt->lookup_kartenboden(platz1)->get_pos(),welt->lookup_kartenboden(platz2)->get_pos());
 	INT_CHECK("ai 501");
 
-	if(  bauigel.calc_costs() > finance_history_month[0][COST_NETWEALTH]  ) {
+	if(  bauigel.calc_costs() > finance->get_netwealth()  ) {
 		// too expensive
 		return false;
 	}
@@ -503,7 +504,7 @@ DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection
 
 	// build with terraforming if shorter and enough money is available
 	bool with_tf = (baumaulwurf.get_count() > 2)  &&  (10*baumaulwurf.get_count() < 9*bauigel.get_count()  ||  bauigel.get_count() <= 2);
-	if(  with_tf  &&  baumaulwurf.calc_costs() > finance_history_month[0][COST_NETWEALTH]  ) {
+	if(  with_tf  &&  baumaulwurf.calc_costs() > finance->get_netwealth()  ) {
 		// too expensive
 		with_tf = false;
 	}

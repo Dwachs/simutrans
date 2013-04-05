@@ -7,6 +7,7 @@
 #include "../simwerkz.h"
 #include "../simunits.h"
 
+#include "finance.h"
 #include "simplay.h"
 
 #include "../simhalt.h"
@@ -396,9 +397,12 @@ bool ai_goods_t::create_ship_transport_vehikel(fabrik_t *qfab, int anz_vehikel)
 	for(  int y = pos1.y - cov; y <= pos1.y + cov; ++y  ) {
 		for(  int x = pos1.x - cov; x <= pos1.x + cov; ++x  ) {
 			koord p(x,y);
-			// in water, the water tiles have no halt flag!
-			if(  halt == get_halt(p)  &&  koord_distance(best_pos,platz2)<koord_distance(p,platz2)  ) {
-				best_pos = p;
+			grund_t *gr = welt->lookup_kartenboden(p);
+			// check for water tile, do not start in depots
+			if(  gr->ist_wasser()  &&  halt == get_halt(p)  &&  gr->get_depot()==NULL  ) {
+				if(  koord_distance(best_pos,platz2)<koord_distance(p,platz2)  ) {
+					best_pos = p;
+				}
 			}
 		}
 	}
@@ -687,7 +691,7 @@ bool ai_goods_t::create_simple_rail_transport()
 	INT_CHECK("ai_goods 672");
 
 	// build only if enough cash available
-	bool build_no_tf = (bauigel.get_count() > 4)  &&  (bauigel.calc_costs() <= finance_history_month[0][COST_NETWEALTH]);
+	bool build_no_tf = (bauigel.get_count() > 4)  &&  (bauigel.calc_costs() <= finance->get_netwealth());
 
 	// now try route with terraforming
 	wegbauer_t baumaulwurf(welt, this);
@@ -699,7 +703,7 @@ bool ai_goods_t::create_simple_rail_transport()
 	bool with_tf = (baumaulwurf.get_count() > 4)  &&  (10*baumaulwurf.get_count() < 9*bauigel.get_count()  ||  bauigel.get_count() <= 4);
 
 	// too expensive ?
-	with_tf = with_tf  &&  (baumaulwurf.calc_costs() <= finance_history_month[0][COST_NETWEALTH]);
+	with_tf = with_tf  &&  (baumaulwurf.calc_costs() <= finance->get_netwealth());
 
 	// now build with or without terraforming
 	if (with_tf) {
@@ -739,13 +743,13 @@ DBG_MESSAGE("ai_goods_t::create_simple_rail_transport()","building simple track 
 		k = platz1;
 		while(k!=size1+platz1) {
 			int cost = -welt->lookup_kartenboden(k)->weg_entfernen( track_wt, true );
-			buche(cost, k, COST_CONSTRUCTION);
+			book_construction_costs(this, cost, k, track_wt);
 			k += diff1;
 		}
 		k = platz2;
 		while(k!=size2+platz2) {
 			int cost = -welt->lookup_kartenboden(k)->weg_entfernen( track_wt, true );
-			buche(cost, k, COST_CONSTRUCTION);
+			book_construction_costs(this, cost, k, track_wt);
 			k += diff2;
 		}
 	}
@@ -770,7 +774,7 @@ void ai_goods_t::step()
 		return;
 	}
 
-	if( finance_history_month[0][COST_NETWEALTH] < starting_money/8  ) {
+	if(  finance->get_netwealth() < (finance->get_starting_money()/8)  ) {
 		// nothing to do but to remove unneeded convois to gain some money
 		state = CHECK_CONVOI;
 	}
@@ -1185,7 +1189,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		// remove stucked vehicles (only from roads!)
 		case CHECK_CONVOI:
 		{
-			next_construction_steps = welt->get_steps() + (1+konto_ueberzogen>0)*simrand( ai_t::construction_speed ) + 25;
+			next_construction_steps = welt->get_steps() + ((1+finance->get_account_overdrawn())>0)*simrand( ai_t::construction_speed ) + 25;
 
 			for (size_t i = welt->convoys().get_count(); i-- != 0;) {
 				convoihandle_t const cnv = welt->convoys()[i];
@@ -1205,7 +1209,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 
 				// apparently we got the toatlly wrong vehicle here ...
 				// (but we will delete it only, if we need, because it may be needed for a chain)
-				bool delete_this = (konto_ueberzogen>0)  &&  (gewinn < -cnv->calc_restwert());
+				bool delete_this = (finance->get_account_overdrawn() > 0)  &&  (gewinn < -cnv->calc_restwert());
 
 				// check for empty vehicles (likely stucked) that are making no plus and remove them ...
 				// take care, that the vehicle is old enough ...
