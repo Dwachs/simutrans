@@ -88,6 +88,8 @@ void dynamic_string::update(script_vm_t *script, spieler_t *sp, bool force_updat
 				}
 				else {
 					entry->listener = this;
+					// return cached value for now; will be changed after callback returns
+					s = entry->result.c_str();
 				}
 			}
 			else {
