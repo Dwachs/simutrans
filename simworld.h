@@ -488,13 +488,21 @@ private:
 	void move_view(event_t *ev);
 
 	/**
+	 * Gets a new world position to put the cursor, under the mouse position.
+	 * @param ev system event, we take the mouse position from here. Input parameter.
+	 * @param grid_coordinates indicates if this function is to check against the map tiles, or the grid of heights. Input parameter.
+	 * @return koord3d::invalid if no position exists under the mouse pointer, a 3d koord directly under the mouse otherwise.
+	 */
+	koord3d get_new_cursor_position(const event_t *ev, bool grid_coordinates);
+
+	/**
 	 * Processes a cursor movement event, related to the tool pointer in-map.
 	 * @see zeiger_t
 	 */
 	void move_cursor(const event_t *ev);
 
 	/**
-	 * Searches for the ground_t that intersects with the requested screen position.
+	 * Searches for the ground_t that's under the requested screen position.
 	 * @param screen_pos Screen coordinates to check for.
 	 * @param intersect_grid Special case for the lower/raise tool, will return a limit border tile if we are on the south/east border of screen.
 	 * @param found_i If we have a match, it will be set to the i coordinate of the found tile. Undefined otherwise.
@@ -525,6 +533,12 @@ private:
 	 * @see cached_grid_size
 	 */
 	sint8 *grid_hgts;
+
+	/**
+	 * Array representing the height of water on each point of the grid.
+	 * @see cached_grid_size
+	 */
+	sint8 *water_hgts;
 
 	/**
 	 * @}
@@ -869,17 +883,17 @@ public:
 	/**
 	 * background_dirty: redraw background.
 	 */
-	void set_background_dirty() {background_dirty=true;}
+	void set_background_dirty() { background_dirty = true; }
 
 	/**
 	 * background_dirty: redraw whole screen.
 	 */
-	bool is_background_dirty() const {return background_dirty;}
+	bool is_background_dirty() const { return background_dirty; }
 
 	/**
 	 * background_dirty: redraw background.
 	 */
-	void unset_background_dirty() {background_dirty=false;}
+	void unset_background_dirty() { background_dirty = false; }
 
 	/**
 	 * @return true if the current viewport contains regions outside the world.
@@ -1193,7 +1207,7 @@ public:
 	 * Returns the maximum allowed world height.
 	 * @author Hj. Malthaner
 	 */
-	sint8 get_maximumheight() const { return 14; }
+	sint8 get_maximumheight() const { return 32; }
 
 	/**
 	 * Returns the current snowline height.
@@ -1202,11 +1216,15 @@ public:
 	sint16 get_snowline() const { return snowline; }
 
 	/**
-	 * Returns the current climate for a given height,
-	 * @note Uses as private lookup table for speed.
-	 * @author prissi
+	 * Initializes the height_to_climate field from settings.
 	 */
-	climate get_climate(sint16 height) const
+	void init_height_to_climate();
+
+	/**
+	 * Returns the climate for a given height, ruled by world creation settings.
+	 * Used to determine climate when terraforming, loading old games, etc.
+	 */
+	climate get_climate_at_height(sint16 height) const
 	{
 		const sint16 h=height-grundwasser;
 		if(h<0) {
@@ -1217,6 +1235,40 @@ public:
 		return (climate)height_to_climate[h];
 	}
 
+	/**
+	 * returns the current climate for a given koordinate
+	 * @author Kieron Green
+	 */
+	inline climate get_climate(koord k) const {
+		const planquadrat_t *plan = lookup(k);
+		return plan ? plan->get_climate() : water_climate;
+	}
+
+	/**
+	 * sets the current climate for a given koordinate
+	 * @author Kieron Green
+	 */
+	inline void set_climate(koord k, climate cl, bool recalc) {
+		planquadrat_t *plan = access(k);
+		if(  plan  ) {
+			plan->set_climate(cl);
+			if(  recalc  ) {
+				recalc_transitions(k);
+				for(  int i = 0;  i < 8;  i++  ) {
+					recalc_transitions( k + koord::neighbours[i] );
+				}
+			}
+		}
+	}
+
+private:
+	/**
+	 * Dummy method, to generate compiler error if someone tries to call get_climate( int ),
+	 * as the int parameter will silently be cast to koord...
+	 */
+	climate get_climate(sint16) const;
+
+public:
 	/**
 	 * Set a new tool as current: calls local_set_werkzeug or sends to server.
 	 */
@@ -1401,12 +1453,10 @@ public:
 	/**
 	 * @return grund at the bottom (where house will be build)
 	 * @note Inline because called very frequently!
-	 * @author Hj. Malthaner
 	 */
 	inline grund_t *lookup_kartenboden(const koord &pos) const
 	{
-		const planquadrat_t *plan = lookup(pos);
-		return plan ? plan->get_kartenboden() : NULL;
+		return is_within_limits(pos.x, pos.y) ? plan[pos.x+pos.y*cached_grid_size.x].get_kartenboden() : NULL;
 	}
 
 	/**
@@ -1600,6 +1650,44 @@ public:
 	 * @author Hj. Malthaner
 	 */
 	void set_grid_hgt(koord k, sint8 hgt) { grid_hgts[k.x + k.y*(uint32)(cached_grid_size.x+1)] = hgt; }
+
+	/**
+	 * @return water height
+	 * @author Kieron Green
+	 */
+	inline sint8 get_water_hgt(koord k) const {
+		return is_within_grid_limits( k.x, k.y ) ? water_hgts[k.x + k.y * (cached_grid_size.x)] : grundwasser;
+	}
+
+	/**
+	 * Sets water height.
+	 * @author Kieron Green
+	 */
+	void set_water_hgt(koord k, sint8 hgt) { water_hgts[k.x + k.y * (uint32)(cached_grid_size.x)] = (hgt); }
+
+	/**
+	 * Fills array with corner heights of neighbours
+	 * @author Kieron Green
+	 */
+	void get_neighbour_heights(const koord k, sint8 neighbour_height[8][4]) const;
+
+	/**
+	 * Calculates appropriate climate for a tile
+	 * @author Kieron Green
+	 */
+	void calc_climate(koord k, bool recalc);
+
+	/**
+	 * Rotates climate and water transitions for a tile
+	 * @author Kieron Green
+	 */
+	void rotate_transitions(koord k);
+
+	/**
+	 * Recalculate climate and water transitions for a tile
+	 * @author Kieron Green
+	 */
+	void recalc_transitions(koord k);
 
 	/**
 	 * @return Minimum height of the planquadrats at i, j.

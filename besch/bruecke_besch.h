@@ -63,7 +63,8 @@ public:
 	 * Nummerierung all der verschiedenen Schienstücke
 	 */
 	enum img_t {
-		NS_Segment, OW_Segment, N_Start, S_Start, O_Start, W_Start, N_Rampe, S_Rampe, O_Rampe, W_Rampe, NS_Pillar, OW_Pillar
+		NS_Segment, OW_Segment, N_Start, S_Start, O_Start, W_Start, N_Rampe, S_Rampe, O_Rampe, W_Rampe, NS_Pillar, OW_Pillar,
+		NS_Segment2, OW_Segment2, N_Start2, S_Start2, O_Start2, W_Start2, N_Rampe2, S_Rampe2, O_Rampe2, W_Rampe2
 	};
 
 	/*
@@ -97,9 +98,11 @@ public:
 	}
 
 	static img_t get_simple(ribi_t::ribi ribi);
-	static img_t get_start(ribi_t::ribi ribi);
-	static img_t get_rampe(ribi_t::ribi ribi);
+	img_t get_start(hang_t::typ slope) const;
+	static img_t get_rampe(hang_t::typ slope);
 	static img_t get_pillar(ribi_t::ribi ribi);
+
+	img_t get_end(hang_t::typ test_slope, hang_t::typ ground_slope, hang_t::typ way_slope) const;
 
 	waytype_t get_waytype() const { return static_cast<waytype_t>(wegtyp); }
 

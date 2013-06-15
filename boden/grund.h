@@ -132,28 +132,22 @@ public:
 
 protected:
 	/**
-	 * Zusammenfassung des Ding-Container als Objekt
-	 * @author V. Meyer
+	 * List of objects on this tile
 	 */
 	dingliste_t dinge;
 
 	/**
-	 * Koordinate in der Karte.
-	 * @author Hj. Malthaner
+	 * Coordinate
 	 */
 	koord3d pos;
 
 	/**
-	 * Flags für das neuzeichnen geänderter Untergründe
-	 * @author Hj. Malthaner
+	 * Flags to indicate existence of halts, ways, to mark dirty
 	 */
 	uint8 flags;
 
 	/**
-	 * 0..100: slopenr, (bild_nr%100), normal ground
-	 * (bild_nr/100)%17 left slope
-	 * (bild_nr/1700) right slope
-	 * @author Hj. Malthaner
+	 * Image number
 	 */
 	image_id bild_nr;
 
@@ -166,12 +160,6 @@ protected:
 	 * Slope (now saved locally), because different grounds need different slopes
 	 */
 	uint8 slope;
-
-	/**
-	 * Indicates if this tile is in a border position, and in which direction.
-	 * @return A ribi_t style mask indicating in which direction spans the lack of neighbour tiles.
-	 */
-	uint8 get_border_direction() const;
 
 public:
 	/**
@@ -404,7 +392,24 @@ public:
 	 */
 	inline sint8 get_hoehe(hang_t::typ corner) const
 	{
-		return pos.z + (((hang_t::typ)slope & corner )?1:0);
+		switch(  corner  ) {
+			case hang_t::corner_SW: {
+				return pos.z + corner1(slope);
+				break;
+			}
+			case hang_t::corner_SE: {
+				return pos.z + corner2(slope);
+				break;
+			}
+			case hang_t::corner_NE: {
+				return pos.z + corner3(slope);
+				break;
+			}
+			default: {
+				return pos.z + corner4(slope);
+				break;
+			}
+		}
 	}
 
 	void set_hoehe(int h) { pos.z = h;}
@@ -476,17 +481,16 @@ public:
 	void display_boden(const sint16 xpos, const sint16 ypos, const sint16 raster_tile_width) const;
 
 	/**
-	 * Display black background on border tiles.
-	 * @note at the moment, it just displays background on north and west tiles.
-	 * @note Can't be a const function because it will mark the tile as dirty if it draws something.
+	 * Displays the earth at the border
+	 * @author prissi
 	 */
-	void display_border(const sint16 xpos, const sint16 ypos, const sint16 raster_tile_width, const uint8 border_direction);
+	void display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile_width );
 
 	/**
 	 * Displays the tile if it's visible.
 	 * @see is_karten_boden_visible()
 	 */
-	void display_if_visible(sint16 xpos, sint16 ypos, sint16 raster_tile_width);
+	void display_if_visible(sint16 xpos, sint16 ypos, const sint16 raster_tile_width);
 
 	/**
 	 * displays everything that is on a tile - the main display routine for objects on tiles
@@ -523,16 +527,17 @@ public:
 	uint8 display_dinge_vh(const sint16 xpos, const sint16 ypos, const uint8 start_offset, const ribi_t::ribi ribi, const bool ontile) const;
 
 	/**
-	 *  displays all foreground images
+	 * displays all foreground images
 	 * @param is_global set to true, if this is called during the whole screen update
 	 * @author dwachs
 	 */
 	void display_dinge_fg(const sint16 xpos, const sint16 ypos, const bool is_global, const uint8 start_offset) const;
-	/* overlayer with signs, good levels and station coverage
+
+	/**
+	 * overlayer with signs, good levels and station coverage
 	 * resets the dirty flag
 	 * @author kierongreen
 	 */
-
 	void display_overlay(sint16 xpos, sint16 ypos);
 
 	inline ding_t *first_obj() const { return dinge.bei(offsets[flags/has_way1]); }
@@ -788,7 +793,9 @@ public:
 		 */
 		if(  way_slope != slope  ) {
 			if(  ist_bruecke()  &&  slope  ) {
-				h ++;	// end or start of a bridge
+				// calculate height quicker because we know that slope exists and is north, south, east or west
+				// single heights are not integer multiples of 8, double heights are
+				h += (slope & 7) ? 1 : 2;
 			}
 		}
 

@@ -5,6 +5,11 @@
  * (see licence.txt)
  */
 
+/*
+ * Window with destination information for a stop
+ * @author Hj. Malthaner
+ */
+
 #ifndef gui_halt_info_h
 #define gui_halt_info_h
 
@@ -23,13 +28,6 @@
 #include "../simwin.h"
 
 
-/**
- * Dies stellt ein Fenster mit den Zielinformationen
- * fuer eine Haltestelle dar.
- *
- * @author Hj. Malthaner
- */
-
 class halt_info_t : public gui_frame_t, private action_listener_t
 {
 private:
@@ -40,8 +38,9 @@ private:
 	* @author Hj. Malthaner
 	*/
 	cbuffer_t freight_info;
-	cbuffer_t info_buf;
+	cbuffer_t info_buf, joined_buf;
 
+	// other UI definitions
 	gui_scrollpane_t scrolly;
 	gui_textarea_t text;
 	gui_textinput_t input;
@@ -51,12 +50,39 @@ private:
 	button_t button;
 	button_t sort_button;     // @author hsiegeln
 	button_t filterButtons[MAX_HALT_COST];
-	button_t toggler;
+	button_t toggler, toggler_departures;
 
 	halthandle_t halt;
 	char edit_name[256];
 
 	void show_hide_statistics( bool show );
+
+	// departure stuff (departure and arrival times display)
+	class dest_info_t {
+	public:
+		bool compare( const dest_info_t &other ) const;
+		halthandle_t halt;
+		sint32 delta_ticks;
+		convoihandle_t cnv;
+		dest_info_t() : delta_ticks(0) {}
+		dest_info_t( halthandle_t h, sint32 d_t, convoihandle_t c ) : halt(h), delta_ticks(d_t), cnv(c) {}
+		bool operator == (const dest_info_t &other) const { return ( this->cnv==other.cnv ); }
+	};
+
+	static bool compare_hi(const dest_info_t &a, const dest_info_t &b) { return a.delta_ticks <= b.delta_ticks; }
+
+	vector_tpl<dest_info_t> destinations;
+	vector_tpl<dest_info_t> origins;
+	cbuffer_t departure_buf;
+
+	// if nothing changed, this is the next refresh to recalculate the content of the departure board
+	sint8 next_refresh;
+
+	uint32 calc_ticks_until_arrival( convoihandle_t cnv );
+
+	void update_departures();
+
+	void show_hide_departures( bool show );
 
 public:
 	halt_info_t(karte_t *welt, halthandle_t halt);
@@ -64,16 +90,16 @@ public:
 	virtual ~halt_info_t();
 
 	/**
-	 * Manche Fenster haben einen Hilfetext assoziiert.
-	 * @return den Dateinamen für die Hilfe, oder NULL
+	 * Set the window associated helptext
+	 * @return the filename for the helptext, or NULL
 	 * @author Hj. Malthaner
 	 */
 	const char * get_hilfe_datei() const {return "station.txt";}
 
 	/**
-	 * Komponente neu zeichnen. Die übergebenen Werte beziehen sich auf
-	 * das Fenster, d.h. es sind die Bildschirkoordinaten des Fensters
-	 * in dem die Komponente dargestellt wird.
+	 * Draw new component. The values to be passed refer to the window
+	 * i.e. It's the screen coordinates of the window where the
+	 * component is displayed.
 	 * @author Hj. Malthaner
 	 */
 	void zeichnen(koord pos, koord gr);
@@ -92,7 +118,7 @@ public:
 
 	void map_rotate90( sint16 );
 
-	// this contructor is only used during loading
+	// this constructor is only used during loading
 	halt_info_t(karte_t *welt);
 
 	void rdwr( loadsave_t *file );

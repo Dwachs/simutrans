@@ -5,6 +5,12 @@
  * (see licence.txt)
  */
 
+/*
+ * A text display component
+ *
+ * @autor Hj. Malthaner
+ */
+
 #ifndef gui_textarea_h
 #define gui_textarea_h
 
@@ -12,11 +18,6 @@
 
 class cbuffer_t;
 
-/**
- * Eine textanzeigekomponente
- *
- * @autor Hj. Malthaner
- */
 class gui_textarea_t : public gui_komponente_t
 {
 private:
@@ -32,13 +33,15 @@ private:
 public:
 	gui_textarea_t(cbuffer_t* buf_);
 
+	void set_buf( cbuffer_t* buf_ ) { buf = buf_; recalc_size(); }
+
 	/**
 	 * recalc the current size, needed for speculative size calculations
 	 */
 	void recalc_size();
 
 	/**
-	* Zeichnet die Komponente
+	* Draw the component
 	* @author Hj. Malthaner
 	*/
 	virtual void zeichnen(koord offset);

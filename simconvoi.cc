@@ -2570,7 +2570,6 @@ void convoi_t::calc_gewinn()
 	sum_speed_limit = 0;
 
 	if(gewinn) {
-		besitzer_p->add_money_message(gewinn, fahr[0]->get_pos().get_2d());
 		jahresgewinn += gewinn;
 
 		book(gewinn, CONVOI_PROFIT);
@@ -2670,7 +2669,6 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 	sum_speed_limit = 0;
 
 	if(gewinn) {
-		besitzer_p->add_money_message(gewinn, fahr[0]->get_pos().get_2d());
 		jahresgewinn += gewinn;
 
 		book(gewinn, CONVOI_PROFIT);
@@ -2783,6 +2781,16 @@ sint32 convoi_t::get_speedbonus_kmh() const
 {
 	if(  distance_since_last_stop > 0  &&  front()!=NULL  &&  front()->get_waytype() != air_wt  ) {
 		return min( speedbonus_kmh, (sint32)(sum_speed_limit / distance_since_last_stop) );
+	}
+	return speedbonus_kmh;
+}
+
+
+// return the current bonus speed
+uint32 convoi_t::get_average_kmh() const
+{
+	if(  distance_since_last_stop > 0  ) {
+		return sum_speed_limit / distance_since_last_stop;
 	}
 	return speedbonus_kmh;
 }
@@ -3191,7 +3199,7 @@ void convoi_t::set_next_reservation_index(uint16 n)
  * the current state saved as color
  * Meanings are BLACK (ok), WHITE (no convois), YELLOW (no vehicle moved), RED (last month income minus), BLUE (at least one convoi vehicle is obsolete)
  */
-uint8 convoi_t::get_status_color() const
+COLOR_VAL convoi_t::get_status_color() const
 {
 	if(state==INITIAL) {
 		// in depot/under assembly

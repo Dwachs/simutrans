@@ -88,6 +88,8 @@ werkzeug_t *create_general_tool(int toolnr)
 		case WKZ_TRANSFORMER:      tool = new wkz_transformer_t(); break;
 		case WKZ_ADD_CITY:         tool = new wkz_add_city_t(); break;
 		case WKZ_CHANGE_CITY_SIZE: tool = new wkz_change_city_size_t(); break;
+		case WKZ_CHANGE_WATER_HEIGHT: tool = new wkz_change_water_height_t(); break;
+		case WKZ_SET_CLIMATE:      tool = new wkz_set_climate_t(); break;
 		case WKZ_PLANT_TREE:       tool = new wkz_plant_tree_t(); break;
 		case WKZ_FAHRPLAN_ADD:     tool = new wkz_fahrplan_add_t(); break;
 		case WKZ_FAHRPLAN_INS:     tool = new wkz_fahrplan_ins_t(); break;
@@ -637,12 +639,12 @@ void werkzeug_t::update_toolbars(karte_t *welt)
 }
 
 
-void werkzeug_t::draw_after( karte_t *welt, koord pos ) const
+void werkzeug_t::draw_after(karte_t *welt, koord pos, bool dirty) const
 {
 	// default action: grey corner if selected
 	image_id id = get_icon( welt->get_active_player() );
 	if(  id!=IMG_LEER  &&  is_selected(welt)  ) {
-		display_img_blend( id, pos.x, pos.y, TRANSPARENT50_FLAG|OUTLINE_FLAG|COL_BLACK, false, true );
+		display_img_blend( id, pos.x, pos.y, TRANSPARENT50_FLAG|OUTLINE_FLAG|COL_BLACK, false, dirty );
 	}
 }
 
@@ -656,6 +658,14 @@ const char *werkzeug_t::check_pos( karte_t *welt, spieler_t *, koord3d pos )
 	grund_t *gr = welt->lookup(pos);
 	return (gr  &&  !gr->is_visible()) ? "" : NULL;
 }
+
+bool werkzeug_t::check_valid_pos( karte_t *w, koord k ) const
+{
+	if(is_grid_tool()) {
+		return w->is_within_grid_limits(k);
+	}
+	return w->is_within_limits(k);
+};
 
 /**
  * Initializes cursor object: image, y-offset, size of marked area,
@@ -799,17 +809,13 @@ bool toolbar_t::init(karte_t *welt, spieler_t *sp)
 	bool close = (strcmp(this->default_param,"EDITTOOLS")==0  &&  sp!=welt->get_spieler(1));
 
 	// show/create window
-	if(  win_get_magic(magic_toolbar+toolbar_tool.index_of(this))  ) {
-		if(close) {
-			destroy_win(wzw);
-		}
-		else {
-			top_win(wzw);
-		}
-
+	if(  close  ) {
+		destroy_win(wzw);
+		return false;
 	}
-	else if(!close  &&  this!=werkzeug_t::toolbar_tool[0]) {
-		// not open and not main menu
+
+	if(  this != werkzeug_t::toolbar_tool[0]  ) {
+		// not main menu
 		create_win( wzw, w_info|w_do_not_delete|w_no_overlap, magic_toolbar+toolbar_tool.index_of(this) );
 		DBG_MESSAGE("toolbar_t::init()", "ID=%id", get_id());
 	}

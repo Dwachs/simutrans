@@ -9,6 +9,7 @@
 #include "../simmesg.h"
 
 sint8 umgebung_t::pak_tile_height_step = 16;
+sint8 umgebung_t::pak_height_conversion_factor = 1;
 
 bool umgebung_t::simple_drawing = false;
 bool umgebung_t::simple_drawing_fast_forward = true;
@@ -86,6 +87,8 @@ bool umgebung_t::ground_info;
 bool umgebung_t::townhall_info;
 bool umgebung_t::single_info;
 bool umgebung_t::window_buttons_right;
+bool umgebung_t::second_open_closes_win;
+bool umgebung_t::remember_window_positions;
 bool umgebung_t::window_frame_active;
 uint8 umgebung_t::verbose_debug;
 uint8 umgebung_t::default_sortmode;
@@ -103,6 +106,9 @@ uint8 umgebung_t::tooltip_textcolor;
 uint8 umgebung_t::toolbar_max_width;
 uint8 umgebung_t::toolbar_max_height;
 uint8 umgebung_t::cursor_overlay_color;
+uint8 umgebung_t::background_color;
+bool umgebung_t::draw_earth_border;
+bool umgebung_t::draw_outside_tile;
 uint8 umgebung_t::show_vehicle_states;
 bool umgebung_t::visualize_schedule;
 sint8 umgebung_t::daynight_level;
@@ -153,6 +159,8 @@ void umgebung_t::init()
 
 	window_buttons_right = false;
 	window_frame_active = false;
+	second_open_closes_win = false;
+	remember_window_positions = true;
 
 	// debug level (0: only fatal, 1: error, 2: warning, 3: alles
 	verbose_debug = 0;
@@ -186,6 +194,10 @@ void umgebung_t::init()
 	toolbar_max_height = 0;
 
 	cursor_overlay_color = COL_ORANGE;
+
+	background_color = COL_GREY2;
+	draw_earth_border = true;
+	draw_outside_tile = false;
 
 	show_vehicle_states = 1;
 
@@ -350,6 +362,15 @@ void umgebung_t::rdwr(loadsave_t *file)
 		if (file->is_loading()) {
 			nickname = str ? str.c_str() : "";
 		}
+	}
+	if(  file->get_version()>=112006  ) {
+		file->rdwr_byte( background_color );
+		file->rdwr_bool( draw_earth_border );
+		file->rdwr_bool( draw_outside_tile );
+	}
+	if(  file->get_version()>=112007  ) {
+		file->rdwr_bool( second_open_closes_win );
+		file->rdwr_bool( remember_window_positions );
 	}
 	// server settings are not saved, since the are server specific and could be different on different servers on the save computers
 }

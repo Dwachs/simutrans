@@ -5,6 +5,10 @@
  * (see licence.txt)
  */
 
+/*
+ * Server game listing and current game information window
+ */
+
 #include "../simworld.h"
 #include "../simcolor.h"
 #include "../simgraph.h"
@@ -98,7 +102,7 @@ server_frame_t::server_frame_t(karte_t* w) :
 		addinput.add_listener( this );
 		add_komponente( &addinput );
 
-		add.init( button_t::box, "Query server", koord( ww - D_BUTTON_WIDTH - D_MARGIN_RIGHT, pos_y ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT) );
+		add.init( button_t::roundbox, "Query server", koord( ww - D_BUTTON_WIDTH - D_MARGIN_RIGHT, pos_y ), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT) );
 		add.add_listener( this );
 
 		pos_y += D_BUTTON_HEIGHT;
@@ -151,11 +155,11 @@ server_frame_t::server_frame_t(karte_t* w) :
 
 		const int button_width = 112;
 
-		find_mismatch.init( button_t::box, "find mismatch", koord( ww - D_MARGIN_RIGHT - D_H_SPACE - button_width * 2, pos_y ), koord( button_width, D_BUTTON_HEIGHT) );
+		find_mismatch.init( button_t::roundbox, "find mismatch", koord( ww - D_MARGIN_RIGHT - D_H_SPACE - button_width * 2, pos_y ), koord( button_width, D_BUTTON_HEIGHT) );
 		find_mismatch.add_listener( this );
 		add_komponente( &find_mismatch );
 
-		join.init( button_t::box, "join game", koord( ww - D_MARGIN_RIGHT - button_width, pos_y ), koord( button_width, D_BUTTON_HEIGHT) );
+		join.init( button_t::roundbox, "join game", koord( ww - D_MARGIN_RIGHT - button_width, pos_y ), koord( button_width, D_BUTTON_HEIGHT) );
 		join.disable();
 		join.add_listener( this );
 		add_komponente( &join );
@@ -394,19 +398,20 @@ bool server_frame_t::action_triggered (gui_action_creator_t *komp, value_t p)
 		}
 		else {
 			join.disable();
-			if (  ((server_scrollitem_t*)serverlist.get_element( p.i ))->online()  ) {
+			server_scrollitem_t *item = (server_scrollitem_t*)serverlist.get_element( p.i );
+			if(  item->online()  ) {
 				const char *err = network_gameinfo( ((server_scrollitem_t*)serverlist.get_element( p.i ))->get_dns(), &gi );
-				if (  err == NULL  ) {
-					serverlist.get_element( p.i )->set_color( COL_BLACK );
+				if(  err == NULL  ) {
+					item->set_color( COL_BLACK );
 					update_info();
 				}
 				else {
-					serverlist.get_element( p.i )->set_color( COL_RED );
+					item->set_color( COL_RED );
 					update_error( "Server did not respond!" );
 				}
 			}
 			else {
-				serverlist.get_element( p.i )->set_color( COL_RED );
+				item->set_color( COL_RED );
 				update_error( "Cannot connect to offline server!" );
 			}
 		}

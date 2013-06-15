@@ -26,7 +26,8 @@
 
 karte_ansicht_t::karte_ansicht_t(karte_t *welt)
 {
-    this->welt = welt;
+	this->welt = welt;
+	outside_visible = true;
 }
 
 static const sint8 hours2night[] =
@@ -100,8 +101,8 @@ void karte_ansicht_t::display(bool force_dirty)
 	// redraw everything?
 	force_dirty = force_dirty || welt->is_dirty();
 	welt->unset_dirty();
-	if(force_dirty) {
-		mark_rect_dirty_wc( 0, 0, display_get_width(), display_get_height() );
+	if(  force_dirty  ) {
+		mark_screen_dirty();
 		welt->set_background_dirty();
 		force_dirty = false;
 	}
@@ -149,12 +150,12 @@ void karte_ansicht_t::display(bool force_dirty)
 	if( grund_t::underground_mode ) {
 		display_fillbox_wh(0, menu_height, disp_width, disp_height-menu_height, COL_BLACK, force_dirty);
 	}
-	else if( welt->is_background_dirty() ) {
+	else if( welt->is_background_dirty()  &&  outside_visible  ) {
 		// we check if background will be visible, no need to clear screen if it's not.
-		if( welt->is_background_visible() ) {
-			display_fillbox_wh(0, menu_height, disp_width, disp_height-menu_height, COL_BLACK, force_dirty);
-		}
+		display_background(0, menu_height, disp_width, disp_height-menu_height, force_dirty);
 		welt->unset_background_dirty();
+		// reset
+		outside_visible = false;
 	}
 	// to save calls to grund_t::get_disp_height
 	// gr->get_disp_height() == min(gr->get_hoehe(), hmax_ground)
@@ -261,7 +262,8 @@ void karte_ansicht_t::display(bool force_dirty)
 
 	ding_t *zeiger = welt->get_zeiger();
 	DBG_DEBUG4("karte_ansicht_t::display", "display pointer");
-	if(zeiger) {
+	if( zeiger  &&  zeiger->get_pos() != koord3d::invalid ) {
+		bool dirty = zeiger->get_flag(ding_t::dirty);
 		// better not try to twist your brain to follow the retransformation ...
 		const koord diff = zeiger->get_pos().get_2d()-welt->get_world_position()-welt->get_view_ij_offset();
 		const sint16 x = (diff.x-diff.y)*(IMG_SIZE/2) + const_x_off;
@@ -273,17 +275,17 @@ void karte_ansicht_t::display(bool force_dirty)
 				const PLAYER_COLOR_VAL transparent = TRANSPARENT25_FLAG|OUTLINE_FLAG| umgebung_t::cursor_overlay_color;
 				if(  gr->get_bild()==IMG_LEER  ) {
 					if(  gr->hat_wege()  ) {
-						display_img_blend( gr->obj_bei(0)->get_bild(), x, y, transparent, 0, true );
+						display_img_blend( gr->obj_bei(0)->get_bild(), x, y, transparent, 0, dirty );
 					}
 					else {
-						display_img_blend( grund_besch_t::get_ground_tile(0,gr->get_hoehe()), x, y, transparent, 0, true );
+						display_img_blend( grund_besch_t::get_ground_tile(gr), x, y, transparent, 0, dirty );
 					}
 				}
 				else if(  gr->get_typ()==grund_t::wasser  ) {
-					display_img_blend( grund_besch_t::sea->get_bild(gr->get_bild(),wasser_t::stage), x, y, transparent, 0, true );
+					display_img_blend( grund_besch_t::sea->get_bild(gr->get_bild(),wasser_t::stage), x, y, transparent, 0, dirty );
 				}
 				else {
-					display_img_blend( gr->get_bild(), x, y, transparent, 0, true );
+					display_img_blend( gr->get_bild(), x, y, transparent, 0, dirty );
 				}
 			}
 		}
@@ -309,7 +311,7 @@ void karte_ansicht_t::display(bool force_dirty)
 
 
 
-void karte_ansicht_t::display_region( koord lt, koord wh, sint16 y_min, const sint16 y_max, bool force_dirty, bool threaded )
+void karte_ansicht_t::display_region( koord lt, koord wh, sint16 y_min, const sint16 y_max, bool /*force_dirty*/, bool threaded )
 {
 	const sint16 IMG_SIZE = get_tile_raster_width();
 
@@ -398,18 +400,18 @@ void karte_ansicht_t::display_region( koord lt, koord wh, sint16 y_min, const si
 						kb->display_if_visible(xpos, yypos, IMG_SIZE);
 						plotted = true;
 					}
+					// not on screen? We still might need to plot the border ...
+					else if(  umgebung_t::draw_earth_border  &&  (pos.x-welt->get_size().x+1 == 0  ||  pos.y-welt->get_size().y+1 == 0)  ) {
+						kb->display_border( xpos, yypos, IMG_SIZE );
+					}
 				}
 				else {
-					// outside ...
-					///@note not necessary an longer, delete this section?
-/*
-					const sint16 mh = welt->get_minimumheight();
-					const sint8 ths = TILE_HEIGHT_STEP;
-
-					const sint16 yypos = ypos - tile_raster_scale_y( mh * ths , IMG_SIZE );
-					if(yypos-IMG_SIZE<lt.y+wh.y  &&  yypos+IMG_SIZE>lt.y) {
-						display_img(grund_besch_t::ausserhalb->get_bild(hang_t::flach), xpos, yypos, force_dirty);
-					}*/
+					// check if ouside visible
+					outside_visible = true;
+					if(  umgebung_t::draw_outside_tile  ) {
+						const sint16 yypos = ypos - tile_raster_scale_y(welt->get_grundwasser()*TILE_HEIGHT_STEP, IMG_SIZE);
+						display_normal( grund_besch_t::ausserhalb->get_bild(0), xpos, yypos, 0, true, false );
+					}
 				}
 			}
 		}
@@ -525,4 +527,12 @@ void karte_ansicht_t::display_region( koord lt, koord wh, sint16 y_min, const si
 #endif
 	}
 	(void) threaded;
+}
+
+
+void karte_ansicht_t::display_background( KOORD_VAL xp, KOORD_VAL yp, KOORD_VAL w, KOORD_VAL h, bool dirty )
+{
+	if(  !(umgebung_t::draw_earth_border  &&  umgebung_t::draw_outside_tile)  ) {
+		display_fillbox_wh(xp, yp, w, h, umgebung_t::background_color, dirty );
+	}
 }

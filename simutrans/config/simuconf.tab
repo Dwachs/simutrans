@@ -237,6 +237,9 @@ unprotect_abondoned_player_months = 0
 # THIS WILL BE ONLY USED, WHEN THIS FILE IS IN THE pakxyz/config!
 #tile_height = 16
 
+# new height for old slopes when old single height savegame loaded with double height pak (default 1=single height, 2=double height)
+#height_conversion_factor = 1
+
 # (=1) drive on the left side of the road
 drive_left = 0
 
@@ -327,9 +330,26 @@ show_names = 3
 # -- pak128.japan
 #cursor_overlay_color = 149
 
+# Color of background default: COL_GREY2 (210)
+#background_color = 210
+
+# Draw the earth slope to mark the border (default 1 on)
+draw_earth_border = 1
+
+# Tile the outside with the ground.ouside.pak (default 0 off)
+draw_outside_tile = 0
+
 ##################################window stuff##################################
+
 # show the windows close etc. buttons on the right (like windows 98)
 #window_buttons_right = 0
+
+# closes windows/toolbar when button clicked a second time (default off=0)
+second_open_closes_win = 0
+
+# restores window position when window is reopening
+# This will be saved, but will be discarded when screen is resized
+second_open_closes_win = 0
 
 # there are three different ways to indicate an active window
 

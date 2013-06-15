@@ -13,6 +13,7 @@
 #include "halthandle_t.h"
 
 #include "simdings.h"
+#include "simgraph.h"
 #include "simtypes.h"
 
 #include "bauer/warenbauer.h"
@@ -96,7 +97,9 @@ private:
 	 */
 	void init_financial_history();
 
-	uint8 status_color;
+	COLOR_VAL status_color, last_status_color;
+	sint16 last_bar_count;
+	vector_tpl<KOORD_VAL> last_bar_height; // caches the last height of the station bar for each good type drawn in display_status(). used for dirty tile management
 	uint32 capacity[3]; // passenger, post, goods
 	uint8 overcrowded[8];	// bit set, when overcrowded
 
@@ -114,6 +117,8 @@ private:
 	halthandle_t self;
 
 public:
+	const slist_tpl<convoihandle_t> &get_loading_convois() const { return loading_here; }
+
 	// add convoi to loading queue
 	void request_loading( convoihandle_t cnv );
 
@@ -149,6 +154,7 @@ public:
 	 * this will only return something if this stop belongs to same player or is public, or is a dock (when on water)
 	 */
 	static halthandle_t get_halt(const karte_t *welt, const koord3d pos, const spieler_t *sp );
+	static halthandle_t get_halt_2d(const karte_t *welt, const koord pos, const spieler_t *sp );
 
 	static const slist_tpl<halthandle_t>& get_alle_haltestellen() { return alle_haltestellen; }
 
@@ -372,7 +378,7 @@ public:
 	 * Draws some nice colored bars giving some status information
 	 * @author Hj. Malthaner
 	 */
-	void display_status(sint16 xpos, sint16 ypos) const;
+	void display_status(KOORD_VAL xpos, KOORD_VAL ypos);
 
 	/**
 	 * sucht umliegende, erreichbare fabriken und baut daraus die

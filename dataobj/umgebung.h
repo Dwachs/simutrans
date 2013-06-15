@@ -168,6 +168,10 @@ public:
 	 */
 	static bool window_buttons_right;
 
+	static bool second_open_closes_win;
+
+	static bool remember_window_positions;
+
 	static sint16 window_snap_distance;
 
 	static koord iconsize;
@@ -246,6 +250,15 @@ public:
 	/// color used for cursor overlay blending
 	static uint8 cursor_overlay_color;
 
+	/// color used for solid background draw
+	static uint8 background_color;
+
+	/// true if the border shut be shown as cut through the earth
+	static bool draw_earth_border;
+
+	/// true if the outside tiles should be shown
+	static bool draw_outside_tile;
+
 	/**
 	 * Show labels (city and station names, ...)
 	 * and waiting indicator bar for stations
@@ -262,6 +275,9 @@ public:
 
 	/// how many internal pixel per height step (default 16)
 	static sint8 pak_tile_height_step;
+
+	/// new height for old slopes after conversion - 1=single height, 2=double height
+	static sint8 pak_height_conversion_factor;
 
 	/// use the faster drawing routine (and allow for clipping errors)
 	static bool simple_drawing;

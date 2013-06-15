@@ -23,6 +23,7 @@
 #include "../gui/karte.h"
 #include "../gui/werkzeug_waehler.h"
 
+#include "../simcity.h"
 #include "../simdebug.h"
 #include "../simdepot.h"
 #include "../simhalt.h"
@@ -281,6 +282,9 @@ void hausbauer_t::remove( karte_t *welt, spieler_t *sp, gebaeude_t *gb )
 	if(tile->get_besch()->get_utyp()==haus_besch_t::firmensitz) {
 		gb->get_besitzer()->add_headquarter( tile->get_besch()->get_extra(), koord::invalid );
 	}
+	if(tile->get_besch()->get_utyp()==haus_besch_t::denkmal) {
+		ungebaute_denkmaeler.append_unique(tile->get_besch());
+	}
 
 	// then remove factory
 	fabrik_t *fab = gb->get_fabrik();
@@ -386,17 +390,20 @@ void hausbauer_t::remove( karte_t *welt, spieler_t *sp, gebaeude_t *gb )
 						if(gr2  &&  gr2!=gr) {
 							// there is another ground below or above
 							// => do not change height, keep foundation
-							welt->access(newk)->kartenboden_setzen( new boden_t(welt, gr->get_pos(), hang_t::flach ) );
+							welt->access(newk)->kartenboden_setzen( new boden_t( welt, gr->get_pos(), hang_t::flach ) );
 							ground_recalc = false;
 						}
-						else if(  new_hgt<=welt->get_grundwasser()  &&  new_slope==hang_t::flach  ) {
-							welt->access(newk)->kartenboden_setzen(new wasser_t(welt, koord3d(newk,new_hgt) ) );
+						else if(  new_hgt <= welt->get_water_hgt(newk)  &&  new_slope == hang_t::flach  ) {
+							welt->access(newk)->kartenboden_setzen( new wasser_t( welt, koord3d( newk, new_hgt ) ) );
+							welt->calc_climate( gr->get_pos().get_2d(), true );
 						}
 						else {
-							if(  gr->get_grund_hang()==new_slope  ) {
+							if(  gr->get_grund_hang() == new_slope  ) {
 								ground_recalc = false;
 							}
-							welt->access(newk)->kartenboden_setzen(new boden_t(welt, koord3d(newk,new_hgt), new_slope) );
+							welt->access(newk)->kartenboden_setzen( new boden_t( welt, koord3d( newk, new_hgt ), new_slope ) );
+							welt->calc_climate( gr->get_pos().get_2d(), true );
+
 						}
 						// there might be walls from foundations left => thus some tiles may needs to be redraw
 						if(ground_recalc) {
@@ -475,6 +482,7 @@ gebaeude_t* hausbauer_t::baue(karte_t* welt, spieler_t* sp, koord3d pos, int org
 				welt->access(gr->get_pos().get_2d())->boden_ersetzen(gr, gr2);
 				gr = gr2;
 //DBG_DEBUG("hausbauer_t::baue()","ground count now %i",gr->obj_count());
+				welt->calc_climate( gr->get_pos().get_2d(), true );
 				gr->obj_add( gb );
 				if(lt) {
 					gr->obj_add( lt );
@@ -732,15 +740,15 @@ const haus_besch_t* hausbauer_t::get_special(uint32 bev, haus_besch_t::utyp utyp
 }
 
 
-
 /**
  * tries to find something that matches this entry
  * it will skip and jump, and will never return zero, if there is at least a single valid entry in the list
+ * @author Nathanael Nerode (neroden) for clustering
  * @author Hj. Malthaner
  */
-static const haus_besch_t* get_aus_liste(const vector_tpl<const haus_besch_t*>& liste, int level, uint16 time, climate cl)
+static const haus_besch_t* get_city_building_from_list(const vector_tpl<const haus_besch_t*>& liste, int level, uint16 time, climate cl, uint32 clusters )
 {
-	weighted_vector_tpl<const haus_besch_t *> auswahl(16);
+	weighted_vector_tpl<const haus_besch_t *> selections(16);
 
 //	DBG_MESSAGE("hausbauer_t::get_aus_liste()","target level %i", level );
 	const haus_besch_t *besch_at_least=NULL;
@@ -753,53 +761,67 @@ static const haus_besch_t* get_aus_liste(const vector_tpl<const haus_besch_t*>& 
 
 		const int thislevel = besch->get_level();
 		if(thislevel>level) {
-			if (auswahl.empty()) {
-				// continue with search ...
+			if (selections.empty()) {
+				// Nothing of the correct level.  Continue with search of next level.
 				level = thislevel;
 			}
 			else {
-				// ok, we found something
+				// We already found something of the correct level; stop.
 				break;
 			}
 		}
 
-		if(thislevel==level  &&  besch->get_chance()>0) {
-			if(cl==MAX_CLIMATES  ||  besch->is_allowed_climate(cl)) {
-				if(time==0  ||  (besch->get_intro_year_month()<=time  &&  besch->get_retire_year_month()>time)) {
-//				DBG_MESSAGE("hausbauer_t::get_aus_liste()","appended %s at %i", besch->get_name(), thislevel );
-					auswahl.append(besch, besch->get_chance());
+		if(  thislevel == level  &&  besch->get_chance() > 0  ) {
+			if(  cl==MAX_CLIMATES  ||  besch->is_allowed_climate(cl)  ) {
+				if(  time == 0  ||  (besch->get_intro_year_month() <= time  &&  besch->get_retire_year_month() > time)  ) {
+//					DBG_MESSAGE("hausbauer_t::get_city_building_from_list()","appended %s at %i", besch->get_name(), thislevel );
+					/* Level, time period, and climate are all OK.
+					 * Now modify the chance rating by a factor based on the clusters.
+					 */
+					// FIXME: the factor should be configurable by the pakset/
+					int chance = besch->get_chance();
+					if(  clusters  ) {
+						uint32 my_clusters = besch->get_clusters();
+						if(  my_clusters & clusters  ) {
+							chance *= stadt_t::get_cluster_factor();
+						}
+						else {
+							chance /= stadt_t::get_cluster_factor();
+						}
+					}
+					selections.append(besch, chance);
 				}
 			}
 		}
 	}
 
-	if(auswahl.get_sum_weight()==0) {
+	if(selections.get_sum_weight()==0) {
 		// this is some level below, but at least it is something
 		return besch_at_least;
 	}
-	if(auswahl.get_count()==1) {
-		return auswahl.front();
+	if(selections.get_count()==1) {
+		return selections.front();
 	}
 	// now there is something to choose
-	return pick_any_weighted(auswahl);
+	return pick_any_weighted(selections);
 }
 
 
-const haus_besch_t* hausbauer_t::get_gewerbe(int level, uint16 time, climate cl)
+const haus_besch_t* hausbauer_t::get_commercial(int level, uint16 time, climate cl, uint32 clusters)
 {
-	return get_aus_liste(gewerbehaeuser, level, time, cl);
+	return get_city_building_from_list(gewerbehaeuser, level, time, cl, clusters);
 }
 
 
-const haus_besch_t* hausbauer_t::get_industrie(int level, uint16 time, climate cl)
+const haus_besch_t* hausbauer_t::get_industrial(int level, uint16 time, climate cl, uint32 clusters)
 {
-	return get_aus_liste(industriehaeuser, level, time, cl);
+	return get_city_building_from_list(industriehaeuser, level, time, cl, clusters);
 }
 
 
-const haus_besch_t* hausbauer_t::get_wohnhaus(int level, uint16 time, climate cl)
+const haus_besch_t* hausbauer_t::get_residential(int level, uint16 time, climate cl, uint32 clusters)
 {
-	return get_aus_liste(wohnhaeuser, level, time, cl);
+	return get_city_building_from_list(wohnhaeuser, level, time, cl, clusters);
 }
 
 const haus_besch_t* hausbauer_t::get_headquarter(int level, uint16 time)
@@ -824,7 +846,7 @@ const haus_besch_t *hausbauer_t::waehle_aus_liste(vector_tpl<const haus_besch_t 
 		weighted_vector_tpl<const haus_besch_t *> auswahl(16);
 		FOR(vector_tpl<haus_besch_t const*>, const besch, liste) {
 			if((cl==MAX_CLIMATES  ||  besch->is_allowed_climate(cl))  &&  besch->get_chance()>0  &&  (time==0  ||  (besch->get_intro_year_month()<=time  &&  (ignore_retire  ||  besch->get_retire_year_month()>time)  )  )  ) {
-//				DBG_MESSAGE("hausbauer_t::get_aus_liste()","appended %s at %i", besch->get_name(), thislevel );
+//				DBG_MESSAGE("hausbauer_t::waehle_aus_liste()","appended %s at %i", besch->get_name(), thislevel );
 				auswahl.append(besch, besch->get_chance());
 			}
 		}

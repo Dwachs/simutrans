@@ -8,6 +8,7 @@
 
 #include "simtypes.h"
 #include "simunits.h"
+#include "simcolor.h"
 #include "linehandle_t.h"
 
 #include "ifc/sync_steppable.h"
@@ -842,7 +843,7 @@ public:
 	void set_next_reservation_index(uint16 n);
 
 	/* the current state of the convoi */
-	uint8 get_status_color() const;
+	COLOR_VAL get_status_color() const;
 
 	// returns tiles needed for this convoi
 	uint16 get_tile_length() const;
@@ -863,6 +864,9 @@ public:
 	// calculates the speed used for the speedbonus base, and the max achievable speed at current power/weight for overtakers
 	void calc_speedbonus_kmh();
 	sint32 get_speedbonus_kmh() const;
+
+	// jus a guess of the speed
+	uint32 get_average_kmh() const;
 
 	// Overtaking for convois
 	virtual bool can_overtake(overtaker_t *other_overtaker, sint32 other_speed, sint16 steps_other);

@@ -31,7 +31,7 @@ template<class D> struct access_dings {
 	 */
 	static D* get_by_pos(HSQUIRRELVM vm, SQInteger index)
 	{
-		SQUserPointer tag = &ding_t_tag + bind_code<D>::dingtype;
+		SQUserPointer tag = ding_t_tag + bind_code<D>::dingtype;
 		SQUserPointer p = NULL;
 		if (SQ_SUCCEEDED(sq_getinstanceup(vm, index, &p, tag))  &&  p) {
 			D *d = static_cast<D*>(p);
@@ -139,9 +139,12 @@ template<class D>
 void begin_ding_class(HSQUIRRELVM vm, const char* name, const char* base = NULL)
 {
 	SQInteger res = create_class(vm, name, base);
-	assert( SQ_SUCCEEDED(res) );
+	if(  !SQ_SUCCEEDED(res)  ) {
+		// todo Better error Message!
+		dbg->error( "begin_ding_class()", "create_class failed for %s (Check for outdated scenario.nut)!", name );
+	}
 	// store typetag to identify pointers
-	sq_settypetag(vm, -1, &ding_t_tag + bind_code<D>::dingtype);
+	sq_settypetag(vm, -1, ding_t_tag + bind_code<D>::dingtype);
 	// now functions can be registered
 }
 
@@ -153,7 +156,7 @@ void export_map_objects(HSQUIRRELVM vm)
 	 * These classes cannot modify anything.
 	 */
 	begin_class(vm, "map_object_x", "extend_get,coord");
-	sq_settypetag(vm, -1, &ding_t_tag + bind_code<ding_t>::dingtype);
+	sq_settypetag(vm, -1, ding_t_tag + bind_code<ding_t>::dingtype);
 	/**
 	 * @returns owner of the object.
 	 */

@@ -20,7 +20,6 @@
 #include "simconvoi.h"
 #include "simdebug.h"
 #include "simfab.h"
-#include "simgraph.h"
 #include "simhalt.h"
 #include "simintr.h"
 #include "simline.h"
@@ -149,6 +148,40 @@ halthandle_t haltestelle_t::get_halt(const karte_t *welt, const koord3d pos, con
 		if(gr->ist_wasser()) {
 			// may catch bus stops close to water ...
 			const planquadrat_t *plan = welt->lookup(pos.get_2d());
+			const uint8 cnt = plan->get_haltlist_count();
+			// first check for own stop
+			for(  uint8 i=0;  i<cnt;  i++  ) {
+				halthandle_t halt = plan->get_haltlist()[i];
+				if(  halt->get_besitzer()==sp  &&  halt->get_station_type()&dock  ) {
+					return halt;
+				}
+			}
+			// then for public stop
+			for(  uint8 i=0;  i<cnt;  i++  ) {
+				halthandle_t halt = plan->get_haltlist()[i];
+				if(  halt->get_besitzer()==welt->get_spieler(1)  &&  halt->get_station_type()&dock  ) {
+					return halt;
+				}
+			}
+			// so: nothing found
+		}
+	}
+	return halthandle_t();
+}
+
+
+/* we allow only for a single stop per planquadrat
+ * this will only return something if this stop belongs to same player or is public, or is a dock (when on water)
+ */
+halthandle_t haltestelle_t::get_halt_2d(const karte_t *welt, const koord pos, const spieler_t *sp )
+{
+	if(  const planquadrat_t *plan = welt->lookup(pos)  ) {
+		if(plan->get_halt().is_bound()  &&  spieler_t::check_owner(sp,plan->get_halt()->get_besitzer())  ) {
+			return plan->get_halt();
+		}
+		// no halt? => we do the water check
+		if(plan->get_kartenboden()->ist_wasser()) {
+			// may catch bus stops close to water ...
 			const uint8 cnt = plan->get_haltlist_count();
 			// first check for own stop
 			for(  uint8 i=0;  i<cnt;  i++  ) {
@@ -302,6 +335,8 @@ haltestelle_t::haltestelle_t(karte_t* wl, loadsave_t* file)
 	all_links = new link_t[ warenbauer_t::get_max_catg_index() ];
 
 	status_color = COL_YELLOW;
+	last_status_color = COL_PURPLE;
+	last_bar_count = 0;
 
 	reconnect_counter = welt->get_schedule_counter()-1;
 
@@ -342,6 +377,8 @@ haltestelle_t::haltestelle_t(karte_t* wl, koord k, spieler_t* sp)
 	all_links = new link_t[ warenbauer_t::get_max_catg_index() ];
 
 	status_color = COL_YELLOW;
+	last_status_color = COL_PURPLE;
+	last_bar_count = 0;
 
 	sortierung = freight_list_sorter_t::by_name;
 	init_financial_history();
@@ -813,8 +850,8 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 // add convoi to loading
 void haltestelle_t::request_loading( convoihandle_t cnv )
 {
-	if(  !loading_here.is_contained(cnv)  ) {
-		loading_here.append (cnv );
+	if(  !loading_here.is_contained( cnv )  ) {
+		loading_here.append( cnv );
 	}
 	if(  last_loading_step != welt->get_steps()  ) {
 		last_loading_step = welt->get_steps();
@@ -1360,6 +1397,12 @@ int haltestelle_t::search_route( const halthandle_t *const start_halts, const ui
 	// here the normal routing with overcrowded stops is done
 	while (!open_list.empty())
 	{
+		if(  overcrowded_nodes == open_list.get_count()  ) {
+			// all unexplored routes go over overcrowded stations
+			return ROUTE_OVERCROWDED;
+		}
+
+		// take node out of open list
 		route_node_t current_node = open_list.pop();
 		// do not use aggregate_weight as it is _not_ the weight of the current_node
 		// there might be a heuristic weight added
@@ -1368,10 +1411,6 @@ int haltestelle_t::search_route( const halthandle_t *const start_halts, const ui
 		halt_data_t & current_halt_data = halt_data[ current_halt_id ];
 		overcrowded_nodes -= current_halt_data.overcrowded;
 
-		if(  overcrowded_nodes  &&  overcrowded_nodes == open_list.get_count()  ) {
-			// all route go over overcrowded stations
-			return ROUTE_OVERCROWDED;
-		}
 		if(  current_halt_data.destination  ) {
 			// destination found
 			ware.set_ziel( current_node.halt );
@@ -2790,57 +2829,99 @@ void haltestelle_t::recalc_status()
  * Draws some nice colored bars giving some status information
  * @author Hj. Malthaner
  */
-void haltestelle_t::display_status(sint16 xpos, sint16 ypos) const
+void haltestelle_t::display_status(KOORD_VAL xpos, KOORD_VAL ypos)
 {
 	// ignore freight that cannot reach to this station
 	sint16 count = 0;
-	for( unsigned i=0;  i<warenbauer_t::get_waren_anzahl(); i++) {
-		if(i==2) continue;	// ignore freight none
-		if(gibt_ab(warenbauer_t::get_info(i))) {
-			count ++;
+	for(  uint16 i = 0;  i < warenbauer_t::get_waren_anzahl();  i++  ) {
+		if(  i == 2  ) {
+			continue; // ignore freight none
 		}
+		if(  gibt_ab( warenbauer_t::get_info(i) )  ) {
+			count++;
+		}
+	}
+	if(  count != last_bar_count  ) {
+		// bars will shift x positions, mark entire station bar region dirty
+		KOORD_VAL max_bar_height = 0;
+		for(  sint16 i = 0;  i < last_bar_count;  i++  ) {
+			if(  last_bar_height[i] > max_bar_height  ) {
+				max_bar_height = last_bar_height[i];
+			}
+		}
+		const KOORD_VAL x = xpos - (last_bar_count * 4 - get_tile_raster_width()) / 2;
+		mark_rect_dirty_wc( x - 1 - 4, ypos - 11 - max_bar_height - 6, x + last_bar_count * 4 + 12 - 2, ypos - 11 );
+
+		// reset bar heights for new count
+		last_bar_height.clear();
+		last_bar_height.resize( count );
+		for(  sint16 i = 0;  i < count;  i++  ) {
+			last_bar_height.append(0);
+		}
+		last_bar_count = count;
 	}
 
 	ypos -= 11;
-	xpos -= (count*4 - get_tile_raster_width())/2;
-	sint16 x = xpos;
-	uint32 max_capacity;
+	xpos -= (count * 4 - get_tile_raster_width()) / 2;
+	const KOORD_VAL x = xpos;
 
-	for( unsigned i=0;  i<warenbauer_t::get_waren_anzahl(); i++) {
-		if(i==2) continue;	// ignore freight none
+	sint16 bar_height_index = 0;
+	uint32 max_capacity;
+	for(  uint16 i = 0;  i < warenbauer_t::get_waren_anzahl();  i++  ) {
+		if(  i == 2  ) {
+			continue; // ignore freight none
+		}
 		const ware_besch_t *wtyp = warenbauer_t::get_info(i);
-		if(gibt_ab(wtyp)) {
-			if(i<2) {
+		if(  gibt_ab( wtyp )  ) {
+			if(  i < 2  ) {
 				max_capacity = get_capacity(i);
 			}
 			else {
 				max_capacity = get_capacity(2);
 			}
-			const uint32 sum = get_ware_summe(wtyp);
-			uint32 v = min(sum, max_capacity);
-			if(max_capacity>512) {
-				v = 2+(v*128)/max_capacity;
+			const uint32 sum = get_ware_summe( wtyp );
+			uint32 v = min( sum, max_capacity );
+			if(  max_capacity > 512  ) {
+				v = 2 + (v * 128) / max_capacity;
 			}
 			else {
-				v = (v/4)+2;
+				v = (v / 4) + 2;
 			}
 
-			display_fillbox_wh_clip(xpos, ypos-v-1, 1, v, COL_GREY4, true);
-			display_fillbox_wh_clip(xpos+1, ypos-v-1, 2, v, wtyp->get_color(), true);
-			display_fillbox_wh_clip(xpos+3, ypos-v-1, 1, v, COL_GREY1, true);
+			display_fillbox_wh_clip( xpos, ypos - v - 1, 1, v, COL_GREY4, false);
+			display_fillbox_wh_clip( xpos + 1, ypos - v - 1, 2, v, wtyp->get_color(), false);
+			display_fillbox_wh_clip( xpos + 3, ypos - v - 1, 1, v, COL_GREY1, false);
 
 			// Hajo: show up arrow for capped values
-			if(sum > max_capacity) {
-				display_fillbox_wh_clip(xpos+1, ypos-v-6, 2, 4, COL_WHITE, true);
-				display_fillbox_wh_clip(xpos, ypos-v-5, 4, 1, COL_WHITE, true);
+			if(  sum > max_capacity  ) {
+				display_fillbox_wh_clip( xpos + 1, ypos - v - 6, 2, 4, COL_WHITE, false);
+				display_fillbox_wh_clip( xpos, ypos - v - 5, 4, 1, COL_WHITE, false);
 			}
 
+			if(  last_bar_height[bar_height_index] != (KOORD_VAL)v  ) {
+				if(  (KOORD_VAL)v > last_bar_height[bar_height_index]  ) {
+					// bar will be longer, mark new height dirty
+					mark_rect_dirty_wc( xpos, ypos - v - 6, xpos + 4 - 1, ypos + 4 - 1);
+				}
+				else {
+					// bar will be shorter, mark old height dirty
+					mark_rect_dirty_wc( xpos, ypos - last_bar_height[bar_height_index] - 6, xpos + 4 - 1, ypos + 4 - 1);
+				}
+				last_bar_height[bar_height_index] = v;
+			}
+
+			bar_height_index++;
 			xpos += 4;
 		}
 	}
 
 	// status color box below
-	display_fillbox_wh_clip(x-1-4, ypos, count*4+12-2, 4, get_status_farbe(), true);
+	bool dirty = false;
+	if(  get_status_farbe() != last_status_color  ) {
+		last_status_color = get_status_farbe();
+		dirty = true;
+	}
+	display_fillbox_wh_clip( x - 1 - 4, ypos, count * 4 + 12 - 2, 4, get_status_farbe(), dirty );
 }
 
 
