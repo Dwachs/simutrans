@@ -121,5 +121,33 @@ namespace script_api {
 		return ok ? 1 : -1;
 	}
 
+	/**
+	 * Releases memory allocate by attach_instance.
+	 * Do not call directly!
+	 */
+	template<class C>
+	SQInteger command_release_hook(SQUserPointer up, SQInteger)
+	{
+		C **p = (C **)up;
+		delete *p;
+		delete p;
+		return 1;
+	}
+
+	/**
+	 * Stores pointer to c++ class as userpointer of squirrel class instance.
+	 * C++ class will be deleted when squirrel class instance gets released.
+	 */
+	template<class C>
+	void attach_instance(HSQUIRRELVM vm, SQInteger index, C* o)
+	{
+		// store pointer
+		C **p = new C*;
+		*p = o;
+		// set userpointer of class instance
+		sq_setinstanceup(vm, index, p );
+		sq_setreleasehook(vm, index, command_release_hook<C>);
+	}
+
 }; // end of namespace
 #endif
