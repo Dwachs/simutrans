@@ -160,10 +160,8 @@ bool scenario_t::load_script(const char* filename)
 	}
 
 	// init strings
-	dynamic_string::init();
-
-	// init strings
 	dynamic_string::init(script);
+
 	// register callback
 	if (umgebung_t::server) {
 		nwc_scenario_t::init(script);
