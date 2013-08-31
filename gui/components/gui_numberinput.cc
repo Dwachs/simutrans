@@ -12,14 +12,14 @@
 
 #include "../gui_frame.h"
 #include "gui_numberinput.h"
-#include "../../simwin.h"
-#include "../../simgraph.h"
+#include "../../gui/simwin.h"
+#include "../../display/simgraph.h"
 #include "../../macros.h"
 #include "../../dataobj/translator.h"
 
+#define ARROW_GAP (1)
 
 char gui_numberinput_t::tooltip[256];
-
 
 gui_numberinput_t::gui_numberinput_t() :
 	gui_komponente_t(true)
@@ -40,17 +40,19 @@ gui_numberinput_t::gui_numberinput_t() :
 	set_increment_mode( 1 );
 	wrap_mode( true );
 	b_enabled = true;
+
+	set_groesse( koord( D_BUTTON_WIDTH, D_EDIT_HEIGHT ) );
 }
 
+void gui_numberinput_t::set_groesse(koord size_par) {
 
-void gui_numberinput_t::set_groesse(koord gr)
-{
-	bt_left.set_pos( koord(0, (gr.y - bt_left.get_groesse().y) / 2) );
-	textinp.set_pos( koord( bt_left.get_groesse().x + 2, 0) );
-	textinp.set_groesse( koord( gr.x - bt_left.get_groesse().x - bt_right.get_groesse().x - 6, gr.y) );
-	bt_right.set_pos( koord( gr.x - bt_right.get_groesse().x - 2, (gr.y - bt_right.get_groesse().y) / 2) );
+	gui_komponente_t::set_groesse(size_par);
 
-	gui_komponente_t::groesse = gr;
+	textinp.set_groesse( koord( size_par.x - bt_left.get_groesse().x - bt_right.get_groesse().x, size_par.y) );
+	bt_left.align_to(&textinp, ALIGN_CENTER_V);
+	textinp.align_to(&bt_left, ALIGN_EXTERIOR_H | ALIGN_LEFT);
+	bt_right.align_to(&textinp, ALIGN_CENTER_V | ALIGN_EXTERIOR_H | ALIGN_LEFT);
+
 }
 
 
@@ -331,6 +333,6 @@ void gui_numberinput_t::zeichnen(koord offset)
 
 	if(getroffen( get_maus_x()-offset.x, get_maus_y()-offset.y )) {
 		sprintf( tooltip, translator::translate("enter a value between %i and %i"), min_value, max_value );
-		win_set_tooltip(get_maus_x() + 16, new_offset.y + groesse.y + 12, tooltip, this);
+		win_set_tooltip(get_maus_x() + TOOLTIP_MOUSE_OFFSET_X, new_offset.y + groesse.y + TOOLTIP_MOUSE_OFFSET_Y, tooltip, this);
 	}
 }

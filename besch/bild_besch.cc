@@ -1,12 +1,10 @@
 #include "bild_besch.h"
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 #include "../simtypes.h"
 #include "../simdebug.h"
 
 #include <string.h>
 
-
-typedef uint16 PIXVAL;
 
 /*
  * Definition of special colors

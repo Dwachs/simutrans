@@ -9,9 +9,9 @@
 
 #include "gui_world_view_t.h"
 #include "../../simworld.h"
-#include "../../simview.h"
+#include "../../display/simview.h"
 #include "../../simdings.h"
-#include "../../simgraph.h"
+#include "../../display/simgraph.h"
 #include "../../simcolor.h"
 #include "../../vehicle/simvehikel.h"
 #include "../../boden/grund.h"
@@ -152,7 +152,7 @@ void world_view_t::internal_draw(const koord offset, ding_t const* const ding)
 			continue;
 		}
 
-		const planquadrat_t * const plan = welt->lookup(k);
+		const planquadrat_t * const plan = welt->access(k);
 		if(!plan) {
 			continue;
 		}

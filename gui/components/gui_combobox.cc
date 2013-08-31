@@ -16,9 +16,9 @@
 #include "../gui_frame.h"
 #include "gui_combobox.h"
 #include "../../simevent.h"
-#include "../../simgraph.h"
+#include "../../display/simgraph.h"
 #include "../../simcolor.h"
-#include "../../simwin.h"
+#include "../../gui/simwin.h"
 #include "../../utils/simstring.h"
 
 
@@ -115,9 +115,9 @@ DBG_MESSAGE("event","HOWDY!");
 			}
 
 			droplist.set_visible(true);
-			droplist.set_pos(koord(this->pos.x, this->pos.y + 16));
-			droplist.request_groesse(koord(this->groesse.x, max_size.y - 16));
-			set_groesse(droplist.get_groesse() + koord(0, 16));
+			droplist.set_pos(koord(this->pos.x, this->pos.y + D_EDIT_HEIGHT + D_V_SPACE / 2));
+			droplist.request_groesse(koord(this->groesse.x, max_size.y - D_EDIT_HEIGHT - D_V_SPACE / 2));
+			set_groesse(droplist.get_groesse() + koord(0, D_EDIT_HEIGHT + D_V_SPACE / 2));
 			int sel = droplist.get_selection();
 			if((uint32)sel>=(uint32)droplist.get_count()  ||  !droplist.get_element(sel)->is_valid()) {
 				sel = 0;
@@ -126,7 +126,7 @@ DBG_MESSAGE("event","HOWDY!");
 		}
 		else if (droplist.is_visible()) {
 			event_t ev2 = *ev;
-			translate_event(&ev2, 0, -16);
+			translate_event(&ev2, 0, -D_EDIT_HEIGHT - D_V_SPACE / 2);
 
 			if(droplist.getroffen(ev->cx + pos.x, ev->cy + pos.y)  ||  IS_WHEELUP(ev)  ||  IS_WHEELDOWN(ev)) {
 				droplist.infowin_event(&ev2);
@@ -149,7 +149,7 @@ DBG_MESSAGE("gui_combobox_t::infowin_event()","close");
 		droplist.set_visible(false);
 		close_box();
 		// update "mouse-click-catch-area"
-		set_groesse(koord(groesse.x, droplist.is_visible() ? max_size.y : D_BUTTON_HEIGHT));
+		set_groesse(koord(groesse.x, droplist.is_visible() ? max_size.y : D_EDIT_HEIGHT));
 	}
 	else {
 		// finally handle textinput
@@ -275,17 +275,26 @@ void gui_combobox_t::close_box()
 		finish = false;
 	}
 	droplist.set_visible(false);
-	set_groesse(koord(groesse.x, D_BUTTON_HEIGHT));
+	set_groesse(koord(groesse.x, D_EDIT_HEIGHT));
 	first_call = true;
+}
+
+
+void gui_combobox_t::set_pos(koord pos_par)
+{
+	gui_komponente_t::set_pos( pos_par );
+	droplist.set_pos( koord( pos_par.x, pos_par.y + textinp.get_groesse().y ) );
 }
 
 
 void gui_combobox_t::set_groesse(koord gr)
 {
-	textinp.set_pos( pos + koord( bt_prev.get_groesse().x + 2, 0) );
-	textinp.set_groesse( koord( gr.x - bt_prev.get_groesse().x - bt_next.get_groesse().x - 6, D_BUTTON_HEIGHT) );
-	bt_next.set_pos( koord( gr.x - bt_next.get_groesse().x - 2, 2) );
-	gui_komponente_t::groesse = gr;
+	gui_komponente_t::set_groesse( gr );
+
+	textinp.set_groesse( koord( gr.x - bt_prev.get_groesse().x - bt_next.get_groesse().x - 3 * D_H_SPACE / 2, D_EDIT_HEIGHT ) );
+	textinp.align_to( &bt_prev, ALIGN_LEFT | ALIGN_EXTERIOR_H | ALIGN_CENTER_V, koord( pos.x + D_H_SPACE / 2, pos.y ) );
+
+	bt_next.align_to( &textinp, ALIGN_LEFT | ALIGN_EXTERIOR_H | ALIGN_CENTER_V, koord( -pos.x + D_H_SPACE / 2, -pos.y ) );
 }
 
 
@@ -296,8 +305,8 @@ void gui_combobox_t::set_groesse(koord gr)
 void gui_combobox_t::set_max_size(koord max)
 {
 	max_size = max;
-	droplist.request_groesse(koord(this->groesse.x, max_size.y - 16));
-	if (droplist.is_visible()) {
-		set_groesse(droplist.get_groesse() + koord(0, 16));
+	droplist.request_groesse( koord( groesse.x, max_size.y - D_EDIT_HEIGHT - D_V_SPACE / 2 ) );
+	if(  droplist.is_visible()  ) {
+		set_groesse( droplist.get_groesse() + koord( 0, D_EDIT_HEIGHT + D_V_SPACE / 2 ) );
 	}
 }

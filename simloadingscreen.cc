@@ -11,10 +11,11 @@
 #include "besch/bild_besch.h"
 #include "besch/skin_besch.h"
 #include "simskin.h"
-#include "simgraph.h"
+#include "display/simgraph.h"
 #include "simevent.h"
 #include "dataobj/umgebung.h"
 #include "simticker.h"
+#include "gui/simwin.h"
 #include "tpl/slist_tpl.h"
 
 
@@ -76,7 +77,7 @@ void loadingscreen_t::display()
 		dr_prepare_flush();
 
 		if(  info  ) {
-			display_proportional( half_width, half_height - 8 - LINESPACE - 4, info, ALIGN_MIDDLE, COL_WHITE, true );
+			display_proportional( half_width, half_height - 8 - LINESPACE - 4, info, ALIGN_CENTER_H, COL_WHITE, true );
 		}
 
 		// outline
@@ -90,7 +91,7 @@ void loadingscreen_t::display()
 		display_fillbox_wh( quarter_width, half_height - 5, bar_len,  12, COL_BLUE, true );
 
 		if(  what  ) {
-			display_proportional( half_width, half_height-4, what, ALIGN_MIDDLE, COL_WHITE, false );
+			display_proportional( half_width, half_height-4, what, ALIGN_CENTER_H, COL_WHITE, false );
 		}
 
 		dr_flush();
@@ -137,6 +138,7 @@ void loadingscreen_t::set_progress( uint32 progress )
 loadingscreen_t::~loadingscreen_t()
 {
 	if(is_display_init()) {
+		win_redraw_world();
 		mark_screen_dirty();
 		ticker::set_redraw_all(true);
 	}

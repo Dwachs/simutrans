@@ -11,7 +11,7 @@
 
 #include "factorylist_stats_t.h"
 
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 #include "../simskin.h"
 #include "../simcolor.h"
 #include "../simfab.h"

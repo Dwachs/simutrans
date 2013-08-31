@@ -36,10 +36,10 @@
 #include "../simhalt.h"
 #include "../simsound.h"
 
-#include "../simimg.h"
+#include "../display/simimg.h"
 #include "../simmesg.h"
 #include "../simcolor.h"
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 
 #include "../simline.h"
 
@@ -227,10 +227,10 @@ void vehikel_basis_t::verlasse_feld()
 {
 	// first: release crossing
 	grund_t *gr = welt->lookup(get_pos());
-	if(gr  &&  gr->ist_uebergang()) {
+	if(  gr  &&  gr->ist_uebergang()  ) {
 		crossing_t *cr = gr->find<crossing_t>(2);
 		grund_t *gr2 = welt->lookup(pos_next);
-		if(gr2==NULL  ||  gr2==gr  ||  !gr2->ist_uebergang()  ||  cr->get_logic()!=gr2->find<crossing_t>(2)->get_logic()) {
+		if(  gr2==NULL  ||  gr2==gr  ||  !gr2->ist_uebergang()  ||  cr->get_logic()!=gr2->find<crossing_t>(2)->get_logic()  ) {
 			cr->release_crossing(this);
 		}
 	}
@@ -243,9 +243,10 @@ void vehikel_basis_t::verlasse_feld()
 		DBG_MESSAGE("vehikel_basis_t::verlasse_feld()","checking all plan squares");
 
 		// check, whether it is on another height ...
-		if(welt->is_within_limits( get_pos().get_2d() )) {
-			gr = welt->lookup( get_pos().get_2d() )->get_boden_von_obj(this);
-			if(gr) {
+		const planquadrat_t *pl = welt->access( get_pos().get_2d() );
+		if(  pl  ) {
+			gr = pl->get_boden_von_obj(this);
+			if(  gr  ) {
 				gr->obj_remove(this);
 				dbg->warning("vehikel_basis_t::verlasse_feld()","removed vehicle typ %i (%p) from %d %d",get_typ(), this, get_pos().x, get_pos().y);
 			}
@@ -257,7 +258,7 @@ void vehikel_basis_t::verlasse_feld()
 
 		for(k.y=0; k.y<welt->get_size().y; k.y++) {
 			for(k.x=0; k.x<welt->get_size().x; k.x++) {
-				grund_t *gr = welt->lookup( k )->get_boden_von_obj(this);
+				grund_t *gr = welt->access( k )->get_boden_von_obj(this);
 				if(gr && gr->obj_remove(this)) {
 					dbg->warning("vehikel_basis_t::verlasse_feld()","removed vehicle typ %i (%p) from %d %d",get_name(), this, k.x, k.y);
 					ok = true;
@@ -1603,7 +1604,30 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(insta_zeit%12)+1
 
 	// koordinate of the last stop
 	if(file->get_version()>=99015) {
-		last_stop_pos.rdwr(file);
+		// This used to be 2d, now it's 3d.
+		if(file->get_version() < 112008) {
+			if(file->is_saving()) {
+				koord last_stop_pos_2d = last_stop_pos.get_2d();
+				last_stop_pos_2d.rdwr(file);
+			}
+			else {
+				// loading.  Assume ground level stop (could be wrong, but how would we know?)
+				koord last_stop_pos_2d = koord::invalid;
+				last_stop_pos_2d.rdwr(file);
+				const grund_t* gr = welt->lookup_kartenboden(last_stop_pos_2d);
+				if (gr) {
+					last_stop_pos = koord3d(last_stop_pos_2d, gr->get_hoehe());
+				}
+				else {
+					// no ground?!?
+					last_stop_pos = koord3d::invalid;
+				}
+			}
+		}
+		else {
+			// current version, 3d
+			last_stop_pos.rdwr(file);
+		}
 	}
 
 	if(file->is_loading()) {
@@ -2580,7 +2604,7 @@ bool waggon_t::is_weg_frei_longblock_signal( signal_t *sig, uint16 next_block, i
 					block_reserver( cnv->get_route(), next_block+1, next_signal, next_crossing, 0, true, false );
 				}
 				sig->set_zustand( roadsign_t::gruen );
-				cnv->set_next_stop_index( min( next_crossing, next_signal ) );
+				cnv->set_next_stop_index( min( min( next_crossing, next_signal ), cnv->get_route()->get_count() ) );
 				return true;
 			}
 		}
@@ -2597,6 +2621,9 @@ bool waggon_t::is_weg_frei_longblock_signal( signal_t *sig, uint16 next_block, i
 		if(fahrplan_index >= cnv->get_schedule()->get_count()) {
 			fahrplan_index = 0;
 		}
+	}
+	if(  cnv->get_next_stop_index()-1 <= route_index  ) {
+		cnv->set_next_stop_index( cnv->get_route()->get_count()-1 );
 	}
 	return true;
 }

@@ -13,7 +13,7 @@
 
 #include "../boden/grund.h"
 #include "../simworld.h"
-#include "../simimg.h"
+#include "../display/simimg.h"
 #include "../simdings.h"
 #include "../player/simplay.h"
 #include "../simwerkz.h"
@@ -42,7 +42,7 @@
 #include "wayobj.h"
 
 #if MULTI_THREAD>1
-#include <pthread.h>
+#include "../utils/simthread.h"
 static pthread_mutex_t wayobj_calc_bild_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 #endif
 

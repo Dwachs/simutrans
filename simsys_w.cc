@@ -20,7 +20,7 @@
 #include <wingdi.h>
 #include <mmsystem.h>
 
-#include "simgraph.h"
+#include "display/simgraph.h"
 #include "simdebug.h"
 
 
@@ -42,8 +42,6 @@
 #include "simevent.h"
 #include "simdebug.h"
 #include "macros.h"
-
-typedef unsigned short PIXVAL;
 
 static volatile HWND hwnd;
 static bool is_fullscreen = false;

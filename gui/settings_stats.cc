@@ -6,7 +6,7 @@
  */
 
 #include "welt.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 #include "../simversion.h"
 #include "../dataobj/einstellungen.h"
 #include "../dataobj/umgebung.h"
@@ -75,7 +75,7 @@ void settings_general_stats_t::init(settings_t const* const sets)
 	INIT_INIT
 
 	// combobox for savegame version
-	savegame.set_pos( koord(D_MARGIN_LEFT, ypos) );
+	savegame.set_pos( koord(0, ypos) );
 	savegame.set_groesse( koord(70, D_BUTTON_HEIGHT) );
 	for(  uint32 i=0;  i<lengthof(version);  i++  ) {
 		savegame.append_element( new gui_scrolled_list_t::const_text_scrollitem_t( version[i]+2, COL_BLACK ) );
@@ -87,7 +87,7 @@ void settings_general_stats_t::init(settings_t const* const sets)
 	add_komponente( &savegame );
 	savegame.add_listener( this );
 	INIT_LB( "savegame version" );
-	label.back()->set_pos( koord( D_MARGIN_LEFT + 70 + 6, label.back()->get_pos().y + 2 ) );
+	label.back()->set_pos( koord( 70 + 6, label.back()->get_pos().y + 2 ) );
 	SEPERATOR
 	INIT_BOOL( "drive_left", sets->is_drive_left() );
 	INIT_BOOL( "signals_on_left", sets->is_signals_left() );
@@ -114,6 +114,7 @@ void settings_general_stats_t::init(settings_t const* const sets)
 	INIT_BOOL( "only_single_info", umgebung_t::single_info );
 
 	clear_dirty();
+	height = ypos;
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
@@ -177,6 +178,7 @@ void settings_display_stats_t::init(settings_t const* const)
 	INIT_BOOL( "left_to_right_graphs", umgebung_t::left_to_right_graphs );
 
 	clear_dirty();
+	height = ypos;
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
@@ -209,7 +211,7 @@ void settings_display_stats_t::read(settings_t* const)
 void settings_routing_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
-	INIT_BOOL( "seperate_halt_capacities", sets->is_seperate_halt_capacities() );
+	INIT_BOOL( "separate_halt_capacities", sets->is_separate_halt_capacities() );
 	INIT_BOOL( "avoid_overcrowding", sets->is_avoid_overcrowding() );
 	INIT_BOOL( "no_routing_over_overcrowded", sets->is_no_routing_over_overcrowding() );
 	INIT_NUM( "station_coverage", sets->get_station_coverage(), 1, 8, gui_numberinput_t::AUTOLINEAR, false );
@@ -228,6 +230,7 @@ void settings_routing_stats_t::init(settings_t const* const sets)
 	INIT_NUM( "way_leaving_road", sets->way_count_leaving_road, 1, 1000, gui_numberinput_t::AUTOLINEAR, false );
 
 	clear_dirty();
+	height = ypos;
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
@@ -235,7 +238,7 @@ void settings_routing_stats_t::read(settings_t* const sets)
 {
 	READ_INIT
 	// routing of goods
-	READ_BOOL_VALUE( sets->seperate_halt_capacities );
+	READ_BOOL_VALUE( sets->separate_halt_capacities );
 	READ_BOOL_VALUE( sets->avoid_overcrowding );
 	READ_BOOL_VALUE( sets->no_routing_over_overcrowding );
 	READ_NUM_VALUE( sets->station_coverage_size );
@@ -258,7 +261,7 @@ void settings_economy_stats_t::init(settings_t const* const sets)
 {
 	INIT_INIT
 	INIT_NUM( "remove_dummy_player_months", sets->get_remove_dummy_player_months(), 0, MAX_PLAYER_HISTORY_YEARS*12, 12, false );
-	INIT_NUM( "unprotect_abondoned_player_months", sets->get_unprotect_abondoned_player_months(), 0, MAX_PLAYER_HISTORY_YEARS*12, 12, false );
+	INIT_NUM( "unprotect_abandoned_player_months", sets->get_unprotect_abandoned_player_months(), 0, MAX_PLAYER_HISTORY_YEARS*12, 12, false );
 	SEPERATOR
 	INIT_COST( "starting_money", sets->get_starting_money(sets->get_starting_year()), 1, 0x7FFFFFFFul, 10000, false );
 	INIT_NUM( "pay_for_total_distance", sets->get_pay_for_total_distance_mode(), 0, 2, gui_numberinput_t::AUTOLINEAR, true );
@@ -330,6 +333,7 @@ void settings_economy_stats_t::init(settings_t const* const sets)
 	INIT_NUM( "default_citycar_life", sets->get_stadtauto_duration(), 1, 1200, 12, false );
 
 	clear_dirty();
+	height = ypos;
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
@@ -338,7 +342,7 @@ void settings_economy_stats_t::read(settings_t* const sets)
 	READ_INIT
 	sint64 start_money_temp;
 	READ_NUM_VALUE( sets->remove_dummy_player_months );
-	READ_NUM_VALUE( sets->unprotect_abondoned_player_months );
+	READ_NUM_VALUE( sets->unprotect_abandoned_player_months );
 	READ_COST_VALUE( start_money_temp );
 	if(  sets->get_starting_money(sets->get_starting_year())!=start_money_temp  ) {
 		// because this will render the table based values invalid, we do this only when needed
@@ -416,6 +420,8 @@ void settings_costs_stats_t::init(settings_t const* const sets)
 	INIT_COST( "cost_multiply_remove_field", -sets->cst_multiply_remove_field, 1, 100000000, 10, false );
 	INIT_COST( "cost_transformer", -sets->cst_transformer, 1, 100000000, 10, false );
 	INIT_COST( "cost_maintain_transformer", -sets->cst_maintain_transformer, 1, 100000000, 10, false );
+
+	height = ypos;
 	set_groesse( settings_stats_t::get_groesse() );
 }
 
@@ -456,11 +462,14 @@ void settings_costs_stats_t::read(settings_t* const sets)
 
 void settings_climates_stats_t::init(settings_t* const sets)
 {
+	int mountain_height_start = (int)sets->get_max_mountain_height();
+	int mountain_roughness_start = (int)(sets->get_map_roughness()*20.0 + 0.5)-8;
+
 	local_sets = sets;
 	INIT_INIT
 	INIT_NUM_NEW( "Water level", sets->get_grundwasser(), -10, 0, gui_numberinput_t::AUTOLINEAR, false );
-	INIT_NUM_NEW( "Mountain height", sets->get_max_mountain_height(), 0, 320, 10, false );
-	INIT_NUM_NEW( "Map roughness", (sets->get_map_roughness()*20.0 + 0.5)-8, 0, 7, gui_numberinput_t::AUTOLINEAR, false );
+	INIT_NUM_NEW( "Mountain height", mountain_height_start, 0, min(1000,100*(11-mountain_roughness_start)), 10, false );
+	INIT_NUM_NEW( "Map roughness", mountain_roughness_start, 0, min(10, 11-((mountain_height_start+99)/100)), gui_numberinput_t::AUTOLINEAR, false );
 	SEPERATOR
 	INIT_LB( "Summer snowline" );
 	INIT_NUM( "Winter snowline", sets->get_winter_snowline(), sets->get_grundwasser(), 24, gui_numberinput_t::AUTOLINEAR, false );
@@ -497,6 +506,7 @@ void settings_climates_stats_t::init(settings_t* const sets)
 	INIT_NUM_NEW( "no_tree_climates", sets->get_no_tree_climates(), 0, 255, 1, false );
 
 	clear_dirty();
+	height = ypos;
 	set_groesse( settings_stats_t::get_groesse() );
 }
 

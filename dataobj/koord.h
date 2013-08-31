@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 class loadsave_t;
+class scr_coord;
 
 /**
  * 2d Koordinaten
@@ -49,6 +50,12 @@ public:
 		y -= k.y;
 		return *this;
 	}
+
+	/**
+	 * type conversion from koord to the new scr_coord
+	 * @author Max Kielland
+	 */
+	operator scr_coord();
 
 	void rotate90( sint16 y_size )
 	{
@@ -144,5 +151,4 @@ static inline koord operator - (const koord &a)
 {
 	return koord(-a.x, -a.y);
 }
-
 #endif

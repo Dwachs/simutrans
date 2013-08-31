@@ -11,14 +11,14 @@
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/umgebung.h"
-#include "../dataobj/network.h"
-#include "../dataobj/network_cmd_scenario.h"
+#include "../network/network.h"
+#include "../network/network_cmd_scenario.h"
 #include "../dataobj/fahrplan.h"
 
 #include "../utils/cbuffer_t.h"
 
 // error popup
-#include "../simwin.h"
+#include "../gui/simwin.h"
 #include "../gui/scenario_info.h"
 
 // scripting
@@ -52,6 +52,7 @@ scenario_t::scenario_t(karte_t *w) :
 	won = false;
 	lost = false;
 	rdwr_error = false;
+	need_toolbar_update = false;
 
 	cached_text_files.clear();
 }
@@ -149,7 +150,17 @@ bool scenario_t::load_script(const char* filename)
 		dbg->error("scenario_t::load_script", "error [%s] calling %s", err, basefile);
 		return false;
 	}
+
+	// register api functions
 	register_export_function(script->get_vm(), welt);
+	err = script->get_error();
+	if (err) {
+		dbg->error("scenario_t::load_script", "error [%s] calling register_export_function", err);
+		return false;
+	}
+
+	// init strings
+	dynamic_string::init();
 
 	// init strings
 	dynamic_string::init(script);
@@ -344,13 +355,8 @@ void scenario_t::intern_forbid(forbidden_t *test, bool forbid)
 		changed = true;
 	}
 end:
-	if (changed) {
-		switch(type) {
-			case forbidden_t::forbid_tool:
-				werkzeug_t::update_toolbars(welt);
-				break;
-			default: ;
-		}
+	if (changed  &&  type==forbidden_t::forbid_tool) {
+		need_toolbar_update = true;
 	}
 }
 
@@ -437,6 +443,7 @@ void scenario_t::allow_way_tool_cube(uint8 player_nr, uint16 wkz_id, waytype_t w
 void scenario_t::clear_rules()
 {
 	clear_ptr_vector(forbidden_tools);
+	need_toolbar_update = true;
 }
 
 
@@ -615,6 +622,12 @@ void scenario_t::step()
 	// update texts
 	if (win_get_magic(magic_scenario_info) ) {
 		update_scenario_texts();
+	}
+
+	// update toolbars if necessary
+	if (need_toolbar_update) {
+		werkzeug_t::update_toolbars(welt);
+		need_toolbar_update = false;
 	}
 }
 

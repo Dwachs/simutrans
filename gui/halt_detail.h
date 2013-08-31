@@ -16,7 +16,7 @@
 
 #include "../halthandle_t.h"
 #include "../utils/cbuffer_t.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 class spieler_t;
 

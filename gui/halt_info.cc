@@ -17,7 +17,7 @@
 #include "../simcolor.h"
 #include "../simconvoi.h"
 #include "../simintr.h"
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 #include "../simmenu.h"
 #include "../simskin.h"
 #include "../simline.h"
@@ -159,8 +159,8 @@ halt_info_t::halt_info_t(karte_t *welt, halthandle_t halt) :
 	scrolly.set_show_scroll_x(true);
 	add_komponente(&scrolly);
 
-	set_fenstergroesse(koord(total_width, view.get_groesse().y+208+scrollbar_t::BAR_SIZE));
-	set_min_windowsize(koord(total_width, view.get_groesse().y+131+scrollbar_t::BAR_SIZE));
+	set_fenstergroesse(koord(total_width, view.get_groesse().y+208+button_t::gui_scrollbar_size.y));
+	set_min_windowsize(koord(total_width, view.get_groesse().y+131+button_t::gui_scrollbar_size.y));
 
 	set_resizemode(diagonal_resize);     // 31-May-02	markus weber	added
 	resize(koord(0,0));
@@ -288,7 +288,7 @@ void halt_info_t::zeichnen(koord pos, koord gr)
 		left = pos.x+10;
 		// passengers
 		left += display_proportional(left, top, info_buf, ALIGN_LEFT, COL_BLACK, true);
-		if (welt->get_settings().is_seperate_halt_capacities()) {
+		if (welt->get_settings().is_separate_halt_capacities()) {
 			// here only for separate capacities
 			display_color_img(skinverwaltung_t::passagiere->get_bild_nr(0), left, top, 0, false, false);
 			left += 10;
@@ -409,7 +409,7 @@ void halt_info_t::update_departures()
 		if(  next_halt.is_bound()  ) {
 			halt_info_t::dest_info_t next( next_halt, 0, cnv );
 			destinations.append_unique( next );
-			if(  grund_t *gr = welt->lookup_kartenboden( cnv->get_vehikel(0)->last_stop_pos )  ) {
+			if(  grund_t *gr = welt->lookup( cnv->get_vehikel(0)->last_stop_pos )  ) {
 				if(  gr->get_halt().is_bound()  &&  gr->get_halt() != halt  ) {
 					halt_info_t::dest_info_t prev( gr->get_halt(), 0, cnv );
 					origins.append_unique( prev );
@@ -423,7 +423,7 @@ void halt_info_t::update_departures()
 		for(  uint j = 0;  j < line->count_convoys();  j++  ) {
 			convoihandle_t cnv = line->get_convoy(j);
 			if(  cnv.is_bound()  &&  ( cnv->get_state() == convoi_t::DRIVING  ||  cnv->is_waiting() )  &&  haltestelle_t::get_halt( welt, cnv->get_schedule()->get_current_eintrag().pos, cnv->get_besitzer() ) == halt  ) {
-				halthandle_t prev_halt = haltestelle_t::get_halt_2d( welt, cnv->front()->last_stop_pos, cnv->get_besitzer() );
+				halthandle_t prev_halt = haltestelle_t::get_halt( welt, cnv->front()->last_stop_pos, cnv->get_besitzer() );
 				sint32 delta_t = cur_ticks + calc_ticks_until_arrival( cnv );
 				if(  prev_halt.is_bound()  ) {
 					halt_info_t::dest_info_t prev( prev_halt, delta_t, cnv );
@@ -448,7 +448,7 @@ void halt_info_t::update_departures()
 
 	FOR( vector_tpl<convoihandle_t>, cnv, halt->registered_convoys ) {
 		if(  cnv.is_bound()  &&  ( cnv->get_state() == convoi_t::DRIVING  ||  cnv->is_waiting() )  &&  haltestelle_t::get_halt( welt, cnv->get_schedule()->get_current_eintrag().pos, cnv->get_besitzer() ) == halt  ) {
-			halthandle_t prev_halt = haltestelle_t::get_halt_2d( welt, cnv->front()->last_stop_pos, cnv->get_besitzer() );
+			halthandle_t prev_halt = haltestelle_t::get_halt( welt, cnv->front()->last_stop_pos, cnv->get_besitzer() );
 			sint32 delta_t = cur_ticks + calc_ticks_until_arrival( cnv );
 			if(  prev_halt.is_bound()  ) {
 				halt_info_t::dest_info_t prev( prev_halt, delta_t, cnv );

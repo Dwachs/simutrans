@@ -16,14 +16,14 @@
 #include <string.h>
 #include <algorithm>
 
-#include "gui_convoiinfo.h"
+#include "components/gui_convoiinfo.h"
 
 
 #include "convoi_frame.h"
 #include "convoi_filter_frame.h"
 
 #include "../simconvoi.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 #include "../simworld.h"
 #include "../besch/ware_besch.h"
 #include "../bauer/warenbauer.h"
@@ -221,16 +221,18 @@ convoi_frame_t::convoi_frame_t(spieler_t* sp) :
 
 	sort_label.set_pos(koord(BUTTON1_X, 2));
 	add_komponente(&sort_label);
-	sortedby.init(button_t::roundbox, "", koord(BUTTON1_X, 14), koord(D_BUTTON_WIDTH,D_BUTTON_HEIGHT));
+
+	filter_label.set_pos(koord(BUTTON3_X, 2));
+	add_komponente(&filter_label);
+
+	sortedby.init(button_t::roundbox, "", koord(BUTTON1_X, 14));
 	sortedby.add_listener(this);
 	add_komponente(&sortedby);
+
 
 	sorteddir.init(button_t::roundbox, "", koord(BUTTON2_X, 14), koord(D_BUTTON_WIDTH,D_BUTTON_HEIGHT));
 	sorteddir.add_listener(this);
 	add_komponente(&sorteddir);
-
-	filter_label.set_pos(koord(BUTTON3_X, 2));
-	add_komponente(&filter_label);
 
 	filter_on.init(button_t::roundbox, filter_is_on ? "cl_btn_filter_enable" : "cl_btn_filter_disable", koord(BUTTON3_X, 14), koord(D_BUTTON_WIDTH,D_BUTTON_HEIGHT));
 	filter_on.add_listener(this);
@@ -258,7 +260,7 @@ convoi_frame_t::~convoi_frame_t()
 
 bool convoi_frame_t::infowin_event(const event_t *ev)
 {
-	const sint16 xr = vscroll.is_visible() ? scrollbar_t::BAR_SIZE : 1;
+	const sint16 xr = vscroll.is_visible() ? button_t::gui_scrollbar_size.x : 1;
 
 	if(ev->ev_class == INFOWIN  &&  ev->ev_code == WIN_CLOSE) {
 		destroy_win( magic_convoi_list_filter+owner->get_player_nr() );
@@ -321,8 +323,8 @@ void convoi_frame_t::resize(const koord size_change)                          //
 	else {
 		add_komponente(&vscroll);
 		vscroll.set_visible(true);
-		vscroll.set_pos(koord(groesse.x-scrollbar_t::BAR_SIZE, 47-16-1));
-		vscroll.set_groesse(groesse-koord(scrollbar_t::BAR_SIZE,scrollbar_t::BAR_SIZE));
+		vscroll.set_pos(koord(groesse.x-button_t::gui_scrollbar_size.x, 47-16-1));
+		vscroll.set_groesse(groesse-button_t::gui_scrollbar_size);
 		vscroll.set_scroll_amount( 1 );
 	}
 }
@@ -334,7 +336,7 @@ void convoi_frame_t::zeichnen(koord pos, koord gr)
 
 	gui_frame_t::zeichnen(pos, gr);
 
-	const sint16 xr = vscroll.is_visible() ? scrollbar_t::BAR_SIZE+4 : 6;
+	const sint16 xr = vscroll.is_visible() ? button_t::gui_scrollbar_size.x+4 : 6;
 	PUSH_CLIP(pos.x, pos.y+47, gr.x-xr, gr.y-48 );
 
 	uint32 start = vscroll.get_knob_offset();

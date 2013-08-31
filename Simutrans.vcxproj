@@ -117,6 +117,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="besch\weg_besch.cc" />
+    <ClCompile Include="display\font.cc" />
+    <ClCompile Include="display\simgraph16.cc" />
+    <ClCompile Include="display\simview.cc" />
+    <ClCompile Include="gui\components\gui_container.cc" />
+    <ClCompile Include="gui\components\gui_convoiinfo.cc" />
+    <ClCompile Include="gui\components\gui_image.cc" />
+    <ClCompile Include="gui\components\gui_komponente.cc" />
+    <ClCompile Include="gui\components\gui_map_preview.cc" />
+    <ClCompile Include="gui\simwin.cc" />
     <ClCompile Include="player\ai.cc" />
     <ClCompile Include="player\ai_goods.cc" />
     <ClCompile Include="gui\ai_option_t.cc" />
@@ -153,7 +162,7 @@
     <ClCompile Include="besch\reader\building_reader.cc" />
     <ClCompile Include="simloadingscreen.cc" />
     <ClCompile Include="utils\cbuffer_t.cc" />
-    <ClCompile Include="utils\checksum.cc" />
+    <ClCompile Include="network\checksum.cc" />
     <ClCompile Include="gui\citybuilding_edit.cc" />
     <ClCompile Include="besch\reader\citycar_reader.cc" />
     <ClCompile Include="gui\citylist_frame_t.cc" />
@@ -192,7 +201,6 @@
     <ClCompile Include="dataobj\fahrplan.cc" />
     <ClCompile Include="gui\fahrplan_gui.cc" />
     <ClCompile Include="dings\field.cc" />
-    <ClCompile Include="font.cc" />
     <ClCompile Include="dataobj\freelist.cc" />
     <ClCompile Include="freight_list_sorter.cc" />
     <ClCompile Include="boden\fundament.cc" />
@@ -211,8 +219,6 @@
     <ClCompile Include="gui\components\gui_button.cc" />
     <ClCompile Include="gui\components\gui_chart.cc" />
     <ClCompile Include="gui\components\gui_combobox.cc" />
-    <ClCompile Include="gui\gui_container.cc" />
-    <ClCompile Include="gui\gui_convoiinfo.cc" />
     <ClCompile Include="gui\components\gui_ding_view_t.cc" />
     <ClCompile Include="gui\components\gui_fixedwidth_textarea.cc" />
     <ClCompile Include="gui\components\gui_flowtext.cc" />
@@ -259,7 +265,7 @@
     <ClCompile Include="boden\wege\maglev.cc" />
     <ClCompile Include="gui\map_frame.cc" />
     <ClCompile Include="dataobj\marker.cc" />
-    <ClCompile Include="utils\memory_rw.cc" />
+    <ClCompile Include="network\memory_rw.cc" />
     <ClCompile Include="gui\message_frame_t.cc" />
     <ClCompile Include="gui\message_option_t.cc" />
     <ClCompile Include="gui\message_stats_t.cc" />
@@ -267,22 +273,23 @@
     <ClCompile Include="gui\money_frame.cc" />
     <ClCompile Include="boden\wege\monorail.cc" />
     <ClCompile Include="boden\monorailboden.cc" />
+    <ClCompile Include="utils\simthread.cc" />
     <ClCompile Include="vehicle\movingobj.cc" />
     <ClCompile Include="boden\wege\narrowgauge.cc" />
-    <ClCompile Include="dataobj\network.cc" />
-    <ClCompile Include="dataobj\network_address.cc" />
-    <ClCompile Include="dataobj\network_cmd.cc" />
-    <ClCompile Include="dataobj\network_cmd_ingame.cc" />
-    <ClCompile Include="dataobj\network_cmd_scenario.cc" />
-    <ClCompile Include="dataobj\network_cmp_pakset.cc" />
-    <ClCompile Include="dataobj\network_file_transfer.cc" />
-    <ClCompile Include="dataobj\network_packet.cc" />
-    <ClCompile Include="dataobj\network_socket_list.cc" />
+    <ClCompile Include="network\network.cc" />
+    <ClCompile Include="network\network_address.cc" />
+    <ClCompile Include="network\network_cmd.cc" />
+    <ClCompile Include="network\network_cmd_ingame.cc" />
+    <ClCompile Include="network\network_cmd_scenario.cc" />
+    <ClCompile Include="network\network_cmp_pakset.cc" />
+    <ClCompile Include="network\network_file_transfer.cc" />
+    <ClCompile Include="network\network_packet.cc" />
+    <ClCompile Include="network\network_socket_list.cc" />
     <ClCompile Include="besch\reader\obj_reader.cc" />
     <ClCompile Include="old_blockmanager.cc" />
     <ClCompile Include="gui\optionen.cc" />
     <ClCompile Include="gui\pakselector.cc" />
-    <ClCompile Include="dataobj\pakset_info.cc" />
+    <ClCompile Include="network\pakset_info.cc" />
     <ClCompile Include="gui\password_frame.cc" />
     <ClCompile Include="besch\reader\pedestrian_reader.cc" />
     <ClCompile Include="dings\pillar.cc" />
@@ -290,7 +297,7 @@
     <ClCompile Include="gui\player_frame_t.cc" />
     <ClCompile Include="dataobj\powernet.cc" />
     <ClCompile Include="gui\privatesign_info.cc" />
-    <ClCompile Include="dataobj\pwd_hash.cc" />
+    <ClCompile Include="network\pwd_hash.cc" />
     <ClCompile Include="dataobj\ribi.cc" />
     <ClCompile Include="dings\roadsign.cc" />
     <ClCompile Include="besch\reader\roadsign_reader.cc" />
@@ -319,7 +326,6 @@
     <ClCompile Include="simdings.cc" />
     <ClCompile Include="simevent.cc" />
     <ClCompile Include="simfab.cc" />
-    <ClCompile Include="simgraph16.cc" />
     <ClCompile Include="simhalt.cc" />
     <ClCompile Include="simintr.cc" />
     <ClCompile Include="simio.cc" />
@@ -342,10 +348,8 @@
     <ClCompile Include="simtools.cc" />
     <ClCompile Include="vehicle\simvehikel.cc" />
     <ClCompile Include="vehicle\simverkehr.cc" />
-    <ClCompile Include="simview.cc" />
     <ClCompile Include="simware.cc" />
     <ClCompile Include="simwerkz.cc" />
-    <ClCompile Include="simwin.cc" />
     <ClCompile Include="simworld.cc" />
     <ClCompile Include="besch\reader\skin_reader.cc" />
     <ClCompile Include="besch\sound_besch.cc" />
@@ -410,7 +414,15 @@
     <ClCompile Include="dings\zeiger.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="display\font.h" />
+    <ClInclude Include="display\scr_coord.h" />
+    <ClInclude Include="display\simgraph.h" />
+    <ClInclude Include="display\simimg.h" />
+    <ClInclude Include="display\simview.h" />
     <ClInclude Include="gui\components\action_listener.h" />
+    <ClInclude Include="gui\components\gui_container.h" />
+    <ClInclude Include="gui\components\gui_convoiinfo.h" />
+    <ClInclude Include="gui\simwin.h" />
     <ClInclude Include="player\ai.h" />
     <ClInclude Include="player\ai_goods.h" />
     <ClInclude Include="gui\ai_option_t.h" />
@@ -439,7 +451,7 @@
     <ClInclude Include="boden\brueckenboden.h" />
     <ClInclude Include="besch\reader\building_reader.h" />
     <ClInclude Include="utils\cbuffer_t.h" />
-    <ClInclude Include="utils\checksum.h" />
+    <ClInclude Include="network\checksum.h" />
     <ClInclude Include="gui\citybuilding_edit.h" />
     <ClInclude Include="besch\reader\citycar_reader.h" />
     <ClInclude Include="gui\citylist_frame_t.h" />
@@ -476,7 +488,6 @@
     <ClInclude Include="dataobj\fahrplan.h" />
     <ClInclude Include="gui\fahrplan_gui.h" />
     <ClInclude Include="dings\field.h" />
-    <ClInclude Include="font.h" />
     <ClInclude Include="dataobj\freelist.h" />
     <ClInclude Include="freight_list_sorter.h" />
     <ClInclude Include="boden\fundament.h" />
@@ -498,8 +509,6 @@
     <ClInclude Include="gui\components\gui_button.h" />
     <ClInclude Include="gui\components\gui_chart.h" />
     <ClInclude Include="gui\components\gui_combobox.h" />
-    <ClInclude Include="gui\gui_container.h" />
-    <ClInclude Include="gui\gui_convoiinfo.h" />
     <ClInclude Include="gui\components\gui_ding_view_t.h" />
     <ClInclude Include="gui\components\gui_divider.h" />
     <ClInclude Include="gui\components\gui_fixedwidth_textarea.h" />
@@ -559,7 +568,7 @@
     <ClInclude Include="boden\wege\maglev.h" />
     <ClInclude Include="gui\map_frame.h" />
     <ClInclude Include="dataobj\marker.h" />
-    <ClInclude Include="utils\memory_rw.h" />
+    <ClInclude Include="network\memory_rw.h" />
     <ClInclude Include="gui\message_frame_t.h" />
     <ClInclude Include="gui\message_option_t.h" />
     <ClInclude Include="gui\message_stats_t.h" />
@@ -568,18 +577,19 @@
     <ClInclude Include="gui\money_frame.h" />
     <ClInclude Include="boden\wege\monorail.h" />
     <ClInclude Include="boden\monorailboden.h" />
+    <ClInclude Include="utils\simthread.h" />
     <ClInclude Include="vehicle\movingobj.h" />
     <ClInclude Include="music\music.h" />
     <ClInclude Include="boden\wege\narrowgauge.h" />
-    <ClInclude Include="dataobj\network.h" />
-    <ClInclude Include="dataobj\network_address.h" />
-    <ClInclude Include="dataobj\network_cmd.h" />
-    <ClInclude Include="dataobj\network_cmd_ingame.h" />
-    <ClInclude Include="dataobj\network_cmd_scenario.h" />
-    <ClInclude Include="dataobj\network_cmp_pakset.h" />
-    <ClInclude Include="dataobj\network_file_transfer.h" />
-    <ClInclude Include="dataobj\network_packet.h" />
-    <ClInclude Include="dataobj\network_socket_list.h" />
+    <ClInclude Include="network\network.h" />
+    <ClInclude Include="network\network_address.h" />
+    <ClInclude Include="network\network_cmd.h" />
+    <ClInclude Include="network\network_cmd_ingame.h" />
+    <ClInclude Include="network\network_cmd_scenario.h" />
+    <ClInclude Include="network\network_cmp_pakset.h" />
+    <ClInclude Include="network\network_file_transfer.h" />
+    <ClInclude Include="network\network_packet.h" />
+    <ClInclude Include="network\network_socket_list.h" />
     <ClInclude Include="besch\obj_besch.h" />
     <ClInclude Include="besch\obj_besch_std_name.h" />
     <ClInclude Include="besch\obj_node_info.h" />
@@ -589,7 +599,7 @@
     <ClInclude Include="gui\optionen.h" />
     <ClInclude Include="vehicle\overtaker.h" />
     <ClInclude Include="gui\pakselector.h" />
-    <ClInclude Include="dataobj\pakset_info.h" />
+    <ClInclude Include="network\pakset_info.h" />
     <ClInclude Include="gui\password_frame.h" />
     <ClInclude Include="pathes.h" />
     <ClInclude Include="besch\reader\pedestrian_reader.h" />
@@ -600,7 +610,7 @@
     <ClInclude Include="tpl\prioqueue_tpl.h" />
     <ClInclude Include="gui\privatesign_info.h" />
     <ClInclude Include="tpl\ptrhashtable_tpl.h" />
-    <ClInclude Include="dataobj\pwd_hash.h" />
+    <ClInclude Include="network\pwd_hash.h" />
     <ClInclude Include="tpl\quickstone_tpl.h" />
     <ClInclude Include="dataobj\ribi.h" />
     <ClInclude Include="dings\roadsign.h" />
@@ -632,9 +642,7 @@
     <ClInclude Include="simdings.h" />
     <ClInclude Include="simevent.h" />
     <ClInclude Include="simfab.h" />
-    <ClInclude Include="simgraph.h" />
     <ClInclude Include="simhalt.h" />
-    <ClInclude Include="simimg.h" />
     <ClInclude Include="simintr.h" />
     <ClInclude Include="simio.h" />
     <ClInclude Include="simline.h" />
@@ -657,11 +665,9 @@
     <ClInclude Include="vehicle\simvehikel.h" />
     <ClInclude Include="vehicle\simverkehr.h" />
     <ClInclude Include="simversion.h" />
-    <ClInclude Include="simview.h" />
     <ClInclude Include="simware.h" />
     <ClInclude Include="simwerkz-dialogs.h" />
     <ClInclude Include="simwerkz.h" />
-    <ClInclude Include="simwin.h" />
     <ClInclude Include="simworld.h" />
     <ClInclude Include="besch\skin_besch.h" />
     <ClInclude Include="besch\reader\skin_reader.h" />

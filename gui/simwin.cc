@@ -22,52 +22,53 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "simcolor.h"
-#include "simevent.h"
-#include "simgraph.h"
-#include "simmenu.h"
-#include "simskin.h"
-#include "simsys.h"
-#include "simticker.h"
+#include "../simcolor.h"
+#include "../simevent.h"
+#include "../display/simgraph.h"
+#include "../simmenu.h"
+#include "../simskin.h"
+#include "../simsys.h"
+#include "../simticker.h"
 #include "simwin.h"
-#include "simintr.h"
-#include "simhalt.h"
-#include "simworld.h"
+#include "../simintr.h"
+#include "../simhalt.h"
+#include "../simworld.h"
 
-#include "dataobj/translator.h"
-#include "dataobj/umgebung.h"
-#include "dataobj/loadsave.h"
+#include "../dataobj/translator.h"
+#include "../dataobj/umgebung.h"
+#include "../dataobj/loadsave.h"
+#include "../dataobj/tabfile.h"
 
-#include "besch/skin_besch.h"
+#include "../besch/skin_besch.h"
 
-#include "dings/zeiger.h"
+#include "../dings/zeiger.h"
 
-#include "gui/map_frame.h"
-#include "gui/help_frame.h"
-#include "gui/messagebox.h"
-#include "gui/gui_frame.h"
+#include "map_frame.h"
+#include "help_frame.h"
+#include "messagebox.h"
+#include "gui_frame.h"
 
-#include "player/simplay.h"
-#include "tpl/inthashtable_tpl.h"
-#include "tpl/vector_tpl.h"
-#include "utils/simstring.h"
-#include "utils/cbuffer_t.h"
+#include "../player/simplay.h"
+#include "../tpl/inthashtable_tpl.h"
+#include "../tpl/vector_tpl.h"
+#include "../utils/simstring.h"
+#include "../utils/cbuffer_t.h"
 
 // needed to restore/save them
-#include "gui/werkzeug_waehler.h"
-#include "gui/player_frame_t.h"
-#include "gui/money_frame.h"
-#include "gui/halt_detail.h"
-#include "gui/halt_info.h"
-#include "gui/convoi_detail_t.h"
-#include "gui/convoi_info_t.h"
-#include "gui/fahrplan_gui.h"
-#include "gui/line_management_gui.h"
-#include "gui/schedule_list.h"
-#include "gui/stadt_info.h"
-#include "gui/message_frame_t.h"
-#include "gui/message_option_t.h"
-#include "gui/fabrik_info.h"
+#include "werkzeug_waehler.h"
+#include "player_frame_t.h"
+#include "money_frame.h"
+#include "halt_detail.h"
+#include "halt_info.h"
+#include "convoi_detail_t.h"
+#include "convoi_info_t.h"
+#include "fahrplan_gui.h"
+#include "line_management_gui.h"
+#include "schedule_list.h"
+#include "stadt_info.h"
+#include "message_frame_t.h"
+#include "message_option_t.h"
+#include "fabrik_info.h"
 
 
 
@@ -97,13 +98,13 @@ public:
 class simwin_t
 {
 public:
-	koord pos;      // window position
-	uint32 dauer;   // How long should the window stay open?
-	uint8 wt;       // the flags for the window type
-	ptrdiff_t magic_number;  // either magic number or this pointer (which is unique too)
+	koord pos;              // Window position
+	uint32 dauer;           // Wie lange soll das Fenster angezeigt werden ?
+	uint8 wt;               // the flags for the window type
+	ptrdiff_t magic_number; // either magic number or this pointer (which is unique too)
 	gui_frame_t *gui;
 	bool closing;
-	bool sticky;    // true if window is sticky
+	bool sticky;            // true if window is sticky
 	bool rollup;
 
 	simwin_gadget_flags_t flags; // (Mathew Hounsell) See Above.
@@ -120,7 +121,7 @@ bool simwin_t::operator== (const simwin_t &other) const { return gui == other.gu
 static vector_tpl<simwin_t> wins(MAX_WIN);
 static vector_tpl<simwin_t> kill_list(MAX_WIN);
 
-static karte_t* wl = NULL; // Pointer to current world is set in win_set_welt
+static karte_t* wl = NULL; // Pointer to current world is set in win_set_world
 
 static int top_win(int win, bool keep_state );
 static void display_win(int win);
@@ -159,6 +160,101 @@ enum simwin_gadget_et { GADGET_CLOSE, GADGET_HELP, GADGET_SIZE, GADGET_PREV, GAD
 
 
 /**
+ * Reads theme configuration data, still not final
+ * searches first in user dir, pak dir, program dir
+ * @author prissi
+ *
+ * Max Kielland:
+ * Note, there will be a theme manager later on and
+ * each gui object will find their own parameters by
+ * themself after registering its class to the theme
+ * manager. This will be done as the last step in
+ * the chain when loading a theme.
+ */
+
+#if THEME == -1
+bool themes_init(const char *dir_name) { return false; }
+#else
+bool themes_init(const char *dir_name)
+{
+	tabfile_t themesconf;
+
+	// first take user data, then user global data
+	const std::string dir = dir_name;
+#if THEME > 0
+	if(  !themesconf.open((dir+"/themes_" STR(THEME) ".tab").c_str())  ) {
+#else
+	if(  !themesconf.open((dir+"/themes.tab").c_str())  ) {
+#endif
+		dbg->warning("simwin.cc themes_init()", "Can't read themes.tab from %s", dir_name );
+		return false;
+	}
+
+	tabfileobj_t contents;
+	themesconf.read(contents);
+
+	// first the stuff for the dialogues
+	gui_frame_t::gui_titlebar_height = (uint32)contents.get_int("gui_titlebar_height", gui_frame_t::gui_titlebar_height );
+	gui_frame_t::gui_frame_left =      (uint32)contents.get_int("gui_frame_left",      gui_frame_t::gui_frame_left );
+	gui_frame_t::gui_frame_top =       (uint32)contents.get_int("gui_frame_top",       gui_frame_t::gui_frame_top );
+	gui_frame_t::gui_frame_right =     (uint32)contents.get_int("gui_frame_right",     gui_frame_t::gui_frame_right );
+	gui_frame_t::gui_frame_bottom =    (uint32)contents.get_int("gui_frame_bottom",    gui_frame_t::gui_frame_bottom );
+	gui_frame_t::gui_hspace =          (uint32)contents.get_int("gui_hspace",          gui_frame_t::gui_hspace );
+	gui_frame_t::gui_vspace =          (uint32)contents.get_int("gui_vspace",          gui_frame_t::gui_vspace );
+
+	// those two will be anyway set whenever the buttons are reinitialized
+	// Max Kielland: This has been moved to button_t
+	button_t::gui_button_size.x = (uint32)contents.get_int("gui_button_width",  button_t::gui_button_size.x );
+	button_t::gui_button_size.y = (uint32)contents.get_int("gui_button_height", button_t::gui_button_size.y );
+
+	button_t::button_color_text = (uint32)contents.get_int("button_color_text", button_t::button_color_text );
+	button_t::button_color_disabled_text = (uint32)contents.get_int("button_color_disabled_text", button_t::button_color_disabled_text );
+
+	// maybe not the best place, rather use simwin for the static defines?
+	skinverwaltung_t::theme_color_text =          (COLOR_VAL)contents.get_int("gui_text_color",          SYSCOL_TEXT);
+	skinverwaltung_t::theme_color_static_text =   (COLOR_VAL)contents.get_int("gui_static_text_color",   SYSCOL_STATIC_TEXT);
+	skinverwaltung_t::theme_color_disabled_text = (COLOR_VAL)contents.get_int("gui_disabled_text_color", SYSCOL_DISABLED_TEXT);
+	skinverwaltung_t::theme_color_highlight =     (COLOR_VAL)contents.get_int("gui_highlight_color",     SYSCOL_HIGHLIGHT);
+	skinverwaltung_t::theme_color_shadow =        (COLOR_VAL)contents.get_int("gui_shadow_color",        SYSCOL_SHADOW);
+	skinverwaltung_t::theme_color_face =          (COLOR_VAL)contents.get_int("gui_face_color",          SYSCOL_FACE);
+	skinverwaltung_t::theme_color_button_text =   (COLOR_VAL)contents.get_int("gui_button_text_color",   SYSCOL_BUTTON_TEXT);
+
+	// those two may be rather an own control later on?
+	gui_frame_t::gui_indicator_width =  (uint32)contents.get_int("gui_indicator_width",  gui_frame_t::gui_indicator_width );
+	gui_frame_t::gui_indicator_height = (uint32)contents.get_int("gui_indicator_height", gui_frame_t::gui_indicator_height );
+
+	// other gui parameter
+	// Max Kielland: Scrollbar size is set by the arrow size in button_t
+	//scrollbar_t::BAR_SIZE = (uint32)contents.get_int("gui_scrollbar_width", scrollbar_t::BAR_SIZE );
+	gui_tab_panel_t::header_vsize = (uint32)contents.get_int("gui_tab_header_vsize", gui_tab_panel_t::header_vsize );
+
+	// stuff in umgebung_t but ratehr GUI	umgebung_t::window_snap_distance = contents.get_int("window_snap_distance", umgebung_t::window_snap_distance );
+	umgebung_t::window_buttons_right =      contents.get_int("window_buttons_right",      umgebung_t::window_buttons_right );
+	umgebung_t::left_to_right_graphs =      contents.get_int("left_to_right_graphs",      umgebung_t::left_to_right_graphs );
+	umgebung_t::window_frame_active =       contents.get_int("window_frame_active",       umgebung_t::window_frame_active );
+	umgebung_t::second_open_closes_win =    contents.get_int("second_open_closes_win",    umgebung_t::second_open_closes_win );
+	umgebung_t::remember_window_positions = contents.get_int("remember_window_positions", umgebung_t::remember_window_positions );
+
+	umgebung_t::front_window_bar_color =   contents.get_color("front_window_bar_color",   umgebung_t::front_window_bar_color );
+	umgebung_t::front_window_text_color =  contents.get_color("front_window_text_color",  umgebung_t::front_window_text_color );
+	umgebung_t::bottom_window_bar_color =  contents.get_color("bottom_window_bar_color",  umgebung_t::bottom_window_bar_color );
+	umgebung_t::bottom_window_text_color = contents.get_color("bottom_window_text_color", umgebung_t::bottom_window_text_color );
+
+	umgebung_t::show_tooltips =        contents.get_int("show_tooltips",              umgebung_t::show_tooltips );
+	umgebung_t::tooltip_color =        contents.get_color("tooltip_background_color", umgebung_t::tooltip_color );
+	umgebung_t::tooltip_textcolor =    contents.get_color("tooltip_text_color",       umgebung_t::tooltip_textcolor );
+	umgebung_t::tooltip_delay =        contents.get_int("tooltip_delay",              umgebung_t::tooltip_delay );
+	umgebung_t::tooltip_duration =     contents.get_int("tooltip_duration",           umgebung_t::tooltip_duration );
+	umgebung_t::toolbar_max_width =    contents.get_int("toolbar_max_width",          umgebung_t::toolbar_max_width );
+	umgebung_t::toolbar_max_height =   contents.get_int("toolbar_max_height",         umgebung_t::toolbar_max_height );
+	umgebung_t::cursor_overlay_color = contents.get_color("cursor_overlay_color",     umgebung_t::cursor_overlay_color );
+
+	// parsing buttons still needs to be done after agreement what to load
+	return false; //hence we return false for now ...
+}
+#endif
+
+/**
  * Display a window gadget
  * @author Hj. Malthaner
  */
@@ -167,25 +263,31 @@ static int display_gadget_box(simwin_gadget_et const  code,
 			      int const color,
 			      bool const pushed)
 {
-	display_vline_wh_clip(x,    y,   16, color+1, false);
-	display_vline_wh_clip(x+15, y+1, 14, COL_BLACK, false);
-	display_vline_wh_clip(x+16, y+1, 14, color+1, false);
 
-	if(pushed) {
-		display_fillbox_wh_clip(x+1, y+1, 14, 14, (color & 0xF8) + max(7, (color&0x07)+2), false);
-	}
-
-	image_id img = IMG_LEER;
+	// If we have a skin, get gadget image data
+	const bild_t *img = NULL;
 	if(  skinverwaltung_t::window_skin  ) {
 		// "x", "?", "=", "«", "»"
-		img = skinverwaltung_t::window_skin->get_bild_nr(code+1);
+		const bild_besch_t *pic = skinverwaltung_t::window_skin->get_bild(code+1);
+		if (  pic != NULL  ) {
+			img = pic->get_pic();
+		}
 	}
-	if(  img != IMG_LEER  ) {
-		display_color_img(img, x, y, 0, false, false);
+
+	if(pushed) {
+		display_fillbox_wh_clip(x+1, y+1, D_GADGET_SIZE-2, D_GADGET_SIZE-2, (color & 0xF8) + max(7, (color&0x07)+2), false);
 	}
-	else {
+
+	// Do we have a gadget image?
+	if(  img != NULL  ) {
+
+		// Max Kielland: This center the gadget image and compensates for any left/top margins within the image to be backward compatible with older PAK sets.
+		display_color_img(img->bild_nr, x + D_GET_CENTER_ALIGN_OFFSET(img->w,D_GADGET_SIZE)-img->x, y + D_GET_CENTER_ALIGN_OFFSET(img->h,D_GADGET_SIZE)-img->y, 0, false, false);
+
+	} else {
 		const char *gadget_text = "#";
 		static const char *gadget_texts[5]={ "X", "?", "=", "<", ">" };
+
 		if(  code <= GADGET_NEXT  ) {
 			gadget_text = gadget_texts[code];
 		}
@@ -201,8 +303,12 @@ static int display_gadget_box(simwin_gadget_et const  code,
 		display_proportional( x+4, y+4, gadget_text, ALIGN_LEFT, COL_BLACK, false );
 	}
 
+	display_vline_wh_clip(x,                 y,   D_TITLEBAR_HEIGHT,   color+1,   false);
+	display_vline_wh_clip(x+D_GADGET_SIZE-1, y+1, D_TITLEBAR_HEIGHT-2, COL_BLACK, false);
+	display_vline_wh_clip(x+D_GADGET_SIZE,   y+1, D_TITLEBAR_HEIGHT-2, color+1,   false);
+
 	// Hajo: return width of gadget
-	return 16;
+	return D_GADGET_SIZE;
 }
 
 
@@ -216,41 +322,34 @@ static int display_gadget_boxes(
 	bool const sticky_pushed,
 	bool const goto_pushed
 ) {
-    int width = 0;
-    const int w=(REVERSE_GADGETS?16:-16);
+	int width = 0;
+	const int k=(REVERSE_GADGETS?1:-1);
 
 	// Only the close and sticky gadget can be pushed.
 	if(  flags->close  ) {
-	    display_gadget_box( GADGET_CLOSE, x +w*width, y, color, close_pushed );
-	    width ++;
+		width += k*display_gadget_box( GADGET_CLOSE, x + width, y, color, close_pushed );
 	}
 	if(  flags->size  ) {
-	    display_gadget_box( GADGET_SIZE, x + w*width, y, color, false );
-	    width++;
+		width += k*display_gadget_box( GADGET_SIZE, x + width, y, color, false );
 	}
 	if(  flags->help  ) {
-	    display_gadget_box( GADGET_HELP, x + w*width, y, color, false );
-	    width++;
+		width += k*display_gadget_box( GADGET_HELP, x + width, y, color, false );
 	}
 	if(  flags->prev  ) {
-	    display_gadget_box( GADGET_PREV, x + w*width, y, color, false );
-	    width++;
+		width += k*display_gadget_box( GADGET_PREV, x + width, y, color, false );
 	}
 	if(  flags->next  ) {
-	    display_gadget_box( GADGET_NEXT, x + w*width, y, color, false );
-	    width++;
+		width += k*display_gadget_box( GADGET_NEXT, x + width, y, color, false );
 	}
 	if(  flags->gotopos  ) {
-	    display_gadget_box( GADGET_GOTOPOS, x + w*width, y, color, goto_pushed );
-	    width++;
+		width += k*display_gadget_box( GADGET_GOTOPOS, x + width, y, color, goto_pushed );
 	}
 	if(  flags->sticky  ) {
-		display_gadget_box( sticky_pushed ? GADGET_STICKY_PUSHED : GADGET_STICKY, x + w*width, y, color, sticky_pushed );
-	    width++;
+		width += k*display_gadget_box( sticky_pushed ? GADGET_STICKY_PUSHED : GADGET_STICKY, x + width, y, color, sticky_pushed );
 	}
 
 
-    return abs( w*width );
+	return abs( width );
 }
 
 
@@ -260,52 +359,52 @@ static simwin_gadget_et decode_gadget_boxes(
                int const px
 ) {
 	int offset = px-x;
-	const int w=(REVERSE_GADGETS?-16:16);
+	const int w=(REVERSE_GADGETS?-D_GADGET_SIZE:D_GADGET_SIZE);
 
 //DBG_MESSAGE("simwin_gadget_et decode_gadget_boxes()","offset=%i, w=%i",offset, w );
 
 	// Only the close gadget can be pushed.
 	if( flags->close ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 //DBG_MESSAGE("simwin_gadget_et decode_gadget_boxes()","close" );
 			return GADGET_CLOSE;
 		}
 		offset += w;
 	}
 	if( flags->size ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 //DBG_MESSAGE("simwin_gadget_et decode_gadget_boxes()","size" );
 			return GADGET_SIZE;
 		}
 		offset += w;
 	}
 	if( flags->help ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 //DBG_MESSAGE("simwin_gadget_et decode_gadget_boxes()","help" );
 			return GADGET_HELP;
 		}
 		offset += w;
 	}
 	if( flags->prev ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 			return GADGET_PREV;
 		}
 		offset += w;
 	}
 	if( flags->next ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 			return GADGET_NEXT;
 		}
 		offset += w;
 	}
 	if( flags->gotopos ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 			return GADGET_GOTOPOS;
 		}
 		offset += w;
 	}
 	if( flags->sticky ) {
-		if( offset >= 0  &&  offset<16  ) {
+		if( offset >= 0  &&  offset<D_GADGET_SIZE  ) {
 			return GADGET_STICKY;
 		}
 		offset += w;
@@ -327,16 +426,16 @@ static void win_draw_window_title(const koord pos, const koord gr,
 {
 	PUSH_CLIP(pos.x, pos.y, gr.x, gr.y);
 	display_fillbox_wh_clip(pos.x, pos.y, gr.x, 1, titel_farbe+1, false);
-	display_fillbox_wh_clip(pos.x, pos.y+1, gr.x, 14, titel_farbe, false);
-	display_fillbox_wh_clip(pos.x, pos.y+15, gr.x, 1, COL_BLACK, false);
-	display_vline_wh_clip(pos.x+gr.x-1, pos.y,   15, COL_BLACK, false);
+	display_fillbox_wh_clip(pos.x, pos.y+1, gr.x, D_TITLEBAR_HEIGHT-2, titel_farbe, false);
+	display_fillbox_wh_clip(pos.x, pos.y+D_TITLEBAR_HEIGHT-1, gr.x, 1, COL_BLACK, false);
+	display_vline_wh_clip(pos.x+gr.x-1, pos.y,   D_TITLEBAR_HEIGHT-1, COL_BLACK, false);
 
 	// Draw the gadgets and then move left and draw text.
 	flags.gotopos = (welt_pos != koord3d::invalid);
-	int width = display_gadget_boxes( &flags, pos.x+(REVERSE_GADGETS?0:gr.x-20), pos.y, titel_farbe, closing, sticky, goto_pushed );
-	int titlewidth = display_proportional_clip( pos.x + (REVERSE_GADGETS?width+4:4), pos.y+(16-LINEASCENT)/2, text, ALIGN_LEFT, text_farbe, false );
+	int width = display_gadget_boxes( &flags, pos.x+(REVERSE_GADGETS?0:gr.x-D_GADGET_SIZE-4), pos.y, titel_farbe, closing, sticky, goto_pushed );
+	int titlewidth = display_proportional_clip( pos.x + (REVERSE_GADGETS?width+4:4), pos.y+(D_TITLEBAR_HEIGHT-LINEASCENT)/2, text, ALIGN_LEFT, text_farbe, false );
 	if(  flags.gotopos  ) {
-		display_proportional_clip( pos.x + (REVERSE_GADGETS?width+4:4)+titlewidth+8, pos.y+(16-LINEASCENT)/2, welt_pos.get_2d().get_fullstr(), ALIGN_LEFT, text_farbe, false );
+		display_proportional_clip( pos.x + (REVERSE_GADGETS?width+4:4)+titlewidth+8, pos.y+(D_TITLEBAR_HEIGHT-LINEASCENT)/2, welt_pos.get_2d().get_fullstr(), ALIGN_LEFT, text_farbe, false );
 	}
 	POP_CLIP();
 }
@@ -738,6 +837,12 @@ bool destroy_win(const ptrdiff_t magic)
 
 bool destroy_win(const gui_frame_t *gui)
 {
+	if(wins.get_count() > 1  &&  wins.back().gui == gui) {
+		// destroy topped window, top the next window before removing
+		// do it here as top_win manipulates the win vector
+		top_win(wins.get_count() - 2, true);
+	}
+
 	for(  uint i=0;  i<wins.get_count();  i++  ) {
 		if(wins[i].gui == gui) {
 			if(inside_event_handling==wins[i].gui) {
@@ -794,6 +899,7 @@ int top_win(int win, bool keep_state )
 	// mark old dirty
 	koord gr = wins.back().gui->get_fenstergroesse();
 	mark_rect_dirty_wc( wins.back().pos.x - 1, wins.back().pos.y - 1, wins.back().pos.x + gr.x + 2, wins.back().pos.y + gr.y + 2 ); // -1, +2 for umgebung_t::window_frame_active
+//    mark_rect_dirty_wc( wins.back().pos.x, wins.back().pos.y, wins.back().pos.x+wins.back().gui->get_windowsize().x, wins.back().pos.y+D_TITLEBAR_HEIGHT );
 
 	simwin_t tmp = wins[win];
 	wins.remove_at(win);
@@ -854,17 +960,17 @@ void display_win(int win)
 				komp->is_weltpos(),
 				wins[win].flags );
 		if(  wins[win].gui->is_dirty()  ) {
-//			mark_rect_dirty_wc( wins[win].pos.x, wins[win].pos.y, wins[win].pos.x+gr.x, wins[win].pos.y+16 );
+//			mark_rect_dirty_wc( wins[win].pos.x, wins[win].pos.y, wins[win].pos.x+gr.x, wins[win].pos.y+D_TITLEBAR_HEIGHT );
 		}
 	}
 	// mark top window, if requested
 	if(umgebung_t::window_frame_active  &&  (unsigned)win==wins.get_count()-1) {
-		const int y_off = wins[win].flags.title ? 0 : 16;
+		const int y_off = wins[win].flags.title ? 0 : D_TITLEBAR_HEIGHT;
 		if(!wins[win].rollup) {
 			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1 + y_off, gr.x+2, gr.y+2 - y_off, title_color, title_color+1, wins[win].gui->is_dirty() );
 		}
 		else {
-			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1 + y_off, gr.x+2, 18 - y_off, title_color, title_color+1, wins[win].gui->is_dirty() );
+			display_ddd_box( wins[win].pos.x-1, wins[win].pos.y-1 + y_off, gr.x+2, D_TITLEBAR_HEIGHT + 2 - y_off, title_color, title_color+1, wins[win].gui->is_dirty() );
 		}
 	}
 	if(!wins[win].rollup) {
@@ -889,7 +995,7 @@ void display_all_win()
 	tooltip_element = NULL;
 	for(  uint32 i = wins.get_count(); i-- != 0;  ) {
 		if(  (!wins[i].rollup  &&  wins[i].gui->getroffen(x-wins[i].pos.x,y-wins[i].pos.y))  ||
-		     (wins[i].rollup  &&  x>=wins[i].pos.x  &&  x<wins[i].pos.x+wins[i].gui->get_fenstergroesse().x  &&  y>=wins[i].pos.y  &&  y<wins[i].pos.y+16)
+		     (wins[i].rollup  &&  x>=wins[i].pos.x  &&  x<wins[i].pos.x+wins[i].gui->get_fenstergroesse().x  &&  y>=wins[i].pos.y  &&  y<wins[i].pos.y+D_TITLEBAR_HEIGHT)
 		) {
 			// tooltips are only allowed for this window
 			tooltip_element = wins[i].gui;
@@ -964,7 +1070,7 @@ void snap_check_win( const int win, koord *r, const koord from_pos, const koord 
 			other_pos.x = 0;
 			other_pos.y = werkzeug_t::toolbar_tool[0]->iconsize.y;
 			other_gr.x = display_get_width();
-			other_gr.y = display_get_height()-16-other_pos.y;
+			other_gr.y = display_get_height()-16-other_pos.y; // 16 = bottom ticker height?
 			if(  show_ticker  ) {
 				other_gr.y -= 16;
 			}
@@ -974,7 +1080,7 @@ void snap_check_win( const int win, koord *r, const koord from_pos, const koord 
 			other_gr = wins[i].gui->get_fenstergroesse();
 			other_pos = wins[i].pos;
 			if(  wins[i].rollup  ) {
-				other_gr.y = 18;
+				other_gr.y = D_TITLEBAR_HEIGHT;
 			}
 		}
 
@@ -1053,7 +1159,7 @@ void move_win(int win, event_t *ev)
 	const koord from_pos = wins[win].pos;
 	koord from_gr = wins[win].gui->get_fenstergroesse();
 	if(  wins[win].rollup  ) {
-		from_gr.y = 18;
+		from_gr.y = D_TITLEBAR_HEIGHT + 2;
 	}
 
 	koord to_pos = wins[win].pos+(mouse_to-mouse_from);
@@ -1264,12 +1370,13 @@ bool check_pos_win(event_t *ev)
 			inside_event_handling = wins[i].gui;
 
 			// Top window first
-			if(  (int)wins.get_count()-1>i  &&  IS_LEFTCLICK(ev)  &&  (!wins[i].rollup  ||  ev->cy<wins[i].pos.y+16)  ) {
+			if(  (int)wins.get_count()-1>i  &&  IS_LEFTCLICK(ev)  &&  (!wins[i].rollup  ||  ev->cy<wins[i].pos.y+D_TITLEBAR_HEIGHT)  ) {
 				i = top_win(i,false);
 			}
 
 			// Hajo: if within title bar && window needs decoration
-			if(  y<wins[i].pos.y+16  &&  wins[i].flags.title  ) {
+			// Max Kielland: Use title height
+			if(  y<wins[i].pos.y+D_TITLEBAR_HEIGHT  &&  wins[i].flags.title  ) {
 				// no more moving
 				is_moving = -1;
 
@@ -1277,7 +1384,7 @@ bool check_pos_win(event_t *ev)
 				wins[i].flags.help = ( wins[i].gui->get_hilfe_datei() != NULL );
 
 				// Where Was It ?
-				simwin_gadget_et code = decode_gadget_boxes( ( & wins[i].flags ), wins[i].pos.x + (REVERSE_GADGETS?0:wins[i].gui->get_fenstergroesse().x-20), x );
+				simwin_gadget_et code = decode_gadget_boxes( ( & wins[i].flags ), wins[i].pos.x + (REVERSE_GADGETS?0:wins[i].gui->get_fenstergroesse().x-D_GADGET_SIZE-4), x );
 
 				switch( code ) {
 					case GADGET_CLOSE :
@@ -1285,7 +1392,7 @@ bool check_pos_win(event_t *ev)
 							wins[i].closing = true;
 						}
 						else if  (IS_LEFTRELEASE(ev)) {
-							if (  ev->my>=wins[i].pos.y  &&  ev->my<wins[i].pos.y+16  &&  decode_gadget_boxes( ( & wins[i].flags ), wins[i].pos.x + (REVERSE_GADGETS?0:wins[i].gui->get_fenstergroesse().x-20), ev->mx )==GADGET_CLOSE) {
+							if (  ev->my>=wins[i].pos.y  &&  ev->my<wins[i].pos.y+D_GADGET_SIZE  &&  decode_gadget_boxes( ( & wins[i].flags ), wins[i].pos.x + (REVERSE_GADGETS?0:wins[i].gui->get_fenstergroesse().x-D_GADGET_SIZE-4), ev->mx )==GADGET_CLOSE) {
 								destroy_win(wins[i].gui);
 							} else {
 								wins[i].closing = false;
@@ -1430,7 +1537,7 @@ void win_display_flush(double konto)
 	tooltip_element = menu_height > get_maus_y() ? main_menu : NULL;
 	void *old_inside_event_handling = inside_event_handling;
 	inside_event_handling = main_menu;
-	main_menu->zeichnen( koord(0,-16), koord(disp_width,menu_height) );
+	main_menu->zeichnen( koord(0,-D_TITLEBAR_HEIGHT), koord(disp_width,menu_height) );
 	inside_event_handling = old_inside_event_handling;
 
 	display_set_clip_wh( 0, menu_height, disp_width, disp_height-menu_height+1 );
@@ -1609,11 +1716,19 @@ void win_display_flush(double konto)
 }
 
 
-void win_set_welt(karte_t *welt)
+void win_set_world(karte_t *world)
 {
-	wl = welt;
+	wl = world;
 	// remove all save window positions
 	old_win_pos.clear();
+}
+
+
+void win_redraw_world()
+{
+	if(wl) {
+		wl->set_dirty();
+	}
 }
 
 

@@ -81,6 +81,8 @@ settings_t::settings_t() :
 	no_tree_climates = 0;	// bit set, if this climate is to be void of random trees
 	no_trees = false;	// if set, no trees at all, may be useful for low end engines
 
+	lake = true;	// if set lakes will be added to map
+
 	// some settigns more
 	allow_player_change = true;
 	use_timeline = 2;
@@ -215,7 +217,7 @@ settings_t::settings_t() :
 	remove_dummy_player_months = 6;
 
 	// off
-	unprotect_abondoned_player_months = 0;
+	unprotect_abandoned_player_months = 0;
 
 	maint_building = 5000;	// normal buildings
 	way_toll_runningcost_percentage = 0;
@@ -258,7 +260,7 @@ settings_t::settings_t() :
 	way_count_leaving_road=25;
 
 	// defualt: joined capacities
-	seperate_halt_capacities = false;
+	separate_halt_capacities = false;
 
 	// this will pay for distance to next change station
 	pay_for_total_distance = TO_PREVIOUS;
@@ -632,7 +634,7 @@ void settings_t::rdwr(loadsave_t *file)
 		}
 
 		if(file->get_version()>101000) {
-			file->rdwr_bool( seperate_halt_capacities );
+			file->rdwr_bool( separate_halt_capacities );
 			file->rdwr_byte( pay_for_total_distance );
 
 			file->rdwr_short(starting_month );
@@ -742,7 +744,7 @@ void settings_t::rdwr(loadsave_t *file)
 
 		if(  file->get_version()>=112002  ) {
 			file->rdwr_short( remove_dummy_player_months );
-			file->rdwr_short( unprotect_abondoned_player_months );
+			file->rdwr_short( unprotect_abandoned_player_months );
 		}
 
 		if(  file->get_version()>=112003  ) {
@@ -872,7 +874,7 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 		umgebung_t::nickname = ltrim(contents.get("nickname"));
 	}
 
-	// listen directive is a comma seperated list of IP addresses to listen on
+	// listen directive is a comma separated list of IP addresses to listen on
 	if(  *contents.get("listen")  ) {
 		umgebung_t::listen.clear();
 		std::string s = ltrim(contents.get("listen"));
@@ -1037,7 +1039,10 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 	factory_maximum_intransit_percentage  = contents.get_int("maximum_intransit_percentage", factory_maximum_intransit_percentage);
 
 	tourist_percentage = contents.get_int("tourist_percentage", tourist_percentage );
-	seperate_halt_capacities = contents.get_int("seperate_halt_capacities", seperate_halt_capacities ) != 0;
+	// .. read twice: old and right spelling
+	separate_halt_capacities = contents.get_int("seperate_halt_capacities", separate_halt_capacities ) != 0;
+	separate_halt_capacities = contents.get_int("separate_halt_capacities", separate_halt_capacities ) != 0;
+
 	pay_for_total_distance = contents.get_int("pay_for_total_distance", pay_for_total_distance );
 	avoid_overcrowding = contents.get_int("avoid_overcrowding", avoid_overcrowding )!=0;
 	no_routing_over_overcrowding = contents.get_int("no_routing_over_overcrowded", no_routing_over_overcrowding )!=0;
@@ -1162,7 +1167,9 @@ void settings_t::parse_simuconf(tabfile_t& simuconf, sint16& disp_width, sint16&
 
 	// player stuff
 	remove_dummy_player_months = contents.get_int("remove_dummy_player_months", remove_dummy_player_months );
-	unprotect_abondoned_player_months = contents.get_int("unprotect_abondoned_player_months", unprotect_abondoned_player_months );
+	// .. read twice: old and right spelling
+	unprotect_abandoned_player_months = contents.get_int("unprotect_abondoned_player_months", unprotect_abandoned_player_months );
+	unprotect_abandoned_player_months = contents.get_int("unprotect_abandoned_player_months", unprotect_abandoned_player_months );
 	default_player_color_random = contents.get_int("random_player_colors", default_player_color_random ) != 0;
 	for(  int i = 0;  i<MAX_PLAYER_COUNT;  i++  ) {
 		char name[32];

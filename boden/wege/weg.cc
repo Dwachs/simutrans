@@ -29,7 +29,7 @@
 
 #include "../grund.h"
 #include "../../simworld.h"
-#include "../../simimg.h"
+#include "../../display/simimg.h"
 #include "../../simhalt.h"
 #include "../../simdings.h"
 #include "../../player/simplay.h"
@@ -45,7 +45,7 @@
 #include "../../tpl/slist_tpl.h"
 
 #if MULTI_THREAD>1
-#include <pthread.h>
+#include "../../utils/simthread.h"
 static pthread_mutex_t weg_calc_bild_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 #endif
 
@@ -449,7 +449,7 @@ void weg_t::calc_bild()
 	}
 	else {
 		// use snow image if above snowline and above ground
-		bool snow = (from->ist_karten_boden()  ||  !from->ist_tunnel())  &&  (get_pos().z >= welt->get_snowline());
+		bool snow = (from->ist_karten_boden()  ||  !from->ist_tunnel())  &&  (get_pos().z >= welt->get_snowline() || welt->get_climate( get_pos().get_2d() ) == arctic_climate  );
 		flags &= ~IS_SNOW;
 		if(  snow  ) {
 			flags |= IS_SNOW;
@@ -520,62 +520,22 @@ void weg_t::check_diagonal()
 
 	grund_t *from = welt->lookup(get_pos());
 	grund_t *to;
-	ribi_t::ribi r1 = ribi_t::keine, r2 = ribi_t::keine;
 
-	switch(ribi) {
+	ribi_t::ribi r1 = ribi_t::keine;
+	ribi_t::ribi r2 = ribi_t::keine;
 
-		case ribi_t::nordost:
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::ost)  ) {
-				r1 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::nord)  ) {
-				r2 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			diagonal =
-				(r1 == ribi_t::suedwest || r2 == ribi_t::suedwest) &&
-				r1 != ribi_t::nordwest &&
-				r2 != ribi_t::suedost;
-		break;
-
-		case ribi_t::suedost:
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::ost)  ) {
-				r1 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::sued)  ) {
-				r2 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			diagonal =
-				(r1 == ribi_t::nordwest || r2 == ribi_t::nordwest) &&
-				r1 != ribi_t::suedwest &&
-				r2 != ribi_t::nordost;
-		break;
-
-		case ribi_t::nordwest:
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::west)  ) {
-				r1 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::nord)  ) {
-				r2 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			diagonal =
-				(r1 == ribi_t::suedost || r2 == ribi_t::suedost) &&
-				r1 != ribi_t::nordost &&
-				r2 != ribi_t::suedwest;
-		break;
-
-		case ribi_t::suedwest:
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::west)  ) {
-				r1 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			if(  from->get_neighbour(to, get_waytype(), ribi_t::sued)  ) {
-				r2 = to->get_weg_ribi_unmasked(get_waytype());
-			}
-			diagonal =
-				(r1 == ribi_t::nordost || r2 == ribi_t::nordost) &&
-				r1 != ribi_t::suedost &&
-				r2 != ribi_t::nordwest;
-		break;
+	// get the ribis of the ways that connect to us
+	// r1 will be 45 degree clockwise ribi (eg nordost->ost), r2 will be anticlockwise ribi (eg nordost->nord)
+	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate45(ribi))  ) {
+		r1 = to->get_weg_ribi_unmasked(get_waytype());
 	}
+
+	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate45l(ribi))  ) {
+		r2 = to->get_weg_ribi_unmasked(get_waytype());
+	}
+
+	// diagonal if r1 or r2 are our reverse and neither one is 90 degree rotation of us
+	diagonal = (r1 == ribi_t::rueckwaerts(ribi) || r2 == ribi_t::rueckwaerts(ribi)) && r1 != ribi_t::rotate90l(ribi) && r2 != ribi_t::rotate90(ribi);
 
 	if(  diagonal  ) {
 		flags |= IS_DIAGONAL;

@@ -25,7 +25,7 @@
 
 #include "../utils/cbuffer_t.h"
 #include "../simhalt.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 
 class halt_info_t : public gui_frame_t, private action_listener_t

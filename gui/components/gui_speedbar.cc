@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include "gui_speedbar.h"
-#include "../../simgraph.h"
+#include "../../display/simgraph.h"
 #include "../../simcolor.h"
 #include "../../simtypes.h"
 
@@ -21,8 +21,8 @@ void gui_speedbar_t::set_base(sint32 base)
 
 void gui_speedbar_t::add_color_value(const sint32 *value, uint8 color)
 {
-    info_t  next =  { color, value, -1 };
-    values.insert(next);
+	info_t  next =  { color, value, -1 };
+	values.insert(next);
 }
 
 

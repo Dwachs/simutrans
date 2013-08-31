@@ -547,7 +547,7 @@ bool wegbauer_t::is_allowed_step( const grund_t *from, const grund_t *to, long *
 
 	// universal check for elevated things ...
 	if(bautyp&elevated_flag) {
-		if(  to->hat_weg(air_wt)  ||  welt->lookup_hgt( to->get_pos().get_2d() ) < welt->get_water_hgt( to->get_pos().get_2d() )  ||  !check_for_leitung( zv, to )  ||  (!to->ist_karten_boden()  &&  to->get_typ() != grund_t::monorailboden)  ||  to->get_typ() == grund_t::brueckenboden  ||  to->get_typ() == grund_t::tunnelboden  ) {
+		if(  to->hat_weg(air_wt)  ||  welt->lookup_hgt( to_pos ) < welt->get_water_hgt( to_pos )  ||  !check_for_leitung( zv, to )  ||  (!to->ist_karten_boden()  &&  to->get_typ() != grund_t::monorailboden)  ||  to->get_typ() == grund_t::brueckenboden  ||  to->get_typ() == grund_t::tunnelboden  ) {
 			// no suitable ground below!
 			return false;
 		}
@@ -607,14 +607,14 @@ bool wegbauer_t::is_allowed_step( const grund_t *from, const grund_t *to, long *
 	}
 
 	if(  umgebung_t::pak_height_conversion_factor == 2  ) {
-		// cannot build if conversion factor 2 and way or powerline 1 tile below
+		// cannot build if conversion factor 2, we aren't powerline and way with maximum speed > 0 or powerline 1 tile below
 		grund_t *to2 = welt->lookup( to->get_pos() + koord3d(0, 0, -1) );
-		if(  to2  &&  (to2->get_weg_nr(0)  ||  to2->get_leitung())  ) {
+		if(  to2 && (((bautyp&bautyp_mask)!=leitung && to2->get_weg_nr(0) && to2->get_weg_nr(0)->get_besch()->get_topspeed()>0) || to2->get_leitung())  ) {
 			return false;
 		}
-		// tile above cannot have way, or be surface if we are underground
+		// tile above cannot have way unless we are a way (not powerline) with a maximum speed of 0, or be surface if we are underground
 		to2 = welt->lookup( to->get_pos() + koord3d(0, 0, 1) );
-		if(  to2  &&  (to2->get_weg_nr(0)  ||  (bautyp & tunnel_flag) != 0)  ) {
+		if(  to2  &&  ((to2->get_weg_nr(0) && (besch->get_topspeed()>0 || (bautyp&bautyp_mask)==leitung))  ||  (bautyp & tunnel_flag) != 0)  ) {
 			return false;
 		}
 	}
@@ -778,7 +778,7 @@ bool wegbauer_t::is_allowed_step( const grund_t *from, const grund_t *to, long *
 					ok &= to->get_typ() == grund_t::fundament && to->find<field_t>();
 				}
 				// no bridges and monorails here in the air
-				ok &= (welt->lookup(to_pos)->get_boden_in_hoehe(to->get_pos().z+1)==NULL);
+				ok &= (welt->access(to_pos)->get_boden_in_hoehe(to->get_pos().z+1)==NULL);
 			}
 
 			// calculate costs
@@ -1786,7 +1786,7 @@ long ms=dr_time();
 		else {
 			intern_calc_route( ziel, start );
 		}
-		while (!route.empty() && welt->lookup(route[0])->get_grund_hang() == hang_t::flach) {
+		while (!route.empty() && welt->lookup(route[0])->get_grund_hang() == hang_t::flach && welt->lookup(route[1])->ist_wasser()) {
 			// remove leading water ...
 			route.remove_at(0);
 		}
@@ -2082,6 +2082,27 @@ bool wegbauer_t::baue_tunnelboden()
 			// check for extension only ...
 			if(tunnel_besch->get_waytype()!=powerline_wt) {
 				gr->weg_erweitern( tunnel_besch->get_waytype(), route.get_ribi(i) );
+
+				tunnel_t *tunnel = gr->find<tunnel_t>();
+				assert( tunnel );
+				// take the faster way
+				if(  !keep_existing_faster_ways  ||  (tunnel->get_besch()->get_topspeed() < tunnel_besch->get_topspeed())  ) {
+					spieler_t::add_maintenance(sp, -tunnel->get_besch()->get_wartung(), tunnel->get_besch()->get_finance_waytype());
+					spieler_t::add_maintenance(sp,  tunnel_besch->get_wartung(), tunnel->get_besch()->get_finance_waytype() );
+
+					tunnel->set_besch(tunnel_besch);
+					weg_t *weg = gr->get_weg(tunnel_besch->get_waytype());
+					weg->set_besch(wb);
+					weg->set_max_speed(tunnel_besch->get_topspeed());
+					// respect max speed of catenary
+					wayobj_t const* const wo = gr->get_wayobj(tunnel_besch->get_waytype());
+					if (wo  &&  wo->get_besch()->get_topspeed() < weg->get_max_speed()) {
+						weg->set_max_speed( wo->get_besch()->get_topspeed() );
+					}
+					gr->calc_bild();
+
+					cost -= tunnel_besch->get_preis();
+				}
 			} else {
 				leitung_t *lt = gr->get_leitung();
 				if(!lt) {
@@ -2092,26 +2113,6 @@ bool wegbauer_t::baue_tunnelboden()
 					lt->leitung_t::laden_abschliessen();	// only change powerline aspect
 					spieler_t::add_maintenance( sp, -lt->get_besch()->get_wartung(), powerline_wt);
 				}
-			}
-			tunnel_t *tunnel = gr->find<tunnel_t>();
-			assert( tunnel );
-			// take the faster way
-			if(  !keep_existing_faster_ways  ||  (tunnel->get_besch()->get_topspeed() < tunnel_besch->get_topspeed())  ) {
-				spieler_t::add_maintenance(sp, -tunnel->get_besch()->get_wartung(), tunnel->get_besch()->get_finance_waytype());
-				spieler_t::add_maintenance(sp,  tunnel_besch->get_wartung(), tunnel->get_besch()->get_finance_waytype() );
-
-				tunnel->set_besch(tunnel_besch);
-				weg_t *weg = gr->get_weg(tunnel_besch->get_waytype());
-				weg->set_besch(wb);
-				weg->set_max_speed(tunnel_besch->get_topspeed());
-				// respect max speed of catenary
-				wayobj_t const* const wo = gr->get_wayobj(tunnel_besch->get_waytype());
-				if (wo  &&  wo->get_besch()->get_topspeed() < weg->get_max_speed()) {
-					weg->set_max_speed( wo->get_besch()->get_topspeed() );
-				}
-				gr->calc_bild();
-
-				cost -= tunnel_besch->get_preis();
 			}
 		}
 	}

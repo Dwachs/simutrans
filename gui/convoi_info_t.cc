@@ -17,10 +17,10 @@
 #include "../simdepot.h"
 #include "../vehicle/simvehikel.h"
 #include "../simcolor.h"
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 #include "../simworld.h"
 #include "../simmenu.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 #include "../dataobj/fahrplan.h"
 #include "../dataobj/translator.h"
@@ -42,7 +42,7 @@
 
 static const char cost_type[convoi_t::MAX_CONVOI_COST][64] =
 {
-	"Free Capacity", "Transported", "Revenue", "Operation", "Profit", "Distance", "Maxspeed"
+	"Free Capacity", "Transported", "Revenue", "Operation", "Profit", "Distance", "Maxspeed", "Way toll"
 };
 
 static const int cost_type_color[convoi_t::MAX_CONVOI_COST] =
@@ -53,12 +53,13 @@ static const int cost_type_color[convoi_t::MAX_CONVOI_COST] =
 	COL_OPERATION,
 	COL_PROFIT,
 	COL_DISTANCE,
-	COL_MAXSPEED
+	COL_MAXSPEED,
+	COL_TOLL
 };
 
 static const bool cost_type_money[convoi_t::MAX_CONVOI_COST] =
 {
-	false, false, true, true, true, false
+	false, false, true, true, true, false, false, true
 };
 
 
@@ -190,8 +191,8 @@ convoi_info_t::convoi_info_t(convoihandle_t cnv)
 
 	cnv->set_sortby( umgebung_t::default_sortmode );
 
-	set_fenstergroesse(koord(total_width, view.get_groesse().y+208+scrollbar_t::BAR_SIZE));
-	set_min_windowsize(koord(total_width, view.get_groesse().y+131+scrollbar_t::BAR_SIZE));
+	set_fenstergroesse(koord(total_width, view.get_groesse().y+208+button_t::gui_scrollbar_size.y));
+	set_min_windowsize(koord(total_width, view.get_groesse().y+131+button_t::gui_scrollbar_size.y));
 
 	set_resizemode(diagonal_resize);
 	resize(koord(0,0));
@@ -640,6 +641,14 @@ void convoi_info_t::rdwr(loadsave_t *file)
 		w->set_fenstergroesse( gr );
 		if(  file->get_version()<111001  ) {
 			for(  int i = 0;  i < 6;  i++  ) {
+				w->filterButtons[i].pressed = (flags>>i)&1;
+				if(w->filterButtons[i].pressed) {
+					w->chart.show_curve(i);
+				}
+			}
+		}
+		else if(  file->get_version()<112008  ) {
+			for(  int i = 0;  i < 7;  i++  ) {
 				w->filterButtons[i].pressed = (flags>>i)&1;
 				if(w->filterButtons[i].pressed) {
 					w->chart.show_curve(i);

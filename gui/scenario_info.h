@@ -10,7 +10,6 @@
 #include "components/gui_flowtext.h"
 #include "components/gui_tab_panel.h"
 #include "components/gui_scrollpane.h"
-#include "gui_frame.h"
 
 class dynamic_string;
 class karte_t;

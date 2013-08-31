@@ -35,11 +35,12 @@ void wasser_t::prepare_for_refresh()
 
 void wasser_t::calc_bild_internal()
 {
-	sint16 height = welt->get_water_hgt( get_pos().get_2d() );
+	koord pos2d(get_pos().get_2d());
+	sint16 height = welt->get_water_hgt( pos2d );
 	set_hoehe( height );
 	slope = hang_t::flach;
 
-	sint16 zpos = min( welt->lookup_hgt( get_pos().get_2d() ), height ); // otherwise slope will fail ...
+	sint16 zpos = min( welt->lookup_hgt( pos2d ), height ); // otherwise slope will fail ...
 
 	if (grund_t::underground_mode==grund_t::ugm_level && grund_t::underground_level < zpos) {
 		set_bild(IMG_LEER);
@@ -47,23 +48,14 @@ void wasser_t::calc_bild_internal()
 	else {
 		set_bild( min( height - zpos, grund_besch_t::water_depth_levels ) /*grund_besch_t::get_ground_tile(0,zpos)*/ );
 	}
-	// test for ribis
+
+	// test tiles to north, south, east and west and add to ribi if water
 	ribi = ribi_t::keine;
-	grund_t *grw = welt->lookup_kartenboden(pos.get_2d() + koord(-1,0)); // west
-	if (grw  &&  (grw->ist_wasser()  ||  grw->hat_weg(water_wt))) {
-		ribi |= ribi_t::west;
-	}
-	grund_t *grn = welt->lookup_kartenboden(pos.get_2d() + koord(0,-1)); // nord
-	if (grn  &&  (grn->ist_wasser()  ||  grn->hat_weg(water_wt))) {
-		ribi |= ribi_t::nord;
-	}
-	grund_t *gre = welt->lookup_kartenboden(pos.get_2d() + koord(1,0)); // ost
-	if (gre  &&  (gre->ist_wasser()  ||  gre->hat_weg(water_wt))) {
-		ribi |= ribi_t::ost;
-	}
-	grund_t *grs = welt->lookup_kartenboden(pos.get_2d() + koord(0,1)); // sued
-	if (grs  &&  (grs->ist_wasser()  ||  grs->hat_weg(water_wt))) {
-		ribi |= ribi_t::sued;
+	for(  int i=0;  i<4;  i++  ) {
+		grund_t *gr_neighbour = welt->lookup_kartenboden(pos2d + koord::nsow[i]);
+		if (gr_neighbour  &&  (gr_neighbour->ist_wasser()  ||  gr_neighbour->hat_weg(water_wt))) {
+			ribi |= ribi_t::nsow[i];
+		}
 	}
 
 	// artifical walls from here on ...

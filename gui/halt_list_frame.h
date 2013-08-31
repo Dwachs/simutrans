@@ -17,7 +17,7 @@
 #define __halt_list_frame_h
 
 #include "gui_frame.h"
-#include "gui_container.h"
+#include "components/gui_container.h"
 #include "halt_list_stats.h"
 #include "components/gui_scrollpane.h"
 #include "components/gui_button.h"

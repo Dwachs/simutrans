@@ -6,57 +6,57 @@
  * This file is part of the Simutrans project under the artistic licence.
  */
 
-#include <stdio.h>
-#include <string.h>
-
-#include "../../simdebug.h"
 #include "gui_label.h"
-#include "../../simgraph.h"
-#include "../../simcolor.h"
+#include "../gui_frame.h"
 #include "../../dataobj/translator.h"
 #include "../../utils/simstring.h"
-#include "../../simwin.h"
+#include "../../gui/simwin.h"
+
+
 
 
 gui_label_t::gui_label_t(const char* text, COLOR_VAL color_, align_t align_) :
-	align(align_),
-	color(color_),
 	tooltip(NULL)
 {
-	set_text( text );
+	set_groesse( koord( D_BUTTON_WIDTH, LINESPACE ) );
+	init( text, koord (0,0), color_, align_);
 }
 
 
-void gui_label_t::set_text(const char *text)
+void gui_label_t::set_text(const char *text, bool autosize)
 {
-	set_text_pointer(translator::translate(text));
+	if (text != NULL) {
+		set_text_pointer(translator::translate(text), autosize);
+	}
+	else {
+		set_text_pointer(NULL, false);
+	}
 }
 
 
-void gui_label_t::set_text_pointer(const char *text)
+void gui_label_t::set_text_pointer(const char *text_par, bool autosize)
 {
-	this->text = text;
+	text = text_par;
 
-	if (text) {
-		koord groesse;
-		groesse.x = display_calc_proportional_string_len_width(text,strlen(text));
-		groesse.y = large_font_total_height;
-		set_groesse(groesse);
+	if (autosize && text && *text != '\0') {
+		set_groesse( koord( display_calc_proportional_string_len_width(text,strlen(text)),LINESPACE ) );
 	}
 }
 
 
 void gui_label_t::zeichnen(koord offset)
 {
-	if(align == money) {
+	if(  align == money  ) {
 		if(text) {
 			const char *seperator = NULL;
+
 			if(  strrchr(text, '$')!=NULL  ) {
 				seperator = strrchr(text, get_fraction_sep());
 				if(seperator==NULL  &&  get_large_money_string()!=NULL) {
 					seperator = strrchr(text, *(get_large_money_string()) );
 				}
 			}
+
 			if(seperator) {
 				display_proportional_clip(pos.x+offset.x, pos.y+offset.y, seperator, DT_DIRTY|ALIGN_LEFT, color, true);
 				if(  seperator!=text  ) {
@@ -68,31 +68,44 @@ void gui_label_t::zeichnen(koord offset)
 			}
 		}
 	}
+
 	else if(text) {
 		int al;
+		scr_coord_val align_offset_x = 0;
+		scr_coord_val align_offset_y = D_GET_CENTER_ALIGN_OFFSET( LINESPACE, groesse.y );
 
 		switch(align) {
 			case left:
 				al = ALIGN_LEFT;
 				break;
 			case centered:
-				al = ALIGN_MIDDLE;
+				al = ALIGN_CENTER_H;
+				align_offset_x = (groesse.x>>1);
 				break;
 			case right:
 				al = ALIGN_RIGHT;
+				align_offset_x = groesse.x;
 				break;
 			default:
 				al = ALIGN_LEFT;
 		}
-		display_proportional_clip(pos.x+offset.x, pos.y+offset.y, text, al, color, true);
+
+		size_t idx = display_fit_proportional( text, groesse.x+1, translator::get_lang()->eclipse_width );
+		if(  text[idx]==0  ) {
+			display_proportional_clip(pos.x + offset.x + align_offset_x, pos.y + offset.y + align_offset_y, text, al, color, true);
+		}
+		else {
+			scr_coord_val w = display_text_proportional_len_clip( pos.x+offset.x+align_offset_x, pos.y+offset.y, text, al | DT_DIRTY | DT_CLIP, color, idx );
+			display_proportional_clip( pos.x + offset.x + align_offset_x + w, pos.y + offset.y + align_offset_y, translator::translate("..."), al | DT_DIRTY | DT_CLIP, color, false );
+		}
+
 	}
 
 	if ( tooltip  &&  getroffen(get_maus_x()-offset.x, get_maus_y()-offset.y) ) {
+		const scr_coord_val by = offset.y + pos.y;
+		const scr_coord_val bh = groesse.y;
 
-		const KOORD_VAL by = offset.y + pos.y;
-		const KOORD_VAL bh = groesse.y;
-
-		win_set_tooltip(get_maus_x() + 16, by + bh + 12, tooltip, this);
+		win_set_tooltip(get_maus_x() + TOOLTIP_MOUSE_OFFSET_X, by + bh + TOOLTIP_MOUSE_OFFSET_Y, tooltip, this);
 	}
 }
 

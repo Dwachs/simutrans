@@ -6,23 +6,23 @@
 
 #include <stdio.h>
 
-#include "simworld.h"
+#include "../simworld.h"
 #include "simview.h"
 #include "simgraph.h"
 
-#include "simticker.h"
-#include "simdebug.h"
-#include "simdings.h"
-#include "simconst.h"
-#include "simplan.h"
-#include "simmenu.h"
-#include "player/simplay.h"
-#include "besch/grund_besch.h"
-#include "boden/wasser.h"
-#include "dataobj/umgebung.h"
-#include "dings/zeiger.h"
+#include "../simticker.h"
+#include "../simdebug.h"
+#include "../simdings.h"
+#include "../simconst.h"
+#include "../simplan.h"
+#include "../simmenu.h"
+#include "../player/simplay.h"
+#include "../besch/grund_besch.h"
+#include "../boden/wasser.h"
+#include "../dataobj/umgebung.h"
+#include "../dings/zeiger.h"
 
-#include "simtools.h"
+#include "../simtools.h"
 
 karte_ansicht_t::karte_ansicht_t(karte_t *welt)
 {
@@ -41,13 +41,11 @@ static const sint8 hours2night[] =
 };
 
 #if MULTI_THREAD>1
-// enable barriers by this
-#define _XOPEN_SOURCE 600
-#include <pthread.h>
+#include "../utils/simthread.h"
 
 bool spawned_threads=false; // global job indicator array
-static pthread_barrier_t display_barrier_start;
-static pthread_barrier_t display_barrier_end;
+static simthread_barrier_t display_barrier_start;
+static simthread_barrier_t display_barrier_end;
 
 // to start a thread
 typedef struct{
@@ -65,9 +63,9 @@ void *display_region_thread( void *ptr )
 {
 	display_region_param_t *view = reinterpret_cast<display_region_param_t *>(ptr);
 	while(true) {
-		pthread_barrier_wait( &display_barrier_start );	// wait for all to start
+		simthread_barrier_wait( &display_barrier_start );	// wait for all to start
 		view->show_routine->display_region( view->lt, view->wh, view->y_min, view->y_max, false, true );
-		pthread_barrier_wait( &display_barrier_end );	// wait for all to finish
+		simthread_barrier_wait( &display_barrier_end );	// wait for all to finish
 	}
 	return ptr;
 }
@@ -168,6 +166,9 @@ void karte_ansicht_t::display(bool force_dirty)
 #if MULTI_THREAD>1
 	if(  umgebung_t::simple_drawing  &&  can_multithreading  ) {
 
+		// reset polygonal clipping - outside of multithreaded display
+		clear_all_poly_clip();
+
 		if(!spawned_threads) {
 			// we can do the parallel display using posix threads ...
 			pthread_t thread[MULTI_THREAD];
@@ -176,8 +177,8 @@ void karte_ansicht_t::display(bool force_dirty)
 			pthread_attr_init(&attr);
 			pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 			// init barrier
-			pthread_barrier_init( &display_barrier_start, NULL, MULTI_THREAD );
-			pthread_barrier_init( &display_barrier_end, NULL, MULTI_THREAD );
+			simthread_barrier_init( &display_barrier_start, NULL, MULTI_THREAD );
+			simthread_barrier_init( &display_barrier_end, NULL, MULTI_THREAD );
 			// init mutexes
 			pthread_mutex_init( &grid_mutex, NULL );
 			pthread_mutex_init( &hide_mutex, NULL );
@@ -204,12 +205,12 @@ void karte_ansicht_t::display(bool force_dirty)
 			ka[t].y_max = dpy_height+4*4;
 		}
 		// and start drawing
-		pthread_barrier_wait( &display_barrier_start );
+		simthread_barrier_wait( &display_barrier_start );
 
 		// the last we can run ourselves
 		display_region( koord( ((MULTI_THREAD-1)*disp_width)/MULTI_THREAD,menu_height), koord(disp_width/MULTI_THREAD,disp_height-menu_height), y_min, dpy_height+4*4, false, true );
 
-		pthread_barrier_wait( &display_barrier_end );
+		simthread_barrier_wait( &display_barrier_end );
 
 		// and now draw the overlapping region single threaded with clipping
 		for(  int t=1;  t<MULTI_THREAD;  t++  ) {
@@ -241,7 +242,7 @@ void karte_ansicht_t::display(bool force_dirty)
 			const int xpos = x*(IMG_SIZE/2) + const_x_off;
 
 			if(  xpos+IMG_SIZE>0  ) {
-				const planquadrat_t *plan=welt->lookup(koord(i,j));
+				const planquadrat_t *plan=welt->access(i,j);
 				if(plan  &&  plan->get_kartenboden()) {
 					const grund_t *gr = plan->get_kartenboden();
 					// minimum height: ground height for overground,
@@ -444,8 +445,7 @@ void karte_ansicht_t::display_region( koord lt, koord wh, sint16 y_min, const si
 			const int xpos = x*(IMG_SIZE/2) + const_x_off;
 
 			if(  xpos+IMG_SIZE>lt.x  ) {
-				const koord pos(i,j);
-				const planquadrat_t *plan=welt->lookup(pos);
+				const planquadrat_t *plan=welt->access(i,j);
 				if(plan  &&  plan->get_kartenboden()) {
 					const grund_t *gr = plan->get_kartenboden();
 					// minimum height: ground height for overground,
@@ -476,6 +476,7 @@ void karte_ansicht_t::display_region( koord lt, koord wh, sint16 y_min, const si
 					if(yypos-IMG_SIZE*3<wh.y+lt.y  &&  yypos+IMG_SIZE>lt.y) {
 
 						if(  umgebung_t::hide_under_cursor  &&  needs_hiding  ) {
+							const koord pos(i,j);
 							if(  koord_distance(pos,cursor_pos) < umgebung_t::cursor_hide_range  ) {
 								// If the corresponding setting is on, then hide trees and buildings under mouse cursor
 								if(  !lock_restore_hiding  ) {

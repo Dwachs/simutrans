@@ -8,17 +8,18 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "macros.h"
-#include "simtypes.h"
+#include "../macros.h"
+#include "../simtypes.h"
 #include "font.h"
-#include "pathes.h"
-#include "simconst.h"
-#include "simsys.h"
-#include "simmem.h"
-#include "simdebug.h"
-#include "besch/bild_besch.h"
-#include "unicode.h"
-#include "simticker.h"
+#include "../pathes.h"
+#include "../simconst.h"
+#include "../simsys.h"
+#include "../simmem.h"
+#include "../simdebug.h"
+#include "../besch/bild_besch.h"
+#include "../unicode.h"
+#include "../simticker.h"
+#include "simgraph.h"
 
 
 #ifdef _MSC_VER
@@ -47,7 +48,7 @@
 #endif
 
 #if MULTI_THREAD>1
-#include <pthread.h>
+#include "../utils/simthread.h"
 
 // currently just redrawing/rezooming
 static pthread_mutex_t rezoom_recode_img_mutex;
@@ -57,11 +58,6 @@ static pthread_mutex_t rezoom_recode_img_mutex;
 
 // undefine for debugging the update routines
 //#define DEBUG_FLUSH_BUFFER
-
-/*
- * Hajo: RGB 1555
- */
-typedef uint16 PIXVAL;
 
 
 #ifdef USE_SOFTPOINTER
@@ -1028,17 +1024,20 @@ static void rezoom(void)
 
 void set_zoom_factor(int z)
 {
-	zoom_factor = z;
-	tile_raster_width = (base_tile_raster_width * zoom_num[zoom_factor]) / zoom_den[zoom_factor];
-	fprintf(stderr, "set_zoom_factor() : set %d (%i/%i)\n", zoom_factor, zoom_num[zoom_factor], zoom_den[zoom_factor] );
-	rezoom();
+	// do not zoom beyond 4 pixels
+	if(  (base_tile_raster_width * zoom_num[z]) / zoom_den[z] > 4  ) {
+		zoom_factor = z;
+		tile_raster_width = (base_tile_raster_width * zoom_num[zoom_factor]) / zoom_den[zoom_factor];
+		fprintf(stderr, "set_zoom_factor() : set %d (%i/%i)\n", zoom_factor, zoom_num[zoom_factor], zoom_den[zoom_factor] );
+		rezoom();
+	}
 }
 
 
 int zoom_factor_up()
 {
 	// zoom out, if size permits
-	if(  zoom_factor>0  ) {
+	if(  zoom_factor > 0  ) {
 		set_zoom_factor( zoom_factor-1 );
 		return true;
 	}
@@ -1048,7 +1047,7 @@ int zoom_factor_up()
 
 int zoom_factor_down()
 {
-	if (zoom_factor<MAX_ZOOM_FACTOR) {
+	if(  zoom_factor < MAX_ZOOM_FACTOR  ) {
 		set_zoom_factor( zoom_factor+1 );
 		return true;
 	}
@@ -1864,6 +1863,22 @@ void display_set_player_color_scheme(const int player, const COLOR_VAL col1, con
 		recode();
 		mark_screen_dirty();
 	}
+}
+
+
+// returns next matching color to an rgb
+COLOR_VAL display_get_index_from_rgb( uint8 r, uint8 g, uint8 b )
+{
+	COLOR_VAL result = 0;
+	unsigned diff = 256*3;
+	for(  unsigned i=0;  i<lengthof(special_pal);  i+=3  ) {
+		unsigned cur_diff = abs(r-special_pal[i+0]) + abs(g-special_pal[i+1]) + abs(b-special_pal[i+2]);
+		if(  cur_diff < diff  ) {
+			result = i/3;
+			diff = cur_diff;
+		}
+	}
+	return result;
 }
 
 
@@ -3642,7 +3657,7 @@ bool display_load_font(const char* fname)
 // unicode save moving in strings
 size_t get_next_char(const char* text, size_t pos)
 {
-	if (has_unicode) {
+	if(  has_unicode  ) {
 		return utf8_get_next_char((const utf8*)text, pos);
 	}
 	else {
@@ -3653,12 +3668,13 @@ size_t get_next_char(const char* text, size_t pos)
 
 long get_prev_char(const char* text, long pos)
 {
-	if (pos <= 0) {
+	if(  pos <= 0  ) {
 		return 0;
 	}
-	if (has_unicode) {
+	if(  has_unicode  ) {
 		return utf8_get_prev_char((const utf8*)text, pos);
-	} else {
+	}
+	else {
 		return pos - 1;
 	}
 }
@@ -3667,10 +3683,23 @@ long get_prev_char(const char* text, long pos)
 KOORD_VAL display_get_char_width(utf16 c)
 {
 	KOORD_VAL w = large_font.screen_width[c];
-	if (w == 0) w = large_font.screen_width[0];
+	if(  w == 0  ) {
+		w = large_font.screen_width[0];
+	}
 	return w;
 }
 
+
+KOORD_VAL display_get_char_max_width(const char* text, size_t len) {
+
+	KOORD_VAL max_len=0;
+
+	for(unsigned n=0; (len && n<len) || (len==0 && *text != '\0'); n++) {
+		max_len = max(max_len,display_get_char_width(*text++));
+	}
+
+	return max_len;
+}
 
 /**
  * For the next logical character in the text, returns the character code
@@ -3746,6 +3775,45 @@ unsigned short get_prev_char_with_metrics(const char* &text, const char *const t
 }
 
 
+/*
+ * returns the index of the last character that would fit within the width
+ * If an eclipse len is given, it will only return the last character up to this len if the full length cannot be fitted
+ * @returns index of next chracter. if text[index]==0 the whole string fits
+ */
+size_t display_fit_proportional( const char *text, scr_coord_val max_width, scr_coord_val eclipse_width )
+{
+	size_t max_idx = 0;
+
+	uint8 byte_length = 0;
+	uint8 pixel_width = 0;
+	scr_coord_val current_offset = 0;
+
+	const char *tmp_text = text;
+	while(  get_next_char_with_metrics(tmp_text, byte_length, pixel_width)  &&  max_width > (current_offset+eclipse_width+pixel_width)  ) {
+		current_offset += pixel_width;
+		max_idx += byte_length;
+	}
+	size_t eclipse_idx = max_idx;
+
+	// now check if the text would fit completely
+	if(  eclipse_width  &&  pixel_width > 0  ) {
+		// only when while above failed because of exceeding length
+		current_offset += pixel_width;
+		max_idx += byte_length;
+		// check the rest ...
+		while(  get_next_char_with_metrics(tmp_text, byte_length, pixel_width)  &&  max_width > (current_offset+pixel_width)  ) {
+			current_offset += pixel_width;
+			max_idx += byte_length;
+		}
+		// if this fits, return end of string
+		if(  max_width > (current_offset+pixel_width)  ) {
+			return max_idx+byte_length;
+		}
+	}
+	return eclipse_idx;
+}
+
+
 /* proportional_string_width with a text of a given length
  * extended for universal font routines with unicode support
  * @author Volker Meyer
@@ -3782,7 +3850,7 @@ int display_calc_proportional_string_len_width(const char* text, size_t len)
 		unsigned int c;
 		while(  *text != 0  &&  len > 0  ) {
 			c = (unsigned char)*text;
-			if(  c>=fnt->num_chars  ||  (char_width=fnt->screen_width[c])>=128  ) {
+			if(  (c >= fnt->num_chars)  ||  ((char_width = fnt->screen_width[c]) >= 128)  ) {
 				// default width for missing characters
 				char_width = fnt->screen_width[0];
 			}
@@ -3826,14 +3894,13 @@ static unsigned char get_h_mask(const int xL, const int xR, const int cL, const 
 	return mask;
 }
 
-
 /*
  * len parameter added - use -1 for previous bvbehaviour.
  * completely renovated for unicode and 10 bit width and variable height
  * @author Volker Meyer, prissi
  * @date  15.06.2003, 2.1.2005
  */
-int display_text_proportional_len_clip(KOORD_VAL x, KOORD_VAL y, const char* txt, int flags, const PLAYER_COLOR_VAL color_index, long len)
+int display_text_proportional_len_clip(KOORD_VAL x, KOORD_VAL y, const char* txt, control_alignment_t flags, const PLAYER_COLOR_VAL color_index, long len)
 {
 	const font_type* const fnt = &large_font;
 	KOORD_VAL cL, cR, cT, cB;
@@ -3870,12 +3937,12 @@ int display_text_proportional_len_clip(KOORD_VAL x, KOORD_VAL y, const char* txt
 	if (len < 0) len = 0x7FFF;
 
 	// adapt x-coordinate for alignment
-	switch (flags & ALIGN_MASK) {
+	switch (flags & ( ALIGN_LEFT | ALIGN_CENTER_H | ALIGN_RIGHT) ) {
 		case ALIGN_LEFT:
 			// nothing to do
 			break;
 
-		case ALIGN_MIDDLE:
+		case ALIGN_CENTER_H:
 			x -= display_calc_proportional_string_len_width(txt, len) / 2;
 			break;
 

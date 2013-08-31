@@ -52,8 +52,8 @@ scenario_info_t::scenario_info_t(karte_t *welt_) :
 	tabs.add_tab(&scrolly_debug, translator::translate("Scenario Debug"));
 	debug_msg.set_text( welt->get_scenario()->get_forbidden_text() );
 
-	set_fenstergroesse(koord(300, D_TITLEBAR_HEIGHT + gui_tab_panel_t::HEADER_VSIZE+250));
-	set_min_windowsize(koord(40,  D_TITLEBAR_HEIGHT + gui_tab_panel_t::HEADER_VSIZE+10));
+	set_fenstergroesse(koord(300, D_TITLEBAR_HEIGHT + TAB_HEADER_V_SIZE+250));
+	set_min_windowsize(koord(40,  D_TITLEBAR_HEIGHT + TAB_HEADER_V_SIZE+10));
 
 	koord pane_pos(D_MARGIN_LEFT, D_MARGIN_TOP);
 	gui_flowtext_t *texts[] = { &info, &goal, &rule, &result, &about, &error, &debug_msg};
@@ -85,7 +85,7 @@ void scenario_info_t::resize(const koord delta)
 	tabs.set_groesse(groesse);
 
 	gui_flowtext_t *texts[] = { &info, &goal, &rule, &result, &about, &error, &debug_msg};
-	koord gr = get_client_windowsize() - info.get_pos() - koord(D_MARGIN_RIGHT + scrollbar_t::BAR_SIZE, D_MARGIN_BOTTOM + scrollbar_t::BAR_SIZE);
+	koord gr = get_client_windowsize() - info.get_pos() - koord(D_MARGIN_RIGHT + button_t::gui_scrollbar_size.x, D_MARGIN_BOTTOM + button_t::gui_scrollbar_size.y);
 	for(uint32 i=0; i<lengthof(texts); i++) {
 		texts[i]->set_groesse( gr );
 		texts[i]->set_groesse( texts[i]->get_text_size() );
@@ -99,7 +99,7 @@ void scenario_info_t::resize(const koord delta)
 void scenario_info_t::update_scenario_texts(bool init)
 {
 	scenario_t *scen = welt->get_scenario();
-	koord border_size = get_client_windowsize() - info.get_pos() - koord(D_MARGIN_RIGHT + scrollbar_t::BAR_SIZE, D_MARGIN_BOTTOM + scrollbar_t::BAR_SIZE);
+	koord border_size = get_client_windowsize() - info.get_pos() - koord(D_MARGIN_RIGHT + button_t::gui_scrollbar_size.x, D_MARGIN_BOTTOM + button_t::gui_scrollbar_size.y);
 	if (init) {
 		scen->update_scenario_texts();
 	}

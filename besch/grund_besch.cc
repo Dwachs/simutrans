@@ -13,7 +13,7 @@
 
 #include "../simdebug.h"
 #include "../simworld.h"
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 #include "../simconst.h"
 #include "spezial_obj_tpl.h"
 #include "grund_besch.h"
@@ -27,8 +27,6 @@ const int totalslopes = 81;
 * some functions for manipulations/blending images
 * maybe they should be put in their own module, even though they are only used here ...
 */
-
-typedef uint16 PIXVAL;
 
 #define red_comp(pix)			(((pix)>>10)&0x001f)
 #define green_comp(pix)		(((pix)>>5)&0x001f)
@@ -59,8 +57,8 @@ typedef uint16 PIXVAL;
 } */
 
 
-/* combines a textute and a lightmap
- * just weight all pixel by the lightmap
+/* combines a texture and a lightmap
+ * just weights all pixels by the lightmap
  */
 static bild_besch_t* create_textured_tile(const bild_besch_t* bild_lightmap, const bild_besch_t* bild_texture)
 {
@@ -275,10 +273,12 @@ static bild_besch_t* create_alpha_tile(const bild_besch_t* bild_lightmap, hang_t
 		bild_dest->register_image();
 		return bild_dest;
 	}
+	assert( bild_alphamap->get_pic()->w == bild_alphamap->get_pic()->h);
+
 	bild_besch_t *bild_dest = bild_lightmap->copy_rotate(0);
 
 	PIXVAL const* const alphamap  = bild_alphamap->get_daten();
-	const sint32 x_y     = bild_alphamap->get_pic()->w;
+	const sint32 x_y     = bild_dest->get_pic()->w;
 	const sint32 mix_x_y = bild_alphamap->get_pic()->w;
 	sint16 tile_x, tile_y;
 
@@ -408,13 +408,14 @@ karte_t *grund_besch_t::welt = NULL;
  */
 const uint8 grund_besch_t::slopetable[80] =
 {
-	0, 1 , 0xFF,
-	2 , 3 , 0xFF, 0xFF, 0xFF, 0xFF,
-	4 , 5, 0xFF, 6, 7, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	8, 9, 0xFF, 10, 11, 0xFF, 0xFF, 0xFF, 0xFF, 12, 13, 0xFF,  14, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+	0,	1,	0xFF,	2,	3,	0xFF,	0xFF,	0xFF,	0xFF,	4,
+	5, 	0xFF,	6,	7,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,
+	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	8,	9,	0xFF,
+	10,	11,	0xFF,	0xFF,	0xFF,	0xFF,	12,	13,	0xFF,	14,
+	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,
+	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,
+	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,
+	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF,	0xFF
 };
 
 // how many animation stages we got for waves
@@ -874,6 +875,10 @@ void grund_besch_t::init_ground_textures(karte_t *w)
 				}
 				else {
 					all_rotations_slope[slope] = NULL;
+					if (slope == hang_t::suedwest * 2 + hang_t::nordost * 2 + hang_t::suedost * 2 + hang_t::nordwest * 2) {
+						all_rotations_slope[slope] = transition_slope_texture->get_bild_ptr(0)->copy_rotate(0);
+						all_rotations_beach[slope] = transition_water_texture->get_bild_ptr(0)->copy_rotate(0);
+					}
 				}
 				break;
 			}
@@ -917,8 +922,12 @@ void grund_besch_t::init_ground_textures(karte_t *w)
 	// alpha transitions for climates
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		for(  int corners = 1;  corners < 16;  corners++  ) {
+			// slope of tile
 			int slope = double_grounds ? dslope : slopetable[dslope];
+			// corners with transition
 			uint8 double_corners = corners == 15 ? 80 : scorner1(corners) + 3 * scorner2(corners) + 9 * scorner3(corners) + 27 * scorner4(corners);
+
+			// create alpha image
 			final_tile = create_alpha_tile( light_map->get_bild_ptr( slope ), dslope, all_rotations_slope[double_corners] );
 			alpha_corners_bild[dslope * 15 + corners - 1] = final_tile->get_nummer();
 

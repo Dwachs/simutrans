@@ -21,7 +21,7 @@
 #include "../boden/wege/schiene.h"
 #include "../dings/leitung2.h"
 #include "../utils/cbuffer_t.h"
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 #include "../simtools.h"
 #include "../player/simplay.h"
 
@@ -719,7 +719,7 @@ void reliefkarte_t::calc_map_pixel(const koord k)
 	}
 
 	// always use to uppermost ground
-	const planquadrat_t *plan=welt->lookup(k);
+	const planquadrat_t *plan=welt->access(k);
 	if(plan==NULL  ||  plan->get_boden_count()==0) {
 		return;
 	}

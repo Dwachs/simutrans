@@ -11,8 +11,8 @@
 
 #include "../simworld.h"
 #include "../simcolor.h"
-#include "../simgraph.h"
-#include "../simwin.h"
+#include "../display/simgraph.h"
+#include "../gui/simwin.h"
 #include "../utils/simstring.h"
 #include "../utils/cbuffer_t.h"
 #include "../utils/csv.h"
@@ -20,12 +20,12 @@
 
 
 #include "../dataobj/translator.h"
-#include "../dataobj/network.h"
-#include "../dataobj/network_file_transfer.h"
-#include "../dataobj/network_cmd_ingame.h"
-#include "../dataobj/network_cmp_pakset.h"
+#include "../network/network.h"
+#include "../network/network_file_transfer.h"
+#include "../network/network_cmd_ingame.h"
+#include "../network/network_cmp_pakset.h"
 #include "../dataobj/umgebung.h"
-#include "../dataobj/pakset_info.h"
+#include "../network/pakset_info.h"
 #include "../player/simplay.h"
 #include "server_frame.h"
 #include "messagebox.h"
@@ -85,7 +85,6 @@ server_frame_t::server_frame_t(karte_t* w) :
 			add_komponente( &show_offline );
 		}
 
-
 		pos_y += D_BUTTON_HEIGHT;
 		pos_y += D_V_SPACE * 2;                // GUI line goes here
 
@@ -107,6 +106,7 @@ server_frame_t::server_frame_t(karte_t* w) :
 
 		pos_y += D_BUTTON_HEIGHT;
 		pos_y += D_V_SPACE * 2;                // GUI line goes here
+
 	}
 
 	revision.set_pos( koord( D_MARGIN_LEFT, pos_y ) );
@@ -127,8 +127,8 @@ server_frame_t::server_frame_t(karte_t* w) :
 	pos_y += LINESPACE;
 	pos_y += D_V_SPACE * 2;        // GUI line goes here
 
-	date.set_pos( koord( ww - D_MARGIN_LEFT, pos_y ) );
-	date.set_align( gui_label_t::right );
+	date.set_pos( koord( ww - D_MARGIN_LEFT - date.get_groesse().x, pos_y ) );
+	//date.set_align( gui_label_t::right );
 	add_komponente( &date );
 
 	// Leave room for elements added during draw phase (multiline text + map)
@@ -137,7 +137,7 @@ server_frame_t::server_frame_t(karte_t* w) :
 	pos_y += D_V_SPACE * 2;        // GUI line goes here
 
 	const int nick_width = 80;
-	nick_label.set_pos( koord( D_MARGIN_LEFT, pos_y ) );
+	nick_label.set_pos( koord( D_MARGIN_LEFT, pos_y + D_GET_CENTER_ALIGN_OFFSET(LINESPACE,D_BUTTON_HEIGHT) ) );
 	nick_label.set_text( "Nickname:" );
 	add_komponente( &nick_label );
 
@@ -185,6 +185,7 @@ void server_frame_t::update_error (const char* errortext)
 	buf.clear();
 	display_map = false;
 	date.set_text( errortext );
+	date.set_pos( koord( get_fenstergroesse().x - D_MARGIN_RIGHT - date.get_groesse().x, date.get_pos().y ) );
 	revision.set_text( "" );
 	pak_version.set_text( "" );
 	join.disable();
@@ -280,6 +281,7 @@ void server_frame_t::update_info ()
 			break;
 	}
 	date.set_text( time );
+	date.set_pos( koord( get_fenstergroesse().x - D_MARGIN_RIGHT - date.get_groesse().x, date.get_pos().y ) );
 	set_dirty();
 }
 
@@ -401,7 +403,7 @@ bool server_frame_t::action_triggered (gui_action_creator_t *komp, value_t p)
 			server_scrollitem_t *item = (server_scrollitem_t*)serverlist.get_element( p.i );
 			if(  item->online()  ) {
 				const char *err = network_gameinfo( ((server_scrollitem_t*)serverlist.get_element( p.i ))->get_dns(), &gi );
-				if(  err == NULL  ) {
+				if (  err == NULL  ) {
 					item->set_color( COL_BLACK );
 					update_info();
 				}
@@ -577,6 +579,7 @@ void server_frame_t::zeichnen (koord pos, koord gr)
 		pos_y += D_V_SPACE;
 
 		// drawing twice, but otherwise it will not overlay image
-		serverlist.zeichnen( pos + koord( 0, 16 ) );
+		// Overlay what image? It draws fine the first time, this second redraw paints it in teh wrong place anyway...
+		// serverlist.zeichnen( pos + koord( 0, 16 ) );
 	}
 }

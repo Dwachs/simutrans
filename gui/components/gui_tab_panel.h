@@ -6,7 +6,7 @@
 #ifndef gui_tab_panel_h
 #define gui_tab_panel_h
 
-#include "../../simimg.h"
+#include "../../display/simimg.h"
 
 #include "../../besch/skin_besch.h"
 
@@ -41,7 +41,7 @@ private:
 	button_t left, right;
 
 public:
-	enum { HEADER_VSIZE = 18};
+	static KOORD_VAL header_vsize;
 
 	gui_tab_panel_t();
 

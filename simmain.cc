@@ -12,10 +12,10 @@
 #include "simmain.h"
 #include "simworld.h"
 #include "simware.h"
-#include "simview.h"
-#include "simwin.h"
+#include "display/simview.h"
+#include "gui/simwin.h"
 #include "simhalt.h"
-#include "simimg.h"
+#include "display/simimg.h"
 #include "simcolor.h"
 #include "simskin.h"
 #include "simconst.h"
@@ -31,7 +31,7 @@
 #include "simwerkz.h"
 
 #include "simsys.h"
-#include "simgraph.h"
+#include "display/simgraph.h"
 #include "simevent.h"
 #include "simtools.h"
 
@@ -53,13 +53,13 @@
 #include "utils/simstring.h"
 #include "utils/searchfolder.h"
 
-#include "dataobj/network.h"	// must be before any "windows.h" is included via bzlib2.h ...
+#include "network/network.h"	// must be before any "windows.h" is included via bzlib2.h ...
 #include "dataobj/loadsave.h"
 #include "dataobj/umgebung.h"
 #include "dataobj/tabfile.h"
 #include "dataobj/einstellungen.h"
 #include "dataobj/translator.h"
-#include "dataobj/pakset_info.h"
+#include "network/pakset_info.h"
 
 #include "besch/reader/obj_reader.h"
 #include "besch/sound_besch.h"
@@ -437,6 +437,7 @@ int simu_main(int argc, char** argv)
 			" -sizes              Show current size of some structures\n"
 #endif
 			" -startyear N        start in year N\n"
+			" -theme N            user directory containing theme files\n"
 			" -timeline           enables timeline\n"
 #if defined DEBUG || defined PROFILE
 			" -times              does some simple profiling\n"
@@ -564,11 +565,13 @@ int simu_main(int argc, char** argv)
 		if (  cli_syslog_tag  ) {
 			printf("Init logging with syslog tag: %s\n", cli_syslog_tag);
 			init_logging( "syslog", true, true, version, cli_syslog_tag );
-		} else {
+		}
+		else {
 			printf("Init logging with default syslog tag\n");
 			init_logging( "syslog", true, true, version, "simutrans" );
 		}
-	} else if (gimme_arg(argc, argv, "-log", 0)) {
+	}
+	else if (gimme_arg(argc, argv, "-log", 0)) {
 		chdir( umgebung_t::user_dir );
 		char temp_log_name[256];
 		const char *logname = "simu.log";
@@ -579,14 +582,14 @@ int simu_main(int argc, char** argv)
 			logname = temp_log_name;
 		}
 		init_logging( logname, true, gimme_arg(argc, argv, "-log", 0 ) != NULL, version, NULL );
-	} else if (gimme_arg(argc, argv, "-debug", 0) != NULL) {
+	}
+	else if (gimme_arg(argc, argv, "-debug", 0) != NULL) {
 		init_logging( "stderr", true, gimme_arg(argc, argv, "-debug", 0 ) != NULL, version, NULL );
-	} else {
+	}
+	else {
 		init_logging(NULL, false, false, version, NULL);
 	}
-
 	/*** End logging set up ***/
-
 
 	// now read last setting (might be overwritten by the tab-files)
 	loadsave_t file;
@@ -631,7 +634,7 @@ int simu_main(int argc, char** argv)
 	}
 
 	// now set the desired objectfilename (override all previous settings)
-	if (gimme_arg(argc, argv, "-objects", 1)) {
+	if(  gimme_arg(argc, argv, "-objects", 1)  ) {
 		umgebung_t::objfilename = gimme_arg(argc, argv, "-objects", 1);
 		// append slash / replace trailing backslash if necessary
 		uint16 len = umgebung_t::objfilename.length();
@@ -677,6 +680,15 @@ int simu_main(int argc, char** argv)
 
 	// prepare skins first
 	obj_reader_t::init();
+	bool themes_ok = false;
+	if(  const char *themestr = gimme_arg(argc, argv, "-theme", 1)  ) {
+		chdir( umgebung_t::user_dir );
+		themes_ok = themes_init(themestr);
+	}
+	if(  !themes_ok  ) {
+		chdir( umgebung_t::program_dir );
+		themes_ok = themes_init("theme");
+	}
 	chdir( umgebung_t::program_dir );
 
 	// likely only the program without graphics was downloaded
@@ -1087,7 +1099,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		welt->init(&sets,0);
 		//  start in June ...
 		intr_set(welt, view);
-		win_set_welt(welt);
+		win_set_world(welt);
 		werkzeug_t::toolbar_tool[0]->init(welt,welt->get_active_player());
 		welt->set_fast_forward(true);
 		welt->sync_step(5000,true,false);
@@ -1103,7 +1115,7 @@ DBG_MESSAGE("simmain","loadgame file found at %s",buffer);
 		}
 		// just init view (world was loaded from file)
 		intr_set(welt, view);
-		win_set_welt(welt);
+		win_set_world(welt);
 		werkzeug_t::toolbar_tool[0]->init(welt,welt->get_active_player());
 	}
 

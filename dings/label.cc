@@ -11,9 +11,9 @@
 
 #include "../simworld.h"
 #include "../simdings.h"
-#include "../simimg.h"
+#include "../display/simimg.h"
 #include "../simskin.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 #include "../simhalt.h"
 #include "../player/simplay.h"
 #include "../gui/label_info.h"
@@ -26,7 +26,7 @@
 #include "label.h"
 
 #if MULTI_THREAD>1
-#include <pthread.h>
+#include "../utils/simthread.h"
 static pthread_mutex_t add_label_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 

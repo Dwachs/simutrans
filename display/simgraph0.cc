@@ -3,13 +3,11 @@
  * Available under the Artistic License (see license.txt)
  */
 
-#include "simconst.h"
-#include "simsys.h"
-#include "besch/bild_besch.h"
+#include "../simconst.h"
+#include "../simsys.h"
+#include "../besch/bild_besch.h"
 
 #include "simgraph.h"
-
-typedef uint16 PIXVAL;
 
 int large_font_height = 10;
 int large_font_total_height = 11;
@@ -99,6 +97,11 @@ void display_set_player_color_scheme(const int, const COLOR_VAL, const COLOR_VAL
 {
 }
 
+COLOR_VAL display_get_index_from_rgb(uint8, uint8, uint8)
+{
+	return 0;
+}
+
 void register_image(struct bild_t* bild)
 {
 	bild->bild_nr = 1;
@@ -108,12 +111,26 @@ void display_snapshot(int, int, int, int)
 {
 }
 
-void display_get_image_offset(unsigned, KOORD_VAL *, KOORD_VAL *, KOORD_VAL *, KOORD_VAL *)
+void display_get_image_offset(unsigned bild, KOORD_VAL *xoff, KOORD_VAL *yoff, KOORD_VAL *xw, KOORD_VAL *yw)
 {
+	if (bild < 2) {
+		// initialize offsets with dummy values
+		*xoff = 0;
+		*yoff = 0;
+		*xw   = 0;
+		*yw   = 0;
+	}
 }
 
-void display_get_base_image_offset(unsigned, KOORD_VAL *, KOORD_VAL *, KOORD_VAL *, KOORD_VAL *)
+void display_get_base_image_offset(unsigned bild, KOORD_VAL *xoff, KOORD_VAL *yoff, KOORD_VAL *xw, KOORD_VAL *yw)
 {
+	if (bild < 2) {
+		// initialize offsets with dummy values
+		*xoff = 0;
+		*yoff = 0;
+		*xw   = 0;
+		*yw   = 0;
+	}
 }
 
 void display_set_base_image_offset(unsigned, KOORD_VAL, KOORD_VAL)
@@ -176,7 +193,7 @@ void display_base_img_blend(const unsigned, KOORD_VAL, KOORD_VAL, const signed c
 {
 }
 
-void display_base_img_alpha(const unsigned, const unsigned, const uint8, KOORD_VAL, KOORD_VAL, const signed char, const PLAYER_COLOR_VAL, const int, const int)
+void display_base_img_alpha(const unsigned, const unsigned, const unsigned, KOORD_VAL, KOORD_VAL, const signed char, const PLAYER_COLOR_VAL, const int, const int)
 {
 }
 
@@ -229,6 +246,11 @@ KOORD_VAL display_get_char_width(utf16)
 	return 0;
 }
 
+KOORD_VAL display_get_char_max_width(const char*, size_t)
+{
+	return 0;
+}
+
 unsigned short get_next_char_with_metrics(const char* &, unsigned char &, unsigned char &)
 {
 	return 0;
@@ -239,12 +261,17 @@ unsigned short get_prev_char_with_metrics(const char* &, const char *const, unsi
 	return 0;
 }
 
+size_t display_fit_proportional(const char *, scr_coord_val, scr_coord_val)
+{
+	return 0;
+}
+
 int display_calc_proportional_string_len_width(const char*, size_t)
 {
 	return 0;
 }
 
-int display_text_proportional_len_clip(KOORD_VAL, KOORD_VAL, const char*, int, const PLAYER_COLOR_VAL, long)
+int display_text_proportional_len_clip(KOORD_VAL, KOORD_VAL, const char*, control_alignment_t, const PLAYER_COLOR_VAL, long)
 {
 	return 0;
 }

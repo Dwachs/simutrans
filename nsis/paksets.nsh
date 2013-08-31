@@ -181,12 +181,12 @@ SectionEnd
 
 
 
-Section /o "pak128.German V0.5 for 112.1" pak128german
-  AddSize 77103
-  StrCpy $downloadlink "http://downloads.sourceforge.net/project/simutrans/PAK128.german/PAK128.german_0.5_112.1/PAK128.german_0.5_112.x.zip"
-  StrCpy $archievename "PAK128.german_0.5_112.x.zip"
+Section /o "pak128.German V0.6 for 112.1" pak128german
+  AddSize 80992
+  StrCpy $downloadlink "http://downloads.sourceforge.net/project/simutrans/PAK128.german/PAK128.german_0.6_112.x/PAK128.german_0.6_112.x.zip"
+  StrCpy $archievename "PAK128.german_0.6_112.x.zip"
   StrCpy $downloadname "pak128.German"
-  StrCpy $VersionString "  PAK128.german V 0.5 (Rev. 1320)"
+  StrCpy $VersionString "  PAK128.german V 0.6 (Rev. 1395)"
   Call DownloadInstallZip
 SectionEnd
 
@@ -205,11 +205,10 @@ SectionEnd
 Section /o "pak192 Comic (Freeware)" pak192comic
   AddSize 40882
   StrCpy $downloadlink "http://simutrans-germany.com/files/upload/pak192.comic_0-2-2_112-2.zip"
-;  StrCpy $downloadlink "http://downloads.sourceforge.net/project/simutrans/pak192.comic/pak192.comic_102-2-1/pak192.comic_0-1-9-1_102-2-1.zip"
   StrCpy $archievename "pak192.comic_0-2-2_112-2.zip"
   StrCpy $downloadname "pak192.comic"
   StrCpy $VersionString "pak192.comic [Version 0.2.2]"
-  Call DownloadInstallZip
+  Call DownloadInstallZipWithoutSimutrans
 SectionEnd
 
 

@@ -17,10 +17,10 @@
 #define gui_container_h
 
 
-#include "../simdebug.h"
-#include "../simevent.h"
-#include "../tpl/slist_tpl.h"
-#include "components/gui_komponente.h"
+#include "../../simdebug.h"
+#include "../../simevent.h"
+#include "../../tpl/slist_tpl.h"
+#include "gui_komponente.h"
 
 class gui_container_t : public gui_komponente_t
 {
@@ -32,13 +32,20 @@ private:
 
 	bool list_dirty:1;
 
-	/// true, while infowin_event is processed
+	// true, while infowin_event is processed
 	bool inside_infowin_event:1;
+
 public:
 	gui_container_t();
 
 	// needed for WIN_OPEN events
-	void clear_dirty() {list_dirty=false;}
+	void clear_dirty() { list_dirty=false; }
+
+	/**
+	 * Returns the minimum rectangle which encloses all children
+	 * @author Max Kielland
+	 */
+	scr_rect get_min_boundaries(void) const;
 
 	/**
 	* Adds a Component to the Container.

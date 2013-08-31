@@ -25,7 +25,7 @@
 #include "../convoihandle_t.h"
 #include "../linehandle_t.h"
 #include "../simconvoi.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 #include "../utils/cbuffer_t.h"
 

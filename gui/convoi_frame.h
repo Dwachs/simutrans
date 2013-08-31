@@ -17,7 +17,7 @@
 
 #include "convoi_filter_frame.h"
 #include "gui_frame.h"
-#include "gui_container.h"
+#include "components/gui_container.h"
 #include "components/gui_scrollbar.h"
 #include "components/gui_speedbar.h"
 #include "components/gui_label.h"

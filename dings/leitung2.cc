@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 #if MULTI_THREAD>1
-#include <pthread.h>
+#include "../utils/simthread.h"
 static pthread_mutex_t verbinde_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t calc_bild_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t pumpe_list_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -19,11 +19,11 @@ static pthread_mutex_t senke_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 #include "../simworld.h"
 #include "../simdings.h"
 #include "../player/simplay.h"
-#include "../simimg.h"
+#include "../display/simimg.h"
 #include "../simfab.h"
 #include "../simskin.h"
 
-#include "../simgraph.h"
+#include "../display/simgraph.h"
 
 #include "../utils/cbuffer_t.h"
 

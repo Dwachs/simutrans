@@ -13,8 +13,7 @@
 #define gui_map_frame_h
 
 #include "gui_frame.h"
-//#include "karte.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 #include "components/gui_scrollpane.h"
 #include "components/action_listener.h"
 #include "components/gui_button.h"
@@ -45,7 +44,7 @@ private:
 	 * so we use a static variable here.
 	 * @author Hj. Malthaner
 	 */
-	static koord size;
+	static koord window_size;
 	static koord screenpos;
 
 	static bool legend_visible;
@@ -58,10 +57,10 @@ private:
 	// Cache of factories in current game world
 	static stringhashtable_tpl<const fabrik_besch_t *> factory_list;
 
-	  /**
-	   * We need to keep track of drag/click events
-	   * @author Hj. Malthaner
-	   */
+	/**
+	 * We need to keep track of drag/click events
+	 * @author Hj. Malthaner
+	 */
 	bool is_dragging;
 
 	/**
@@ -70,21 +69,31 @@ private:
 	 */
 	bool zoomed;
 
-	gui_scrollpane_t scrolly;
+	gui_container_t
+		filter_container,
+		scale_container,
+		directory_container;
 
-	button_t filter_buttons[MAP_MAX_BUTTONS];
+	gui_scrollpane_t
+		scrolly;
+
+	button_t
+		filter_buttons[MAP_MAX_BUTTONS],
+		zoom_buttons[2],
+		b_rotate45,
+		b_show_legend,
+		b_show_scale,
+		b_show_directory,
+		b_overlay_networks,
+		b_filter_factory_list;
+
+	gui_label_t
+		zoom_label,
+		zoom_value_label,
+		min_label,
+		max_label;
 
 	void zoom(bool zoom_out);
-	button_t zoom_buttons[2];
-	gui_label_t zoom_label;
-	button_t b_rotate45;
-
-	button_t b_show_legend;
-	button_t b_show_scale;
-	button_t b_show_directory;
-	button_t b_overlay_networks;
-	button_t b_filter_factory_list;
-
 	void update_factory_legend();
 	void show_hide_legend(const bool show);
 	void show_hide_scale(const bool show);
@@ -130,7 +139,7 @@ public:
 	 * @author Hj. Malthaner
 	 * @date   01-Jun-2002
 	 */
-	void resize(const koord delta);
+	void resize(const koord delta=koord(0,0));
 
 	/**
 	 * Draw new component. The values to be passed refer to the window

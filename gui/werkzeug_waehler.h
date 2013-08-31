@@ -13,7 +13,7 @@
 
 #include "gui_frame.h"
 #include "../tpl/vector_tpl.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 class karte_t;
 class werkzeug_t;

@@ -14,7 +14,7 @@
 #include "../tpl/vector_tpl.h"
 #include "components/action_listener.h"
 #include "gui_frame.h"
-#include "gui_container.h"
+#include "components/gui_container.h"
 #include "components/gui_scrollpane.h"
 #include "components/gui_textinput.h"
 #include "components/gui_divider.h"
@@ -80,12 +80,12 @@ private:
 
 protected:
 
-	gui_textinput_t input;
-	gui_divider_t divider1;                               // 30-Oct-2001  Markus Weber    Added
-	button_t savebutton;                                  // 29-Oct-2001  Markus Weber    Added
-	button_t cancelbutton;                                // 29-Oct-2001  Markus Weber    Added
-	gui_label_t fnlabel;        //filename                // 31-Oct-2001  Markus Weber    Added
-	gui_container_t button_frame;
+	gui_textinput_t  input;
+	gui_divider_t    divider1;                    // 30-Oct-2001  Markus Weber    Added
+	button_t         savebutton;                  // 29-Oct-2001  Markus Weber    Added
+	button_t         cancelbutton;                // 29-Oct-2001  Markus Weber    Added
+	gui_label_t      fnlabel;       //filename    // 31-Oct-2001  Markus Weber    Added
+	gui_container_t  button_frame;
 	gui_scrollpane_t scrolly;
 
 	/**

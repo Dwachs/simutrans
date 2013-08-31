@@ -8,7 +8,7 @@
 #include <string>
 #include "../simcity.h"
 #include "../simsys.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 #include "../dataobj/umgebung.h"
 #include "../dataobj/translator.h"
@@ -31,10 +31,10 @@ settings_frame_t::settings_frame_t(settings_t* const s) :
 	scrolly_costs(&costs),
 	scrolly_climates(&climates)
 {
-	revert_to_default.init( button_t::roundbox, "Simuconf.tab", koord( BUTTON1_X, 0), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	revert_to_default.init( button_t::roundbox, "Simuconf.tab", koord( BUTTON1_X, 0) );
 	revert_to_default.add_listener( this );
 	add_komponente( &revert_to_default );
-	revert_to_last_save.init( button_t::roundbox, "Default.sve", koord( BUTTON2_X, 0), koord( D_BUTTON_WIDTH, D_BUTTON_HEIGHT ) );
+	revert_to_last_save.init( button_t::roundbox, "Default.sve", koord( BUTTON2_X, 0) );
 	revert_to_last_save.add_listener( this );
 	add_komponente( &revert_to_last_save );
 
@@ -51,7 +51,7 @@ settings_frame_t::settings_frame_t(settings_t* const s) :
 	scrolly_costs.set_scroll_amount_y(D_BUTTON_HEIGHT/2);
 	scrolly_climates.set_scroll_amount_y(D_BUTTON_HEIGHT/2);
 
-	tabs.set_pos(koord(0,D_BUTTON_HEIGHT));
+	tabs.set_pos(koord(D_MARGIN_LEFT,D_BUTTON_HEIGHT));
 	tabs.add_tab(&scrolly_general, translator::translate("General"));
 	tabs.add_tab(&scrolly_display, translator::translate("Helligk."));
 	tabs.add_tab(&scrolly_economy, translator::translate("Economy"));
@@ -60,8 +60,8 @@ settings_frame_t::settings_frame_t(settings_t* const s) :
 	tabs.add_tab(&scrolly_climates, translator::translate("Climate Control"));
 	add_komponente(&tabs);
 
-	set_fenstergroesse(koord(D_DEFAULT_WIDTH, D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT+gui_tab_panel_t::HEADER_VSIZE+18*(D_BUTTON_HEIGHT/2)+2+1));
-	set_min_windowsize(koord(BUTTON3_X, D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT+gui_tab_panel_t::HEADER_VSIZE+6*(D_BUTTON_HEIGHT/2)+2+1));
+	set_fenstergroesse(koord(D_DEFAULT_WIDTH, D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT+TAB_HEADER_V_SIZE+18*(D_BUTTON_HEIGHT/2)+2+1));
+	set_min_windowsize(koord(BUTTON3_X, D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT+TAB_HEADER_V_SIZE+6*(D_BUTTON_HEIGHT/2)+2+1));
 
 	set_resizemode(diagonal_resize);
 	resize(koord(0,0));
@@ -77,7 +77,7 @@ settings_frame_t::settings_frame_t(settings_t* const s) :
 void settings_frame_t::resize(const koord delta)
 {
 	gui_frame_t::resize(delta);
-	koord groesse = get_fenstergroesse()-koord(0,D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT);
+	koord groesse = get_fenstergroesse()-koord(D_MARGIN_LEFT,D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT+D_MARGIN_BOTTOM);
 	tabs.set_groesse(groesse);
 }
 

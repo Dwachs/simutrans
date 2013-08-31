@@ -9,7 +9,7 @@
 #define gui_stadt_info_h
 
 #include "../simcity.h"
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 #include "gui_frame.h"
 #include "components/gui_chart.h"

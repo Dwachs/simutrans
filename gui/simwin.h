@@ -14,8 +14,8 @@
 
 #include <stddef.h> // for ptrdiff_t
 
-#include "simtypes.h"
-#include "simconst.h"
+#include "../simtypes.h"
+#include "../simconst.h"
 
 class karte_t;
 class koord;
@@ -109,6 +109,12 @@ enum magic_numbers {
 // Holding time for auto-closing windows
 #define MESG_WAIT 80
 
+/**
+ * Reads theme configuration data, still not final
+ * searches a theme.tab inside the specified folder
+ * @author prissi
+ */
+bool themes_init(const char *dir_name);
 
 void init_map_win();
 
@@ -157,10 +163,17 @@ void win_display_flush(double konto); // draw the frame and all windows
 void win_get_event(event_t*);
 void win_poll_event(event_t*);
 
-void win_set_welt(karte_t *welt);
-
 bool win_change_zoom_factor(bool magnify);
 
+/**
+ * Sets the world this window manager is attached to.
+ */
+void win_set_world(karte_t *world);
+
+/**
+ * Forces the redraw of the world on next frame.
+ */
+void win_redraw_world();
 
 /**
  * Sets the tooltip to display.

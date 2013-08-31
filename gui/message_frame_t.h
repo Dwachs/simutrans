@@ -8,7 +8,7 @@
 #ifndef message_frame_h
 #define message_frame_h
 
-#include "../simwin.h"
+#include "../gui/simwin.h"
 
 #include "gui_frame.h"
 #include "components/gui_button.h"

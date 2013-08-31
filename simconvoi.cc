@@ -14,7 +14,7 @@
 #include "simconvoi.h"
 #include "simhalt.h"
 #include "simdepot.h"
-#include "simwin.h"
+#include "gui/simwin.h"
 #include "simmenu.h"
 #include "simcolor.h"
 #include "simmesg.h"
@@ -162,7 +162,7 @@ void convoi_t::init(karte_t *wl, spieler_t *sp)
 	line_update_pending = linehandle_t();
 
 	home_depot = koord3d::invalid;
-	last_stop_pos = koord3d::invalid;
+	// last_stop_pos = koord3d::invalid;
 
 	recalc_data_front = true;
 	recalc_data = true;
@@ -514,7 +514,7 @@ void convoi_t::call_convoi_tool( const char function, const char *extra ) const
 
 void convoi_t::rotate90( const sint16 y_size )
 {
-	last_stop_pos.rotate90( y_size );
+	// last_stop_pos.rotate90( y_size );
 	record_pos.rotate90( y_size );
 	home_depot.rotate90( y_size );
 	route.rotate90( y_size );
@@ -632,6 +632,8 @@ void convoi_t::add_running_cost( const weg_t *weg )
 		}
 		weg->get_besitzer()->book_toll_received( toll, get_schedule()->get_waytype() );
 		get_besitzer()->book_toll_paid(         -toll, get_schedule()->get_waytype() );
+		book( -toll, CONVOI_WAYTOLL);
+		book( -toll, CONVOI_PROFIT);
 	}
 	get_besitzer()->book_running_costs( sum_running_costs, get_schedule()->get_waytype());
 
@@ -1433,8 +1435,9 @@ DBG_MESSAGE("convoi_t::add_vehikel()","extend array_tpl to %i totals.",max_rail_
 		}
 		// check for obsolete
 		if(!has_obsolete  &&  welt->use_timeline()) {
-			has_obsolete = v->get_besch()->is_retired( welt->get_timeline_year_month() );
+			has_obsolete = info->is_retired( welt->get_timeline_year_month() );
 		}
+		spieler_t::add_maintenance( get_besitzer(), info->get_maintenance(), info->get_waytype() );
 	}
 	else {
 		return false;
@@ -1468,6 +1471,7 @@ vehikel_t *convoi_t::remove_vehikel_bei(uint16 i)
 			sum_gear_und_leistung -= info->get_leistung()*info->get_gear();
 			sum_gewicht -= info->get_gewicht();
 			sum_running_costs += info->get_betriebskosten();
+			spieler_t::add_maintenance( get_besitzer(), -info->get_maintenance(), info->get_waytype() );
 		}
 		sum_gesamtgewicht = sum_gewicht;
 		calc_loading();
@@ -2077,6 +2081,7 @@ void convoi_t::rdwr(loadsave_t *file)
 			}
 
 			const vehikel_besch_t *info = v->get_besch();
+			assert(info);
 
 			// Hajo: if we load a game from a file which was saved from a
 			// game with a different vehicle.tab, there might be no vehicle
@@ -2087,9 +2092,7 @@ void convoi_t::rdwr(loadsave_t *file)
 				sum_gewicht += info->get_gewicht();
 				sum_running_costs -= info->get_betriebskosten();
 				is_electric |= info->get_engine_type()==vehikel_besch_t::electric;
-			}
-			else {
-				DBG_MESSAGE("convoi_t::rdwr()","no vehikel info!");
+				spieler_t::add_maintenance( get_besitzer(), info->get_maintenance(), info->get_waytype() );
 			}
 
 			// some versions save vehicles after leaving depot with koord3d::invalid
@@ -2186,6 +2189,7 @@ void convoi_t::rdwr(loadsave_t *file)
 		for (size_t k = MAX_MONTHS; k-- != 0;) {
 			financial_history[k][CONVOI_DISTANCE] = 0;
 			financial_history[k][CONVOI_MAXSPEED] = 0;
+			financial_history[k][CONVOI_WAYTOLL] = 0;
 		}
 	}
 	else if(  file->get_version()<=102002  ){
@@ -2198,6 +2202,7 @@ void convoi_t::rdwr(loadsave_t *file)
 		for (size_t k = MAX_MONTHS; k-- != 0;) {
 			financial_history[k][CONVOI_DISTANCE] = 0;
 			financial_history[k][CONVOI_MAXSPEED] = 0;
+			financial_history[k][CONVOI_WAYTOLL] = 0;
 		}
 	}
 	else if(  file->get_version()<111001  ){
@@ -2209,9 +2214,22 @@ void convoi_t::rdwr(loadsave_t *file)
 		}
 		for (size_t k = MAX_MONTHS; k-- != 0;) {
 			financial_history[k][CONVOI_MAXSPEED] = 0;
+			financial_history[k][CONVOI_WAYTOLL] = 0;
 		}
 	}
-	else {
+	else if(  file->get_version()<112008  ){
+		// load statistics
+		for (int j = 0; j<7; j++) {
+			for (size_t k = MAX_MONTHS; k-- != 0;) {
+				file->rdwr_longlong(financial_history[k][j]);
+			}
+		}
+		for (size_t k = MAX_MONTHS; k-- != 0;) {
+			financial_history[k][CONVOI_WAYTOLL] = 0;
+		}
+	}
+	else
+	{
 		// load statistics
 		for (int j = 0; j<MAX_CONVOI_COST; j++) {
 			for (size_t k = MAX_MONTHS; k-- != 0;) {
@@ -2246,14 +2264,19 @@ void convoi_t::rdwr(loadsave_t *file)
 		home_depot.rdwr(file);
 	}
 
+	// Old versions recorded last_stop_pos in convoi, not in vehicle
+	koord3d last_stop_pos_convoi = koord3d(0,0,0);
+	if (anz_vehikel !=0) {
+		last_stop_pos_convoi = fahr[0]->last_stop_pos;
+	}
 	if(file->get_version()>=87001) {
-		last_stop_pos.rdwr(file);
+		last_stop_pos_convoi.rdwr(file);
 	}
 	else {
-		last_stop_pos =
-			!route.empty()   ? route.front()      :
-			anz_vehikel != 0 ? fahr[0]->get_pos() :
-			koord3d(0, 0, 0);
+		last_stop_pos_convoi =
+		!route.empty()   ? route.front()      :
+		anz_vehikel != 0 ? fahr[0]->get_pos() :
+		koord3d(0, 0, 0);
 	}
 
 	// for leaving the depot routine
@@ -2286,7 +2309,7 @@ void convoi_t::rdwr(loadsave_t *file)
 	// since 99015, the last stop will be maintained by the vehikels themselves
 	if(file->get_version()<99015) {
 		for(unsigned i=0; i<anz_vehikel; i++) {
-			fahr[i]->last_stop_pos = last_stop_pos.get_2d();
+			fahr[i]->last_stop_pos = last_stop_pos_convoi;
 		}
 	}
 
@@ -2553,10 +2576,10 @@ void convoi_t::calc_gewinn()
 	for(unsigned i=0; i<anz_vehikel; i++) {
 		vehikel_t* v = fahr[i];
 		sint64 tmp;
-		gewinn += tmp = v->calc_gewinn(v->last_stop_pos, v->get_pos().get_2d() );
+		gewinn += tmp = v->calc_gewinn(v->last_stop_pos.get_2d(), v->get_pos().get_2d() );
 		// get_schedule is needed as v->get_waytype() returns track_wt for trams (instead of tram_wt
 		besitzer_p->book_revenue(tmp, fahr[0]->get_pos().get_2d(), get_schedule()->get_waytype(), v->get_fracht_typ()->get_index() );
-		v->last_stop_pos = v->get_pos().get_2d();
+		v->last_stop_pos = v->get_pos();
 	}
 
 	// update statistics of average speed
@@ -2630,12 +2653,12 @@ void convoi_t::hat_gehalten(halthandle_t halt)
 		}
 
 		// we need not to call this on the same position
-		if(  v->last_stop_pos != v->get_pos().get_2d()  ) {
+		if(  v->last_stop_pos != v->get_pos()  ) {
 			sint64 tmp;
 			// calc_revenue
-			gewinn += tmp = v->calc_gewinn(v->last_stop_pos, v->get_pos().get_2d() );
+			gewinn += tmp = v->calc_gewinn(v->last_stop_pos.get_2d(), v->get_pos().get_2d() );
 			besitzer_p->book_revenue(tmp, fahr[0]->get_pos().get_2d(), get_schedule()->get_waytype(), v->get_fracht_typ()->get_index());
-			v->last_stop_pos = v->get_pos().get_2d();
+			v->last_stop_pos = v->get_pos();
 		}
 
 		changed_loading_level |= v->entladen(halt);
