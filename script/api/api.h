@@ -20,6 +20,8 @@ void export_simple(HSQUIRRELVM vm);
 void export_tiles(HSQUIRRELVM vm);
 void export_world(HSQUIRRELVM vm);
 
+void export_commands(HSQUIRRELVM vm);
+
 void export_global_constants(HSQUIRRELVM vm);
 
 

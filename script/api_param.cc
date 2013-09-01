@@ -501,4 +501,8 @@ namespace script_api {
 		return welt;
 	}
 
+	werkzeug_t* param<werkzeug_t*>::get(HSQUIRRELVM vm, SQInteger index)
+	{
+		return get_attached_instance<werkzeug_t>(vm, index, (void*)param<werkzeug_t*>::get);
+	}
 };

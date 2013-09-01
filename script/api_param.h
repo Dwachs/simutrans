@@ -29,6 +29,7 @@ class stadt_t;
 class ware_production_t;
 class ware_besch_t;
 class weg_t;
+class werkzeug_t;
 
 /**
  * @namespace script_api The namespace contains all functions necessary to communicate
@@ -283,6 +284,7 @@ namespace script_api {
 	declare_param_mask(ware_besch_t*, "t|x|y", "good_desc_x");
 	declare_specialized_param(const ware_production_t*, "t|x|y", "factory_production_x");
 	declare_param_mask(ware_production_t*, "t|x|y", "factory_production_x");
+	declare_specialized_param(werkzeug_t*, "x", "command_x");
 
 	// export of ding_t derived classes in api/map_objects.cc
 	declare_specialized_param(ding_t*, "t|x|y", "map_object_x");
