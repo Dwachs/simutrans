@@ -20,6 +20,7 @@
 #include "../gui/player_frame_t.h"
 #include "../utils/cbuffer_t.h"
 #include "../utils/csv.h"
+#include "../script/script.h" // callback for calls to tools
 
 
 network_command_t* network_command_t::read_from_packet(packet_t *p)
@@ -940,6 +941,7 @@ nwc_tool_t::nwc_tool_t(spieler_t *sp, werkzeug_t *wkz, koord3d pos_, uint32 sync
 	init = init_;
 	tool_client_id = 0;
 	flags = wkz->flags;
+	callback_id = wkz->callback_id;
 	last_sync_step = spieler_t::get_welt()->get_last_checklist_sync_step();
 	last_checklist = spieler_t::get_welt()->get_last_checklist();
 	// write custom data of wkz to our internal buffer
@@ -961,6 +963,7 @@ nwc_tool_t::nwc_tool_t(const nwc_tool_t &nwt)
 	init = nwt.init;
 	tool_client_id = nwt.our_client_id;
 	flags = nwt.flags;
+	callback_id = nwt.callback_id;
 	// copy custom data of wkz to our internal buffer
 	custom_data = new memory_rw_t(custom_data_buf, lengthof(custom_data_buf), true);
 	if (nwt.custom_data) {
@@ -991,6 +994,7 @@ void nwc_tool_t::rdwr()
 	packet->rdwr_bool(init);
 	packet->rdwr_long(tool_client_id);
 	packet->rdwr_byte(flags);
+	packet->rdwr_long(callback_id);
 	// copy custom data of wkz to/from packet
 	if (packet->is_saving()) {
 		// write to packet
@@ -1233,6 +1237,8 @@ void nwc_tool_t::do_command(karte_t *welt)
 				wkz->flags = flags & ~werkzeug_t::WFL_LOCAL;
 			}
 			DBG_MESSAGE("nwc_tool_t::do_command","id=%d init=%d defpar=%s flag=%d",wkz_id&0xFFF,init,default_param,wkz->flags);
+
+			const char *err = NULL;
 			// call INIT
 			if(  init  ) {
 				// we should be here only if wkz->init() returns false
@@ -1246,7 +1252,7 @@ void nwc_tool_t::do_command(karte_t *welt)
 				if(active_wkz  &&  active_wkz->remove_preview_necessary()) {
 					active_wkz->cleanup(true);
 				}
-				const char *err = wkz->work( welt, sp, pos );
+				err = wkz->work( welt, sp, pos );
 				// only local players or AIs get the callback
 				if (local  ||  sp->get_ai_id()!=spieler_t::HUMAN) {
 					sp->tell_tool_result(wkz, pos, err, local);
@@ -1254,6 +1260,10 @@ void nwc_tool_t::do_command(karte_t *welt)
 				if (err) {
 					dbg->warning("nwc_tool_t::do_command","failed with '%s'",err);
 				}
+			}
+			// callback to script here
+			if (local  &&  callback_id != 0) {
+				suspended_scripts_t::tell_return_value(callback_id, err);
 			}
 			// reset flags
 			if (wkz) {
