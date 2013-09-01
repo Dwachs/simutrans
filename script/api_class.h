@@ -149,5 +149,19 @@ namespace script_api {
 		sq_setreleasehook(vm, index, command_release_hook<C>);
 	}
 
+	/**
+	 * Retrieves pointer to stored c++ instance.
+	 */
+	template<class C>
+	C* get_attached_instance(HSQUIRRELVM vm, SQInteger index, SQUserPointer tag)
+	{
+		SQUserPointer up;
+		sq_getinstanceup(vm, index, &up, tag);
+		if (up) {
+			return *( (C**)up );
+		}
+		return NULL;
+	}
+
 }; // end of namespace
 #endif
