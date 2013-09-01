@@ -6799,6 +6799,38 @@ void karte_t::switch_active_player(uint8 new_player, bool silent)
 }
 
 
+const char* karte_t::call_work(werkzeug_t *wkz, spieler_t *sp, koord3d pos, bool &suspended)
+{
+	const char *err = NULL;
+	if (!umgebung_t::networkmode  ||  wkz->is_work_network_save()  ||  wkz->is_work_here_network_save( this, sp, pos ) ) {
+		// do the work
+		wkz->flags |= werkzeug_t::WFL_LOCAL;
+		// check allowance by scenario
+		if (get_scenario()->is_scripted()) {
+			if (!get_scenario()->is_tool_allowed(sp, wkz->get_id(), wkz->get_waytype()) ) {
+				err = "";
+			}
+			else {
+				err = get_scenario()->is_work_allowed_here(sp, wkz->get_id(), wkz->get_waytype(), pos);
+			}
+		}
+		if (err == NULL) {
+			err = wkz->work(this, sp, pos);
+		}
+		suspended = false;
+	}
+	else {
+		// queue tool for network
+		nwc_tool_t *nwc = new nwc_tool_t(sp, wkz, pos, steps, map_counter, false);
+		network_send_server(nwc);
+		suspended = true;
+		// reset tool
+		wkz->init(this, sp);
+	}
+	return err;
+}
+
+
 void karte_t::interactive_event(event_t &ev)
 {
 	if(ev.ev_class == EVENT_KEYBOARD) {
@@ -6903,49 +6935,25 @@ void karte_t::interactive_event(event_t &ev)
 
 		if(is_within_grid_limits(zeiger->get_pos().get_2d())) {
 			const char *err = NULL;
-			bool result = true;
+			bool suspended = false;
 			werkzeug_t *wkz = werkzeug[get_active_player_nr()];
 			// first check for visibility etc
 			err = wkz->check_pos( this, get_active_player(), zeiger->get_pos() );
 			if (err==NULL) {
 				wkz->flags = event_get_last_control_shift();
-				if (!umgebung_t::networkmode  ||  wkz->is_work_network_save()  ||  wkz->is_work_here_network_save( this, get_active_player(), zeiger->get_pos() ) ) {
-					// do the work
-					wkz->flags |= werkzeug_t::WFL_LOCAL;
-					// check allowance by scenario
-					koord3d const& pos = zeiger->get_pos();
-					if (get_scenario()->is_scripted()) {
-						if (!get_scenario()->is_tool_allowed(get_active_player(), wkz->get_id(), wkz->get_waytype()) ) {
-							err = "";
-						}
-						else {
-							err = get_scenario()->is_work_allowed_here(get_active_player(), wkz->get_id(), wkz->get_waytype(), pos);
-						}
-					}
-					if (err == NULL) {
-						err = wkz->work(this, get_active_player(), zeiger->get_pos());
-						if( err == NULL ) {
-							// Check if we need to update pointer(zeiger) position.
-							if ( wkz->update_pos_after_use() ) {
-								// Cursor might need movement (screen has changed, we get a new one under the mouse pointer)
-								const koord3d pos_new = get_new_cursor_position(&ev ,wkz->is_grid_tool());
-								zeiger->set_pos(pos_new);
-							}
-						}
-					}
-				}
-				else {
-					// queue tool for network
-					nwc_tool_t *nwc = new nwc_tool_t(get_active_player(), wkz, zeiger->get_pos(), steps, map_counter, false);
-					network_send_server(nwc);
-					result = false;
-					// reset tool
-					wkz->init(this, get_active_player());
-				}
+				err = call_work(wkz, get_active_player(), zeiger->get_pos(), suspended);
 			}
-			if (result) {
+			if (!suspended) {
 				// play sound / error message
 				get_active_player()->tell_tool_result(wkz, zeiger->get_pos(), err, true);
+				if( err == NULL ) {
+					// Check if we need to update pointer(zeiger) position.
+					if ( wkz->update_pos_after_use() ) {
+						// Cursor might need movement (screen has changed, we get a new one under the mouse pointer)
+						const koord3d pos_new = get_new_cursor_position(&ev, wkz->is_grid_tool());
+						zeiger->set_pos(pos_new);
+					}
+				}
 			}
 			wkz->flags = 0;
 		}
