@@ -9,6 +9,7 @@
 
 #include "../utils/log.h"
 
+#include "../tpl/inthashtable_tpl.h"
 #include "../tpl/vector_tpl.h"
 // for error popups
 #include "../gui/help_frame.h"
@@ -116,7 +117,12 @@ script_vm_t::script_vm_t()
 
 script_vm_t::~script_vm_t()
 {
-	sq_close(vm); // also closes thread
+	// remove from suspended calls list
+	suspended_scripts_t::remove_vm(thread);
+	suspended_scripts_t::remove_vm(vm);
+	// close vm, also closes thread
+	sq_close(vm);
+
 	all_scripts.remove(this);
 	if (all_scripts.empty()) {
 		delete script_log;
@@ -660,3 +666,42 @@ void script_vm_t::intern_call_callbacks(HSQUIRRELVM job)
 	sq_poptop(job);
 	END_STACK_WATCH(job,0);
 }
+
+
+/* -------- management of suspended scripts that wait for return value ----------- */
+
+inthashtable_tpl<uint32,HSQUIRRELVM> suspended_scripts_t::suspended_scripts;
+
+
+uint32 suspended_scripts_t::get_unique_key(void* ptr)
+{
+	uint32 key = (uint32)(size_t)ptr;
+	while (suspended_scripts.get(key)) {
+		key ++;
+	}
+	return key;
+}
+
+void suspended_scripts_t::register_suspended_script(uint32 key, HSQUIRRELVM vm)
+{
+	suspended_scripts.set(key, vm);
+}
+
+HSQUIRRELVM suspended_scripts_t::remove_suspended_script(uint32 key)
+{
+	return suspended_scripts.remove(key);
+}
+
+void suspended_scripts_t::remove_vm(HSQUIRRELVM vm)
+{
+	inthashtable_tpl<uint32,HSQUIRRELVM>::iterator iter=suspended_scripts.begin(), end=suspended_scripts.end();
+	for(; iter != end; ) {
+		if ( (*iter).value == vm) {
+			iter = suspended_scripts.erase(iter);
+		}
+		else {
+			++iter;
+		}
+	}
+}
+
