@@ -10,6 +10,8 @@
 #include "../utils/plainstring.h"
 #include <string>
 
+void sq_setwakeupretvalue(HSQUIRRELVM v); //sq_extensions
+
 /**
  * Class providing interface to squirrel's virtual machine.
  *

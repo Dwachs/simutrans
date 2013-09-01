@@ -298,6 +298,11 @@ void script_vm_t::intern_resume_call(HSQUIRRELVM job)
 	sq_pop(job, 2);
 	END_STACK_WATCH(job, 0);
 
+	if (!sq_canresumevm(job)) {
+		// vm waits for return value to suspended call
+		dbg->message("script_vm_t::intern_resume_call", "waiting for return value");
+		return;
+	}
 	// vm suspended, but not from call to our methods
 	if (nparams < 0) {
 		retvalue = false;
